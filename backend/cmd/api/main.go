@@ -12,7 +12,9 @@ import (
 
 	"project-pn/internal/config"
 	"project-pn/internal/db"
+	"project-pn/internal/enrich"
 	httpapi "project-pn/internal/http"
+	"project-pn/internal/words"
 )
 
 func main() {
@@ -27,9 +29,12 @@ func main() {
 	}
 	defer pool.Close()
 
+	enricher := enrich.NewOpenAI(cfg.EnrichBaseURL, cfg.EnrichAPIKey, cfg.EnrichModel)
+	wordsService := words.New(pool, enricher, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+
 	server := &http.Server{
 		Addr:              cfg.AppAddr,
-		Handler:           httpapi.NewRouter(httpapi.Dependencies{DB: pool}),
+		Handler:           httpapi.NewRouter(httpapi.Dependencies{DB: pool, Words: wordsService, AllowedOrigins: cfg.AllowedOrigins}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

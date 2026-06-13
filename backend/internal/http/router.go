@@ -8,11 +8,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"project-pn/internal/words"
 )
 
 type Dependencies struct {
-	DB *pgxpool.Pool
+	DB             *pgxpool.Pool
+	Words          *words.Service
+	AllowedOrigins []string
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -21,8 +26,26 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 
+	if len(deps.AllowedOrigins) > 0 {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   deps.AllowedOrigins,
+			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+			AllowedHeaders:   []string{"Content-Type"},
+			AllowCredentials: false,
+			MaxAge:           300,
+		}))
+	}
+
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(deps.DB))
+
+	if deps.Words != nil {
+		h := &wordsHandler{svc: deps.Words}
+		r.Route("/api", func(api chi.Router) {
+			api.Post("/words/lookup", h.lookup)
+			api.Post("/learning-items", h.addLearningItem)
+		})
+	}
 
 	return r
 }

@@ -21,6 +21,10 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# Tauri (desktop shell)
+src-tauri/target/
+src-tauri/gen/
+
 # debug
 npm-debug.*
 yarn-debug.*

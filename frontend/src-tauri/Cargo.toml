@@ -1,0 +1,27 @@
+[package]
+name = "project-pn"
+version = "1.0.0"
+description = "Project PN desktop shell"
+authors = ["Project PN"]
+edition = "2021"
+
+# The library target hosts the shared Tauri entry point so the same code can
+# back desktop and (future) mobile builds.
+[lib]
+name = "project_pn_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
