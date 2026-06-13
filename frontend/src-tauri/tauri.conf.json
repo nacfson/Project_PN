@@ -22,7 +22,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://localhost:8080 ws://localhost:8081; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* wss://localhost:* http: https: https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": ["projectpn"],
+          "appLink": false
+        }
+      ],
+      "desktop": {
+        "schemes": ["projectpn"]
+      }
     }
   },
   "bundle": {

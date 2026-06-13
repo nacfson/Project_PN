@@ -71,7 +71,7 @@ learning_stage describes the user's broad ability level
 
 There must be one `review_states` row per `user_word_senses` row. A due-review query should join `review_states` to `user_word_senses` and exclude archived items.
 
-Future smarter scheduling can add `stability` and `difficulty`, but the MVP should not require them.
+The MVP scheduler is SM-2-flavored: `ease_factor`, `interval_days`, `review_count`, `lapse_count`. FSRS-style `stability` and item-level scheduler `difficulty` are not in MVP. The `user_word_senses.difficulty_rating` column (1-5) is the user's subjective rating, not the scheduler's difficulty parameter. Do not confuse the two.
 
 ## Review Attempts
 
@@ -83,6 +83,8 @@ Rules:
 - Store scheduler-facing grades in `review_rating`.
 - Use `metadata` for structured activity payloads such as multiple-choice options, cloze spans, evaluator version, or AI grading details.
 - Update `review_states` in the same transaction after inserting a review attempt.
+
+The full add-attempt + update-state transaction is described in `backend/docs/backend-flows.md` under "Review Flow".
 
 Example:
 

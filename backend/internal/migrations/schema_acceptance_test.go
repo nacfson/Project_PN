@@ -199,6 +199,116 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 	}
 }
 
+func TestAuthSchemaAcceptance(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for schema acceptance tests")
+	}
+
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+
+	if err := Down(migrationsPath, databaseURL, 1); err != nil {
+		t.Fatalf("down migration before auth test: %v", err)
+	}
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration for auth: %v", err)
+	}
+
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer pool.Close()
+
+	assertRejects := func(name, query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err == nil {
+			t.Fatalf("%s: expected query to fail", name)
+		}
+	}
+
+	var userID string
+	if err := pool.QueryRow(ctx, `
+		insert into users (email, native_language, target_language, password_hash)
+		values ('auth-a@example.com', 'ko', 'en', 'hash')
+		returning id
+	`).Scan(&userID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	assertRejects("duplicate email case-insensitive", `
+		insert into users (email, native_language, target_language, password_hash)
+		values ('AUTH-A@example.com', 'ko', 'en', 'hash2')
+	`)
+
+	var sessionID string
+	if err := pool.QueryRow(ctx, `
+		insert into sessions (user_id, token_hash, expires_at)
+		values ($1, 'session-hash-a', now() + interval '1 hour')
+		returning id
+	`, userID).Scan(&sessionID); err != nil {
+		t.Fatalf("insert session: %v", err)
+	}
+	assertRejects("duplicate session token hash", `
+		insert into sessions (user_id, token_hash, expires_at)
+		values ($1, 'session-hash-a', now() + interval '1 hour')
+	`, userID)
+
+	if _, err := pool.Exec(ctx, `delete from users where id = $1`, userID); err != nil {
+		t.Fatalf("delete user cascade: %v", err)
+	}
+	var sessionCount int
+	if err := pool.QueryRow(ctx, `select count(*) from sessions where id = $1`, sessionID).Scan(&sessionCount); err != nil {
+		t.Fatalf("count sessions after cascade: %v", err)
+	}
+	if sessionCount != 0 {
+		t.Fatalf("expected sessions cascade delete, got %d", sessionCount)
+	}
+
+	if err := pool.QueryRow(ctx, `
+		insert into users (email, native_language, target_language, password_hash)
+		values ('auth-b@example.com', 'ko', 'en', 'hash')
+		returning id
+	`).Scan(&userID); err != nil {
+		t.Fatalf("reinsert user: %v", err)
+	}
+
+	var magicID string
+	if err := pool.QueryRow(ctx, `
+		insert into magic_link_tokens (user_id, token_hash, expires_at)
+		values ($1, 'magic-hash-a', now() + interval '15 minutes')
+		returning id
+	`, userID).Scan(&magicID); err != nil {
+		t.Fatalf("insert magic link token: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		update magic_link_tokens set consumed_at = now() where id = $1
+	`, magicID); err != nil {
+		t.Fatalf("consume magic link token: %v", err)
+	}
+	var consumedAt *time.Time
+	if err := pool.QueryRow(ctx, `select consumed_at from magic_link_tokens where id = $1`, magicID).Scan(&consumedAt); err != nil {
+		t.Fatalf("read consumed_at: %v", err)
+	}
+	if consumedAt == nil {
+		t.Fatal("expected magic link consumed_at to be set")
+	}
+
+	var exchangeID string
+	if err := pool.QueryRow(ctx, `
+		insert into magic_login_exchanges (user_id, code_hash, expires_at)
+		values ($1, 'exchange-hash-a', now() + interval '5 minutes')
+		returning id
+	`, userID).Scan(&exchangeID); err != nil {
+		t.Fatalf("insert exchange: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		update magic_login_exchanges set consumed_at = now() where id = $1
+	`, exchangeID); err != nil {
+		t.Fatalf("consume exchange: %v", err)
+	}
+}
+
 func repoPath(t *testing.T, parts ...string) string {
 	t.Helper()
 

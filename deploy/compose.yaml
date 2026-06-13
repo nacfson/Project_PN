@@ -1,0 +1,70 @@
+name: project_pn_staging
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: project_pn
+      POSTGRES_USER: project_pn
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_staging}
+    volumes:
+      - project_pn_staging_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U project_pn -d project_pn"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    command: ["./migrate", "up"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MIGRATIONS_PATH: file://db/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      APP_ADDR: :8080
+      DATABASE_URL: ${DATABASE_URL}
+      MIGRATIONS_PATH: file://db/migrations
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      ENRICH_BASE_URL: ${ENRICH_BASE_URL:-}
+      ENRICH_API_KEY: ${ENRICH_API_KEY:-}
+      ENRICH_MODEL: ${ENRICH_MODEL:-}
+      DEFAULT_TARGET_LANG: ${DEFAULT_TARGET_LANG:-en}
+      DEFAULT_DEFINITION_LANG: ${DEFAULT_DEFINITION_LANG:-ko}
+      SESSION_TTL: ${SESSION_TTL:-720h}
+      REQUIRE_EMAIL_VERIFIED: ${REQUIRE_EMAIL_VERIFIED:-false}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost}
+      MAGIC_LINK_TTL: ${MAGIC_LINK_TTL:-15m}
+      EXCHANGE_CODE_TTL: ${EXCHANGE_CODE_TTL:-5m}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  project_pn_staging_postgres:

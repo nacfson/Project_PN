@@ -1,0 +1,20 @@
+package auth
+
+import "time"
+
+type User struct {
+	ID              string
+	Email           string
+	EmailVerifiedAt *time.Time
+	NativeLanguage  string
+	TargetLanguage  string
+}
+
+func (u User) IsEmailVerified() bool {
+	return u.EmailVerifiedAt != nil
+}
+
+type Session struct {
+	Token     string
+	ExpiresAt time.Time
+}

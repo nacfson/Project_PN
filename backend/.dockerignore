@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+docs/
+compose.yaml
+*.md
+**/*_test.go
+**/.DS_Store

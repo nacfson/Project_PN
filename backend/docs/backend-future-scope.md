@@ -27,8 +27,11 @@ speaking_attempts
 - `study_sessions` and `session_items` are useful for session summaries, but `review_attempts` is enough for MVP history.
 - `sources` and `source_words` are useful for imported articles, subtitles, PDFs, and reading workflows.
 - `tags`, `collections`, and `collection_words` are useful for exam lists, courses, and custom grouping.
-- `writing_attempts` and `speaking_attempts` can be added when productive-use workflows become first-class features.
-- `ai_enrichment_jobs` can be added when definitions, examples, cloze questions, or feedback are generated asynchronously.
+- The MVP already accepts `writing` and `speaking` as `review_attempts.activity_type` values (see `backend/docs/backend-schema-mvp.md`), so individual activity rows can be recorded today. Dedicated `writing_attempts` and `speaking_attempts` tables (with their own evaluation, feedback, and grading fields) become useful when productive-use workflows become first-class features.
+- `ai_enrichment_jobs` can be added when definitions, examples, cloze questions, or feedback are generated asynchronously. The current enrichment path is synchronous and in-request (see `backend/docs/go-backend-setup.md`), which is fine for low traffic but blocks the request while the model responds.
+- **TLS/HTTPS for production** — staging deploy uses plain HTTP (`deploy/` nginx on `:80`). Production requires a separate follow-up: certificate provisioning, `:443` only public, HTTP→HTTPS redirect, and hardened cookie/token transport assumptions. See commented TLS block in `deploy/nginx/nginx.conf`.
+- **Password reset** — not implemented; users rely on magic link or OAuth for account recovery today.
+- **Additional OAuth providers** beyond Google — future scope.
 
 ## Current MVP Reference
 

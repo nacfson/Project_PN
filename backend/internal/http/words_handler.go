@@ -85,7 +85,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.svc.AddLearningItem(r.Context(), h.svc.DefaultUserID, req.WordSenseID)
+	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -108,4 +108,11 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func userIDFromRequest(r *http.Request) string {
+	if user, ok := userFromContext(r.Context()); ok {
+		return user.ID
+	}
+	return ""
 }

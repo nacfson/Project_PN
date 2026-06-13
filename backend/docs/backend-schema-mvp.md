@@ -6,6 +6,10 @@ Build only these tables for the first version:
 
 ```text
 users
+sessions
+user_identities
+magic_link_tokens
+magic_login_exchanges
 words
 word_senses
 user_word_senses
@@ -40,6 +44,12 @@ updated_at timestamptz not null default now()
 
 Use an application-side `updated_at` update or a shared database trigger later. Do not duplicate trigger logic in every migration unless the project standardizes on that pattern.
 
+Constraint names follow the pattern `<table>_<rule>_<kind>` (for example `words_identity_unique`, `word_senses_cefr_valid`). All `up` migrations live under `backend/db/migrations/` and are applied in lexicographic order.
+
+A second migration, `000002_seed_dev_user.up.sql`, inserts a single dev user (id `00000000-0000-0000-0000-000000000001`) for local fixtures. It is not part of the schema shape; treat it as runtime data.
+
+Migration `000003_auth.up.sql` adds authentication columns and tables below.
+
 ## users
 
 Stores app users.
@@ -47,18 +57,134 @@ Stores app users.
 ```sql
 users
 - id uuid primary key default gen_random_uuid()
-- email text not null unique
+- email text not null
 - native_language text not null
 - target_language text not null
+- password_hash text
+- email_verified_at timestamptz
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 ```
 
+Required index (replaces the original case-sensitive `users_email_key` unique constraint from `000001`):
+
+```sql
+create unique index users_email_lower_idx on users (lower(email));
+```
+
 Rules:
 
-- `email` must be unique.
+- `email` uniqueness is case-insensitive via `users_email_lower_idx`. Application code normalizes with `strings.ToLower(strings.TrimSpace(email))` on every store/match.
 - `native_language` and `target_language` should use stable language codes such as `ko`, `en`, or `ja`.
-- Password/session data should not be stored here unless the backend explicitly implements local auth later.
+- `password_hash` is bcrypt for password accounts; null for OAuth-only users until they set a password.
+- `email_verified_at` is set when the user proves email ownership (magic-link consume, Google OAuth with verified email, etc.). Used by `REQUIRE_EMAIL_VERIFIED` gating.
+
+## sessions
+
+Opaque bearer sessions for authenticated API access.
+
+```sql
+sessions
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- token_hash text not null
+- expires_at timestamptz not null
+- created_at timestamptz not null default now()
+```
+
+Required constraints and indexes:
+
+```sql
+constraint sessions_token_hash_unique unique (token_hash)
+create index sessions_user_id_idx on sessions (user_id)
+create index sessions_expires_at_idx on sessions (expires_at)
+```
+
+Rules:
+
+- Plaintext tokens are never stored; only a hash is persisted.
+- Expired sessions are rejected on `Authenticate`; lazy cleanup may delete expired rows.
+- `Logout` deletes the current session row only.
+
+## user_identities
+
+Links external OAuth providers to app users.
+
+```sql
+user_identities
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- provider text not null
+- provider_subject text not null
+- email_at_provider text
+- created_at timestamptz not null default now()
+```
+
+Required constraints and indexes:
+
+```sql
+constraint user_identities_provider_subject_unique unique (provider, provider_subject)
+create index user_identities_user_id_idx on user_identities (user_id)
+```
+
+Rules:
+
+- `provider` values include `google` today.
+- Account linking to an existing password user happens only when OAuth reports `emailVerified == true` and the normalized emails match.
+
+## magic_link_tokens
+
+Single-use email login tokens.
+
+```sql
+magic_link_tokens
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- token_hash text not null
+- expires_at timestamptz not null
+- consumed_at timestamptz
+- created_at timestamptz not null default now()
+```
+
+Required constraints and indexes:
+
+```sql
+constraint magic_link_tokens_token_hash_unique unique (token_hash)
+create index magic_link_tokens_user_id_idx on magic_link_tokens (user_id)
+create index magic_link_tokens_expires_at_idx on magic_link_tokens (expires_at)
+```
+
+Rules:
+
+- `consumed_at` is set when the token is redeemed via `GET /api/auth/magic/consume`.
+- Consumption also sets `users.email_verified_at` when previously null.
+
+## magic_login_exchanges
+
+Short-lived exchange codes handed to the frontend callback (fragment `#code=`) after magic-link consume.
+
+```sql
+magic_login_exchanges
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- code_hash text not null
+- expires_at timestamptz not null
+- consumed_at timestamptz
+- created_at timestamptz not null default now()
+```
+
+Required constraints and indexes:
+
+```sql
+constraint magic_login_exchanges_code_hash_unique unique (code_hash)
+create index magic_login_exchanges_user_id_idx on magic_login_exchanges (user_id)
+create index magic_login_exchanges_expires_at_idx on magic_login_exchanges (expires_at)
+```
+
+Rules:
+
+- Single-use: `POST /api/auth/magic/exchange` sets `consumed_at` and mints a bearer session.
+- Prefer fragment delivery (`#code=`) so the code is not sent to nginx access logs; see `backend/docs/backend-flows.md`.
 
 ## words
 
@@ -80,7 +206,8 @@ words
 Required constraint:
 
 ```sql
-unique (language_code, normalized_text, part_of_speech)
+constraint words_identity_unique
+  unique (language_code, normalized_text, part_of_speech)
 ```
 
 Example:
@@ -97,6 +224,8 @@ Rules:
 - `words` is global dictionary data.
 - Do not store user progress, mastery, due dates, confidence, or notes on this table.
 - Normalize user input before inserting or looking up a word.
+- `part_of_speech` is intentionally unenforced at the DB level. The vocabulary comes from an LLM enricher that may emit `noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `interjection`, `determiner`, etc. Persist whatever the enricher returns, lowercased.
+- `language_code` is free text but should be a stable ISO 639-1 code such as `en`, `ko`, or `ja`. There is no DB-level format check by design.
 
 ## word_senses
 
@@ -120,9 +249,12 @@ word_senses
 Recommended constraints:
 
 ```sql
-unique (word_id, definition_language_code, meaning_order)
-check (meaning_order > 0)
-check (cefr_level is null or cefr_level in ('A1', 'A2', 'B1', 'B2', 'C1', 'C2'))
+constraint word_senses_order_unique
+  unique (word_id, definition_language_code, meaning_order)
+constraint word_senses_meaning_order_positive
+  check (meaning_order > 0)
+constraint word_senses_cefr_valid
+  check (cefr_level is null or cefr_level in ('A1', 'A2', 'B1', 'B2', 'C1', 'C2'))
 ```
 
 Example:
@@ -164,9 +296,12 @@ user_word_senses
 Required constraints:
 
 ```sql
-unique (user_id, word_sense_id)
-check (learning_stage in ('new', 'learning', 'recognized', 'recalled', 'usable', 'mastered', 'archived'))
-check (difficulty_rating is null or difficulty_rating between 1 and 5)
+constraint user_word_senses_user_sense_unique
+  unique (user_id, word_sense_id)
+constraint user_word_senses_learning_stage_valid
+  check (learning_stage in ('new', 'learning', 'recognized', 'recalled', 'usable', 'mastered', 'archived'))
+constraint user_word_senses_difficulty_valid
+  check (difficulty_rating is null or difficulty_rating between 1 and 5)
 ```
 
 Rules:
@@ -201,18 +336,24 @@ review_states
 Required constraints:
 
 ```sql
-unique (user_word_sense_id)
-check (interval_days >= 0)
-check (ease_factor >= 1.00)
-check (review_count >= 0)
-check (lapse_count >= 0)
+constraint review_states_user_word_sense_unique
+  unique (user_word_sense_id)
+constraint review_states_interval_nonnegative
+  check (interval_days >= 0)
+constraint review_states_ease_factor_minimum
+  check (ease_factor >= 1.00)
+constraint review_states_review_count_nonnegative
+  check (review_count >= 0)
+constraint review_states_lapse_count_nonnegative
+  check (lapse_count >= 0)
 ```
 
 Rules:
 
 - `due_at` is the source of truth for scheduling.
 - A due-review query should join `review_states` to `user_word_senses` and exclude archived items.
-- Future smarter scheduling can add `stability` and `difficulty`, but the MVP should not require them.
+- The MVP scheduler is SM-2-flavored: `ease_factor`, `interval_days`, `review_count`, `lapse_count`. FSRS-style `stability` and item-level scheduler `difficulty` are not in MVP.
+- The `user_word_senses.difficulty_rating` column (1-5) is the user's subjective rating, not the scheduler's difficulty parameter. Do not confuse the two.
 
 ## review_attempts
 
@@ -240,19 +381,23 @@ review_attempts
 Recommended constraints:
 
 ```sql
-check (activity_type in (
-  'word_to_meaning',
-  'meaning_to_word',
-  'cloze',
-  'multiple_choice',
-  'typing',
-  'speaking',
-  'writing',
-  'sentence_creation'
-))
-check (review_rating is null or review_rating in ('again', 'hard', 'good', 'easy'))
-check (response_time_ms is null or response_time_ms >= 0)
-check (confidence_rating is null or confidence_rating between 1 and 5)
+constraint review_attempts_activity_type_valid
+  check (activity_type in (
+    'word_to_meaning',
+    'meaning_to_word',
+    'cloze',
+    'multiple_choice',
+    'typing',
+    'speaking',
+    'writing',
+    'sentence_creation'
+  ))
+constraint review_attempts_review_rating_valid
+  check (review_rating is null or review_rating in ('again', 'hard', 'good', 'easy'))
+constraint review_attempts_response_time_nonnegative
+  check (response_time_ms is null or response_time_ms >= 0)
+constraint review_attempts_confidence_rating_valid
+  check (confidence_rating is null or confidence_rating between 1 and 5)
 ```
 
 Example:
@@ -295,7 +440,8 @@ examples
 Recommended constraints:
 
 ```sql
-check (difficulty_level is null or difficulty_level in ('easy', 'medium', 'hard'))
+constraint examples_difficulty_level_valid
+  check (difficulty_level is null or difficulty_level in ('easy', 'medium', 'hard'))
 ```
 
 Rules:
@@ -307,6 +453,10 @@ Rules:
 ## Suggested Relationships
 
 ```text
+users 1 -> many sessions
+users 1 -> many user_identities
+users 1 -> many magic_link_tokens
+users 1 -> many magic_login_exchanges
 users 1 -> many user_word_senses
 words 1 -> many word_senses
 word_senses 1 -> many user_word_senses
@@ -314,3 +464,35 @@ word_senses 1 -> many examples
 user_word_senses 1 -> 1 review_states
 user_word_senses 1 -> many review_attempts
 ```
+
+## Indexes
+
+These indexes are required for the documented query patterns (due-review, per-user-sense attempt history, sense-level example lookups):
+
+```sql
+create index review_states_due_at_idx
+  on review_states (due_at);
+
+create index review_attempts_user_word_sense_reviewed_at_idx
+  on review_attempts (user_word_sense_id, reviewed_at desc);
+
+create index examples_word_sense_id_idx
+  on examples (word_sense_id);
+```
+
+- `review_states_due_at_idx` powers the due-review query that filters on `due_at <= now()`.
+- `review_attempts_user_word_sense_reviewed_at_idx` powers the per-item history read in `reviewed_at desc` order.
+- `examples_word_sense_id_idx` powers the sense-level example join used by the lookup response.
+
+## Open / Unenforced Fields
+
+A small set of fields are intentionally left unenforced at the DB level so the LLM enricher can drive their content:
+
+| Field | Reason |
+|-------|--------|
+| `words.part_of_speech` | Enricher emits one entry per POS; the project keeps the set open. Lowercase on persist. |
+| `words.language_code` | Free text by design. Treat as ISO 639-1 in application code. |
+| `word_senses.definition_language_code` | Same as `words.language_code`. |
+| `user_word_senses.personal_note`, `source_context` | Free-form user text. |
+
+The above do not have a check constraint. Do not add one without first freezing the enricher's output contract.

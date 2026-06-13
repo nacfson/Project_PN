@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -13,6 +14,12 @@ const (
 	defaultUserID         = "00000000-0000-0000-0000-000000000001"
 	defaultTargetLang     = "en"
 	defaultDefinitionLang = "ko"
+
+	defaultSessionTTL      = 720 * time.Hour
+	defaultMagicLinkTTL    = 15 * time.Minute
+	defaultExchangeCodeTTL = 5 * time.Minute
+	defaultEmailProvider   = "log"
+	defaultAppPublicURL    = "http://localhost:8080"
 
 	// Web (Expo dev) and Tauri desktop WebView origins that may call the API.
 	// Tauri serves the bundle from tauri://localhost (macOS) and
@@ -34,6 +41,16 @@ type Config struct {
 	DefaultDefinitionLang string
 
 	AllowedOrigins []string
+
+	SessionTTL            time.Duration
+	RequireEmailVerified  bool
+	EmailProvider         string
+	ResendAPIKey          string
+	EmailFrom             string
+	AppPublicURL          string
+	MagicLinkTTL          time.Duration
+	ExchangeCodeTTL       time.Duration
+	GoogleClientIDs       []string
 }
 
 func Load() Config {
@@ -51,6 +68,16 @@ func Load() Config {
 		DefaultDefinitionLang: envOrDefault("DEFAULT_DEFINITION_LANG", defaultDefinitionLang),
 
 		AllowedOrigins: splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
+
+		SessionTTL:           durationOrDefault("SESSION_TTL", defaultSessionTTL),
+		RequireEmailVerified: envBool("REQUIRE_EMAIL_VERIFIED", false),
+		EmailProvider:        envOrDefault("EMAIL_PROVIDER", defaultEmailProvider),
+		ResendAPIKey:         os.Getenv("RESEND_API_KEY"),
+		EmailFrom:            os.Getenv("EMAIL_FROM"),
+		AppPublicURL:         envOrDefault("APP_PUBLIC_URL", defaultAppPublicURL),
+		MagicLinkTTL:         durationOrDefault("MAGIC_LINK_TTL", defaultMagicLinkTTL),
+		ExchangeCodeTTL:      durationOrDefault("EXCHANGE_CODE_TTL", defaultExchangeCodeTTL),
+		GoogleClientIDs:      splitAndTrim(os.Getenv("GOOGLE_CLIENT_IDS")),
 	}
 }
 
@@ -71,4 +98,28 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func durationOrDefault(key string, fallback time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envBool(key string, fallback bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }

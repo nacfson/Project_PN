@@ -11,13 +11,17 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"project-pn/internal/auth"
 	"project-pn/internal/words"
 )
 
 type Dependencies struct {
-	DB             *pgxpool.Pool
-	Words          *words.Service
-	AllowedOrigins []string
+	DB                   *pgxpool.Pool
+	Words                *words.Service
+	Auth                 *auth.Service
+	OAuthVerifiers       map[string]auth.OAuthVerifier
+	AllowedOrigins       []string
+	RequireEmailVerified bool
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -30,7 +34,7 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
 			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
-			AllowedHeaders:   []string{"Content-Type"},
+			AllowedHeaders:   []string{"Content-Type", "Authorization"},
 			AllowCredentials: false,
 			MaxAge:           300,
 		}))
@@ -39,11 +43,36 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(deps.DB))
 
+	if deps.Auth != nil {
+		ah := &authHandler{svc: deps.Auth, oauthVerifiers: deps.OAuthVerifiers}
+
+		r.Route("/api/auth", func(authRouter chi.Router) {
+			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/register", ah.register)
+			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/login", ah.login)
+			authRouter.With(authIPRateLimit()).Post("/oauth/{provider}", ah.oauthLogin)
+			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/magic-link", ah.magicLink)
+			authRouter.With(consumeIPRateLimit()).Get("/magic/consume", ah.magicConsume)
+			authRouter.With(consumeIPRateLimit()).Post("/magic/exchange", ah.magicExchange)
+
+			authRouter.Group(func(protected chi.Router) {
+				protected.Use(authMiddleware(deps.Auth))
+				protected.Get("/me", ah.me)
+				protected.Post("/logout", ah.logout)
+			})
+		})
+	}
+
 	if deps.Words != nil {
-		h := &wordsHandler{svc: deps.Words}
+		wh := &wordsHandler{svc: deps.Words}
 		r.Route("/api", func(api chi.Router) {
-			api.Post("/words/lookup", h.lookup)
-			api.Post("/learning-items", h.addLearningItem)
+			api.Group(func(protected chi.Router) {
+				if deps.Auth != nil {
+					protected.Use(authMiddleware(deps.Auth))
+					protected.Use(requireVerified(deps.RequireEmailVerified))
+				}
+				protected.Post("/words/lookup", wh.lookup)
+				protected.Post("/learning-items", wh.addLearningItem)
+			})
 		})
 	}
 

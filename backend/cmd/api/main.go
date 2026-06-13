@@ -13,7 +13,10 @@ import (
 	"project-pn/internal/config"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
+	"project-pn/internal/auth"
+	"project-pn/internal/email"
 	httpapi "project-pn/internal/http"
+	"project-pn/internal/oauth"
 	"project-pn/internal/words"
 )
 
@@ -30,11 +33,32 @@ func main() {
 	defer pool.Close()
 
 	enricher := enrich.NewOpenAI(cfg.EnrichBaseURL, cfg.EnrichAPIKey, cfg.EnrichModel)
+	mailer := email.NewProvider(cfg.EmailProvider, cfg.ResendAPIKey, cfg.EmailFrom)
+	authService := auth.New(pool, mailer, auth.Options{
+		SessionTTL:            cfg.SessionTTL,
+		MagicLinkTTL:          cfg.MagicLinkTTL,
+		ExchangeCodeTTL:       cfg.ExchangeCodeTTL,
+		DefaultDefinitionLang: cfg.DefaultDefinitionLang,
+		DefaultTargetLang:     cfg.DefaultTargetLang,
+		AppPublicURL:          cfg.AppPublicURL,
+	})
 	wordsService := words.New(pool, enricher, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
+	oauthVerifiers := map[string]auth.OAuthVerifier{}
+	if len(cfg.GoogleClientIDs) > 0 {
+		oauthVerifiers["google"] = oauth.NewGoogleVerifier(cfg.GoogleClientIDs)
+	}
+
 	server := &http.Server{
-		Addr:              cfg.AppAddr,
-		Handler:           httpapi.NewRouter(httpapi.Dependencies{DB: pool, Words: wordsService, AllowedOrigins: cfg.AllowedOrigins}),
+		Addr: cfg.AppAddr,
+		Handler: httpapi.NewRouter(httpapi.Dependencies{
+			DB:                   pool,
+			Words:                wordsService,
+			Auth:                 authService,
+			OAuthVerifiers:       oauthVerifiers,
+			AllowedOrigins:       cfg.AllowedOrigins,
+			RequireEmailVerified: cfg.RequireEmailVerified,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
