@@ -56,10 +56,16 @@ fastlane/test_output
 # Secrets & local env
 .env
 .env.*
+!.env.example
 *.pem
 *.p12
 GoogleService-Info.plist
 Secrets.swift
+
+# Go
+bin/
+*.test
+coverage.out
 
 # IDE
 .idea/

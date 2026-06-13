@@ -15,8 +15,13 @@ Core backend principle:
 
 작업의 종류에 따라 코드를 수정하기 전 아래의 연관 문서를 반드시 먼저 읽고 지시사항을 따르세요.
 
-- **Backend schema, PostgreSQL migrations, vocabulary data model, spaced repetition, review history, or learning-state logic 수정 시**: `docs/backend-schema-brainstorm.md`
-- **MVP scope 변경, study sessions, imports, tags, collections, AI enrichment, writing, or speaking 기능 추가 시**: `docs/backend-schema-brainstorm.md`
+- **Backend overview, backend target, product goal, or core learning principle 확인 시**: `backend/docs/backend-overview.md`
+- **Backend schema, PostgreSQL migrations, vocabulary data model, table constraints, or relationships 수정 시**: `backend/docs/backend-schema-mvp.md`
+- **Spaced repetition, review history, learning-stage, scheduling, or append-only attempt logic 수정 시**: `backend/docs/learning-review-model.md`
+- **Add-word flow, due-review query, or review transaction flow 수정 시**: `backend/docs/backend-flows.md`
+- **Go backend setup, local PostgreSQL setup, migration commands, health checks, or DB connection logic 수정 시**: `backend/docs/go-backend-setup.md`
+- **MVP scope 변경, study sessions, imports, tags, collections, AI enrichment, writing, or speaking 기능 추가 시**: `backend/docs/backend-future-scope.md`
+- **Migration tests, backend acceptance criteria, or schema behavior 검증 작성 시**: `backend/docs/backend-acceptance-tests.md`
 
 ## Backend Rules
 
@@ -36,23 +41,17 @@ Core backend principle:
 - Do not store user mastery, schedule, confidence, notes, or progress on global `words` or `word_senses`.
 - Do not reintroduce `user_words` as the main learning table.
 
+## Frontend Rules
+
+- Use React Native / Expo with TypeScript targeting Web, iOS, and Android.
+- Ensure all screens use responsive flexbox layouts to adapt to mobile screens and web browser layouts seamlessly.
+- Model client-side interfaces (`frontend/src/types`) to match backend DTO structs exactly.
+- Isolate data fetching in repository wrappers within `frontend/src/api/` instead of triggering inline Axios/Fetch calls in screen UI code.
+- Prefer standard React Native styling or a clean Tailwind configuration (if requested) but default to standard CSS-in-JS StyleSheet.
+
 ## Future Scope Rules
 
-The following are future expansion tables unless the user explicitly expands MVP scope:
-
-- `study_sessions`
-- `session_items`
-- `collocations`
-- `word_families`
-- `sources`
-- `source_words`
-- `tags`
-- `user_word_tags`
-- `collections`
-- `collection_words`
-- `ai_enrichment_jobs`
-- `writing_attempts`
-- `speaking_attempts`
+Future expansion tables are listed in `backend/docs/backend-future-scope.md` and remain out of MVP unless the user explicitly expands scope.
 
 ## Work Rules
 
@@ -61,3 +60,4 @@ The following are future expansion tables unless the user explicitly expands MVP
 - Do not run destructive commands without explicit user approval.
 - After code edits, run the relevant build or validation command when one exists.
 - For documentation-only edits, verify by reading/searching the changed document.
+
