@@ -1,56 +1,16 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
-import { SensePicker } from '../components/SensePicker';
-import { WordChip, type WordStatus } from '../components/WordChip';
-import { useSenseFlow } from '../hooks/useSenseFlow';
+import { WordChip } from '../components/WordChip';
 import { TappablePassage } from '../components/TappablePassage';
+import { useAddQueue } from '../hooks/useAddQueue';
 import type { PosFilter } from '../types';
 
 export function CaptureScreen() {
   const [passage, setPassage] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [statuses, setStatuses] = useState<Record<string, WordStatus>>({});
-
-  const queue = useRef<string[]>([]);
-  const queueIndex = useRef(0);
-  const currentWord = useRef<string | null>(null);
-
-  const setStatus = useCallback((word: string, status: WordStatus) => {
-    setStatuses((prev) => ({ ...prev, [word]: status }));
-  }, []);
-
-  const flowRef = useRef<ReturnType<typeof useSenseFlow> | null>(null);
-
-  const advance = useCallback(() => {
-    queueIndex.current += 1;
-    const next = queue.current[queueIndex.current];
-    if (next) {
-      currentWord.current = next;
-      setStatus(next, 'pending');
-      void flowRef.current?.lookup(next, pos);
-    } else {
-      currentWord.current = null;
-    }
-  }, [pos, setStatus]);
-
-  const onAdded = useCallback(() => {
-    if (currentWord.current) {
-      setStatus(currentWord.current, 'added');
-    }
-    advance();
-  }, [advance, setStatus]);
-
-  const onDismiss = useCallback(() => {
-    if (currentWord.current && statuses[currentWord.current] !== 'added') {
-      setStatus(currentWord.current, 'idle');
-    }
-    advance();
-  }, [advance, setStatus, statuses]);
-
-  const flow = useSenseFlow({ onAdded, onDismiss });
-  flowRef.current = flow;
+  const { enqueueMany, statusOf } = useAddQueue();
 
   const toggle = useCallback((word: string) => {
     setSelected((prev) => {
@@ -65,15 +25,14 @@ export function CaptureScreen() {
   }, []);
 
   const addSelected = () => {
-    const words = Array.from(selected).filter((w) => statuses[w] !== 'added');
+    const words = Array.from(selected).filter((w) => {
+      const status = statusOf(w);
+      return status !== 'added' && status !== 'pending';
+    });
     if (words.length === 0) {
       return;
     }
-    queue.current = words;
-    queueIndex.current = 0;
-    currentWord.current = words[0];
-    words.forEach((w) => setStatus(w, 'pending'));
-    void flow.lookup(words[0], pos);
+    enqueueMany(words, pos);
   };
 
   const selectedList = Array.from(selected);
@@ -107,7 +66,7 @@ export function CaptureScreen() {
                 <WordChip
                   key={w}
                   word={w}
-                  status={statuses[w] ?? 'idle'}
+                  status={statusOf(w)}
                   onRemove={() => toggle(w)}
                 />
               ))}
@@ -123,18 +82,6 @@ export function CaptureScreen() {
           <Text style={styles.addLabel}>Add selected ({selected.size})</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      <SensePicker
-        visible={flow.pickerVisible}
-        query={flow.query}
-        options={flow.options}
-        generating={flow.generating}
-        errorMessage={flow.error}
-        onConfirm={flow.confirm}
-        onForceExisting={flow.forceExisting}
-        onForceWithPos={flow.forceWithPos}
-        onClose={flow.close}
-      />
     </View>
   );
 }

@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import type { PartOfSpeech, SenseOption } from '../types';
+import { bestMatch } from '../utils/senses';
 
 const CONCRETE_POS: PartOfSpeech[] = [
   'noun',
@@ -36,15 +37,6 @@ interface SensePickerProps {
   // "None of these match" with nothing selected: a concrete POS is required.
   onForceWithPos: (pos: PartOfSpeech) => void;
   onClose: () => void;
-}
-
-function bestMatch(options: SenseOption[]): SenseOption | null {
-  if (options.length === 0) {
-    return null;
-  }
-  return options.reduce((best, current) =>
-    current.meaning_order < best.meaning_order ? current : best,
-  );
 }
 
 export function SensePicker({

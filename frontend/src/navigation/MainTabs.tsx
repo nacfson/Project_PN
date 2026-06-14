@@ -1,4 +1,6 @@
+import { StyleSheet, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { QueueBanner } from '../components/QueueBanner';
 import { AddScreen } from './AddScreen';
 import { HomeScreen } from '../features/learn/HomeScreen';
 import { MyWordsScreen } from '../features/words/MyWordsScreen';
@@ -24,25 +26,34 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   const { colors } = useTheme();
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-        },
-      }}
-    >
-      <Tab.Screen name="Learn" component={HomeScreen} />
-      <Tab.Screen name="Words" component={MyWordsScreen} />
-      <Tab.Screen name="Add" component={AddScreen} />
-      <Tab.Screen name="Practice" component={PracticeScreen} />
-      <Tab.Screen
-        name="Profile"
-        children={() => <ProfileScreen onLogout={onLogout} />}
-      />
-    </Tab.Navigator>
+    <View style={styles.root}>
+      <QueueBanner />
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+          },
+        }}
+      >
+        <Tab.Screen name="Learn" component={HomeScreen} />
+        <Tab.Screen name="Words" component={MyWordsScreen} />
+        <Tab.Screen name="Add" component={AddScreen} />
+        <Tab.Screen name="Practice" component={PracticeScreen} />
+        <Tab.Screen
+          name="Profile"
+          children={() => <ProfileScreen onLogout={onLogout} />}
+        />
+      </Tab.Navigator>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

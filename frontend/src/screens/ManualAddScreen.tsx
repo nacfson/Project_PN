@@ -1,25 +1,25 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
-import { SensePicker } from '../components/SensePicker';
 import { WordChip } from '../components/WordChip';
-import { useSenseFlow } from '../hooks/useSenseFlow';
+import { useAddQueue } from '../hooks/useAddQueue';
 import type { PosFilter } from '../types';
 
 export function ManualAddScreen() {
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [added, setAdded] = useState<string[]>([]);
-
-  const onAdded = useCallback(() => {
-    setAdded((prev) => (word.trim() ? [word.trim(), ...prev] : prev));
-    setWord('');
-  }, [word]);
-
-  const flow = useSenseFlow({ onAdded });
+  const { enqueue, statusOf } = useAddQueue();
 
   const submit = () => {
-    void flow.lookup(word, pos);
+    const trimmed = word.trim();
+    if (trimmed.length === 0) {
+      return;
+    }
+
+    enqueue(trimmed, pos);
+    setAdded((prev) => [trimmed, ...prev.filter((entry) => entry !== trimmed)]);
+    setWord('');
   };
 
   return (
@@ -53,24 +53,12 @@ export function ManualAddScreen() {
             <Text style={styles.label}>Added</Text>
             <View style={styles.addedRow}>
               {added.map((w, index) => (
-                <WordChip key={`${w}-${index}`} word={w} status="added" />
+                <WordChip key={`${w}-${index}`} word={w} status={statusOf(w)} />
               ))}
             </View>
           </View>
         )}
       </ScrollView>
-
-      <SensePicker
-        visible={flow.pickerVisible}
-        query={flow.query}
-        options={flow.options}
-        generating={flow.generating}
-        errorMessage={flow.error}
-        onConfirm={flow.confirm}
-        onForceExisting={flow.forceExisting}
-        onForceWithPos={flow.forceWithPos}
-        onClose={flow.close}
-      />
     </View>
   );
 }

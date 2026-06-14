@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { me } from './src/api/auth';
 import { sessionStorage } from './src/api/storage';
 import { AuthCallbackHandler } from './src/components/AuthCallbackHandler';
+import { AddQueueProvider } from './src/hooks/useAddQueue';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
@@ -60,7 +61,9 @@ function AppContent() {
     <>
       <AuthCallbackHandler onAuthenticated={onAuthenticated} onError={setCallbackError} />
       {authState === 'authenticated' ? (
-        <RootNavigator onLogout={() => setAuthState('unauthenticated')} />
+        <AddQueueProvider>
+          <RootNavigator onLogout={() => setAuthState('unauthenticated')} />
+        </AddQueueProvider>
       ) : (
         <SafeAreaView style={[styles.safe, { backgroundColor: colors.surfaceAlt }]}>
           <StatusBar style="dark" />
