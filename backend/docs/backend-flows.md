@@ -59,6 +59,24 @@ Rules:
 
 Steps 5 and 6 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
 
+## Learning Items List Flow
+
+1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app`.
+2. API derives the acting user from the bearer session.
+3. API queries `user_word_senses` joined to `word_senses`, `words`, and `review_states`.
+4. API excludes rows where `user_word_senses.archived_at is not null`.
+5. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
+6. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
+7. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
+
+Rules:
+
+- `limit` defaults to 50 and is capped at 100.
+- `descending` defaults to `true`; `false` returns oldest first.
+- `q` is optional prefix search. It must be applied in SQL, not by loading the full user list into application memory.
+- Use keyset pagination, not offset pagination.
+- Do not return `total_count` in MVP.
+
 ## Lookup Flow (cache miss → enrich → persist)
 
 This is the `POST /api/words/lookup` happy path when the global cache has no row for the lookup key:
@@ -107,6 +125,7 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 | `POST /api/auth/logout` | Logout | `auth.Service.Logout` |
 | `POST /api/words/lookup` (no `force`) | Lookup | `words.Service.Lookup` |
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
+| `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |
 | `POST /api/learning-items` | Add-Word (steps 5-6) | `words.Service.AddLearningItem` |
 | `GET /healthz` | liveness | n/a |
 | `GET /readyz` | readiness (DB ping) | n/a |

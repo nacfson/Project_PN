@@ -71,6 +71,7 @@ func NewRouter(deps Dependencies) http.Handler {
 					protected.Use(requireVerified(deps.RequireEmailVerified))
 				}
 				protected.Post("/words/lookup", wh.lookup)
+				protected.Get("/learning-items", wh.listLearningItems)
 				protected.Post("/learning-items", wh.addLearningItem)
 			})
 		})

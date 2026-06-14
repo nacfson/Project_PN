@@ -24,18 +24,27 @@ interface LoginScreenProps {
   onAuthenticated: () => void;
 }
 
-export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [magicSent, setMagicSent] = useState(false);
+const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
+const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
 
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
-  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+const hasGoogleClient =
+  Platform.OS === 'ios'
+    ? iosClientId.length > 0
+    : Platform.OS === 'android'
+      ? androidClientId.length > 0
+      : webClientId.length > 0;
 
+interface GoogleSignInButtonProps {
+  busy: boolean;
+  onError: (message: string) => void;
+  onBusyChange: (busy: boolean) => void;
+  onAuthenticated: () => void;
+}
+
+// Isolated so Google.useAuthRequest (which throws when no client ID is set for
+// the current platform) only runs when a client ID is actually configured.
+function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: GoogleSignInButtonProps) {
   const useCustomRedirect = Platform.OS !== 'web' || isTauri();
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: AUTH_CALLBACK_SCHEME,
@@ -49,13 +58,6 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     ...(useCustomRedirect ? { redirectUri } : {}),
   });
 
-  const hasGoogleClient =
-    Platform.OS === 'ios'
-      ? iosClientId.length > 0
-      : Platform.OS === 'android'
-        ? androidClientId.length > 0
-        : webClientId.length > 0;
-
   useEffect(() => {
     if (googleResponse?.type !== 'success') {
       return;
@@ -67,19 +69,43 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       null;
 
     if (!idToken) {
-      setError('Google sign-in did not return an ID token.');
+      onError('Google sign-in did not return an ID token.');
       return;
     }
 
-    setBusy(true);
-    setError(null);
+    onBusyChange(true);
+    onError('');
     loginWithGoogle(idToken)
       .then(() => onAuthenticated())
       .catch((err: unknown) => {
-        setError(err instanceof ApiError ? err.message : 'Google sign-in failed');
+        onError(err instanceof ApiError ? err.message : 'Google sign-in failed');
       })
-      .finally(() => setBusy(false));
-  }, [googleResponse, onAuthenticated]);
+      .finally(() => onBusyChange(false));
+  }, [googleResponse, onAuthenticated, onBusyChange, onError]);
+
+  const googleDisabled = busy || !googleRequest;
+
+  return (
+    <TouchableOpacity
+      onPress={() => {
+        onError('');
+        void promptGoogleAsync();
+      }}
+      disabled={googleDisabled}
+      style={[styles.googleButton, googleDisabled && styles.buttonDisabled]}
+    >
+      <Text style={styles.googleLabel}>Continue with Google</Text>
+    </TouchableOpacity>
+  );
+}
+
+export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [magicSent, setMagicSent] = useState(false);
 
   const trimmedEmail = email.trim();
 
@@ -137,8 +163,6 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       </View>
     );
   }
-
-  const googleDisabled = busy || !googleRequest || !hasGoogleClient;
 
   return (
     <KeyboardAvoidingView
@@ -216,18 +240,14 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           <Text style={styles.secondaryLabel}>Email me a sign-in link</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => {
-            setError(null);
-            void promptGoogleAsync();
-          }}
-          disabled={googleDisabled}
-          style={[styles.googleButton, googleDisabled && styles.buttonDisabled]}
-        >
-          <Text style={styles.googleLabel}>Continue with Google</Text>
-        </TouchableOpacity>
-
-        {!hasGoogleClient ? (
+        {hasGoogleClient ? (
+          <GoogleSignInButton
+            busy={busy}
+            onError={setError}
+            onBusyChange={setBusy}
+            onAuthenticated={onAuthenticated}
+          />
+        ) : (
           <Text style={styles.platformHint}>
             {Platform.OS === 'ios'
               ? 'Set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in frontend/.env'
@@ -235,7 +255,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 ? 'Set EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in frontend/.env'
                 : 'Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in frontend/.env'}
           </Text>
-        ) : null}
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

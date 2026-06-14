@@ -79,6 +79,13 @@ func TestProtectedRoutesRequireAuth(t *testing.T) {
 			t.Fatalf("%s: expected 401, got %d", path, rec.Code)
 		}
 	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/learning-items", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("GET /api/learning-items: expected 401, got %d", rec.Code)
+	}
 }
 
 func TestRegisterAndLogin(t *testing.T) {

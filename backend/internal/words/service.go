@@ -2,9 +2,12 @@ package words
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -18,6 +21,7 @@ var (
 	ErrSenseNotFound  = errors.New("words: word sense not found")
 	ErrForceAmbiguous = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
 	ErrNoSenses       = errors.New("words: no senses available and generation is disabled")
+	ErrInvalidCursor  = errors.New("words: invalid learning items cursor")
 )
 
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -35,6 +39,11 @@ type Service struct {
 	DefaultUserID  string
 	TargetLang     string
 	DefinitionLang string
+}
+
+type learningItemsCursorPayload struct {
+	AddedAt time.Time `json:"added_at"`
+	ID      string    `json:"id"`
 }
 
 func New(pool *pgxpool.Pool, enricher enrich.Enricher, defaultUserID, targetLang, definitionLang string) *Service {
@@ -241,6 +250,119 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID strin
 		return LearningItem{}, err
 	}
 	return item, nil
+}
+
+// ListLearningItems returns active personal learning items with keyset pagination.
+func (s *Service) ListLearningItems(ctx context.Context, userID string, params ListLearningItemsParams) (LearningItemsPage, error) {
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	queryLimit := limit + 1
+
+	args := []any{userID, queryLimit}
+	searchPredicate := ""
+	if search := normalize(params.Search); search != "" {
+		args = append(args, search+"%")
+		searchPredicate = fmt.Sprintf("and w.normalized_text like $%d", len(args))
+	}
+
+	cursorPredicate := ""
+	if params.Cursor != nil {
+		args = append(args, params.Cursor.AddedAt, params.Cursor.ID)
+		addedAtPlaceholder := len(args) - 1
+		idPlaceholder := len(args)
+		if params.Descending {
+			cursorPredicate = fmt.Sprintf("and (uws.added_at, uws.id) < ($%d::timestamptz, $%d::uuid)", addedAtPlaceholder, idPlaceholder)
+		} else {
+			cursorPredicate = fmt.Sprintf("and (uws.added_at, uws.id) > ($%d::timestamptz, $%d::uuid)", addedAtPlaceholder, idPlaceholder)
+		}
+	}
+
+	orderDirection := "asc"
+	if params.Descending {
+		orderDirection = "desc"
+	}
+
+	query := fmt.Sprintf(
+		`select uws.id::text, uws.word_sense_id::text, w.id::text,
+		        w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
+		        ws.definition_language_code, ws.definition, ws.short_definition, ws.cefr_level, ws.meaning_order,
+		        uws.learning_stage, rs.due_at, uws.added_at
+		 from user_word_senses uws
+		 join word_senses ws on ws.id = uws.word_sense_id
+		 join words w on w.id = ws.word_id
+		 join review_states rs on rs.user_word_sense_id = uws.id
+		 where uws.user_id = $1::uuid
+		   and uws.archived_at is null
+		   %s
+		   %s
+		 order by uws.added_at %s, uws.id %s
+		 limit $2`,
+		searchPredicate, cursorPredicate, orderDirection, orderDirection,
+	)
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return LearningItemsPage{}, fmt.Errorf("words: list learning items: %w", err)
+	}
+	defer rows.Close()
+
+	var items []LearningItemListItem
+	for rows.Next() {
+		var item LearningItemListItem
+		if err := rows.Scan(
+			&item.ID, &item.WordSenseID, &item.WordID,
+			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+			&item.DefinitionLanguageCode, &item.Definition, &item.ShortDefinition, &item.CEFRLevel, &item.MeaningOrder,
+			&item.LearningStage, &item.DueAt, &item.AddedAt,
+		); err != nil {
+			return LearningItemsPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return LearningItemsPage{}, err
+	}
+
+	var nextCursor *string
+	if len(items) > limit {
+		last := items[limit-1]
+		cursor := encodeLearningItemsCursor(LearningItemsCursor{AddedAt: last.AddedAt, ID: last.ID})
+		nextCursor = &cursor
+		items = items[:limit]
+	}
+	if items == nil {
+		items = []LearningItemListItem{}
+	}
+	return LearningItemsPage{Items: items, NextCursor: nextCursor}, nil
+}
+
+func DecodeLearningItemsCursor(value string) (LearningItemsCursor, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return LearningItemsCursor{}, ErrInvalidCursor
+	}
+
+	raw, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return LearningItemsCursor{}, ErrInvalidCursor
+	}
+
+	var payload learningItemsCursorPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return LearningItemsCursor{}, ErrInvalidCursor
+	}
+	if payload.AddedAt.IsZero() || strings.TrimSpace(payload.ID) == "" {
+		return LearningItemsCursor{}, ErrInvalidCursor
+	}
+	return LearningItemsCursor{AddedAt: payload.AddedAt, ID: payload.ID}, nil
+}
+
+func encodeLearningItemsCursor(cursor LearningItemsCursor) string {
+	payload := learningItemsCursorPayload{AddedAt: cursor.AddedAt, ID: cursor.ID}
+	raw, _ := json.Marshal(payload)
+	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
 func (s *Service) fillLangs(langCode, defLangCode string) (string, string) {

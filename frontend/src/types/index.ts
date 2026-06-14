@@ -56,3 +56,26 @@ export interface LearningItem {
   learning_stage: string;
   due_at: string;
 }
+
+export interface LearningItemListItem {
+  id: string;
+  word_sense_id: string;
+  word_id: string;
+  language_code: string;
+  lemma: string;
+  normalized_text: string;
+  part_of_speech: string;
+  definition_language_code: string;
+  definition: string;
+  short_definition: string | null;
+  cefr_level: string | null;
+  meaning_order: number;
+  learning_stage: string;
+  due_at: string;
+  added_at: string;
+}
+
+export interface LearningItemsPage {
+  items: LearningItemListItem[];
+  next_cursor: string | null;
+}

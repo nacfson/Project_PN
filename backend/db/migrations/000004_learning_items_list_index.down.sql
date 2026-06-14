@@ -1,0 +1,1 @@
+drop index if exists user_word_senses_active_user_added_idx;

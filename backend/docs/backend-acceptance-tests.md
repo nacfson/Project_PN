@@ -40,7 +40,7 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 
 ### Auth — protection and sessions
 
-- `POST /api/words/lookup`, `POST /api/learning-items`, and `GET /api/auth/me` return **401** without `Authorization: Bearer`.
+- `POST /api/words/lookup`, `GET /api/learning-items`, `POST /api/learning-items`, and `GET /api/auth/me` return **401** without `Authorization: Bearer`.
 - `POST /api/auth/register` then `GET /api/auth/me` with the returned token returns **200** with user profile.
 - `POST /api/auth/login` with valid credentials returns **200** `{ token, expires_at }`.
 
@@ -81,6 +81,7 @@ HTTP tests inject a stub `OAuthVerifier` (production uses `google.golang.org/api
 - `POST /api/words/lookup` with `force: true` and `part_of_speech=Any` (or empty) and no `word_id` returns 400 "force requires a concrete part_of_speech or a word_id".
 - `POST /api/words/lookup` with no cache hit and no enricher configured returns 503 "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually".
 - `POST /api/learning-items` with missing or empty `word_sense_id` returns 400.
+- `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
 
 When the future `POST /api/reviews` endpoint lands, add HTTP-layer tests for the review transaction (insert attempt + update `review_states` in one transaction, archived item excluded from due count, scheduler updates only `review_states.due_at`).

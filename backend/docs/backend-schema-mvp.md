@@ -44,7 +44,36 @@ updated_at timestamptz not null default now()
 
 Use an application-side `updated_at` update or a shared database trigger later. Do not duplicate trigger logic in every migration unless the project standardizes on that pattern.
 
-Constraint names follow the pattern `<table>_<rule>_<kind>` (for example `words_identity_unique`, `word_senses_cefr_valid`). All `up` migrations live under `backend/db/migrations/` and are applied in lexicographic order.
+Constraint names follow the pattern `<table>_<rule>_<kind>` (for example `words_identity_unique`, `word_senses_cefr_valid`).
+
+## SQL Migration File Organization
+
+Migration files are chronological, not domain-separated.
+
+Required structure:
+
+```text
+backend/db/migrations/
+- 000001_init_mvp_schema.up.sql
+- 000001_init_mvp_schema.down.sql
+- 000002_seed_dev_user.up.sql
+- 000002_seed_dev_user.down.sql
+- 000003_auth.up.sql
+- 000003_auth.down.sql
+- 000004_learning_items_list_index.up.sql
+- 000004_learning_items_list_index.down.sql
+- 000005_words_prefix_search.up.sql
+- 000005_words_prefix_search.down.sql
+```
+
+Rules:
+
+- All `up` and `down` migrations live under `backend/db/migrations/`.
+- Migrations are applied in lexicographic order by `golang-migrate`.
+- Do not create domain SQL source files such as `words.sql`, `reviews.sql`, or `auth.sql` as the executable migration source.
+- When a change belongs to a domain, encode that in the migration name, for example `000004_learning_items_list_index.up.sql`.
+- Every new `*.up.sql` migration must have a matching `*.down.sql` rollback migration.
+- Keep domain explanations in `backend/docs/*.md`; keep executable database changes in numbered migration files.
 
 A second migration, `000002_seed_dev_user.up.sql`, inserts a single dev user (id `00000000-0000-0000-0000-000000000001`) for local fixtures. It is not part of the schema shape; treat it as runtime data.
 
@@ -312,6 +341,8 @@ Rules:
 - Different users can learn the same `word_sense` with independent notes, stages, and schedules.
 - `learning_stage` is a high-level capability label, not the scheduling source of truth.
 - `archived_at` should be set when the user no longer wants the item in active review.
+- Active user list queries should use a partial index on `(user_id, added_at desc, id desc) where archived_at is null`.
+- Learning-item prefix search should filter through `words.normalized_text like $query || '%'` and use a B-tree `text_pattern_ops` index.
 
 ## review_states
 
@@ -467,7 +498,7 @@ user_word_senses 1 -> many review_attempts
 
 ## Indexes
 
-These indexes are required for the documented query patterns (due-review, per-user-sense attempt history, sense-level example lookups):
+These indexes are required for the documented query patterns (due-review, per-user-sense attempt history, sense-level example lookups, active learning-item lists, and prefix search):
 
 ```sql
 create index review_states_due_at_idx
@@ -478,11 +509,20 @@ create index review_attempts_user_word_sense_reviewed_at_idx
 
 create index examples_word_sense_id_idx
   on examples (word_sense_id);
+
+create index user_word_senses_active_user_added_idx
+  on user_word_senses (user_id, added_at desc, id desc)
+  where archived_at is null;
+
+create index words_normalized_text_prefix_idx
+  on words (normalized_text text_pattern_ops);
 ```
 
 - `review_states_due_at_idx` powers the due-review query that filters on `due_at <= now()`.
 - `review_attempts_user_word_sense_reviewed_at_idx` powers the per-item history read in `reviewed_at desc` order.
 - `examples_word_sense_id_idx` powers the sense-level example join used by the lookup response.
+- `user_word_senses_active_user_added_idx` powers cursor pagination for the authenticated user's active learning list.
+- `words_normalized_text_prefix_idx` powers prefix search for normalized vocabulary text without adding a new PostgreSQL extension.
 
 ## Open / Unenforced Fields
 

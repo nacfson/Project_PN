@@ -40,3 +40,40 @@ type LearningItem struct {
 	LearningStage string    `json:"learning_stage"`
 	DueAt         time.Time `json:"due_at"`
 }
+
+// LearningItemsPage is the paginated response for a user's active learning set.
+type LearningItemsPage struct {
+	Items      []LearningItemListItem `json:"items"`
+	NextCursor *string                `json:"next_cursor"`
+}
+
+// LearningItemListItem is a flattened user-owned word sense for list views.
+type LearningItemListItem struct {
+	ID                     string    `json:"id"`
+	WordSenseID            string    `json:"word_sense_id"`
+	WordID                 string    `json:"word_id"`
+	LanguageCode           string    `json:"language_code"`
+	Lemma                  string    `json:"lemma"`
+	NormalizedText         string    `json:"normalized_text"`
+	PartOfSpeech           string    `json:"part_of_speech"`
+	DefinitionLanguageCode string    `json:"definition_language_code"`
+	Definition             string    `json:"definition"`
+	ShortDefinition        *string   `json:"short_definition"`
+	CEFRLevel              *string   `json:"cefr_level"`
+	MeaningOrder           int       `json:"meaning_order"`
+	LearningStage          string    `json:"learning_stage"`
+	DueAt                  time.Time `json:"due_at"`
+	AddedAt                time.Time `json:"added_at"`
+}
+
+type ListLearningItemsParams struct {
+	Limit      int
+	Descending bool
+	Cursor     *LearningItemsCursor
+	Search     string
+}
+
+type LearningItemsCursor struct {
+	AddedAt time.Time
+	ID      string
+}

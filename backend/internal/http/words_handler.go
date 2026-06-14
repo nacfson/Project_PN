@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"project-pn/internal/enrich"
@@ -91,6 +92,57 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, item)
+}
+
+func (h *wordsHandler) listLearningItems(w http.ResponseWriter, r *http.Request) {
+	params, err := parseListLearningItemsParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	page, err := h.svc.ListLearningItems(r.Context(), userIDFromRequest(r), params)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, page)
+}
+
+func parseListLearningItemsParams(r *http.Request) (words.ListLearningItemsParams, error) {
+	query := r.URL.Query()
+	params := words.ListLearningItemsParams{Limit: 50, Descending: true}
+
+	if rawLimit := strings.TrimSpace(query.Get("limit")); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return words.ListLearningItemsParams{}, errors.New("limit must be a positive integer")
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		params.Limit = limit
+	}
+
+	if rawDescending := strings.TrimSpace(query.Get("descending")); rawDescending != "" {
+		descending, err := strconv.ParseBool(rawDescending)
+		if err != nil {
+			return words.ListLearningItemsParams{}, errors.New("descending must be true or false")
+		}
+		params.Descending = descending
+	}
+
+	if rawCursor := strings.TrimSpace(query.Get("cursor")); rawCursor != "" {
+		cursor, err := words.DecodeLearningItemsCursor(rawCursor)
+		if err != nil {
+			return words.ListLearningItemsParams{}, errors.New("invalid cursor")
+		}
+		params.Cursor = &cursor
+	}
+
+	params.Search = strings.TrimSpace(query.Get("q"))
+
+	return params, nil
 }
 
 func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
