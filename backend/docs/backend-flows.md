@@ -117,7 +117,7 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 5. App updates `review_states.due_at`, `interval_days`, `ease_factor`, `last_reviewed_at`, `review_count`, and `lapse_count` in the same transaction.
 6. App may update `user_word_senses.learning_stage`, but scheduling must still come from `review_states.due_at`.
 
-> **Status**: The Go API does not yet expose an endpoint that drives this transaction. The lookup/add-learning-item endpoints are live; a `POST /api/reviews` (or equivalent) endpoint that inserts an attempt and updates state in one transaction is not yet implemented. The flow above is the contract that endpoint must satisfy.
+The Go API exposes due-review reads through `GET /api/reviews/due` and batch attempt writes through `POST /api/reviews/batch`. The batch endpoint inserts attempts and updates review state in one transaction.
 
 ## HTTP Mapping
 
@@ -136,9 +136,10 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |
 | `POST /api/learning-items` | Add-Word (steps 5-6) | `words.Service.AddLearningItem` |
+| `GET /api/reviews/due` | Due Review List | `words.Service.GetDueReviewItems` |
+| `POST /api/reviews/batch` | Review | `words.Service.RecordBatchReviewAttempts` |
 | `GET /healthz` | liveness | n/a |
 | `GET /readyz` | readiness (DB ping) | n/a |
-| `POST /api/reviews` | Review | **not yet implemented** |
 
 Protected learning routes run `authMiddleware` then `requireVerified` when `REQUIRE_EMAIL_VERIFIED=true` (403 if email not verified).
 

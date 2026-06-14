@@ -85,9 +85,19 @@ export interface LearningItemsPage {
   next_cursor: string | null;
 }
 
+export type ReviewActivityType =
+  | 'word_to_meaning'
+  | 'meaning_to_word'
+  | 'cloze'
+  | 'multiple_choice'
+  | 'typing'
+  | 'speaking'
+  | 'writing'
+  | 'sentence_creation';
+
 export interface ReviewAttemptParams {
   user_word_sense_id: string;
-  activity_type: string;
+  activity_type: ReviewActivityType;
   prompt: string | null;
   user_answer: string | null;
   correct_answer: string | null;
@@ -121,4 +131,3 @@ export interface BatchReviewResult {
   xp_earned: number;
   success: boolean;
 }
-

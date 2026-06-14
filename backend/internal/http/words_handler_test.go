@@ -546,5 +546,78 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	if newDueAt.Before(time.Now()) {
 		t.Fatal("expected new due_at to be in the future")
 	}
-}
 
+	meaningPayload := map[string]any{
+		"attempts": []map[string]any{
+			{
+				"user_word_sense_id": uwsID,
+				"activity_type":      "meaning_to_word",
+				"prompt":             "Definition: due definitions",
+				"user_answer":        "due",
+				"correct_answer":     "due",
+				"is_correct":         true,
+				"rating_score":       2.0,
+			},
+		},
+	}
+	meaningBodyBytes, _ := json.Marshal(meaningPayload)
+	meaningReq := authRequest(t, http.MethodPost, "/api/reviews/batch", string(meaningBodyBytes), token)
+	meaningRec := httptest.NewRecorder()
+	router.ServeHTTP(meaningRec, meaningReq)
+
+	if meaningRec.Code != http.StatusOK {
+		t.Fatalf("expected status %d for meaning_to_word batch review, got %d. Body: %s", http.StatusOK, meaningRec.Code, meaningRec.Body.String())
+	}
+
+	var attemptCount int
+	err = pool.QueryRow(ctx, `
+		select count(*)
+		from review_attempts
+		where user_word_sense_id = $1::uuid`,
+		uwsID,
+	).Scan(&attemptCount)
+	if err != nil {
+		t.Fatalf("count review attempts after valid batches: %v", err)
+	}
+	if attemptCount != 2 {
+		t.Fatalf("expected 2 review attempts after valid batches, got %d", attemptCount)
+	}
+
+	invalidPayload := map[string]any{
+		"attempts": []map[string]any{
+			{
+				"user_word_sense_id": uwsID,
+				"activity_type":      "flashcard",
+				"prompt":             "Definition: due definitions",
+				"user_answer":        "due",
+				"correct_answer":     "due",
+				"is_correct":         true,
+				"rating_score":       2.0,
+			},
+		},
+	}
+	invalidBodyBytes, _ := json.Marshal(invalidPayload)
+	invalidReq := authRequest(t, http.MethodPost, "/api/reviews/batch", string(invalidBodyBytes), token)
+	invalidRec := httptest.NewRecorder()
+	router.ServeHTTP(invalidRec, invalidReq)
+
+	if invalidRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d for invalid activity_type, got %d. Body: %s", http.StatusBadRequest, invalidRec.Code, invalidRec.Body.String())
+	}
+	if !strings.Contains(invalidRec.Body.String(), "invalid activity_type") {
+		t.Fatalf("expected invalid activity_type error, got body: %s", invalidRec.Body.String())
+	}
+
+	err = pool.QueryRow(ctx, `
+		select count(*)
+		from review_attempts
+		where user_word_sense_id = $1::uuid`,
+		uwsID,
+	).Scan(&attemptCount)
+	if err != nil {
+		t.Fatalf("count review attempts after invalid batch: %v", err)
+	}
+	if attemptCount != 2 {
+		t.Fatalf("expected invalid activity_type to leave 2 review attempts, got %d", attemptCount)
+	}
+}

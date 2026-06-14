@@ -90,14 +90,23 @@ curl http://localhost:8080/readyz
 
 ## Staging deploy (`deploy/`)
 
-For a private staging stack (PostgreSQL + migrate + API + nginx on plain HTTP `:80`), use the repo-root `deploy/` folder:
+For a private staging stack (PostgreSQL + migrate + API + nginx on plain HTTP `:80`), use the repo-root `deploy/` folder. The staging compose file pulls the backend image from GHCR by default:
 
 ```sh
 cp deploy/.env.example deploy/.env
-# edit deploy/.env (DATABASE_URL, ALLOWED_ORIGINS, APP_PUBLIC_URL, POSTGRES_PASSWORD, …)
-docker compose -f deploy/compose.yaml --env-file deploy/.env up -d --build
+# edit deploy/.env (BACKEND_IMAGE, DATABASE_URL, ALLOWED_ORIGINS, APP_PUBLIC_URL, POSTGRES_PASSWORD, ...)
+docker compose -f deploy/compose.yaml --env-file deploy/.env pull
+docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
 curl http://YOUR_SERVER_IP/readyz
 ```
+
+If the GHCR package is private, log in on the server before pulling:
+
+```sh
+docker login ghcr.io -u nacfson
+```
+
+Use a GitHub personal access token with `read:packages` as the password.
 
 Services:
 
@@ -108,7 +117,25 @@ Services:
 | `api` | Go API on internal `:8080` |
 | `nginx` | Publishes `80:80`; reverse-proxies to `api` |
 
-The backend image is built from `backend/Dockerfile`:
+The backend image is published to `ghcr.io/nacfson/project-pn-backend` by `.github/workflows/backend-image.yml` on pushes to `main` that touch `backend/**`. The image is built from `backend/Dockerfile` and tagged as both `latest` and `sha-<commit>`.
+
+On a remote server, only these deployment files are required:
+
+- `deploy/compose.yaml`
+- `deploy/.env`
+- `deploy/nginx/nginx.conf`
+
+From the server's `deploy/` directory, deploy with:
+
+```sh
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
+curl http://YOUR_SERVER_IP/readyz
+```
+
+Set `BACKEND_IMAGE` in `deploy/.env` to pin a reproducible deployment, for example `ghcr.io/nacfson/project-pn-backend:sha-abc1234`.
+
+The backend image contains:
 
 - Multi-stage build with **`CGO_ENABLED=0`** static binaries (`api`, `migrate`)
 - Runtime: **`debian:bookworm-slim` + `ca-certificates`** (required for outbound HTTPS to Resend, Google token verification, and enrichment APIs — do not use a scratch/distroless runtime without bundled CA certs)

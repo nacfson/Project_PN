@@ -84,7 +84,8 @@ HTTP tests inject a stub `OAuthVerifier` (production uses `google.golang.org/api
 - `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
 
-When the future `POST /api/reviews` endpoint lands, add HTTP-layer tests for the review transaction (insert attempt + update `review_states` in one transaction, archived item excluded from due count, scheduler updates only `review_states.due_at`).
+- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled items.
+- `POST /api/reviews/batch` records attempts and updates `review_states` in one transaction; invalid `activity_type` values return 400 before any attempt is inserted.
 
 ## Reference
 

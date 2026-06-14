@@ -19,9 +19,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-ghcr.io/nacfson/project-pn-backend:latest}
     command: ["./migrate", "up"]
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -32,9 +30,7 @@ services:
     restart: "no"
 
   api:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-ghcr.io/nacfson/project-pn-backend:latest}
     environment:
       APP_ADDR: :8080
       DATABASE_URL: ${DATABASE_URL}

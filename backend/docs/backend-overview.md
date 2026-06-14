@@ -85,8 +85,8 @@ Requires `Authorization: Bearer <token>`. When `REQUIRE_EMAIL_VERIFIED=true`, mu
 | `POST` | `/api/words/lookup` | Look up senses for a word. Cache hit returns existing rows. Cache miss + enricher configured returns generated senses, persisted in the same transaction. Cache miss + no enricher returns 503. `force: true` runs Force-Generate. |
 | `GET` | `/api/learning-items?limit=50&descending=true&cursor=...&q=app` | List the authenticated user's active learning items. Uses keyset pagination, excludes archived items, supports optional prefix search on `q`, and returns `next_cursor` when more rows are available. |
 | `POST` | `/api/learning-items` | Add a `(user, word_sense)` to the authenticated user's learning set. Idempotent. Returns the `user_word_senses` row and its current `due_at`. |
-
-A `POST /api/reviews` endpoint that records a `review_attempts` row and updates `review_states` in one transaction is not yet implemented (see `backend/docs/backend-flows.md`).
+| `GET` | `/api/reviews/due?limit=50` | Return due review items by joining `review_states` to active `user_word_senses`. |
+| `POST` | `/api/reviews/batch` | Record review attempts and update `review_states` atomically. |
 
 ## Authentication
 

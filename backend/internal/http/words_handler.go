@@ -11,6 +11,17 @@ import (
 	"project-pn/internal/words"
 )
 
+var validReviewActivityTypes = map[string]struct{}{
+	"word_to_meaning":   {},
+	"meaning_to_word":   {},
+	"cloze":             {},
+	"multiple_choice":   {},
+	"typing":            {},
+	"speaking":          {},
+	"writing":           {},
+	"sentence_creation": {},
+}
+
 type wordsHandler struct {
 	svc *words.Service
 }
@@ -219,6 +230,10 @@ func (h *wordsHandler) recordBatchReviewAttempts(w http.ResponseWriter, r *http.
 			writeError(w, http.StatusBadRequest, "activity_type is required for all attempts")
 			return
 		}
+		if _, ok := validReviewActivityTypes[attempt.ActivityType]; !ok {
+			writeError(w, http.StatusBadRequest, "invalid activity_type")
+			return
+		}
 		if attempt.RatingScore < 0.0 || attempt.RatingScore > 3.0 {
 			writeError(w, http.StatusBadRequest, "rating_score must be between 0.0 and 3.0")
 			return
@@ -233,4 +248,3 @@ func (h *wordsHandler) recordBatchReviewAttempts(w http.ResponseWriter, r *http.
 
 	writeJSON(w, http.StatusOK, result)
 }
-

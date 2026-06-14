@@ -350,14 +350,16 @@ export function PracticeScreen() {
     const examplesList = currentItem.examples || [];
     const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
     const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
+    const activityType: ReviewAttemptParams['activity_type'] = example ? 'cloze' : 'meaning_to_word';
+    const prompt = example
+      ? getBlankedSentence(example.sentence, currentItem.normalized_text)
+      : 'Definition: ' + currentItem.definition;
 
     // Create review attempt parameters matching backend schema exactly
     const attempt: ReviewAttemptParams = {
       user_word_sense_id: currentItem.user_word_sense_id,
-      activity_type: 'flashcard',
-      prompt: example
-        ? getBlankedSentence(example.sentence, currentItem.normalized_text)
-        : 'Definition: ' + currentItem.definition,
+      activity_type: activityType,
+      prompt,
       user_answer: currentItem.normalized_text,
       correct_answer: currentItem.normalized_text,
       is_correct: ratingScore >= 0.75, // true if rating score >= 0.75 (i.e. not Forgot)
