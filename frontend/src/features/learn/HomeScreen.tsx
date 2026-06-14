@@ -1,11 +1,41 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { MainTabParamList } from '../../navigation/MainTabs';
 import { mockProgress } from './mockProgress';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Card, Screen, Text } from '../../ui';
+import { getDueLearningItems } from '../../api/learningItems';
+
+type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Learn'>;
 
 export function HomeScreen() {
   const { spacing } = useTheme();
-  const { displayName, streakDays, xpToday, dailyGoalXp, wordsDueToday } = mockProgress;
+  const navigation = useNavigation<NavigationProp>();
+  const { displayName, streakDays, xpToday, dailyGoalXp } = mockProgress;
+  const [wordsDueToday, setWordsDueToday] = useState<number | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      getDueLearningItems()
+        .then((items) => {
+          if (active) {
+            setWordsDueToday(items.length);
+          }
+        })
+        .catch((err) => {
+          console.error('Error fetching due items:', err);
+          if (active) {
+            setWordsDueToday(0);
+          }
+        });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   return (
     <Screen padded>
@@ -37,15 +67,24 @@ export function HomeScreen() {
           </Text>
         </Card>
 
-        <Card>
-          <View style={styles.row}>
-            <Text variant="title">Words due today</Text>
-            <Badge label={String(wordsDueToday)} variant="default" />
-          </View>
-          <Text muted style={{ marginTop: spacing.sm }}>
-            Head to Practice when quizzes are ready.
-          </Text>
-        </Card>
+        <Pressable onPress={() => navigation.navigate('Practice')}>
+          <Card style={styles.clickableCard}>
+            <View style={styles.row}>
+              <Text variant="title">Words due today</Text>
+              <Badge
+                label={wordsDueToday === null ? '...' : String(wordsDueToday)}
+                variant={wordsDueToday !== null && wordsDueToday > 0 ? 'primary' : 'default'}
+              />
+            </View>
+            <Text muted style={{ marginTop: spacing.sm }}>
+              {wordsDueToday === null
+                ? 'Checking for due cards...'
+                : wordsDueToday > 0
+                  ? 'Tap to start reviewing your due cards!'
+                  : 'All caught up! No cards due for review.'}
+            </Text>
+          </Card>
+        </Pressable>
       </ScrollView>
     </Screen>
   );
@@ -59,5 +98,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  clickableCard: {
+    cursor: 'pointer',
   },
 });

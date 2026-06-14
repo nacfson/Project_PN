@@ -16,6 +16,22 @@ import (
 
 func testService(t *testing.T) *Service {
 	t.Helper()
+	return testServiceWithOptions(t, Options{
+		SessionTTL:             time.Hour,
+		MagicLinkTTL:           15 * time.Minute,
+		ExchangeCodeTTL:        5 * time.Minute,
+		DefaultDefinitionLang:  "ko",
+		DefaultTargetLang:      "en",
+		AllowedDefinitionLangs: nil,
+		AllowedTargetLangs:     nil,
+		ForceDefinitionLang:    "",
+		ForceTargetLang:        "",
+		AppPublicURL:           "http://localhost:8080",
+	})
+}
+
+func testServiceWithOptions(t *testing.T, opts Options) *Service {
+	t.Helper()
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
@@ -34,14 +50,7 @@ func testService(t *testing.T) *Service {
 	}
 	t.Cleanup(pool.Close)
 
-	return New(pool, email.NewLog(), Options{
-		SessionTTL:            time.Hour,
-		MagicLinkTTL:          15 * time.Minute,
-		ExchangeCodeTTL:       5 * time.Minute,
-		DefaultDefinitionLang: "ko",
-		DefaultTargetLang:     "en",
-		AppPublicURL:          "http://localhost:8080",
-	})
+	return New(pool, email.NewLog(), opts)
 }
 
 func TestNormalizeEmail(t *testing.T) {
@@ -71,6 +80,12 @@ func TestRegisterLoginLogout(t *testing.T) {
 	if user.Email != emailAddr {
 		t.Fatalf("expected email %q, got %q", emailAddr, user.Email)
 	}
+	if user.NativeLanguage != "ko" {
+		t.Fatalf("expected native language ko, got %q", user.NativeLanguage)
+	}
+	if user.TargetLanguage != "en" {
+		t.Fatalf("expected target language en, got %q", user.TargetLanguage)
+	}
 
 	loginSession, err := svc.Login(ctx, emailAddr, "password123")
 	if err != nil {
@@ -85,6 +100,88 @@ func TestRegisterLoginLogout(t *testing.T) {
 	}
 	if _, err := svc.Authenticate(ctx, loginSession.Token); !errors.Is(err, ErrInvalidToken) {
 		t.Fatalf("expected invalid token after logout, got %v", err)
+	}
+}
+
+func TestRegisterRespectsForcedLanguages(t *testing.T) {
+	svc := testServiceWithOptions(t, Options{
+		SessionTTL:             time.Hour,
+		MagicLinkTTL:           15 * time.Minute,
+		ExchangeCodeTTL:        5 * time.Minute,
+		DefaultDefinitionLang:  "ko",
+		DefaultTargetLang:      "en",
+		AllowedDefinitionLangs: nil,
+		AllowedTargetLangs:     nil,
+		ForceDefinitionLang:    "ja",
+		ForceTargetLang:        "es",
+		AppPublicURL:           "http://localhost:8080",
+	})
+	ctx := context.Background()
+	emailAddr := uniqueEmail("forced-langs")
+
+	session, err := svc.Register(ctx, emailAddr, "password123", "fr", "de")
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	user, err := svc.Authenticate(ctx, session.Token)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+	if user.NativeLanguage != "ja" {
+		t.Fatalf("expected forced native language ja, got %q", user.NativeLanguage)
+	}
+	if user.TargetLanguage != "es" {
+		t.Fatalf("expected forced target language es, got %q", user.TargetLanguage)
+	}
+}
+
+func TestRegisterRejectsDisallowedLanguages(t *testing.T) {
+	svc := testServiceWithOptions(t, Options{
+		SessionTTL:             time.Hour,
+		MagicLinkTTL:           15 * time.Minute,
+		ExchangeCodeTTL:        5 * time.Minute,
+		DefaultDefinitionLang:  "ko",
+		DefaultTargetLang:      "en",
+		AllowedDefinitionLangs: []string{"ko", "en"},
+		AllowedTargetLangs:     []string{"en", "ja"},
+		ForceDefinitionLang:    "",
+		ForceTargetLang:        "",
+		AppPublicURL:           "http://localhost:8080",
+	})
+	ctx := context.Background()
+
+	if _, err := svc.Register(ctx, uniqueEmail("bad-target"), "password123", "ko", "es"); !errors.Is(err, ErrInvalidTargetLang) {
+		t.Fatalf("expected ErrInvalidTargetLang, got %v", err)
+	}
+	if _, err := svc.Register(ctx, uniqueEmail("bad-native"), "password123", "fr", "en"); !errors.Is(err, ErrInvalidDefinitionLang) {
+		t.Fatalf("expected ErrInvalidDefinitionLang, got %v", err)
+	}
+}
+
+func TestLanguageOptions(t *testing.T) {
+	svc := testServiceWithOptions(t, Options{
+		SessionTTL:             time.Hour,
+		MagicLinkTTL:           15 * time.Minute,
+		ExchangeCodeTTL:        5 * time.Minute,
+		DefaultDefinitionLang:  "ko",
+		DefaultTargetLang:      "en",
+		AllowedDefinitionLangs: []string{"ko", "en", "ja"},
+		AllowedTargetLangs:     []string{"en", "ja", "es"},
+		ForceDefinitionLang:    "",
+		ForceTargetLang:        "",
+		AppPublicURL:           "http://localhost:8080",
+	})
+
+	opts := svc.LanguageOptions()
+	if opts.Defaults.TargetLanguage != "en" || opts.Defaults.DefinitionLanguage != "ko" {
+		t.Fatalf("unexpected defaults: %+v", opts.Defaults)
+	}
+	if len(opts.Allowed.TargetLanguages) != 3 || len(opts.Allowed.DefinitionLanguages) != 3 {
+		t.Fatalf("unexpected allowed lists: %+v", opts.Allowed)
+	}
+	if opts.Forced.TargetLanguage != "" || opts.Forced.DefinitionLanguage != "" {
+		t.Fatalf("unexpected forced values: %+v", opts.Forced)
 	}
 }
 

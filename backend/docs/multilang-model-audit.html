@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project PN - Multilingual Model Audit</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #121a2d;
+    --panel2: #182238;
+    --line: #2d3a53;
+    --text: #eef4ff;
+    --muted: #9fb0c8;
+    --target: #4ea1ff;
+    --native: #28c97a;
+    --risk: #ffb84d;
+    --bad: #ff6b6b;
+    --ok: #5ee39d;
+    --code: #dbe7ff;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 0%, rgba(78, 161, 255, 0.16), transparent 34%),
+      radial-gradient(circle at 84% 10%, rgba(40, 201, 122, 0.12), transparent 32%),
+      var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.55;
+  }
+
+  .wrap {
+    width: min(1180px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 36px 0 70px;
+  }
+
+  header {
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(18, 26, 45, 0.96), rgba(24, 34, 56, 0.9));
+    box-shadow: var(--shadow);
+  }
+
+  .eyebrow {
+    margin-bottom: 8px;
+    color: var(--target);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: 1.1;
+    letter-spacing: 0;
+  }
+
+  .subtitle {
+    max-width: 830px;
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .verdict {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 18px;
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid rgba(94, 227, 157, 0.28);
+    border-radius: 12px;
+    background: rgba(94, 227, 157, 0.08);
+  }
+
+  .verdict strong {
+    color: var(--ok);
+    font-size: 15px;
+  }
+
+  .verdict p {
+    margin: 0;
+    color: var(--text);
+  }
+
+  section { margin-top: 34px; }
+
+  h2 {
+    margin: 0 0 16px;
+    font-size: 22px;
+    letter-spacing: 0;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .grid.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .card {
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(18, 26, 45, 0.9);
+    box-shadow: var(--shadow);
+  }
+
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+  }
+
+  .card p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 8px 8px 0;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .pill.target { color: #b8d9ff; border-color: rgba(78, 161, 255, 0.42); }
+  .pill.native { color: #bdf4d8; border-color: rgba(40, 201, 122, 0.42); }
+  .pill.risk { color: #ffe0ae; border-color: rgba(255, 184, 77, 0.42); }
+
+  code {
+    color: var(--code);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.92em;
+  }
+
+  .diagram {
+    display: grid;
+    gap: 12px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 44px 1fr;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .arrow {
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 800;
+  }
+
+  .tablebox {
+    min-height: 124px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel2);
+  }
+
+  .tablebox.target { border-top: 3px solid var(--target); }
+  .tablebox.native { border-top: 3px solid var(--native); }
+  .tablebox.risk { border-top: 3px solid var(--risk); }
+
+  .tablebox h4 {
+    margin: 0 0 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+  }
+
+  .cols {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  .cols li {
+    padding: 3px 0;
+    border-top: 1px dashed rgba(255, 255, 255, 0.06);
+  }
+
+  .cols li:first-child { border-top: 0; }
+
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  .step {
+    position: relative;
+    min-height: 128px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+
+  .step:not(:last-child)::after {
+    content: ">";
+    position: absolute;
+    top: 50%;
+    right: -10px;
+    width: 20px;
+    height: 20px;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--muted);
+    background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 900;
+  }
+
+  .step b {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .step span {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(18, 26, 45, 0.9);
+  }
+
+  th, td {
+    padding: 12px 13px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+    font-size: 14px;
+  }
+
+  th {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  tr:last-child td { border-bottom: 0; }
+
+  .status {
+    display: inline-block;
+    min-width: 74px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .status.ok { color: #073b20; background: var(--ok); }
+  .status.warn { color: #3d2500; background: var(--risk); }
+  .status.no { color: #3c0606; background: var(--bad); }
+
+  .callout {
+    padding: 16px;
+    border: 1px solid rgba(255, 184, 77, 0.32);
+    border-radius: 12px;
+    background: rgba(255, 184, 77, 0.08);
+    color: #ffe7bd;
+  }
+
+  .source-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-list li {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 13px;
+  }
+
+  footer {
+    margin-top: 42px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .grid,
+    .grid.three,
+    .row,
+    .flow,
+    .verdict {
+      grid-template-columns: 1fr;
+    }
+    .arrow { min-height: 20px; }
+    .step:not(:last-child)::after { display: none; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">Project PN - current source audit</div>
+    <h1>Variable Native-Language Support</h1>
+    <p class="subtitle">
+      This page visualizes the current backend source model and audits whether it can support users with different native languages while sharing the same target-language vocabulary data.
+    </p>
+    <div class="verdict">
+      <strong>Audit verdict</strong>
+      <p>
+        Capable in product direction, but the current schema is only partially ready. Today, definitions and example translations are stored directly on language-specific rows, so Korean and Japanese learners can duplicate the same sense/example pool. The proposed normalized model fixes that by making target-language sense data shared and moving native-language text into translation tables.
+      </p>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. Current Source Model</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>What the code stores today</h3>
+        <span class="pill target">target: <code>words.language_code</code></span>
+        <span class="pill native">native: <code>word_senses.definition_language_code</code></span>
+        <span class="pill native">native: <code>examples.translation_language_code</code></span>
+        <p>
+          The current source can store multiple languages, but the native language is part of the persisted sense/example rows instead of being a reusable side table.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Current implementation evidence</h3>
+        <p>
+          <code>appendSenses</code> inserts <code>word_senses.definition_language_code</code>. <code>loadSenseOptions</code> returns that same field. <code>loadExamples</code> reads <code>examples.translation</code> directly. The frontend DTO mirrors these fields exactly.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Current Data Shape</h2>
+    <div class="diagram">
+      <div class="row">
+        <div class="tablebox target">
+          <h4>words</h4>
+          <ul class="cols">
+            <li>id</li>
+            <li>language_code = target language</li>
+            <li>normalized_text</li>
+            <li>part_of_speech</li>
+            <li>unique(language_code, normalized_text, part_of_speech)</li>
+          </ul>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="tablebox native">
+          <h4>word_senses</h4>
+          <ul class="cols">
+            <li>word_id</li>
+            <li>definition_language_code = native/display language</li>
+            <li>definition</li>
+            <li>short_definition</li>
+            <li>unique(word_id, definition_language_code, meaning_order)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="row">
+        <div class="tablebox native">
+          <h4>examples</h4>
+          <ul class="cols">
+            <li>word_sense_id</li>
+            <li>sentence = target-language sentence</li>
+            <li>translation = native/display language</li>
+            <li>translation_language_code</li>
+            <li>difficulty_level</li>
+          </ul>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="tablebox risk">
+          <h4>duplication effect</h4>
+          <ul class="cols">
+            <li>en charge + ko definition creates one sense row</li>
+            <li>en charge + ja definition may create another sense row</li>
+            <li>same target sentence may be regenerated per native language</li>
+            <li>LLM cost and quiz pool duplication grow with languages</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Recommended Normalized Shape</h2>
+    <div class="diagram">
+      <div class="row">
+        <div class="tablebox target">
+          <h4>words</h4>
+          <ul class="cols">
+            <li>language_code = target language</li>
+            <li>normalized_text</li>
+            <li>part_of_speech</li>
+          </ul>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="tablebox target">
+          <h4>word_senses</h4>
+          <ul class="cols">
+            <li>word_id</li>
+            <li>definition = canonical target-language definition</li>
+            <li>short_definition = compact canonical definition</li>
+            <li>unique(word_id, meaning_order)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="row">
+        <div class="tablebox native">
+          <h4>sense_translations</h4>
+          <ul class="cols">
+            <li>word_sense_id</li>
+            <li>language_code = learner native/display language</li>
+            <li>definition</li>
+            <li>short_definition</li>
+            <li>unique(word_sense_id, language_code)</li>
+          </ul>
+        </div>
+        <div class="arrow">+</div>
+        <div class="tablebox native">
+          <h4>example_translations</h4>
+          <ul class="cols">
+            <li>example_id</li>
+            <li>language_code = learner native/display language</li>
+            <li>translation with optional **highlight** markers</li>
+            <li>unique(example_id, language_code)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="row">
+        <div class="tablebox target">
+          <h4>examples</h4>
+          <ul class="cols">
+            <li>word_sense_id</li>
+            <li>sentence = target-language sentence</li>
+            <li>difficulty_level</li>
+            <li>source</li>
+            <li>cloze_text / cloze_answer</li>
+          </ul>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="tablebox target">
+          <h4>shared quiz pool</h4>
+          <ul class="cols">
+            <li>one target-language sentence set</li>
+            <li>many native-language translations</li>
+            <li>cheaper cache misses for future languages</li>
+            <li>stable word_sense_id for all learners</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Lookup Flow After Normalization</h2>
+    <div class="flow">
+      <div class="step">
+        <b>1. Request</b>
+        <span>Client sends target language and native/display language.</span>
+      </div>
+      <div class="step">
+        <b>2. Load canonical</b>
+        <span>Find shared <code>words</code>, <code>word_senses</code>, and target-language <code>examples</code>.</span>
+      </div>
+      <div class="step">
+        <b>3. Join localization</b>
+        <span>Left join <code>sense_translations</code> and <code>example_translations</code> for the requested native language.</span>
+      </div>
+      <div class="step">
+        <b>4. Fill gaps</b>
+        <span>If rows are missing and the enricher is configured, call translate outside the DB transaction and upsert cached translations.</span>
+      </div>
+      <div class="step">
+        <b>5. Respond</b>
+        <span>Return localized text when present, with canonical target-language fallback.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Capability Audit</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Status</th>
+          <th>Audit</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Can the current source identify a target language?</td>
+          <td><span class="status ok">Yes</span></td>
+          <td><code>words.language_code</code> already distinguishes target-language vocabulary such as English, Korean, or Japanese words.</td>
+        </tr>
+        <tr>
+          <td>Can the current source identify a native/display language?</td>
+          <td><span class="status ok">Yes</span></td>
+          <td><code>definition_language_code</code> and <code>translation_language_code</code> exist today, and request DTOs include <code>definition_language_code</code>.</td>
+        </tr>
+        <tr>
+          <td>Can one sense be reused across many native languages?</td>
+          <td><span class="status warn">Partial</span></td>
+          <td>Current uniqueness includes <code>definition_language_code</code>, so the same meaning can become multiple <code>word_senses</code> rows by native language.</td>
+        </tr>
+        <tr>
+          <td>Can one target sentence be reused across many native languages?</td>
+          <td><span class="status warn">Partial</span></td>
+          <td>Current <code>examples</code> stores translation inline, so target sentences are not cleanly separated from localized translations.</td>
+        </tr>
+        <tr>
+          <td>Is the proposed normalized model capable?</td>
+          <td><span class="status ok">Yes</span></td>
+          <td>It supports many native languages per target-language word sense without duplicating the learning unit or example sentence pool.</td>
+        </tr>
+        <tr>
+          <td>Should there be one global meaning object across all target languages?</td>
+          <td><span class="status no">No</span></td>
+          <td>Keep invariance scoped to one target-language word. Cross-target-language semantic identity is harder and not needed for this MVP.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. Implementation Risks</h2>
+    <div class="grid three">
+      <div class="card">
+        <h3>API naming</h3>
+        <p>
+          Rename response semantics before implementation. <code>definition_language_code</code> currently sounds like a property of <code>word_senses</code>. In the normalized model it is the requested localization language.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Network calls</h3>
+        <p>
+          Do not call translation LLMs while holding a DB transaction. Load gaps, translate outside the transaction, then upsert in a short transaction.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Migration</h3>
+        <p>
+          Existing local rows can collide when dropping <code>definition_language_code</code> from the unique identity. Treat this migration as dev-reset-only unless a dedupe migration is written.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. Recommended API Contract</h2>
+    <div class="callout">
+      <p>
+        Prefer explicit naming:
+        <code>language_code</code> remains the target word language,
+        <code>localized_language_code</code> is the requested native/display language,
+        <code>definition</code> and <code>short_definition</code> are localized when available,
+        and canonical fields should be omitted unless the frontend needs them.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>8. Source References Used</h2>
+    <ul class="source-list">
+      <li><code>backend/db/migrations/000001_init_mvp_schema.up.sql</code>: current columns and constraints for <code>word_senses</code> and <code>examples</code>.</li>
+      <li><code>backend/internal/words/service.go</code>: current persist/load behavior for definitions and example translations.</li>
+      <li><code>backend/internal/enrich/enrich.go</code> and <code>backend/internal/enrich/openai.go</code>: current LLM contract returns one requested definition language.</li>
+      <li><code>backend/internal/words/types.go</code> and <code>frontend/src/types/index.ts</code>: current backend/frontend DTOs expose <code>definition_language_code</code>.</li>
+      <li><code>backend/docs/backend-schema-mvp.md</code> and <code>backend/docs/backend-overview.md</code>: project rules for global word data and personal memory data.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Generated for Project PN as a static HTML audit. Open this file directly in a browser.
+  </footer>
+</main>
+</body>
+</html>

@@ -35,12 +35,16 @@ func main() {
 	enricher := enrich.NewOpenAI(cfg.EnrichBaseURL, cfg.EnrichAPIKey, cfg.EnrichModel)
 	mailer := email.NewProvider(cfg.EmailProvider, cfg.ResendAPIKey, cfg.EmailFrom)
 	authService := auth.New(pool, mailer, auth.Options{
-		SessionTTL:            cfg.SessionTTL,
-		MagicLinkTTL:          cfg.MagicLinkTTL,
-		ExchangeCodeTTL:       cfg.ExchangeCodeTTL,
-		DefaultDefinitionLang: cfg.DefaultDefinitionLang,
-		DefaultTargetLang:     cfg.DefaultTargetLang,
-		AppPublicURL:          cfg.AppPublicURL,
+		SessionTTL:             cfg.SessionTTL,
+		MagicLinkTTL:           cfg.MagicLinkTTL,
+		ExchangeCodeTTL:        cfg.ExchangeCodeTTL,
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		AppPublicURL:           cfg.AppPublicURL,
 	})
 	wordsService := words.New(pool, enricher, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 

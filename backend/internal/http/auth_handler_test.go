@@ -45,12 +45,16 @@ func testAuthRouter(t *testing.T, requireVerified bool, oauthVerifiers map[strin
 
 	cfg := config.Load()
 	authSvc := auth.New(pool, email.NewLog(), auth.Options{
-		SessionTTL:            time.Hour,
-		MagicLinkTTL:          15 * time.Minute,
-		ExchangeCodeTTL:       5 * time.Minute,
-		DefaultDefinitionLang: cfg.DefaultDefinitionLang,
-		DefaultTargetLang:     cfg.DefaultTargetLang,
-		AppPublicURL:          "http://localhost:8080",
+		SessionTTL:             time.Hour,
+		MagicLinkTTL:           15 * time.Minute,
+		ExchangeCodeTTL:        5 * time.Minute,
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		AppPublicURL:           "http://localhost:8080",
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
@@ -63,6 +67,25 @@ func testAuthRouter(t *testing.T, requireVerified bool, oauthVerifiers map[strin
 		RequireEmailVerified: requireVerified,
 	})
 	return router, authSvc
+}
+
+func TestLanguageOptionsEndpoint(t *testing.T) {
+	router, _ := testAuthRouter(t, false, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/language-options", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("language-options: expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var opts auth.LanguageOptions
+	if err := json.NewDecoder(rec.Body).Decode(&opts); err != nil {
+		t.Fatalf("decode language-options: %v", err)
+	}
+	if opts.Defaults.TargetLanguage == "" || opts.Defaults.DefinitionLanguage == "" {
+		t.Fatalf("expected non-empty defaults: %+v", opts.Defaults)
+	}
 }
 
 func TestProtectedRoutesRequireAuth(t *testing.T) {

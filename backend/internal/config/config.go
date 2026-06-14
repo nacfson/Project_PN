@@ -15,6 +15,11 @@ const (
 	defaultTargetLang     = "en"
 	defaultDefinitionLang = "ko"
 
+	defaultAllowedTargetLangs     = ""
+	defaultAllowedDefinitionLangs = ""
+	defaultForceTargetLang        = ""
+	defaultForceDefinitionLang    = ""
+
 	defaultSessionTTL      = 720 * time.Hour
 	defaultMagicLinkTTL    = 15 * time.Minute
 	defaultExchangeCodeTTL = 5 * time.Minute
@@ -40,6 +45,11 @@ type Config struct {
 	DefaultTargetLang     string
 	DefaultDefinitionLang string
 
+	AllowedTargetLangs     []string
+	AllowedDefinitionLangs []string
+	ForceTargetLang        string
+	ForceDefinitionLang    string
+
 	AllowedOrigins []string
 
 	SessionTTL            time.Duration
@@ -63,9 +73,13 @@ func Load() Config {
 		EnrichAPIKey:  os.Getenv("ENRICH_API_KEY"),
 		EnrichModel:   os.Getenv("ENRICH_MODEL"),
 
-		DefaultUserID:         envOrDefault("DEFAULT_USER_ID", defaultUserID),
-		DefaultTargetLang:     envOrDefault("DEFAULT_TARGET_LANG", defaultTargetLang),
-		DefaultDefinitionLang: envOrDefault("DEFAULT_DEFINITION_LANG", defaultDefinitionLang),
+		DefaultUserID:          envOrDefault("DEFAULT_USER_ID", defaultUserID),
+		DefaultTargetLang:      envOrDefault("DEFAULT_TARGET_LANG", defaultTargetLang),
+		DefaultDefinitionLang:  envOrDefault("DEFAULT_DEFINITION_LANG", defaultDefinitionLang),
+		AllowedTargetLangs:     splitAndTrim(envOrDefault("ALLOWED_TARGET_LANGS", defaultAllowedTargetLangs)),
+		AllowedDefinitionLangs: splitAndTrim(envOrDefault("ALLOWED_DEFINITION_LANGS", defaultAllowedDefinitionLangs)),
+		ForceTargetLang:        envOrDefault("FORCE_TARGET_LANG", defaultForceTargetLang),
+		ForceDefinitionLang:    envOrDefault("FORCE_DEFINITION_LANG", defaultForceDefinitionLang),
 
 		AllowedOrigins: splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
 

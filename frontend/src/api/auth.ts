@@ -1,6 +1,7 @@
 import { DEFAULT_DEFINITION_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE } from '../config';
 import type {
   ExchangeRequest,
+  LanguageOptionsResponse,
   LoginRequest,
   MagicLinkRequest,
   MeResponse,
@@ -11,6 +12,10 @@ import { getJson, postJson, postNoContent } from './client';
 import { sessionStorage } from './storage';
 
 const noAuth = { auth: false as const };
+
+export async function getLanguageOptions(): Promise<LanguageOptionsResponse> {
+  return getJson<LanguageOptionsResponse>('/api/auth/language-options', noAuth);
+}
 
 export async function register(
   email: string,

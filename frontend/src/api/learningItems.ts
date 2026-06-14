@@ -1,5 +1,5 @@
-import type { LearningItemsPage } from '../types';
-import { getJson } from './client';
+import type { LearningItemsPage, DueItem, ReviewAttemptParams, BatchReviewResult } from '../types';
+import { getJson, postJson } from './client';
 
 export interface ListLearningItemsParams {
   limit?: number;
@@ -25,3 +25,16 @@ export function listLearningItems(params?: ListLearningItemsParams): Promise<Lea
 
   return getJson<LearningItemsPage>(`/api/learning-items?${searchParams.toString()}`);
 }
+
+export function getDueLearningItems(limit?: number): Promise<DueItem[]> {
+  const searchParams = new URLSearchParams();
+  if (limit) {
+    searchParams.set('limit', String(limit));
+  }
+  return getJson<DueItem[]>(`/api/reviews/due?${searchParams.toString()}`);
+}
+
+export function recordBatchReviewAttempts(attempts: ReviewAttemptParams[]): Promise<BatchReviewResult> {
+  return postJson<BatchReviewResult>('/api/reviews/batch', { attempts });
+}
+

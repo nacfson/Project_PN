@@ -53,6 +53,7 @@ func NewRouter(deps Dependencies) http.Handler {
 			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/magic-link", ah.magicLink)
 			authRouter.With(consumeIPRateLimit()).Get("/magic/consume", ah.magicConsume)
 			authRouter.With(consumeIPRateLimit()).Post("/magic/exchange", ah.magicExchange)
+			authRouter.Get("/language-options", ah.languageOptions)
 
 			authRouter.Group(func(protected chi.Router) {
 				protected.Use(authMiddleware(deps.Auth))
@@ -73,6 +74,8 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Post("/words/lookup", wh.lookup)
 				protected.Get("/learning-items", wh.listLearningItems)
 				protected.Post("/learning-items", wh.addLearningItem)
+				protected.Get("/reviews/due", wh.getDueReviewItems)
+				protected.Post("/reviews/batch", wh.recordBatchReviewAttempts)
 			})
 		})
 	}

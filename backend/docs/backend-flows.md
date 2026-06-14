@@ -2,11 +2,16 @@
 
 ## Register / Login Flow (email + password)
 
-1. Client `POST /api/auth/register` with `{ email, password, native_language?, target_language? }`.
-2. API normalizes email, bcrypt-hashes password, inserts `users` row, mints opaque bearer token in `sessions`.
-3. Response: `{ token, expires_at }` (201 on register, 200 on login).
-4. Client sends `Authorization: Bearer <token>` on protected routes.
-5. `POST /api/auth/logout` deletes the current session row.
+1. Client fetches `GET /api/auth/language-options` to learn defaults, allowed languages, and forced values.
+2. Client `POST /api/auth/register` with `{ email, password, native_language?, target_language? }`.
+3. API resolves languages using this priority for each field:
+   - `FORCE_*` environment value wins if set.
+   - Request value if present and allowed.
+   - `DEFAULT_*` environment value as final fallback.
+4. API normalizes email, bcrypt-hashes password, inserts `users` row, mints opaque bearer token in `sessions`.
+5. Response: `{ token, expires_at }` (201 on register, 200 on login).
+6. Client sends `Authorization: Bearer <token>` on protected routes.
+7. `POST /api/auth/logout` deletes the current session row.
 
 Default languages when omitted: `native_language` ← `DEFAULT_DEFINITION_LANG`; `target_language` ← `DEFAULT_TARGET_LANG`.
 
@@ -53,11 +58,12 @@ Rules:
 2. App normalizes the word text.
 3. App creates or reuses a row in `words`.
 4. App creates or selects the intended row in `word_senses`.
-5. App upserts a row in `user_word_senses`.
-6. App creates one `review_states` row if missing.
-7. App may attach sense-specific examples.
+5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language. If translation is unavailable after an on-demand attempt, the add is rejected with HTTP 422.
+6. App upserts a row in `user_word_senses`.
+7. App creates one `review_states` row if missing.
+8. App may attach sense-specific examples.
 
-Steps 5 and 6 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
+Steps 6 and 7 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
 
 ## Learning Items List Flow
 
@@ -82,11 +88,13 @@ Rules:
 This is the `POST /api/words/lookup` happy path when the global cache has no row for the lookup key:
 
 1. App normalizes the lookup text.
-2. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path returns the existing `SenseOption[]` immediately.
-3. On a full miss, app calls the configured enricher with the normalized text, language code, definition language code, and (optional) POS.
-4. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads.
-5. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts only senses whose `definition` is non-empty, with `meaning_order` continuing from the current `max(meaning_order)` for that `(word_id, definition_language_code)`. Each sense's examples are inserted in the same transaction.
-6. App reloads the affected senses (joined with their examples) and returns the result.
+2. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path loads canonical `word_senses` and `examples`, left-joining `sense_translations` and `example_translations` for the requested `display_language_code` (legacy requests may still send `definition_language_code`).
+3. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading.
+4. If translations are still missing (enricher unconfigured or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
+5. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, and (optional) POS.
+6. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with canonical target-language definitions and native-language translation blocks.
+7. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
+8. App reloads the affected senses (joined with localized translations and examples) and returns the result.
 
 The enricher is optional. If `ENRICH_BASE_URL` is empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
 
@@ -97,8 +105,8 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 1. App receives `force: true` plus either a concrete `word_id` or a concrete `part_of_speech`. `force + part_of_speech=Any + word_id=nil` is rejected as ambiguous (HTTP 400).
 2. If a `word_id` is given, app loads the word's existing definitions (ordered by `meaning_order`) and asks the enricher to return one additional sense.
 3. If no `word_id` is given (a concrete POS is guaranteed by step 1), app loads existing definitions for the `(language_code, normalized_text, part_of_speech)` identity and asks the enricher for one additional sense.
-4. In a single transaction, app appends the new senses to the matching `words` row(s) using `appendSenses` (continuing `meaning_order`).
-5. App reloads the affected senses and returns them.
+4. In a single transaction, app appends the new senses to the matching `words` row(s) using `appendSenses` (continuing `meaning_order`), storing canonical text plus translation rows for the requesting display language.
+5. App ensures any missing on-demand translations for the display language, reloads the affected senses, and returns them.
 
 ## Review Flow
 
@@ -115,6 +123,7 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 
 | HTTP route | Flow | Service / handler |
 |------------|------|-------------------|
+| `GET /api/auth/language-options` | Language options | `auth.Service.LanguageOptions` |
 | `POST /api/auth/register` | Register | `auth.Service.Register` |
 | `POST /api/auth/login` | Login | `auth.Service.Login` |
 | `POST /api/auth/oauth/{provider}` | OAuth login | `auth.Service.LoginWithOAuth` |

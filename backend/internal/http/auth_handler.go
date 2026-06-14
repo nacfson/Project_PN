@@ -71,6 +71,10 @@ func (h *authHandler) register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, sessionResponse{Token: session.Token, ExpiresAt: session.ExpiresAt})
 }
 
+func (h *authHandler) languageOptions(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, h.svc.LanguageOptions())
+}
+
 func (h *authHandler) login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -188,6 +192,10 @@ func (h *authHandler) writeAuthError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
 	case errors.Is(err, auth.ErrEmailRequired):
 		writeError(w, http.StatusBadRequest, "email is required")
+	case errors.Is(err, auth.ErrInvalidTargetLang):
+		writeError(w, http.StatusBadRequest, "invalid target language")
+	case errors.Is(err, auth.ErrInvalidDefinitionLang):
+		writeError(w, http.StatusBadRequest, "invalid definition language")
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 	default:

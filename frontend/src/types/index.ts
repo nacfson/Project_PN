@@ -17,7 +17,8 @@ export type PosFilter = PartOfSpeech | 'Any';
 
 export interface Example {
   sentence: string;
-  translation: string | null;
+  difficulty: string | null;
+  localized_translation: string | null;
 }
 
 export interface SenseOption {
@@ -27,9 +28,11 @@ export interface SenseOption {
   lemma: string;
   normalized_text: string;
   part_of_speech: string;
-  definition_language_code: string;
+  display_language_code: string;
   definition: string;
   short_definition: string | null;
+  localized_definition: string;
+  localized_short_definition: string | null;
   cefr_level: string | null;
   meaning_order: number;
   examples: Example[];
@@ -38,7 +41,7 @@ export interface SenseOption {
 export interface LookupRequest {
   text: string;
   language_code?: string;
-  definition_language_code?: string;
+  display_language_code?: string;
   part_of_speech?: string;
   word_id?: string;
   force?: boolean;
@@ -65,9 +68,11 @@ export interface LearningItemListItem {
   lemma: string;
   normalized_text: string;
   part_of_speech: string;
-  definition_language_code: string;
+  display_language_code: string;
   definition: string;
   short_definition: string | null;
+  localized_definition: string;
+  localized_short_definition: string | null;
   cefr_level: string | null;
   meaning_order: number;
   learning_stage: string;
@@ -79,3 +84,41 @@ export interface LearningItemsPage {
   items: LearningItemListItem[];
   next_cursor: string | null;
 }
+
+export interface ReviewAttemptParams {
+  user_word_sense_id: string;
+  activity_type: string;
+  prompt: string | null;
+  user_answer: string | null;
+  correct_answer: string | null;
+  is_correct: boolean;
+  rating_score: number; // raw float score 0.0 to 3.0
+  response_time_ms: number | null;
+  confidence_rating: number | null;
+}
+
+export interface DueItem {
+  user_word_sense_id: string;
+  word_sense_id: string;
+  word_id: string;
+  language_code: string;
+  lemma: string;
+  normalized_text: string;
+  part_of_speech: string;
+  display_language_code: string;
+  definition: string;
+  short_definition: string | null;
+  localized_definition: string;
+  localized_short_definition: string | null;
+  cefr_level: string | null;
+  meaning_order: number;
+  learning_stage: string;
+  due_at: string;
+  examples: Example[];
+}
+
+export interface BatchReviewResult {
+  xp_earned: number;
+  success: boolean;
+}
+

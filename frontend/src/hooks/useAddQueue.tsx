@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { addLearningItem, lookupWord } from '../api/words';
 import { ApiError } from '../api/client';
+import { DEFAULT_DEFINITION_LANGUAGE_CODE } from '../config';
 import type { WordStatus } from '../components/WordChip';
 import type { PosFilter } from '../types';
 import { bestMatch } from '../utils/senses';
@@ -82,14 +83,17 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
         updateJob(next.id, { status: 'processing' });
 
         try {
-          const response = await lookupWord(next.text, { partOfSpeech: next.pos });
+          const response = await lookupWord(next.text, {
+            partOfSpeech: next.pos,
+            displayLanguageCode: DEFAULT_DEFINITION_LANGUAGE_CODE,
+          });
           const match = bestMatch(response.sense_options);
           if (!match) {
             updateJob(next.id, { status: 'error', error: 'No senses found.' });
             continue;
           }
 
-          await addLearningItem(match.word_sense_id);
+          await addLearningItem(match.word_sense_id, DEFAULT_DEFINITION_LANGUAGE_CODE);
           updateJob(next.id, { status: 'done', wordSenseId: match.word_sense_id });
         } catch (err) {
           updateJob(next.id, { status: 'error', error: messageOf(err) });

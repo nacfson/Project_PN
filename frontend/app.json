@@ -21,6 +21,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "projectpn"
+    "scheme": "projectpn",
+    "plugins": [
+      "expo-localization"
+    ]
   }
 }

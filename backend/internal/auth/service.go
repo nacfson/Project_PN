@@ -20,40 +20,95 @@ type querier interface {
 }
 
 type Service struct {
-	pool                  *pgxpool.Pool
-	mailer                email.Mailer
-	sessionTTL            time.Duration
-	magicLinkTTL          time.Duration
-	exchangeCodeTTL       time.Duration
-	defaultDefinitionLang string
-	defaultTargetLang     string
-	appPublicURL          string
+	pool                   *pgxpool.Pool
+	mailer                 email.Mailer
+	sessionTTL             time.Duration
+	magicLinkTTL           time.Duration
+	exchangeCodeTTL        time.Duration
+	defaultDefinitionLang  string
+	defaultTargetLang      string
+	allowedDefinitionLangs []string
+	allowedTargetLangs     []string
+	forceDefinitionLang    string
+	forceTargetLang        string
+	appPublicURL           string
 }
 
 type Options struct {
-	SessionTTL            time.Duration
-	MagicLinkTTL          time.Duration
-	ExchangeCodeTTL       time.Duration
-	DefaultDefinitionLang string
-	DefaultTargetLang     string
-	AppPublicURL          string
+	SessionTTL             time.Duration
+	MagicLinkTTL           time.Duration
+	ExchangeCodeTTL        time.Duration
+	DefaultDefinitionLang  string
+	DefaultTargetLang      string
+	AllowedDefinitionLangs []string
+	AllowedTargetLangs     []string
+	ForceDefinitionLang    string
+	ForceTargetLang        string
+	AppPublicURL           string
 }
 
 func New(pool *pgxpool.Pool, mailer email.Mailer, opts Options) *Service {
 	return &Service{
-		pool:                  pool,
-		mailer:                mailer,
-		sessionTTL:            opts.SessionTTL,
-		magicLinkTTL:          opts.MagicLinkTTL,
-		exchangeCodeTTL:       opts.ExchangeCodeTTL,
-		defaultDefinitionLang: opts.DefaultDefinitionLang,
-		defaultTargetLang:     opts.DefaultTargetLang,
-		appPublicURL:          opts.AppPublicURL,
+		pool:                   pool,
+		mailer:                 mailer,
+		sessionTTL:             opts.SessionTTL,
+		magicLinkTTL:           opts.MagicLinkTTL,
+		exchangeCodeTTL:        opts.ExchangeCodeTTL,
+		defaultDefinitionLang:  opts.DefaultDefinitionLang,
+		defaultTargetLang:      opts.DefaultTargetLang,
+		allowedDefinitionLangs: opts.AllowedDefinitionLangs,
+		allowedTargetLangs:     opts.AllowedTargetLangs,
+		forceDefinitionLang:    opts.ForceDefinitionLang,
+		forceTargetLang:        opts.ForceTargetLang,
+		appPublicURL:           opts.AppPublicURL,
 	}
 }
 
 func (s *Service) AppPublicURL() string {
 	return s.appPublicURL
+}
+
+func (s *Service) LanguageOptions() LanguageOptions {
+	return LanguageOptions{
+		Defaults: LanguagePair{
+			TargetLanguage:      s.defaultTargetLang,
+			DefinitionLanguage:  s.defaultDefinitionLang,
+		},
+		Allowed: AllowedLanguages{
+			TargetLanguages:     s.allowedTargetLangs,
+			DefinitionLanguages: s.allowedDefinitionLangs,
+		},
+		Forced: LanguagePair{
+			TargetLanguage:      s.forceTargetLang,
+			DefinitionLanguage:  s.forceDefinitionLang,
+		},
+	}
+}
+
+func (s *Service) resolveTargetLang(requested string) (string, error) {
+	if s.forceTargetLang != "" {
+		return s.forceTargetLang, nil
+	}
+	if requested == "" {
+		return s.defaultTargetLang, nil
+	}
+	if len(s.allowedTargetLangs) > 0 && !contains(s.allowedTargetLangs, requested) {
+		return "", ErrInvalidTargetLang
+	}
+	return requested, nil
+}
+
+func (s *Service) resolveDefinitionLang(requested string) (string, error) {
+	if s.forceDefinitionLang != "" {
+		return s.forceDefinitionLang, nil
+	}
+	if requested == "" {
+		return s.defaultDefinitionLang, nil
+	}
+	if len(s.allowedDefinitionLangs) > 0 && !contains(s.allowedDefinitionLangs, requested) {
+		return "", ErrInvalidDefinitionLang
+	}
+	return requested, nil
 }
 
 // InsertMagicLinkTokenForTest seeds a magic-link token for integration tests.
@@ -80,11 +135,14 @@ func (s *Service) Register(ctx context.Context, emailAddr, password, nativeLang,
 	if len(password) < 8 {
 		return Session{}, ErrWeakPassword
 	}
-	if nativeLang == "" {
-		nativeLang = s.defaultDefinitionLang
+
+	targetLang, err := s.resolveTargetLang(targetLang)
+	if err != nil {
+		return Session{}, err
 	}
-	if targetLang == "" {
-		targetLang = s.defaultTargetLang
+	nativeLang, err = s.resolveDefinitionLang(nativeLang)
+	if err != nil {
+		return Session{}, err
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -225,8 +283,14 @@ func (s *Service) linkOAuthIdentity(ctx context.Context, provider, subject, emai
 }
 
 func (s *Service) createOAuthUser(ctx context.Context, provider, subject, email string, emailVerified bool) (Session, error) {
-	nativeLang := s.defaultDefinitionLang
-	targetLang := s.defaultTargetLang
+	targetLang, err := s.resolveTargetLang("")
+	if err != nil {
+		return Session{}, err
+	}
+	nativeLang, err := s.resolveDefinitionLang("")
+	if err != nil {
+		return Session{}, err
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

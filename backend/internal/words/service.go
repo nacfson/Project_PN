@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -18,10 +19,11 @@ import (
 
 // Sentinel errors mapped to HTTP statuses by the handler layer.
 var (
-	ErrSenseNotFound  = errors.New("words: word sense not found")
-	ErrForceAmbiguous = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
-	ErrNoSenses       = errors.New("words: no senses available and generation is disabled")
-	ErrInvalidCursor  = errors.New("words: invalid learning items cursor")
+	ErrSenseNotFound            = errors.New("words: word sense not found")
+	ErrForceAmbiguous           = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
+	ErrNoSenses                 = errors.New("words: no senses available and generation is disabled")
+	ErrInvalidCursor            = errors.New("words: invalid learning items cursor")
+	ErrTranslationUnavailable   = errors.New("words: localized translation unavailable")
 )
 
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -71,15 +73,17 @@ func (s *Service) Lookup(ctx context.Context, text, langCode, defLangCode string
 		return LookupResult{}, err
 	}
 
-	if len(wordIDs) > 0 { // cache hit: free
-		options, err := loadSenseOptions(ctx, s.pool, wordIDs)
+	if len(wordIDs) > 0 {
+		if _, err := s.ensureTranslationsForWord(ctx, wordIDs, defLangCode); err != nil {
+			return LookupResult{}, err
+		}
+		options, err := loadSenseOptions(ctx, s.pool, wordIDs, defLangCode)
 		if err != nil {
 			return LookupResult{}, err
 		}
 		return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 	}
 
-	// Full miss: generate once and persist.
 	posHint := ""
 	if pos != nil {
 		posHint = *pos
@@ -115,7 +119,6 @@ func (s *Service) ForceGenerate(ctx context.Context, wordID *string, text, langC
 		return s.forceUnderWord(ctx, *wordID, defLangCode)
 	}
 
-	// No word_id: a concrete POS is guaranteed by the guard above.
 	posValue := strings.ToLower(strings.TrimSpace(*pos))
 	if normalized == "" {
 		return LookupResult{}, fmt.Errorf("words: empty lookup text")
@@ -167,7 +170,6 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 		return LookupResult{}, err
 	}
 
-	// Collect senses from the entry that matches this word's POS.
 	var newSenses []enrich.Sense
 	for _, e := range result.Entries {
 		if strings.EqualFold(e.PartOfSpeech, pos) {
@@ -189,11 +191,15 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 	if err := appendSenses(ctx, tx, wordID, defLangCode, newSenses); err != nil {
 		return LookupResult{}, err
 	}
-	options, err := loadSenseOptions(ctx, tx, []string{wordID})
-	if err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return LookupResult{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+
+	if _, err := s.ensureTranslationsForWord(ctx, []string{wordID}, defLangCode); err != nil {
+		return LookupResult{}, err
+	}
+	options, err := loadSenseOptions(ctx, s.pool, []string{wordID}, defLangCode)
+	if err != nil {
 		return LookupResult{}, err
 	}
 	return LookupResult{Query: normalized, NormalizedText: normalized, SenseOptions: options}, nil
@@ -201,20 +207,53 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 
 // AddLearningItem creates the personal user_word_senses + review_states rows
 // for the given concrete word sense (idempotent).
-func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID string) (LearningItem, error) {
+func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode string) (LearningItem, error) {
 	wordSenseID = strings.TrimSpace(wordSenseID)
 	if wordSenseID == "" {
 		return LearningItem{}, ErrSenseNotFound
 	}
 
-	var exists bool
-	if err := s.pool.QueryRow(ctx,
-		`select exists(select 1 from word_senses where id = $1::uuid)`, wordSenseID,
-	).Scan(&exists); err != nil {
+	var wordID, wordLang string
+	err := s.pool.QueryRow(ctx, `
+		select w.id::text, w.language_code
+		from word_senses ws
+		join words w on w.id = ws.word_id
+		where ws.id = $1::uuid`,
+		wordSenseID,
+	).Scan(&wordID, &wordLang)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrSenseNotFound
+	}
+	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: verify sense: %w", err)
 	}
-	if !exists {
-		return LearningItem{}, ErrSenseNotFound
+
+	displayLang, err := s.resolveDisplayLang(ctx, userID, displayLangCode)
+	if err != nil {
+		return LearningItem{}, err
+	}
+
+	if displayLang != wordLang {
+		if _, err := s.ensureTranslationsForWord(ctx, []string{wordID}, displayLang); err != nil {
+			return LearningItem{}, err
+		}
+		var hasTranslation bool
+		if err := s.pool.QueryRow(ctx, `
+			select exists(
+				select 1 from sense_translations
+				where word_sense_id = $1::uuid and language_code = $2
+			)`, wordSenseID, displayLang,
+		).Scan(&hasTranslation); err != nil {
+			return LearningItem{}, fmt.Errorf("words: verify translation: %w", err)
+		}
+		if !hasTranslation {
+			var normalized string
+			_ = s.pool.QueryRow(ctx, `select normalized_text from words where id = $1::uuid`, wordID).Scan(&normalized)
+			slog.Warn("add refused: translation unavailable",
+				"word", normalized, "target_lang", wordLang, "display_lang", displayLang,
+				"reason", "language_mismatch")
+			return LearningItem{}, ErrTranslationUnavailable
+		}
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -287,12 +326,19 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	query := fmt.Sprintf(
 		`select uws.id::text, uws.word_sense_id::text, w.id::text,
 		        w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
-		        ws.definition_language_code, ws.definition, ws.short_definition, ws.cefr_level, ws.meaning_order,
+		        u.native_language,
+		        ws.definition, ws.short_definition,
+		        coalesce(st.definition, ws.definition),
+		        coalesce(st.short_definition, ws.short_definition),
+		        ws.cefr_level, ws.meaning_order,
 		        uws.learning_stage, rs.due_at, uws.added_at
 		 from user_word_senses uws
+		 join users u on u.id = uws.user_id
 		 join word_senses ws on ws.id = uws.word_sense_id
 		 join words w on w.id = ws.word_id
 		 join review_states rs on rs.user_word_sense_id = uws.id
+		 left join sense_translations st
+		   on st.word_sense_id = ws.id and st.language_code = u.native_language
 		 where uws.user_id = $1::uuid
 		   and uws.archived_at is null
 		   %s
@@ -314,7 +360,10 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		if err := rows.Scan(
 			&item.ID, &item.WordSenseID, &item.WordID,
 			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
-			&item.DefinitionLanguageCode, &item.Definition, &item.ShortDefinition, &item.CEFRLevel, &item.MeaningOrder,
+			&item.DisplayLanguageCode,
+			&item.Definition, &item.ShortDefinition,
+			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
+			&item.CEFRLevel, &item.MeaningOrder,
 			&item.LearningStage, &item.DueAt, &item.AddedAt,
 		); err != nil {
 			return LearningItemsPage{}, err
@@ -373,6 +422,22 @@ func (s *Service) fillLangs(langCode, defLangCode string) (string, string) {
 		defLangCode = s.DefinitionLang
 	}
 	return langCode, defLangCode
+}
+
+func (s *Service) resolveDisplayLang(ctx context.Context, userID, displayLangCode string) (string, error) {
+	if lang := strings.TrimSpace(displayLangCode); lang != "" {
+		return lang, nil
+	}
+	if strings.TrimSpace(userID) != "" {
+		var native string
+		err := s.pool.QueryRow(ctx,
+			`select native_language from users where id = $1::uuid`, userID,
+		).Scan(&native)
+		if err == nil && strings.TrimSpace(native) != "" {
+			return native, nil
+		}
+	}
+	return s.DefinitionLang, nil
 }
 
 func (s *Service) findWordIDs(ctx context.Context, q querier, langCode, normalized string, pos *string) ([]string, error) {
@@ -446,6 +511,207 @@ func (s *Service) existingDefinitionsByIdentity(ctx context.Context, langCode, n
 	return defs, rows.Err()
 }
 
+// ensureTranslationsForWord makes sure every sense/example under wordIDs has a
+// valid translation row for displayLang, generating + caching the missing ones.
+// Returns whether a complete, valid translation set now exists.
+func (s *Service) ensureTranslationsForWord(ctx context.Context, wordIDs []string, displayLang string) (bool, error) {
+	if len(wordIDs) == 0 {
+		return true, nil
+	}
+
+	needsTranslation := false
+	for _, wordID := range wordIDs {
+		var wordLang string
+		if err := s.pool.QueryRow(ctx,
+			`select language_code from words where id = $1::uuid`, wordID,
+		).Scan(&wordLang); err != nil {
+			return false, fmt.Errorf("words: load word language: %w", err)
+		}
+		if displayLang != wordLang {
+			needsTranslation = true
+			break
+		}
+	}
+	if !needsTranslation {
+		return true, nil
+	}
+
+	complete := true
+	for _, wordID := range wordIDs {
+		ok, err := s.ensureWordTranslations(ctx, wordID, displayLang)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			complete = false
+		}
+	}
+	return complete, nil
+}
+
+func (s *Service) ensureWordTranslations(ctx context.Context, wordID, displayLang string) (bool, error) {
+	var wordLang, normalized string
+	if err := s.pool.QueryRow(ctx,
+		`select language_code, normalized_text from words where id = $1::uuid`, wordID,
+	).Scan(&wordLang, &normalized); err != nil {
+		return false, fmt.Errorf("words: load word: %w", err)
+	}
+	if displayLang == wordLang {
+		return true, nil
+	}
+
+	missing, err := s.missingTranslationSenses(ctx, wordID, displayLang)
+	if err != nil {
+		return false, err
+	}
+	if len(missing) == 0 {
+		return true, nil
+	}
+
+	if s.enricher == nil {
+		return false, nil
+	}
+
+	input, err := s.buildTranslateInput(ctx, wordID, displayLang, missing)
+	if err != nil {
+		return false, err
+	}
+	if len(input.Senses) == 0 {
+		return true, nil
+	}
+
+	result, err := s.enricher.Translate(ctx, input)
+	if err != nil {
+		slog.Warn("translation failed",
+			"word", normalized, "target_lang", wordLang, "display_lang", displayLang,
+			"reason", "translate_error", "error", err)
+		return false, nil
+	}
+
+	if err := s.cacheTranslateResult(ctx, displayLang, result); err != nil {
+		return false, err
+	}
+
+	stillMissing, err := s.missingTranslationSenses(ctx, wordID, displayLang)
+	if err != nil {
+		return false, err
+	}
+	return len(stillMissing) == 0, nil
+}
+
+func (s *Service) missingTranslationSenses(ctx context.Context, wordID, displayLang string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		select ws.id::text
+		from word_senses ws
+		left join sense_translations st
+		  on st.word_sense_id = ws.id and st.language_code = $2
+		where ws.word_id = $1::uuid and st.id is null
+		order by ws.meaning_order`,
+		wordID, displayLang,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("words: find missing sense translations: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (s *Service) buildTranslateInput(ctx context.Context, wordID, displayLang string, senseIDs []string) (enrich.TranslateRequest, error) {
+	var wordText, wordLang string
+	if err := s.pool.QueryRow(ctx,
+		`select lemma, language_code from words where id = $1::uuid`, wordID,
+	).Scan(&wordText, &wordLang); err != nil {
+		return enrich.TranslateRequest{}, fmt.Errorf("words: load word for translate: %w", err)
+	}
+
+	req := enrich.TranslateRequest{
+		WordText:     wordText,
+		LanguageCode: wordLang,
+		DisplayLang:  displayLang,
+	}
+
+	for _, senseID := range senseIDs {
+		var definition string
+		var shortDef *string
+		if err := s.pool.QueryRow(ctx, `
+			select definition, short_definition
+			from word_senses where id = $1::uuid`, senseID,
+		).Scan(&definition, &shortDef); err != nil {
+			return enrich.TranslateRequest{}, fmt.Errorf("words: load sense for translate: %w", err)
+		}
+
+		senseInput := enrich.TranslateSenseInput{
+			SenseID:         senseID,
+			Definition:      definition,
+			ShortDefinition: derefString(shortDef),
+		}
+
+		exampleRows, err := s.pool.Query(ctx, `
+			select id::text, sentence from examples
+			where word_sense_id = $1::uuid order by created_at`, senseID)
+		if err != nil {
+			return enrich.TranslateRequest{}, fmt.Errorf("words: load examples for translate: %w", err)
+		}
+		for exampleRows.Next() {
+			var exampleID, sentence string
+			if err := exampleRows.Scan(&exampleID, &sentence); err != nil {
+				exampleRows.Close()
+				return enrich.TranslateRequest{}, err
+			}
+			senseInput.Examples = append(senseInput.Examples, enrich.TranslateExampleInput{
+				ExampleID: exampleID,
+				Sentence:  sentence,
+			})
+		}
+		exampleRows.Close()
+		if err := exampleRows.Err(); err != nil {
+			return enrich.TranslateRequest{}, err
+		}
+
+		req.Senses = append(req.Senses, senseInput)
+	}
+	return req, nil
+}
+
+func (s *Service) cacheTranslateResult(ctx context.Context, displayLang string, result enrich.TranslateResult) error {
+	for _, sense := range result.Senses {
+		if strings.TrimSpace(sense.Definition) == "" {
+			continue
+		}
+		if _, err := s.pool.Exec(ctx, `
+			insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+			values ($1::uuid, $2, $3, $4)
+			on conflict (word_sense_id, language_code) do nothing`,
+			sense.SenseID, displayLang, sense.Definition, nullString(sense.ShortDefinition),
+		); err != nil {
+			return fmt.Errorf("words: cache sense translation: %w", err)
+		}
+		for _, ex := range sense.Examples {
+			if strings.TrimSpace(ex.Translation) == "" {
+				continue
+			}
+			if _, err := s.pool.Exec(ctx, `
+				insert into example_translations (example_id, language_code, translation)
+				values ($1::uuid, $2, $3)
+				on conflict (example_id, language_code) do nothing`,
+				ex.ExampleID, displayLang, ex.Translation,
+			); err != nil {
+				return fmt.Errorf("words: cache example translation: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 // persistEntries inserts enrich entries (words + senses + examples) and returns
 // the resulting sense options.
 func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, normalized string, entries []enrich.Entry) ([]SenseOption, error) {
@@ -493,11 +759,12 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 		return nil, ErrNoSenses
 	}
 
-	options, err := loadSenseOptions(ctx, tx, wordIDs)
-	if err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+
+	options, err := loadSenseOptions(ctx, s.pool, wordIDs, defLangCode)
+	if err != nil {
 		return nil, err
 	}
 	return options, nil
@@ -507,8 +774,8 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 func appendSenses(ctx context.Context, tx pgx.Tx, wordID, defLangCode string, senses []enrich.Sense) error {
 	var maxOrder int
 	if err := tx.QueryRow(ctx,
-		`select coalesce(max(meaning_order), 0) from word_senses where word_id = $1::uuid and definition_language_code = $2`,
-		wordID, defLangCode,
+		`select coalesce(max(meaning_order), 0) from word_senses where word_id = $1::uuid`,
+		wordID,
 	).Scan(&maxOrder); err != nil {
 		return fmt.Errorf("words: max meaning_order: %w", err)
 	}
@@ -520,41 +787,67 @@ func appendSenses(ctx context.Context, tx pgx.Tx, wordID, defLangCode string, se
 		maxOrder++
 		var senseID string
 		err := tx.QueryRow(ctx,
-			`insert into word_senses (word_id, definition_language_code, definition, short_definition, cefr_level, meaning_order)
-			 values ($1::uuid, $2, $3, $4, $5, $6)
+			`insert into word_senses (word_id, definition, short_definition, cefr_level, meaning_order)
+			 values ($1::uuid, $2, $3, $4, $5)
 			 returning id::text`,
-			wordID, defLangCode, sense.Definition,
+			wordID, sense.Definition,
 			nullString(sense.ShortDefinition), nullString(sense.CEFRLevel), maxOrder,
 		).Scan(&senseID)
 		if err != nil {
 			return fmt.Errorf("words: insert sense: %w", err)
 		}
 
+		if strings.TrimSpace(sense.NativeDefinition) != "" {
+			if _, err := tx.Exec(ctx, `
+				insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+				values ($1::uuid, $2, $3, $4)
+				on conflict (word_sense_id, language_code) do nothing`,
+				senseID, defLangCode, sense.NativeDefinition, nullString(sense.NativeShortDefinition),
+			); err != nil {
+				return fmt.Errorf("words: insert sense translation: %w", err)
+			}
+		}
+
 		for _, ex := range sense.Examples {
 			if strings.TrimSpace(ex.Sentence) == "" {
 				continue
 			}
-			if _, err := tx.Exec(ctx,
-				`insert into examples (word_sense_id, sentence, translation, translation_language_code)
-				 values ($1::uuid, $2, $3, $4)`,
-				senseID, ex.Sentence, nullString(ex.Translation), defLangCode,
-			); err != nil {
+			var exampleID string
+			if err := tx.QueryRow(ctx, `
+				insert into examples (word_sense_id, sentence, difficulty_level, source)
+				values ($1::uuid, $2, $3, 'enricher')
+				returning id::text`,
+				senseID, ex.Sentence, nullString(ex.Difficulty),
+			).Scan(&exampleID); err != nil {
 				return fmt.Errorf("words: insert example: %w", err)
+			}
+			if strings.TrimSpace(ex.Translation) != "" {
+				if _, err := tx.Exec(ctx, `
+					insert into example_translations (example_id, language_code, translation)
+					values ($1::uuid, $2, $3)
+					on conflict (example_id, language_code) do nothing`,
+					exampleID, defLangCode, ex.Translation,
+				); err != nil {
+					return fmt.Errorf("words: insert example translation: %w", err)
+				}
 			}
 		}
 	}
 	return nil
 }
 
-func loadSenseOptions(ctx context.Context, q querier, wordIDs []string) ([]SenseOption, error) {
+func loadSenseOptions(ctx context.Context, q querier, wordIDs []string, displayLang string) ([]SenseOption, error) {
 	rows, err := q.Query(ctx,
 		`select w.id::text, ws.id::text, w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
-		        ws.definition_language_code, ws.definition, ws.short_definition, ws.cefr_level, ws.meaning_order
+		        ws.definition, ws.short_definition, ws.cefr_level, ws.meaning_order,
+		        st.definition, st.short_definition
 		 from words w
 		 join word_senses ws on ws.word_id = w.id
+		 left join sense_translations st
+		   on st.word_sense_id = ws.id and st.language_code = $2
 		 where w.id = any($1::uuid[])
 		 order by w.part_of_speech, ws.meaning_order`,
-		wordIDs,
+		wordIDs, displayLang,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("words: load senses: %w", err)
@@ -564,11 +857,22 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string) ([]Sense
 	var options []SenseOption
 	for rows.Next() {
 		var o SenseOption
+		var translatedDef, translatedShort *string
 		if err := rows.Scan(
 			&o.WordID, &o.WordSenseID, &o.LanguageCode, &o.Lemma, &o.NormalizedText, &o.PartOfSpeech,
-			&o.DefinitionLanguageCode, &o.Definition, &o.ShortDefinition, &o.CEFRLevel, &o.MeaningOrder,
+			&o.Definition, &o.ShortDefinition, &o.CEFRLevel, &o.MeaningOrder,
+			&translatedDef, &translatedShort,
 		); err != nil {
 			return nil, err
+		}
+		o.DisplayLanguageCode = displayLang
+		o.LocalizedDefinition = o.Definition
+		if translatedDef != nil && strings.TrimSpace(*translatedDef) != "" {
+			o.LocalizedDefinition = *translatedDef
+		}
+		o.LocalizedShortDefinition = o.ShortDefinition
+		if translatedShort != nil && strings.TrimSpace(*translatedShort) != "" {
+			o.LocalizedShortDefinition = translatedShort
 		}
 		options = append(options, o)
 	}
@@ -577,7 +881,7 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string) ([]Sense
 	}
 
 	for i := range options {
-		examples, err := loadExamples(ctx, q, options[i].WordSenseID)
+		examples, err := loadExamples(ctx, q, options[i].WordSenseID, displayLang)
 		if err != nil {
 			return nil, err
 		}
@@ -586,10 +890,15 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string) ([]Sense
 	return options, nil
 }
 
-func loadExamples(ctx context.Context, q querier, wordSenseID string) ([]Example, error) {
-	rows, err := q.Query(ctx,
-		`select sentence, translation from examples where word_sense_id = $1::uuid order by created_at`,
-		wordSenseID,
+func loadExamples(ctx context.Context, q querier, wordSenseID, displayLang string) ([]Example, error) {
+	rows, err := q.Query(ctx, `
+		select e.sentence, e.difficulty_level, et.translation
+		from examples e
+		left join example_translations et
+		  on et.example_id = e.id and et.language_code = $2
+		where e.word_sense_id = $1::uuid
+		order by e.created_at`,
+		wordSenseID, displayLang,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("words: load examples: %w", err)
@@ -598,8 +907,14 @@ func loadExamples(ctx context.Context, q querier, wordSenseID string) ([]Example
 	var examples []Example
 	for rows.Next() {
 		var ex Example
-		if err := rows.Scan(&ex.Sentence, &ex.Translation); err != nil {
+		var localized *string
+		if err := rows.Scan(&ex.Sentence, &ex.Difficulty, &localized); err != nil {
 			return nil, err
+		}
+		if localized != nil && strings.TrimSpace(*localized) != "" {
+			ex.LocalizedTranslation = localized
+		} else {
+			ex.LocalizedTranslation = &ex.Sentence
 		}
 		examples = append(examples, ex)
 	}
@@ -617,6 +932,13 @@ func nullString(s string) *string {
 	return &s
 }
 
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
 		if strings.TrimSpace(v) != "" {
@@ -625,3 +947,73 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
+
+// TODO: negative-cache / backoff for repeatedly-failing (word, language) pairs
+
+// GetDueReviewItems returns all active personal learning items that are due for review.
+func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit int) ([]DueItem, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	query := `
+		select uws.id::text, uws.word_sense_id::text, w.id::text,
+		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
+		       u.native_language,
+		       ws.definition, ws.short_definition,
+		       coalesce(st.definition, ws.definition),
+		       coalesce(st.short_definition, ws.short_definition),
+		       ws.cefr_level, ws.meaning_order,
+		       uws.learning_stage, rs.due_at
+		from user_word_senses uws
+		join users u on u.id = uws.user_id
+		join word_senses ws on ws.id = uws.word_sense_id
+		join words w on w.id = ws.word_id
+		join review_states rs on rs.user_word_sense_id = uws.id
+		left join sense_translations st
+		  on st.word_sense_id = ws.id and st.language_code = u.native_language
+		where uws.user_id = $1::uuid
+		  and uws.archived_at is null
+		  and uws.learning_stage != 'archived'
+		  and rs.due_at <= now()
+		order by rs.due_at asc
+		limit $2`
+
+	rows, err := s.pool.Query(ctx, query, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("words: get due review items: %w", err)
+	}
+	defer rows.Close()
+
+	var items []DueItem
+	for rows.Next() {
+		var item DueItem
+		if err := rows.Scan(
+			&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
+			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+			&item.DisplayLanguageCode,
+			&item.Definition, &item.ShortDefinition,
+			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
+			&item.CEFRLevel, &item.MeaningOrder,
+			&item.LearningStage, &item.DueAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Load example sentences for each due item
+	for i := range items {
+		examples, err := loadExamples(ctx, s.pool, items[i].WordSenseID, items[i].DisplayLanguageCode)
+		if err != nil {
+			return nil, err
+		}
+		items[i].Examples = examples
+	}
+
+	return items, nil
+}
+

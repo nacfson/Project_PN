@@ -1,0 +1,2057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project PN — Frontend Design &amp; Flow Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #080c14;
+    --card-bg: rgba(20, 26, 42, 0.65);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --text-primary: #f3f4f6;
+    --text-muted: #9ca3af;
+    
+    --primary: #6366f1;
+    --primary-glow: rgba(99, 102, 241, 0.35);
+    --primary-light: #818cf8;
+
+    --again: #ef4444;
+    --hard: #f59e0b;
+    --good: #10b981;
+    --easy: #3b82f6;
+
+    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+    --phone-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--bg-dark);
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0, transparent 55%),
+      radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.12) 0, transparent 55%);
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 30px;
+    max-width: 800px;
+  }
+
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  h1 {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 10px;
+  }
+
+  p.subtitle {
+    color: var(--text-muted);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* Layout container */
+  .container {
+    display: flex;
+    gap: 40px;
+    max-width: 1200px;
+    width: 100%;
+    justify-content: center;
+    align-items: flex-start;
+    margin-top: 20px;
+  }
+
+  @media (max-width: 1024px) {
+    .container {
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+    }
+  }
+
+  /* Specifications & Plan column */
+  .spec-panel {
+    flex: 1;
+    max-width: 550px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    padding: 28px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .spec-section {
+    margin-bottom: 24px;
+  }
+
+  .spec-section:last-child {
+    margin-bottom: 0;
+  }
+
+  h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+
+  h2 span.num {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .spec-list {
+    list-style: none;
+  }
+
+  .spec-list li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 10px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  .spec-list li strong {
+    color: var(--text-primary);
+  }
+
+  .spec-list li::before {
+    content: "✦";
+    position: absolute;
+    left: 0;
+    color: var(--primary-light);
+    font-weight: bold;
+  }
+
+  /* Radio list styling with custom scrollbar */
+  .radio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 13px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+
+  .radio-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .radio-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 3px;
+  }
+  .radio-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+
+  .radio-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    transition: all 0.2s ease;
+  }
+
+  .radio-item:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .radio-item input[type="radio"] {
+    accent-color: var(--primary-light);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .radio-item span {
+    flex: 1;
+    color: var(--text-muted);
+  }
+
+  .radio-item input[type="radio"]:checked + span {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* Phone Mockup */
+  .phone-wrapper {
+    position: relative;
+    width: 380px;
+    height: 780px;
+    background: #000;
+    border: 12px solid #1c2130;
+    border-radius: 54px;
+    box-shadow: var(--phone-shadow), 0 0 0 2px rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* Camera island */
+  .dynamic-island {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 28px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 1000;
+  }
+
+  /* Screen Canvas */
+  .screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #090c15;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 55px 18px 20px 18px;
+  }
+
+  /* Status bar */
+  .status-bar {
+    position: absolute;
+    top: 18px;
+    left: 28px;
+    right: 28px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    z-index: 999;
+  }
+
+  .status-icons span {
+    margin-left: 4px;
+  }
+
+  /* App Views */
+  .view {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+
+  .view.active {
+    display: flex;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* HOME VIEW */
+  .header-area {
+    margin-bottom: 20px;
+  }
+  
+  .welcome-text {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .welcome-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .card {
+    background: rgba(22, 30, 49, 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+    transition: all 0.25s ease;
+  }
+
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .badge {
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .badge-primary { background: rgba(99, 102, 241, 0.2); color: var(--primary-light); border: 1px solid rgba(99, 102, 241, 0.35); }
+  .badge-success { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+  .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+
+  .card-body-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* PRACTICE VIEW (Flashcard Quiz) */
+  .practice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .progress-container {
+    flex: 1;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    margin: 0 12px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent-gradient);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .deck-counter {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* Flashcard Container (3D Flip Effect) */
+  .flashcard-wrapper {
+    flex: 1;
+    perspective: 1000px;
+    margin-bottom: 16px;
+    min-height: 250px;
+  }
+
+  .flashcard {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+
+  .flashcard.flipped {
+    transform: rotateY(180deg);
+  }
+
+  .card-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    background: linear-gradient(145deg, #0e131f, #182030);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 22px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Card Front */
+  .card-front {
+    z-index: 2;
+  }
+
+  .prompt-type {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--primary-light);
+  }
+
+  .prompt-main {
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: center;
+    margin: auto 0;
+  }
+
+  .tap-instruction {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    animation: pulse 1.5s infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { opacity: 0.5; }
+    to { opacity: 1; }
+  }
+
+  /* Card Back */
+  .card-back {
+    transform: rotateY(180deg);
+    border: 1px dashed rgba(99, 102, 241, 0.35);
+  }
+
+  .answer-pos {
+    align-self: flex-start;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+  }
+
+  .answer-word {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .answer-context {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1.35;
+    text-align: center;
+    margin: 8px 0;
+  }
+
+  .answer-translation {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* Grading Panel Shells */
+  .grades-panel-container {
+    margin-top: auto;
+    min-height: 155px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .grades-panel {
+    display: none;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    width: 100%;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .grade-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 8px 4px;
+    color: white;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 10px;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    transition: all 0.2s ease;
+  }
+
+  .grade-btn:active {
+    transform: scale(0.96);
+  }
+
+  .btn-again { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #f87171; }
+  .btn-again:hover { background: rgba(239, 68, 68, 0.2); }
+  
+  .btn-hard { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24; }
+  .btn-hard:hover { background: rgba(245, 158, 11, 0.2); }
+
+  .btn-good { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; }
+  .btn-good:hover { background: rgba(16, 185, 129, 0.2); }
+
+  .btn-easy { background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.35); color: #60a5fa; }
+  .btn-easy:hover { background: rgba(59, 130, 246, 0.2); }
+
+  .confirm-btn {
+    width: 100%;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 0;
+    color: white;
+    font-weight: 700;
+    font-size: 11px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.2s;
+  }
+  .confirm-btn:hover { background: var(--primary-light); }
+
+  /* Concept 1: Character Slidebar */
+  #grades-bar-character-slider {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .custom-slider-container {
+    position: relative;
+    width: 100%;
+    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .custom-slider-track-wrapper {
+    position: relative;
+    width: 90%;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .custom-slider-track {
+    position: absolute;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .custom-slider-fill {
+    position: absolute;
+    height: 6px;
+    border-radius: 3px;
+    left: 0;
+    width: 66%;
+    background: linear-gradient(to right, var(--again), var(--hard), var(--good));
+    transition: width 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .custom-slider-handle {
+    position: absolute;
+    left: calc(66% - 22px);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #0f1423;
+    border: 2px solid var(--good);
+    cursor: grab;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    z-index: 10;
+    transition: left 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .custom-slider-handle:active {
+    cursor: grabbing;
+    transform: scale(1.08);
+  }
+
+  .custom-slider-handle svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .custom-slider-handle svg path {
+    transition: d 0.2s ease, stroke 0.2s ease;
+  }
+
+  .custom-slider-label-glow {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 6px;
+    transition: color 0.2s;
+  }
+
+  /* Concept 2: Neumorphic Crystals */
+  #grades-bar-crystals {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .crystal-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+
+  .crystal-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transform-style: preserve-3d;
+    perspective: 500px;
+  }
+
+  .crystal-card svg {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 6px;
+    stroke-width: 1.5;
+    fill: none;
+    transition: all 0.3s;
+  }
+
+  .crystal-card.again svg { stroke: var(--again); }
+  .crystal-card.hard svg { stroke: var(--hard); }
+  .crystal-card.good svg { stroke: var(--good); }
+  .crystal-card.easy svg { stroke: var(--easy); }
+
+  .crystal-card.again:hover { border-color: var(--again); background: rgba(239, 68, 68, 0.08); box-shadow: 0 8px 16px rgba(239, 68, 68, 0.2); }
+  .crystal-card.hard:hover { border-color: var(--hard); background: rgba(245, 158, 11, 0.08); box-shadow: 0 8px 16px rgba(245, 158, 11, 0.2); }
+  .crystal-card.good:hover { border-color: var(--good); background: rgba(16, 185, 129, 0.08); box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2); }
+  .crystal-card.easy:hover { border-color: var(--easy); background: rgba(59, 130, 246, 0.08); box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2); }
+
+  .crystal-card:hover svg {
+    transform: translateZ(10px);
+  }
+  .crystal-card.again:hover svg { filter: drop-shadow(0 0 6px var(--again)); }
+  .crystal-card.hard:hover svg { filter: drop-shadow(0 0 6px var(--hard)); }
+  .crystal-card.good:hover svg { filter: drop-shadow(0 0 6px var(--good)); }
+  .crystal-card.easy:hover svg { filter: drop-shadow(0 0 6px var(--easy)); }
+
+  .crystal-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .crystal-desc {
+    font-size: 8px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  /* Concept 3: Circular Rotary Dial */
+  #grades-bar-rotary {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rotary-dial-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(30, 41, 59, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .rotary-track {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.05);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: grab;
+    user-select: none;
+    transition: border-color 0.3s;
+    background: radial-gradient(circle, rgba(20,26,42,0.8) 0%, rgba(10,13,22,0.9) 100%);
+  }
+
+  .rotary-knob {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    position: relative;
+    transform: rotate(0deg);
+    transition: transform 0.15s cubic-bezier(0.18, 0.89, 0.32, 1.15);
+  }
+
+  .rotary-pointer {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    box-shadow: 0 0 6px var(--primary-light);
+  }
+
+  .rotary-label-glow {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 6px;
+  }
+
+  /* Concept 4: Brain Wave Synchronizer */
+  #grades-bar-brainwave {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .brain-wave-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(30, 41, 59, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .wave-canvas {
+    width: 100%;
+    height: 40px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .wave-slider-wrapper {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .wave-explain-text {
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  /* Legacy Panels & layout */
+  .panel-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* 5. Classic 3-Option Layout */
+  #grades-bar-classic-3 { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+  /* 6. Anki 4-Option Layout */
+  #grades-bar-anki-4 { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+
+  /* 7. Emoji Grid Layout */
+  #grades-bar-emojis { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+
+  /* 8. Star Selector */
+  #grades-bar-stars {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(30, 41, 59, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 10px;
+  }
+  
+  .star-row {
+    display: flex;
+    gap: 5px;
+  }
+
+  .star-btn {
+    font-size: 24px;
+    color: rgba(255, 255, 255, 0.12);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.1s ease, color 0.2s;
+  }
+
+  .star-btn.active {
+    color: #fbbf24;
+    text-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+  }
+
+  /* 9. Binary Pass/Fail Layout */
+  #grades-bar-binary { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  /* 10. Slider Gauge */
+  #grades-bar-slider {
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(30, 41, 59, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .slider-wrapper {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .slider-control {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+  }
+  .slider-control::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--primary-glow);
+  }
+
+  /* 11. Time Pills Layout */
+  #grades-bar-time { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+
+  /* 12. Vertical Stack Layout */
+  #grades-bar-vertical {
+    flex-direction: column;
+    gap: 6px;
+    max-height: 130px;
+    overflow-y: auto;
+  }
+
+  .vertical-row-btn {
+    width: 100%;
+    background: rgba(30, 41, 59, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 8px 12px;
+    color: var(--text-primary);
+    text-align: left;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .vertical-row-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--primary-light);
+  }
+  .vertical-row-btn .interval-tag {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Tab bar footer */
+  .tab-bar {
+    display: flex;
+    border-top: 1px solid var(--border-color);
+    background: rgba(13, 17, 28, 0.85);
+    backdrop-filter: blur(12px);
+    margin: 0 -18px -20px -18px;
+    padding: 8px 8px 20px 8px;
+  }
+
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+
+  .tab-item.active {
+    color: var(--primary-light);
+  }
+
+  .tab-icon {
+    font-size: 16px;
+  }
+
+  /* Congratulation screen */
+  .congrats-panel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: auto 0;
+    text-align: center;
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+
+  .congrats-emoji {
+    font-size: 44px;
+    margin-bottom: 12px;
+    animation: bounce 1s infinite alternate;
+  }
+
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+  }
+
+  .xp-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 5px 12px;
+    border-radius: 10px;
+    color: #34d399;
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .nav-btn {
+    margin-top: 20px;
+    background: var(--primary);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .nav-btn:hover { background: var(--primary-light); }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="eyebrow">Interactive Design Playground</div>
+    <h1>Spaced Repetition Review Flow</h1>
+    <p class="subtitle">A visual prototype comparing interactive, bespoke difficulty UI/UX concepts against standard controls. Switch variations, flip cards, and click inputs to advance.</p>
+  </header>
+
+  <div class="container">
+    
+    <!-- Left panel with 12 grading system options -->
+    <div class="spec-panel">
+      <div class="spec-section">
+        <h2><span class="num">1</span>Bespoke Interactive Concepts</h2>
+        <div class="radio-list" style="max-height: 200px; margin-bottom: 15px;">
+          
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="character-slider" checked onchange="switchUXStyle()">
+            <span><strong>1. Slidebar &amp; Character Thumb</strong> (Character face IS the drag handle!)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="crystals" onchange="switchUXStyle()">
+            <span><strong>2. 3D Glowing Crystals</strong> (Abstract glassmorphic cards with perspective tilt)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="rotary" onchange="switchUXStyle()">
+            <span><strong>3. Circular Snapping Dial</strong> (A rotary knob dial you drag-rotate to snap)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="brainwave" onchange="switchUXStyle()">
+            <span><strong>4. Brainwave Synchronizer</strong> (Animated HTML Canvas scanner waves)</span>
+          </label>
+
+        </div>
+
+        <h2><span class="num">2</span>Standard Interface Options</h2>
+        <div class="radio-list" style="max-height: 200px;">
+          
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="classic-3" onchange="switchUXStyle()">
+            <span><strong>5. Standard 3-Option</strong> (❌ Forgot / ▲ Hard / ⭕ Got it)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="anki-4" onchange="switchUXStyle()">
+            <span><strong>6. Anki Classic 4-Option</strong> (Again / Hard / Good / Easy)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="emojis" onchange="switchUXStyle()">
+            <span><strong>7. Emoji Grid</strong> (😭 / 😰 / 😊 / 🚀)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="stars" onchange="switchUXStyle()">
+            <span><strong>8. Star Rating</strong> (★ 1-5 Stars)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="binary" onchange="switchUXStyle()">
+            <span><strong>9. Binary Pass/Fail</strong> (❌ Incorrect / ✅ Correct)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="slider" onchange="switchUXStyle()">
+            <span><strong>10. Confidence Gauge</strong> (0% to 100% slider bar)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="time" onchange="switchUXStyle()">
+            <span><strong>11. Time Estimations</strong> (1m / 12h / 3d / 6d)</span>
+          </label>
+
+          <label class="radio-item">
+            <input type="radio" name="ux-style" value="vertical" onchange="switchUXStyle()">
+            <span><strong>12. Vertical Details Stack</strong> (List format)</span>
+          </label>
+
+        </div>
+      </div>
+
+      <div class="spec-section">
+        <h2><span class="num">3</span>Core Mechanics</h2>
+        <ul class="spec-list">
+          <li><strong>Integrated Slidebar</strong>: Drag the character thumb left/right. The face dynamically morphs expressions along the track.</li>
+          <li><strong>Queue Operations</strong>: Selecting a rating submits a grade, earns XP, and updates the daily cards due counter.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Mobile viewport mockup -->
+    <div class="phone-wrapper">
+      <div class="dynamic-island"></div>
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <span>📶</span>
+          <span>🔋</span>
+        </div>
+      </div>
+
+      <div class="screen">
+        
+        <!-- VIEW 1: HOME SCREEN -->
+        <div id="view-home" class="view active">
+          <div class="header-area">
+            <h3 class="welcome-text">Hello, Alex</h3>
+            <p class="welcome-sub">Ready to keep your streak going?</p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Streak</span>
+              <span class="badge badge-primary">3 days</span>
+            </div>
+            <p class="card-body-text">Keep reviewing daily to maintain your streak.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">XP today</span>
+              <span id="home-xp-badge" class="badge badge-success">0 / 30 XP</span>
+            </div>
+            <p class="card-body-text"><span id="home-xp-needed">30</span> XP left to hit your daily goal.</p>
+          </div>
+
+          <div class="card" style="cursor: pointer;" onclick="navigateTo('practice')">
+            <div class="card-header">
+              <span class="card-title">Words due today</span>
+              <span id="due-count-badge" class="badge badge-warning">12</span>
+            </div>
+            <p class="card-body-text">Tap here to start your practice session now.</p>
+          </div>
+        </div>
+
+        <!-- VIEW 2: PRACTICE SCREEN -->
+        <div id="view-practice" class="view">
+          <div class="practice-header">
+            <div class="deck-counter">Due: <span id="due-count">12</span></div>
+            <div class="progress-container">
+              <div id="prog-bar" class="progress-bar"></div>
+            </div>
+            <div class="deck-counter"><span id="curr-index">1</span>/<span id="total-index">12</span></div>
+          </div>
+
+          <!-- Active card -->
+          <div class="flashcard-wrapper">
+            <div id="quiz-card" class="flashcard" onclick="flipCard()">
+              
+              <!-- Front Face (Question) -->
+              <div class="card-face card-front">
+                <span class="prompt-type" id="card-pos">part of speech</span>
+                <p class="prompt-main" id="card-definition">definition</p>
+                <div class="tap-instruction">⚡ TAP TO REVEAL ANSWER</div>
+              </div>
+
+              <!-- Back Face (Answer) -->
+              <div class="card-face card-back">
+                <div class="answer-pos" id="card-pos-back">part of speech</div>
+                <div class="answer-word" id="card-word">word</div>
+                <p class="answer-context" id="card-example">"Example sentence goes here"</p>
+                <div class="answer-translation" id="card-translation">Translation here</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Grading controls (revealed when flipped) -->
+          <div class="grades-panel-container">
+            
+            <!-- Concept 1: Custom Character Slidebar -->
+            <div id="grades-bar-character-slider" class="grades-panel">
+              <div class="custom-slider-container">
+                <div class="custom-slider-track-wrapper" id="custom-slider-wrapper">
+                  <div class="custom-slider-track"></div>
+                  <div class="custom-slider-fill" id="custom-slider-fill"></div>
+                  <div class="custom-slider-handle" id="custom-slider-handle">
+                    <svg viewBox="0 0 36 36">
+                      <circle id="handle-bg" cx="18" cy="18" r="16" fill="rgba(16, 185, 129, 0.15)" stroke="none" />
+                      <!-- Left Eye -->
+                      <path id="handle-eye-left" d="M 10 15 Q 12.5 10 15 15" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                      <!-- Right Eye -->
+                      <path id="handle-eye-right" d="M 19 15 Q 21.5 10 24 15" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                      <!-- Mouth -->
+                      <path id="handle-mouth" d="M 12 21 Q 18 29 24 21" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                    </svg>
+                  </div>
+                </div>
+                <span class="custom-slider-label-glow" id="custom-slider-label" style="color: #10b981;">Good</span>
+              </div>
+              <button class="confirm-btn" onclick="submitCharacterSliderGrade(event)" style="margin-top: 5px;">Confirm Grade</button>
+            </div>
+
+            <!-- Concept 2: Neumorphic Crystals -->
+            <div id="grades-bar-crystals" class="grades-panel">
+              <div class="crystal-grid">
+                
+                <div class="crystal-card again" onclick="submitGrade('again', event)">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2L3 7v10l9 5 9-5V7l-9-5z"/>
+                    <path d="M12 2v20"/>
+                    <path d="M12 12l-9-4"/>
+                    <path d="M12 12l9-4"/>
+                    <path d="M3 7l9 5 9-5"/>
+                  </svg>
+                  <span class="crystal-title">Forgot</span>
+                  <span class="crystal-desc">Again</span>
+                </div>
+
+                <div class="crystal-card hard" onclick="submitGrade('hard', event)">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2L2 18h20L12 2z"/>
+                    <path d="M12 2v16"/>
+                    <path d="M2 18l10-6 10 6"/>
+                  </svg>
+                  <span class="crystal-title">Hard</span>
+                  <span class="crystal-desc">12h</span>
+                </div>
+
+                <div class="crystal-card good" onclick="submitGrade('good', event)">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M21 9l-9-7-9 7 9 13 9-13z"/>
+                    <path d="M3 9h18"/>
+                    <path d="M12 2v20"/>
+                    <path d="M8 9l4 13 4-13"/>
+                  </svg>
+                  <span class="crystal-title">Good</span>
+                  <span class="crystal-desc">3.2d</span>
+                </div>
+
+                <div class="crystal-card easy" onclick="submitGrade('easy', event)">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2v20M2 12h20M12 2l4 6 6 4-6 4-4 6-4-6-6-4 6-4 4-6z"/>
+                  </svg>
+                  <span class="crystal-title">Easy</span>
+                  <span class="crystal-desc">7.5d</span>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Concept 3: Circular Snapping Dial -->
+            <div id="grades-bar-rotary" class="grades-panel">
+              <div class="rotary-dial-container">
+                <div class="rotary-track" id="rotary-track">
+                  <div class="rotary-knob" id="rotary-knob">
+                    <div class="rotary-pointer"></div>
+                  </div>
+                </div>
+                <span class="rotary-label-glow" id="rotary-label" style="color: #10b981;">Good</span>
+              </div>
+              <button class="confirm-btn" onclick="submitRotaryGrade(event)" style="margin-top: 5px;">Confirm Dial Angle</button>
+            </div>
+
+            <!-- Concept 4: Brain Wave Synchronizer -->
+            <div id="grades-bar-brainwave" class="grades-panel">
+              <div class="brain-wave-container">
+                <canvas id="wave-canvas" class="wave-canvas" width="300" height="40"></canvas>
+                <span class="wave-explain-text" id="wave-explain" style="color: #10b981;">Sync Rate: Good</span>
+              </div>
+              <div class="wave-slider-wrapper" onclick="event.stopPropagation()">
+                <input type="range" min="0" max="3" value="2" class="morph-slider-control" id="wave-range" oninput="startWaveAnimation()">
+              </div>
+              <button class="confirm-btn" onclick="submitWaveGrade(event)" style="margin-top: 5px;">Sync Memory</button>
+            </div>
+
+            <!-- 5. Classic 3-Option -->
+            <div id="grades-bar-classic-3" class="grades-panel">
+              <button class="grade-btn btn-again" onclick="submitGrade('again', event)">
+                <span style="font-size: 14px; margin-bottom: 2px;">❌</span>
+                <span>Forgot</span>
+                <span class="grade-desc">Again</span>
+              </button>
+              <button class="grade-btn btn-hard" onclick="submitGrade('hard', event)">
+                <span style="font-size: 14px; margin-bottom: 2px;">▲</span>
+                <span>Hard</span>
+                <span class="grade-desc">3d</span>
+              </button>
+              <button class="grade-btn btn-good" onclick="submitGrade('good', event)">
+                <span style="font-size: 14px; margin-bottom: 2px;">⭕</span>
+                <span>Got it</span>
+                <span class="grade-desc">6d</span>
+              </button>
+            </div>
+
+            <!-- 6. Anki Classic 4-Option -->
+            <div id="grades-bar-anki-4" class="grades-panel">
+              <button class="grade-btn btn-again" onclick="submitGrade('again', event)">
+                <span>Again</span>
+                <span class="grade-desc">1m</span>
+              </button>
+              <button class="grade-btn btn-hard" onclick="submitGrade('hard', event)">
+                <span>Hard</span>
+                <span class="grade-desc">12h</span>
+              </button>
+              <button class="grade-btn btn-good" onclick="submitGrade('good', event)">
+                <span>Good</span>
+                <span class="grade-desc">3d</span>
+              </button>
+              <button class="grade-btn btn-easy" onclick="submitGrade('easy', event)">
+                <span>Easy</span>
+                <span class="grade-desc">6d</span>
+              </button>
+            </div>
+
+            <!-- 7. Emoji Grid -->
+            <div id="grades-bar-emojis" class="grades-panel">
+              <button class="grade-btn btn-again" onclick="submitGrade('again', event)">
+                <span style="font-size: 16px;">😭</span>
+                <span>Forgot</span>
+              </button>
+              <button class="grade-btn btn-hard" onclick="submitGrade('hard', event)">
+                <span style="font-size: 16px;">😰</span>
+                <span>Hard</span>
+              </button>
+              <button class="grade-btn btn-good" onclick="submitGrade('good', event)">
+                <span style="font-size: 16px;">😊</span>
+                <span>Good</span>
+              </button>
+              <button class="grade-btn btn-easy" onclick="submitGrade('easy', event)">
+                <span style="font-size: 16px;">🚀</span>
+                <span>Easy</span>
+              </button>
+            </div>
+
+            <!-- 8. Star Rating -->
+            <div id="grades-bar-stars" class="grades-panel">
+              <span class="panel-label" id="star-explain">★★★☆☆ - Hard</span>
+              <div class="star-row">
+                <button class="star-btn active" onclick="setStars(1, event)">★</button>
+                <button class="star-btn active" onclick="setStars(2, event)">★</button>
+                <button class="star-btn active" onclick="setStars(3, event)">★</button>
+                <button class="star-btn" onclick="setStars(4, event)">★</button>
+                <button class="star-btn" onclick="setStars(5, event)">★</button>
+              </div>
+              <button class="confirm-btn" onclick="submitStarsGrade(event)">Confirm stars</button>
+            </div>
+
+            <!-- 9. Binary Pass/Fail -->
+            <div id="grades-bar-binary" class="grades-panel">
+              <button class="grade-btn btn-again" onclick="submitGrade('again', event)" style="padding: 12px 0;">
+                <span style="font-size: 16px;">❌</span>
+                <span>Incorrect</span>
+              </button>
+              <button class="grade-btn btn-good" onclick="submitGrade('good', event)" style="padding: 12px 0;">
+                <span style="font-size: 16px;">✅</span>
+                <span>Correct</span>
+              </button>
+            </div>
+
+            <!-- 10. Confidence Gauge -->
+            <div id="grades-bar-slider" class="grades-panel">
+              <span class="panel-label" id="slider-explain">Confidence: 75%</span>
+              <div class="slider-wrapper" onclick="event.stopPropagation()">
+                <input type="range" min="0" max="100" value="75" class="slider-control" id="confidence-range" oninput="updateSliderVal()">
+              </div>
+              <button class="confirm-btn" onclick="submitSliderGrade(event)">Submit slider</button>
+            </div>
+
+            <!-- 11. Time Estimations -->
+            <div id="grades-bar-time" class="grades-panel">
+              <button class="grade-btn btn-again" onclick="submitGrade('again', event)">
+                <span>Again</span>
+                <span class="grade-desc">&lt; 1 min</span>
+              </button>
+              <button class="grade-btn btn-hard" onclick="submitGrade('hard', event)">
+                <span>Hard</span>
+                <span class="grade-desc">12 hours</span>
+              </button>
+              <button class="grade-btn btn-good" onclick="submitGrade('good', event)">
+                <span>Good</span>
+                <span class="grade-desc">3.2 days</span>
+              </button>
+              <button class="grade-btn btn-easy" onclick="submitGrade('easy', event)">
+                <span>Easy</span>
+                <span class="grade-desc">7.5 days</span>
+              </button>
+            </div>
+
+            <!-- 12. Vertical Details Stack -->
+            <div id="grades-bar-vertical" class="grades-panel">
+              <button class="vertical-row-btn" onclick="submitGrade('again', event)">
+                <span>I have no idea what this is</span>
+                <span class="interval-tag">Again</span>
+              </button>
+              <button class="vertical-row-btn" onclick="submitGrade('hard', event)">
+                <span>I kinda remember, but with effort</span>
+                <span class="interval-tag">12h</span>
+              </button>
+              <button class="vertical-row-btn" onclick="submitGrade('good', event)">
+                <span>I got it right quickly</span>
+                <span class="interval-tag">3d</span>
+              </button>
+              <button class="vertical-row-btn" onclick="submitGrade('easy', event)">
+                <span>I know this word perfectly</span>
+                <span class="interval-tag">6d</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- VIEW 3: COMPLETED SCREEN -->
+        <div id="view-completed" class="view">
+          <div class="congrats-panel" style="display: flex;">
+            <div class="congrats-emoji">🎉</div>
+            <h3 class="welcome-text">All Caught Up!</h3>
+            <p class="welcome-sub" style="margin-top: 8px;">You've completed all of your scheduled reviews for today.</p>
+            <div class="xp-alert">🔥 +<span id="xp-earned">120</span> XP Earned</div>
+            <button class="nav-btn" onclick="navigateTo('home')">Go Home</button>
+          </div>
+        </div>
+
+        <!-- Tab bar footer -->
+        <div class="tab-bar">
+          <button id="tab-home" class="tab-item active" onclick="navigateTo('home')">
+            <span class="tab-icon">🏠</span>
+            <span>Learn</span>
+          </button>
+          <button id="tab-words" class="tab-item" onclick="alert('My Words List Screen Mockup')">
+            <span class="tab-icon">📚</span>
+            <span>Words</span>
+          </button>
+          <button id="tab-add" class="tab-item" onclick="alert('Add Word Screen Mockup')">
+            <span class="tab-icon">➕</span>
+            <span>Add</span>
+          </button>
+          <button id="tab-practice" class="tab-item" onclick="navigateTo('practice')">
+            <span class="tab-icon">⚡</span>
+            <span>Practice</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Mock items due today
+    const mockDueReviews = [
+      { word: "analyze", pos: "verb", definition: "to study or examine something in detail in order to understand it", example: "Scientists need to analyze the results carefully.", translation: "결과를 신중하게 분석해야 한다." },
+      { word: "charge", pos: "verb", definition: "to ask someone to pay an amount of money for service or goods", example: "The hotel charges $100 a night for the room.", translation: "호텔은 객실당 1박에 100달러를 청구한다." },
+      { word: "ambiguous", pos: "adjective", definition: "having double meaning, or open to more than one interpretation", example: "The election result was ambiguous.", translation: "선거 결과가 모호했다." },
+      { word: "abate", pos: "verb", definition: "to reduce in intensity, amount, or severity", example: "The geopolitical tensions showed no sign of abating as the summit concluded.", translation: "정상회담이 끝나자 지정학적 긴장이 누그러질 기미가 보이지 않았다." },
+      { word: "acquiesce", pos: "verb", definition: "to accept something reluctantly but without protest", example: "The board chose to acquiesce in the restructuring plan despite reservations.", translation: "이사회는 유보적인 입장에도 불구하고 구조조정 계획을 마지못해 수용하기로 결정했다." },
+      { word: "aberration", pos: "noun", definition: "a temporary departure from what is normal or expected", example: "The sudden drop in quarterly revenue was deemed a temporary aberration.", translation: "분기 매출의 급격한 감소는 일시적인 일탈로 간주되었다." },
+      { word: "in straitened circumstances", pos: "phrase", definition: "living without sufficient money; experiencing financial hardship", example: "Following the sudden collapse of the bank, the family was left in straitened circumstances.", translation: "은행의 갑작스러운 파산 이후, 그 가족은 경제적 곤경에 처하게 되었다." },
+      { word: "upset the applecart", pos: "phrase", definition: "to ruin carefully laid plans or disrupt the status quo", example: "The introduction of the new regulation is bound to upset the industry's applecart.", translation: "새로운 규제의 도입은 업계의 기존 질서를 뒤흔들 것이 분명하다." },
+      { word: "an incisive critique", pos: "phrase", definition: "a sharp, clear, and highly analytical evaluation", example: "The journal published an incisive critique of the prevailing economic model.", translation: "학술지는 유행하는 경제 모델에 대한 날카로운 비판을 게재했다." },
+      { word: "reticent", pos: "adjective", definition: "unwilling to speak about your thoughts or feelings", example: "She was extremely reticent about her personal affairs.", translation: "그녀는 자신의 개인적인 일에 대해 극도로 말을 아꼈다." },
+      { word: "jurisprudence", pos: "noun", definition: "the study of law and the principles on which of law are based", example: "The judge was famous for his deep understanding of jurisprudence.", translation: "그 판사는 법학에 대한 깊은 이해로 유명했다." },
+      { word: "metacognition", pos: "noun", definition: "thinking about thinking; awareness of one's own cognitive processes", example: "Metacognition allows students to monitor their own learning process.", translation: "메타인지는 학생들이 스스로의 학습 과정을 모니터링할 수 있도록 돕는다." }
+    ];
+
+    let currentIdx = 0;
+    let cardFlipped = false;
+    let accumulatedXp = 0;
+    let selectedStarCount = 3;
+    
+    // Character slidebar states
+    let isDraggingSlider = false;
+    let sliderPercent = 62.5; // Starts at 'Good'
+
+    // Rotary Dial rotation state
+    let isDraggingDial = false;
+    let startAngle = 0;
+    let currentRotation = 180; // Start at 'Good'
+
+    // Wave animation ID
+    let canvasAnimId = null;
+    let waveOffset = 0;
+
+    function navigateTo(viewName) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+
+      if (viewName === 'home') {
+        document.getElementById('view-home').classList.add('active');
+        document.getElementById('tab-home').classList.add('active');
+        if (currentIdx >= mockDueReviews.length) {
+          currentIdx = 0;
+          accumulatedXp = 0;
+          updateHomeStats();
+        }
+      } else if (viewName === 'practice') {
+        if (currentIdx >= mockDueReviews.length) {
+          document.getElementById('view-completed').classList.add('active');
+        } else {
+          document.getElementById('view-practice').classList.add('active');
+          document.getElementById('tab-practice').classList.add('active');
+          loadCard(currentIdx);
+        }
+      }
+    }
+
+    function loadCard(index) {
+      const item = mockDueReviews[index];
+      document.getElementById('card-pos').innerText = item.pos;
+      document.getElementById('card-definition').innerText = item.definition;
+
+      document.getElementById('card-pos-back').innerText = item.pos;
+      document.getElementById('card-word').innerText = item.word;
+      document.getElementById('card-example').innerText = `"${item.example}"`;
+      document.getElementById('card-translation').innerText = item.translation;
+
+      const card = document.getElementById('quiz-card');
+      card.classList.remove('flipped');
+      cardFlipped = false;
+
+      hideAllGradesPanels();
+
+      document.getElementById('due-count').innerText = mockDueReviews.length - index;
+      document.getElementById('curr-index').innerText = index + 1;
+      document.getElementById('total-index').innerText = mockDueReviews.length;
+      
+      const pct = (index / mockDueReviews.length) * 100;
+      document.getElementById('prog-bar').style.width = pct + "%";
+    }
+
+    function hideAllGradesPanels() {
+      if (canvasAnimId) {
+        cancelAnimationFrame(canvasAnimId);
+        canvasAnimId = null;
+      }
+      const panels = [
+        'grades-bar-character-slider',
+        'grades-bar-crystals',
+        'grades-bar-rotary',
+        'grades-bar-brainwave',
+        'grades-bar-classic-3',
+        'grades-bar-anki-4',
+        'grades-bar-emojis',
+        'grades-bar-stars',
+        'grades-bar-binary',
+        'grades-bar-slider',
+        'grades-bar-time',
+        'grades-bar-vertical'
+      ];
+      panels.forEach(p => {
+        const el = document.getElementById(p);
+        if (el) el.style.display = 'none';
+      });
+    }
+
+    function flipCard() {
+      if (cardFlipped) return;
+      const card = document.getElementById('quiz-card');
+      card.classList.add('flipped');
+      cardFlipped = true;
+      
+      switchUXStyle();
+    }
+
+    function switchUXStyle() {
+      hideAllGradesPanels();
+
+      if (cardFlipped) {
+        const selectedStyle = document.querySelector('input[name="ux-style"]:checked').value;
+        const targetId = `grades-bar-${selectedStyle}`;
+        const targetEl = document.getElementById(targetId);
+        
+        if (targetEl) {
+          if (['character-slider', 'stars', 'slider', 'rotary', 'brainwave'].includes(selectedStyle)) {
+            targetEl.style.display = 'flex';
+          } else {
+            targetEl.style.display = 'grid';
+          }
+
+          // Trigger custom initializations
+          if (selectedStyle === 'character-slider') {
+            initCustomSlider();
+          } else if (selectedStyle === 'stars') {
+            setStars(selectedStarCount);
+          } else if (selectedStyle === 'slider') {
+            updateSliderVal();
+          } else if (selectedStyle === 'rotary') {
+            initRotaryDial();
+          } else if (selectedStyle === 'brainwave') {
+            startWaveAnimation();
+          }
+        }
+      }
+    }
+
+    // Concept 1: Custom Character Slidebar Logic
+    function initCustomSlider() {
+      const wrapper = document.getElementById('custom-slider-wrapper');
+      const handle = document.getElementById('custom-slider-handle');
+      if (!wrapper || !handle) return;
+
+      sliderPercent = 62.5; // Start at Good (emerald)
+      updateCustomSliderPosition();
+
+      handle.addEventListener('mousedown', startSliderDrag);
+      handle.addEventListener('touchstart', startSliderDrag, { passive: true });
+
+      window.addEventListener('mousemove', dragSlider);
+      window.addEventListener('touchmove', dragSlider, { passive: false });
+
+      window.addEventListener('mouseup', stopSliderDrag);
+      window.addEventListener('touchend', stopSliderDrag);
+
+      wrapper.addEventListener('click', clickSliderTrack);
+    }
+
+    function startSliderDrag(e) {
+      isDraggingSlider = true;
+      e.stopPropagation();
+    }
+
+    function dragSlider(e) {
+      if (!isDraggingSlider) return;
+      if (e.cancelable) e.preventDefault();
+
+      const wrapper = document.getElementById('custom-slider-wrapper');
+      const rect = wrapper.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      
+      let x = clientX - rect.left;
+      x = Math.max(0, Math.min(x, rect.width));
+      
+      sliderPercent = (x / rect.width) * 100;
+      updateCustomSliderPosition();
+    }
+
+    function clickSliderTrack(e) {
+      if (e.target.id === 'custom-slider-handle' || document.getElementById('custom-slider-handle').contains(e.target)) return;
+      const wrapper = document.getElementById('custom-slider-wrapper');
+      const rect = wrapper.getBoundingClientRect();
+      let x = e.clientX - rect.left;
+      x = Math.max(0, Math.min(x, rect.width));
+      sliderPercent = (x / rect.width) * 100;
+      updateCustomSliderPosition();
+    }
+
+    function stopSliderDrag() {
+      if (!isDraggingSlider) return;
+      isDraggingSlider = false;
+      
+      // Snap to node centers
+      if (sliderPercent < 25) sliderPercent = 12.5;
+      else if (sliderPercent < 50) sliderPercent = 37.5;
+      else if (sliderPercent < 75) sliderPercent = 62.5;
+      else sliderPercent = 87.5;
+
+      updateCustomSliderPosition();
+    }
+
+    function updateCustomSliderPosition() {
+      const wrapper = document.getElementById('custom-slider-wrapper');
+      const handle = document.getElementById('custom-slider-handle');
+      const fill = document.getElementById('custom-slider-fill');
+      const label = document.getElementById('custom-slider-label');
+      
+      if (!wrapper || !handle || !fill) return;
+
+      const trackWidth = wrapper.offsetWidth || 300;
+      const handleWidth = 44;
+      
+      const maxLeft = trackWidth - handleWidth;
+      const leftPx = (sliderPercent / 100) * trackWidth - (handleWidth / 2);
+      const boundedLeft = Math.max(0, Math.min(leftPx, maxLeft));
+
+      handle.style.left = boundedLeft + 'px';
+      fill.style.width = sliderPercent + '%';
+
+      let stateVal = 2; // Good
+      if (sliderPercent < 25) stateVal = 0;
+      else if (sliderPercent < 50) stateVal = 1;
+      else if (sliderPercent < 75) stateVal = 2;
+      else stateVal = 3;
+
+      const mouth = document.getElementById('handle-mouth');
+      const eyeL = document.getElementById('handle-eye-left');
+      const eyeR = document.getElementById('handle-eye-right');
+      const bg = document.getElementById('handle-bg');
+      
+      const mouths = [
+        "M 12 24 Q 18 14 24 24", // frown
+        "M 13 22 L 23 22",      // flat
+        "M 12 20 Q 18 29 24 20", // smile
+        "M 11 18 Q 18 34 25 18"  // big smile
+      ];
+      
+      const eyesL = [
+        "M 10 16 L 14 12 M 10 12 L 14 16", // X
+        "M 10 14 L 15 14",                  // flat
+        "M 10 15 Q 12.5 10 15 15",            // arch
+        "M 10 13 Q 12.5 7 15 13"              // excited arch
+      ];
+
+      const eyesR = [
+        "M 20 16 L 24 12 M 20 12 L 24 16", // X
+        "M 19 14 L 24 14",                  // flat
+        "M 19 15 Q 21 11 24 15",            // arch
+        "M 19 13 Q 21 7 24 13"              // excited arch
+      ];
+
+      const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6"];
+      const bgColors = ["rgba(239, 68, 68, 0.15)", "rgba(245, 158, 11, 0.15)", "rgba(16, 185, 129, 0.15)", "rgba(59, 130, 246, 0.15)"];
+      const labels = ["Forgot", "Hard", "Good", "Easy"];
+      const gradients = [
+        "linear-gradient(to right, #ef4444, #ef4444)",
+        "linear-gradient(to right, #ef4444, #f59e0b)",
+        "linear-gradient(to right, #ef4444, #f59e0b, #10b981)",
+        "linear-gradient(to right, #ef4444, #f59e0b, #10b981, #3b82f6)"
+      ];
+
+      mouth.setAttribute('d', mouths[stateVal]);
+      eyeL.setAttribute('d', eyesL[stateVal]);
+      eyeR.setAttribute('d', eyesR[stateVal]);
+      
+      mouth.setAttribute('stroke', colors[stateVal]);
+      eyeL.setAttribute('stroke', colors[stateVal]);
+      eyeR.setAttribute('stroke', colors[stateVal]);
+      bg.setAttribute('fill', bgColors[stateVal]);
+      
+      handle.style.borderColor = colors[stateVal];
+      handle.style.boxShadow = `0 4px 14px ${colors[stateVal]}66`;
+      fill.style.background = gradients[stateVal];
+      
+      label.innerText = labels[stateVal];
+      label.style.color = colors[stateVal];
+    }
+
+    function submitCharacterSliderGrade(event) {
+      if (event) event.stopPropagation();
+      let stateVal = 2;
+      if (sliderPercent < 25) stateVal = 0;
+      else if (sliderPercent < 50) stateVal = 1;
+      else if (sliderPercent < 75) stateVal = 2;
+      else stateVal = 3;
+      const ratings = ['again', 'hard', 'good', 'easy'];
+      submitGrade(ratings[stateVal], event);
+    }
+
+    // Concept 2: Neumorphic Crystals Tilt Interaction
+    function initCrystalsTilt() {
+      const cards = document.querySelectorAll('.crystal-card');
+      cards.forEach(card => {
+        card.addEventListener('mousemove', e => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const xc = rect.width / 2;
+          const yc = rect.height / 2;
+          const angleX = (yc - y) / 4;
+          const angleY = (x - xc) / 4;
+          card.style.transform = `perspective(500px) rotateX(${angleX}deg) rotateY(${angleY}deg) scale(1.05)`;
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = 'perspective(500px) rotateX(0deg) rotateY(0deg) scale(1)';
+        });
+      });
+    }
+
+    // Concept 3: Circular Snapping Dial Logic
+    function initRotaryDial() {
+      const knob = document.getElementById('rotary-knob');
+      if (!knob) return;
+      
+      currentRotation = 180; 
+      knob.style.transform = `rotate(${currentRotation}deg)`;
+      updateRotaryDisplay(2);
+
+      knob.addEventListener('mousedown', startDialDrag);
+      knob.addEventListener('touchstart', startDialDrag, { passive: true });
+      
+      window.addEventListener('mousemove', dragDial);
+      window.addEventListener('touchmove', dragDial, { passive: false });
+      
+      window.addEventListener('mouseup', stopDialDrag);
+      window.addEventListener('touchend', stopDialDrag);
+    }
+
+    function startDialDrag(e) {
+      isDraggingDial = true;
+      const knob = document.getElementById('rotary-knob');
+      const rect = knob.getBoundingClientRect();
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      startAngle = Math.atan2(clientY - center.y, clientX - center.x) * (180 / Math.PI) - currentRotation;
+      e.stopPropagation();
+    }
+
+    function dragDial(e) {
+      if (!isDraggingDial) return;
+      if (e.cancelable) e.preventDefault();
+      
+      const knob = document.getElementById('rotary-knob');
+      const rect = knob.getBoundingClientRect();
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      const angle = Math.atan2(clientY - center.y, clientX - center.x) * (180 / Math.PI);
+      let rotation = angle - startAngle;
+      
+      rotation = (rotation % 360 + 360) % 360;
+      currentRotation = rotation;
+      
+      knob.style.transform = `rotate(${rotation}deg)`;
+      
+      let sector = 0; 
+      if (rotation >= 45 && rotation < 135) sector = 1;     
+      else if (rotation >= 135 && rotation < 225) sector = 2; 
+      else if (rotation >= 225 && rotation < 315) sector = 3; 
+
+      updateRotaryDisplay(sector);
+    }
+
+    function stopDialDrag() {
+      if (!isDraggingDial) return;
+      isDraggingDial = false;
+      
+      const snapAngles = [0, 90, 180, 270];
+      let nearest = snapAngles[0];
+      let minDist = 360;
+      
+      snapAngles.forEach(a => {
+        let diff = Math.abs(currentRotation - a);
+        if (diff > 180) diff = 360 - diff;
+        if (diff < minDist) {
+          minDist = diff;
+          nearest = a;
+        }
+      });
+      
+      currentRotation = nearest;
+      const knob = document.getElementById('rotary-knob');
+      knob.style.transform = `rotate(${nearest}deg)`;
+      
+      const sector = nearest / 90;
+      updateRotaryDisplay(sector);
+    }
+
+    function updateRotaryDisplay(sector) {
+      const labels = ["Forgot", "Hard", "Good", "Easy"];
+      const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6"];
+      const track = document.getElementById('rotary-track');
+      const label = document.getElementById('rotary-label');
+      
+      label.innerText = labels[sector];
+      label.style.color = colors[sector];
+      track.style.borderColor = colors[sector];
+    }
+
+    function submitRotaryGrade(event) {
+      if (event) event.stopPropagation();
+      const sector = currentRotation / 90;
+      const ratings = ['again', 'hard', 'good', 'easy'];
+      submitGrade(ratings[sector], event);
+    }
+
+    // Concept 4: Canvas Wave Synchronizer
+    function startWaveAnimation() {
+      const canvas = document.getElementById('wave-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      
+      function draw() {
+        if (!document.getElementById('wave-canvas')) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const val = parseInt(document.getElementById('wave-range').value);
+        
+        let frequency = 0.04;
+        let amplitude = 12;
+        let speed = 0.05;
+        let color = "#ef4444";
+        let label = "Forgot";
+        
+        if (val === 1) {
+          frequency = 0.12; amplitude = 8; speed = 0.08; color = "#f59e0b"; label = "Hard";
+        } else if (val === 2) {
+          frequency = 0.07; amplitude = 14; speed = 0.06; color = "#10b981"; label = "Good";
+        } else if (val === 3) {
+          frequency = 0.22; amplitude = 5; speed = 0.15; color = "#3b82f6"; label = "Easy";
+        }
+        
+        document.getElementById('wave-explain').innerText = `Sync Rate: ${label}`;
+        document.getElementById('wave-explain').style.color = color;
+        
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = color;
+        
+        for (let x = 0; x < canvas.width; x++) {
+          const y = canvas.height / 2 + Math.sin(x * frequency + waveOffset) * amplitude;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        
+        waveOffset += speed;
+        canvasAnimId = requestAnimationFrame(draw);
+      }
+      
+      if (canvasAnimId) cancelAnimationFrame(canvasAnimId);
+      draw();
+    }
+
+    function submitWaveGrade(event) {
+      if (event) event.stopPropagation();
+      const val = parseInt(document.getElementById('wave-range').value);
+      const ratings = ['again', 'hard', 'good', 'easy'];
+      submitGrade(ratings[val], event);
+    }
+
+    // Standard 8. Star Selector Logic
+    function setStars(count, event) {
+      if (event) event.stopPropagation();
+      selectedStarCount = count;
+      const stars = document.querySelectorAll('.star-btn');
+      stars.forEach((s, idx) => {
+        if (idx < count) {
+          s.classList.add('active');
+        } else {
+          s.classList.remove('active');
+        }
+      });
+      
+      let text = '';
+      let starsText = '';
+      for (let i = 0; i < 5; i++) {
+        starsText += i < count ? '★' : '☆';
+      }
+      
+      switch(count) {
+        case 1: text = `${starsText} - Forgot`; break;
+        case 2: text = `${starsText} - Very Hard`; break;
+        case 3: text = `${starsText} - Hard`; break;
+        case 4: text = `${starsText} - Good`; break;
+        case 5: text = `${starsText} - Easy`; break;
+      }
+      document.getElementById('star-explain').innerText = text;
+    }
+
+    function submitStarsGrade(event) {
+      if (event) event.stopPropagation();
+      let rating = 'good';
+      if (selectedStarCount <= 2) rating = 'again';
+      else if (selectedStarCount === 3) rating = 'hard';
+      else if (selectedStarCount === 4) rating = 'good';
+      else rating = 'easy';
+      submitGrade(rating, event);
+    }
+
+    // Standard 10. Slider Gauge Logic
+    function updateSliderVal() {
+      const val = document.getElementById('confidence-range').value;
+      let label = 'Forgot';
+      let color = '#ef4444';
+      if (val > 85) { label = 'Easy'; color = '#60a5fa'; }
+      else if (val > 60) { label = 'Good'; color = '#34d399'; }
+      else if (val > 30) { label = 'Hard'; color = '#fbbf24'; }
+      
+      const el = document.getElementById('slider-explain');
+      el.innerText = `Confidence: ${val}% (${label})`;
+      el.style.color = color;
+    }
+
+    function submitSliderGrade(event) {
+      if (event) event.stopPropagation();
+      const val = document.getElementById('confidence-range').value;
+      let rating = 'again';
+      if (val > 85) rating = 'easy';
+      else if (val > 60) rating = 'good';
+      else if (val > 30) rating = 'hard';
+      submitGrade(rating, event);
+    }
+
+    // Standard Submit Logic
+    function submitGrade(grade, event) {
+      if (event) event.stopPropagation();
+      
+      accumulatedXp += 10;
+      currentIdx++;
+
+      if (currentIdx < mockDueReviews.length) {
+        loadCard(currentIdx);
+      } else {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById('view-completed').classList.add('active');
+        document.getElementById('xp-earned').innerText = accumulatedXp;
+        updateHomeStats();
+      }
+    }
+
+    function updateHomeStats() {
+      const countRemaining = mockDueReviews.length - currentIdx;
+      document.getElementById('due-count-badge').innerText = countRemaining;
+      document.getElementById('home-xp-badge').innerText = `${accumulatedXp} / 30 XP`;
+      const needed = Math.max(0, 30 - accumulatedXp);
+      document.getElementById('home-xp-needed').innerText = needed;
+    }
+
+    // Window resize handler to align custom slider handle
+    window.addEventListener('resize', () => {
+      const selectedStyle = document.querySelector('input[name="ux-style"]:checked').value;
+      if (selectedStyle === 'character-slider' && cardFlipped) {
+        updateCustomSliderPosition();
+      }
+    });
+
+    // Initialize home page & tilt listeners
+    updateHomeStats();
+    initCrystalsTilt();
+  </script>
+</body>
+</html>

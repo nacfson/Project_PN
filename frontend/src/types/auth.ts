@@ -21,6 +21,22 @@ export interface RegisterRequest {
   target_language?: string;
 }
 
+export interface LanguagePair {
+  target_language: string;
+  definition_language: string;
+}
+
+export interface AllowedLanguages {
+  target_languages: string[];
+  definition_languages: string[];
+}
+
+export interface LanguageOptionsResponse {
+  defaults: LanguagePair;
+  allowed: AllowedLanguages;
+  forced: LanguagePair;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

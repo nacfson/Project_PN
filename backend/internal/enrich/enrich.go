@@ -12,14 +12,18 @@ import "context"
 type Example struct {
 	Sentence    string
 	Translation string
+	Difficulty  string
 }
 
-// Sense is one meaning of a word, in the requested definition language.
+// Sense is one meaning of a word with canonical target-language text and
+// optional native-language translations from the initial enrich call.
 type Sense struct {
-	Definition      string
-	ShortDefinition string
-	CEFRLevel       string
-	Examples        []Example
+	Definition            string
+	ShortDefinition       string
+	CEFRLevel             string
+	NativeDefinition      string
+	NativeShortDefinition string
+	Examples              []Example
 }
 
 // Entry groups senses that share one part of speech.
@@ -48,7 +52,50 @@ type Request struct {
 	Existing []string
 }
 
-// Enricher produces dictionary data for a word.
+// TranslateExampleInput is a target-language example sentence to translate.
+type TranslateExampleInput struct {
+	ExampleID string
+	Sentence  string
+}
+
+// TranslateSenseInput is canonical sense data to translate into displayLang.
+type TranslateSenseInput struct {
+	SenseID         string
+	Definition      string
+	ShortDefinition string
+	Examples        []TranslateExampleInput
+}
+
+// TranslateRequest batches one word's senses for on-demand translation.
+type TranslateRequest struct {
+	WordText     string
+	LanguageCode string
+	DisplayLang  string
+	Senses       []TranslateSenseInput
+}
+
+// TranslateExampleResult is a localized example translation.
+type TranslateExampleResult struct {
+	ExampleID   string
+	Translation string
+}
+
+// TranslateSenseResult is a localized sense definition bundle.
+type TranslateSenseResult struct {
+	SenseID         string
+	Definition      string
+	ShortDefinition string
+	Examples        []TranslateExampleResult
+}
+
+// TranslateResult is the on-demand translation output for one word.
+type TranslateResult struct {
+	Senses []TranslateSenseResult
+}
+
+// Enricher produces dictionary data for a word and can translate cached
+// canonical content into additional display languages on demand.
 type Enricher interface {
 	Enrich(ctx context.Context, req Request) (Result, error)
+	Translate(ctx context.Context, req TranslateRequest) (TranslateResult, error)
 }

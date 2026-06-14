@@ -4,26 +4,29 @@ import "time"
 
 // Example is an example sentence attached to a sense.
 type Example struct {
-	Sentence    string  `json:"sentence"`
-	Translation *string `json:"translation"`
+	Sentence             string  `json:"sentence"`
+	Difficulty           *string `json:"difficulty"`
+	LocalizedTranslation *string `json:"localized_translation"`
 }
 
 // SenseOption is one selectable, concrete word sense returned by a lookup.
 // It is intentionally flattened (word + sense fields together) so the client
 // can render and select a single word_sense_id directly.
 type SenseOption struct {
-	WordID                 string    `json:"word_id"`
-	WordSenseID            string    `json:"word_sense_id"`
-	LanguageCode           string    `json:"language_code"`
-	Lemma                  string    `json:"lemma"`
-	NormalizedText         string    `json:"normalized_text"`
-	PartOfSpeech           string    `json:"part_of_speech"`
-	DefinitionLanguageCode string    `json:"definition_language_code"`
-	Definition             string    `json:"definition"`
-	ShortDefinition        *string   `json:"short_definition"`
-	CEFRLevel              *string   `json:"cefr_level"`
-	MeaningOrder           int       `json:"meaning_order"`
-	Examples               []Example `json:"examples"`
+	WordID                  string    `json:"word_id"`
+	WordSenseID             string    `json:"word_sense_id"`
+	LanguageCode            string    `json:"language_code"`
+	Lemma                   string    `json:"lemma"`
+	NormalizedText          string    `json:"normalized_text"`
+	PartOfSpeech            string    `json:"part_of_speech"`
+	DisplayLanguageCode     string    `json:"display_language_code"`
+	Definition              string    `json:"definition"`
+	ShortDefinition         *string   `json:"short_definition"`
+	LocalizedDefinition     string    `json:"localized_definition"`
+	LocalizedShortDefinition *string  `json:"localized_short_definition"`
+	CEFRLevel               *string   `json:"cefr_level"`
+	MeaningOrder            int       `json:"meaning_order"`
+	Examples                []Example `json:"examples"`
 }
 
 // LookupResult is the flattened response shape for /api/words/lookup.
@@ -49,21 +52,23 @@ type LearningItemsPage struct {
 
 // LearningItemListItem is a flattened user-owned word sense for list views.
 type LearningItemListItem struct {
-	ID                     string    `json:"id"`
-	WordSenseID            string    `json:"word_sense_id"`
-	WordID                 string    `json:"word_id"`
-	LanguageCode           string    `json:"language_code"`
-	Lemma                  string    `json:"lemma"`
-	NormalizedText         string    `json:"normalized_text"`
-	PartOfSpeech           string    `json:"part_of_speech"`
-	DefinitionLanguageCode string    `json:"definition_language_code"`
-	Definition             string    `json:"definition"`
-	ShortDefinition        *string   `json:"short_definition"`
-	CEFRLevel              *string   `json:"cefr_level"`
-	MeaningOrder           int       `json:"meaning_order"`
-	LearningStage          string    `json:"learning_stage"`
-	DueAt                  time.Time `json:"due_at"`
-	AddedAt                time.Time `json:"added_at"`
+	ID                       string    `json:"id"`
+	WordSenseID              string    `json:"word_sense_id"`
+	WordID                   string    `json:"word_id"`
+	LanguageCode             string    `json:"language_code"`
+	Lemma                    string    `json:"lemma"`
+	NormalizedText           string    `json:"normalized_text"`
+	PartOfSpeech             string    `json:"part_of_speech"`
+	DisplayLanguageCode      string    `json:"display_language_code"`
+	Definition               string    `json:"definition"`
+	ShortDefinition          *string   `json:"short_definition"`
+	LocalizedDefinition      string    `json:"localized_definition"`
+	LocalizedShortDefinition *string   `json:"localized_short_definition"`
+	CEFRLevel                *string   `json:"cefr_level"`
+	MeaningOrder             int       `json:"meaning_order"`
+	LearningStage            string    `json:"learning_stage"`
+	DueAt                    time.Time `json:"due_at"`
+	AddedAt                  time.Time `json:"added_at"`
 }
 
 type ListLearningItemsParams struct {
@@ -77,3 +82,44 @@ type LearningItemsCursor struct {
 	AddedAt time.Time
 	ID      string
 }
+
+// ReviewAttemptParams represents an individual review result submitted in a batch.
+type ReviewAttemptParams struct {
+	UserWordSenseID  string   `json:"user_word_sense_id"`
+	ActivityType     string   `json:"activity_type"`
+	Prompt           *string  `json:"prompt"`
+	UserAnswer       *string  `json:"user_answer"`
+	CorrectAnswer    *string  `json:"correct_answer"`
+	IsCorrect        bool     `json:"is_correct"`
+	RatingScore      float64  `json:"rating_score"` // raw slider value from 0.0 to 3.0
+	ResponseTimeMs   *int     `json:"response_time_ms"`
+	ConfidenceRating *int     `json:"confidence_rating"`
+}
+
+// DueItem represents a vocabulary item ready for spaced repetition practice.
+type DueItem struct {
+	UserWordSenseID          string    `json:"user_word_sense_id"`
+	WordSenseID              string    `json:"word_sense_id"`
+	WordID                   string    `json:"word_id"`
+	LanguageCode             string    `json:"language_code"`
+	Lemma                    string    `json:"lemma"`
+	NormalizedText           string    `json:"normalized_text"`
+	PartOfSpeech             string    `json:"part_of_speech"`
+	DisplayLanguageCode      string    `json:"display_language_code"`
+	Definition               string    `json:"definition"`
+	ShortDefinition          *string   `json:"short_definition"`
+	LocalizedDefinition      string    `json:"localized_definition"`
+	LocalizedShortDefinition *string   `json:"localized_short_definition"`
+	CEFRLevel                *string   `json:"cefr_level"`
+	MeaningOrder             int       `json:"meaning_order"`
+	LearningStage            string    `json:"learning_stage"`
+	DueAt                    time.Time `json:"due_at"`
+	Examples                 []Example `json:"examples"`
+}
+
+// BatchReviewResult returns the result of the session batch processing.
+type BatchReviewResult struct {
+	XPEarned int  `json:"xp_earned"`
+	Success  bool `json:"success"`
+}
+

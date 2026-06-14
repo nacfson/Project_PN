@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project PN — Account Creation Language Selection UX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #080c14;
+    --card-bg: rgba(20, 26, 42, 0.65);
+    --panel-bg: rgba(30, 41, 59, 0.5);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --text-primary: #f3f4f6;
+    --text-muted: #9ca3af;
+    --text-inverse: #0f172a;
+
+    --primary: #6366f1;
+    --primary-glow: rgba(99, 102, 241, 0.35);
+    --primary-light: #818cf8;
+
+    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+    --phone-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--bg-dark);
+    background-image:
+      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0, transparent 55%),
+      radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.12) 0, transparent 55%);
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+    max-width: 800px;
+  }
+
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 10px; }
+  p.subtitle { color: var(--text-muted); font-size: 15px; line-height: 1.6; }
+
+  main {
+    width: 100%;
+    max-width: 1100px;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .controls {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 24px;
+  }
+
+  .controls h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .control-group { margin-bottom: 18px; }
+  .control-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .control-group select,
+  .control-group input[type="text"] {
+    width: 100%;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .control-group select:focus,
+  .control-group input:focus { border-color: var(--primary-light); }
+
+  .control-group small {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .env-code {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px;
+    font-family: 'SF Mono', ui-monospace, monospace;
+    font-size: 12px;
+    color: #a5b4fc;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+
+  .preview-area {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .phone-frame {
+    width: 360px;
+    max-width: 100%;
+    margin: 0 auto;
+    background: #0b0f19;
+    border: 10px solid #111827;
+    border-radius: 44px;
+    box-shadow: var(--phone-shadow);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 26px;
+    background: #111827;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+    z-index: 10;
+  }
+
+  .phone-screen {
+    height: 720px;
+    background: #ffffff;
+    color: var(--text-inverse);
+    font-family: 'Outfit', sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding: 52px 22px 28px;
+    overflow-y: auto;
+  }
+
+  .screen-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 4px;
+  }
+
+  .screen-subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 24px;
+  }
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+    margin-top: 12px;
+  }
+
+  .text-input {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 16px;
+    color: #0f172a;
+    font-family: inherit;
+    width: 100%;
+  }
+
+  .select-box {
+    appearance: none;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 16px;
+    color: #0f172a;
+    font-family: inherit;
+    width: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+
+  .select-box:disabled {
+    background-color: #f1f5f9;
+    color: #64748b;
+  }
+
+  .locked-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .locked-row .value { font-weight: 600; color: #0f172a; }
+  .locked-row .badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    background: #e2e8f0;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+
+  .primary-button {
+    margin-top: 22px;
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .link-button {
+    margin-top: 16px;
+    text-align: center;
+    color: #2563eb;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .info-callout {
+    background: #eff6ff;
+    border-left: 3px solid #3b82f6;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: #1e40af;
+    line-height: 1.5;
+  }
+
+  .annotation {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(12px);
+  }
+
+  .annotation h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .annotation ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .annotation li {
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.5;
+    padding-left: 22px;
+    position: relative;
+  }
+
+  .annotation li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--primary-light);
+    font-weight: 700;
+  }
+
+  .state-badge {
+    display: inline-block;
+    background: var(--accent-gradient);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+  }
+
+  .desktop-hint {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">UX Mockup</div>
+  <h1>Account Creation — Language Selection</h1>
+  <p class="subtitle">
+    The registration screen adapts to backend environment settings: defaults, allowlists, and forced values.
+    Use the control panel on the left to preview each state.
+  </p>
+</header>
+
+<main>
+  <section class="controls">
+    <h2>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+      </svg>
+      Environment Settings
+    </h2>
+
+    <div class="control-group">
+      <label for="scenario">Scenario</label>
+      <select id="scenario">
+        <option value="default">Open choice with defaults</option>
+        <option value="restricted">Restricted allowlist</option>
+        <option value="forced">Fully forced by admin</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="defaultTarget">Default target language</label>
+      <select id="defaultTarget">
+        <option value="en" selected>English (en)</option>
+        <option value="ja">Japanese (ja)</option>
+        <option value="ko">Korean (ko)</option>
+        <option value="es">Spanish (es)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="defaultNative">Default definition language</label>
+      <select id="defaultNative">
+        <option value="ko" selected>Korean (ko)</option>
+        <option value="en">English (en)</option>
+        <option value="ja">Japanese (ja)</option>
+        <option value="es">Spanish (es)</option>
+      </select>
+    </div>
+
+    <div class="control-group" id="allowedTargetGroup">
+      <label for="allowedTarget">Allowed target languages</label>
+      <input type="text" id="allowedTarget" value="en,ko,ja,es,fr" />
+      <small>Comma-separated. Empty means unrestricted.</small>
+    </div>
+
+    <div class="control-group" id="allowedNativeGroup">
+      <label for="allowedNative">Allowed definition languages</label>
+      <input type="text" id="allowedNative" value="ko,en,ja" />
+      <small>Comma-separated. Empty means unrestricted.</small>
+    </div>
+
+    <div class="control-group" id="forcedTargetGroup" style="display:none;">
+      <label for="forcedTarget">Forced target language</label>
+      <select id="forcedTarget">
+        <option value="en" selected>English (en)</option>
+        <option value="ja">Japanese (ja)</option>
+        <option value="ko">Korean (ko)</option>
+      </select>
+    </div>
+
+    <div class="control-group" id="forcedNativeGroup" style="display:none;">
+      <label for="forcedNative">Forced definition language</label>
+      <select id="forcedNative">
+        <option value="ko" selected>Korean (ko)</option>
+        <option value="en">English (en)</option>
+        <option value="ja">Japanese (ja)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Generated .env snippet</label>
+      <div class="env-code" id="envSnippet"></div>
+    </div>
+  </section>
+
+  <section class="preview-area">
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="state-badge" id="stateBadge">Open choice</div>
+        <div class="screen-title">Create account</div>
+        <div class="screen-subtitle">Project PN vocabulary capture</div>
+
+        <div class="field-label">Email</div>
+        <input class="text-input" type="email" placeholder="you@example.com" value="" />
+
+        <div class="field-label">Password</div>
+        <input class="text-input" type="password" placeholder="At least 8 characters" />
+
+        <div id="targetField">
+          <div class="field-label">I want to learn</div>
+          <select class="select-box" id="targetSelect"></select>
+        </div>
+
+        <div id="nativeField">
+          <div class="field-label">My native language</div>
+          <select class="select-box" id="nativeSelect"></select>
+        </div>
+
+        <div class="info-callout" id="envNotice" style="display:none;"></div>
+
+        <div class="primary-button">Register</div>
+        <div class="link-button">Already have an account? Sign in</div>
+      </div>
+    </div>
+    <p class="desktop-hint">The same layout scales to wider web/desktop widths using the project's responsive flexbox rules.</p>
+
+    <div class="annotation">
+      <h3>Behavior notes</h3>
+      <ul>
+        <li>The frontend fetches <code>GET /api/auth/language-options</code> on the registration screen.</li>
+        <li>The default <strong>native language</strong> is derived from the device locale (via <code>expo-localization</code>) when that locale is allowed; otherwise it falls back to <code>DEFAULT_DEFINITION_LANG</code>.</li>
+        <li>The default <strong>target language</strong> comes from <code>DEFAULT_TARGET_LANG</code>.</li>
+        <li>If the backend sets <code>FORCE_TARGET_LANG</code> or <code>FORCE_DEFINITION_LANG</code>, the matching selector is hidden and replaced with a read-only locked value.</li>
+        <li>If <code>ALLOWED_*</code> lists are configured, the dropdown only contains those languages; invalid submissions are rejected with HTTP 400.</li>
+        <li>OAuth signup uses the same rules on the backend; a separate post-OAuth onboarding screen can be added later if language choice is needed there.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+  const allLanguages = [
+    { code: 'en', name: 'English' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'zh', name: 'Chinese' },
+  ];
+
+  const scenario = document.getElementById('scenario');
+  const defaultTarget = document.getElementById('defaultTarget');
+  const defaultNative = document.getElementById('defaultNative');
+  const allowedTargetGroup = document.getElementById('allowedTargetGroup');
+  const allowedNativeGroup = document.getElementById('allowedNativeGroup');
+  const allowedTarget = document.getElementById('allowedTarget');
+  const allowedNative = document.getElementById('allowedNative');
+  const forcedTargetGroup = document.getElementById('forcedTargetGroup');
+  const forcedNativeGroup = document.getElementById('forcedNativeGroup');
+  const forcedTarget = document.getElementById('forcedTarget');
+  const forcedNative = document.getElementById('forcedNative');
+  const envSnippet = document.getElementById('envSnippet');
+  const stateBadge = document.getElementById('stateBadge');
+  const targetField = document.getElementById('targetField');
+  const nativeField = document.getElementById('nativeField');
+  const envNotice = document.getElementById('envNotice');
+
+  function parseList(value) {
+    return value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  }
+
+  function buildOptions(select, codes, selected) {
+    select.innerHTML = '';
+    const items = codes.length
+      ? allLanguages.filter(l => codes.includes(l.code))
+      : allLanguages;
+    items.forEach(lang => {
+      const opt = document.createElement('option');
+      opt.value = lang.code;
+      opt.textContent = `${lang.name} (${lang.code})`;
+      if (lang.code === selected) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  function renderLocked(container, label, value) {
+    container.innerHTML = `
+      <div class="field-label">${label}</div>
+      <div class="locked-row">
+        <span class="value">${value}</span>
+        <span class="badge">Locked by admin</span>
+      </div>
+    `;
+  }
+
+  function renderSelect(container, label, selectId) {
+    container.innerHTML = `
+      <div class="field-label">${label}</div>
+      <select class="select-box" id="${selectId}"></select>
+    `;
+  }
+
+  function langLabel(code) {
+    const lang = allLanguages.find(l => l.code === code);
+    return lang ? `${lang.name} (${code})` : code;
+  }
+
+  function render() {
+    const s = scenario.value;
+    const isForced = s === 'forced';
+    const isRestricted = s === 'restricted';
+
+    allowedTargetGroup.style.display = isRestricted ? 'block' : 'none';
+    allowedNativeGroup.style.display = isRestricted ? 'block' : 'none';
+    forcedTargetGroup.style.display = isForced ? 'block' : 'none';
+    forcedNativeGroup.style.display = isForced ? 'block' : 'none';
+
+    stateBadge.textContent = isForced ? 'Forced by environment' : isRestricted ? 'Restricted allowlist' : 'Open choice';
+
+    const tForced = isForced ? forcedTarget.value : null;
+    const nForced = isForced ? forcedNative.value : null;
+    const tAllowed = isRestricted ? parseList(allowedTarget.value) : [];
+    const nAllowed = isRestricted ? parseList(allowedNative.value) : [];
+    const tDefault = defaultTarget.value;
+    const nDefault = defaultNative.value;
+
+    if (tForced) {
+      renderLocked(targetField, 'I want to learn', langLabel(tForced));
+    } else {
+      renderSelect(targetField, 'I want to learn', 'targetSelect');
+      buildOptions(document.getElementById('targetSelect'), tAllowed, tDefault);
+    }
+
+    if (nForced) {
+      renderLocked(nativeField, 'My native language', langLabel(nForced));
+    } else {
+      renderSelect(nativeField, 'My native language', 'nativeSelect');
+      buildOptions(document.getElementById('nativeSelect'), nAllowed, nDefault);
+    }
+
+    if (isForced) {
+      envNotice.style.display = 'block';
+      envNotice.textContent = `An administrator has locked this instance to ${langLabel(tForced)} → ${langLabel(nForced)}. Users cannot change these values.`;
+    } else if (isRestricted) {
+      envNotice.style.display = 'block';
+      envNotice.textContent = `Only the languages shown in the dropdowns are permitted on this instance.`;
+    } else {
+      envNotice.style.display = 'none';
+    }
+
+    const snippet = [
+      'DEFAULT_TARGET_LANG=' + tDefault,
+      'DEFAULT_DEFINITION_LANG=' + nDefault,
+    ];
+    if (isRestricted) {
+      snippet.push('ALLOWED_TARGET_LANGS=' + tAllowed.join(','));
+      snippet.push('ALLOWED_DEFINITION_LANGS=' + nAllowed.join(','));
+    }
+    if (isForced) {
+      snippet.push('FORCE_TARGET_LANG=' + tForced);
+      snippet.push('FORCE_DEFINITION_LANG=' + nForced);
+    }
+    envSnippet.textContent = snippet.join('\n');
+  }
+
+  [scenario, defaultTarget, defaultNative, allowedTarget, allowedNative, forcedTarget, forcedNative].forEach(el => {
+    el.addEventListener('change', render);
+    el.addEventListener('input', render);
+  });
+
+  render();
+</script>
+
+</body>
+</html>

@@ -312,11 +312,18 @@ func insertLearningItemFixture(t *testing.T, pool *pgxpool.Pool, userID, lemma, 
 
 	var senseID string
 	if err := pool.QueryRow(ctx, `
-		insert into word_senses (word_id, definition_language_code, definition, short_definition, cefr_level, meaning_order)
-		values ($1::uuid, 'ko', $2, $2, 'A1', 1)
+		insert into word_senses (word_id, definition, short_definition, cefr_level, meaning_order)
+		values ($1::uuid, $2, $2, 'A1', 1)
 		returning id::text
 	`, wordID, definition).Scan(&senseID); err != nil {
 		t.Fatalf("insert sense fixture %q: %v", lemma, err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+		values ($1::uuid, 'ko', $2, $2)
+	`, senseID, definition); err != nil {
+		t.Fatalf("insert sense translation fixture %q: %v", lemma, err)
 	}
 
 	var userWordSenseID string
@@ -385,3 +392,159 @@ func TestRegisterReturnsTokenJSON(t *testing.T) {
 		t.Fatal("expected token field")
 	}
 }
+
+func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
+	router, token, pool, authSvc := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	user, err := authSvc.Authenticate(ctx, token)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+
+	suffix := time.Now().Format("150405.000000")
+	dueLemma := "due-" + suffix
+	futureLemma := "future-" + suffix
+
+	// 1. Insert due item
+	past := time.Now().Add(-1 * time.Hour)
+	insertLearningItemFixture(t, pool, user.ID, dueLemma, "due definitions", past, false)
+
+	// Fetch the user word sense id we just inserted
+	var uwsID string
+	var wsID string
+	err = pool.QueryRow(ctx, `
+		select uws.id::text, uws.word_sense_id::text
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		join words w on w.id = ws.word_id
+		where uws.user_id = $1::uuid and w.lemma = $2`,
+		user.ID, dueLemma,
+	).Scan(&uwsID, &wsID)
+	if err != nil {
+		t.Fatalf("fetch inserted uws: %v", err)
+	}
+
+	// Insert an example sentence for this due item
+	_, err = pool.Exec(ctx, `
+		insert into examples (word_sense_id, sentence, difficulty_level)
+		values ($1::uuid, 'This is a due example sentence.', 'easy')`,
+		wsID,
+	)
+	if err != nil {
+		t.Fatalf("insert example: %v", err)
+	}
+
+	// 2. Insert future (not due) item
+	future := time.Now().Add(24 * time.Hour)
+	insertLearningItemFixture(t, pool, user.ID, futureLemma, "future definitions", future, false)
+
+	// Test GET /api/reviews/due
+	req := authRequest(t, http.MethodGet, "/api/reviews/due", "", token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d for GET /api/reviews/due, got %d", http.StatusOK, rec.Code)
+	}
+
+	var dueItems []words.DueItem
+	if err := json.NewDecoder(rec.Body).Decode(&dueItems); err != nil {
+		t.Fatalf("decode due items response: %v", err)
+	}
+
+	// Verify that ONLY the due item is returned, and it has the example sentence
+	if len(dueItems) != 1 {
+		t.Fatalf("expected 1 due item, got %d", len(dueItems))
+	}
+	if dueItems[0].Lemma != dueLemma {
+		t.Fatalf("expected due item lemma %q, got %q", dueLemma, dueItems[0].Lemma)
+	}
+	if len(dueItems[0].Examples) != 1 {
+		t.Fatalf("expected 1 example for due item, got %d", len(dueItems[0].Examples))
+	}
+	if dueItems[0].Examples[0].Sentence != "This is a due example sentence." {
+		t.Fatalf("expected example sentence %q, got %q", "This is a due example sentence.", dueItems[0].Examples[0].Sentence)
+	}
+
+	// Test POST /api/reviews/batch
+	payload := map[string]any{
+		"attempts": []map[string]any{
+			{
+				"user_word_sense_id": uwsID,
+				"activity_type":      "cloze",
+				"prompt":             "This is a due example sentence.",
+				"user_answer":        "due",
+				"correct_answer":     "due",
+				"is_correct":         true,
+				"rating_score":       2.5, // maps to 'good' (Quality 4.5)
+			},
+		},
+	}
+	bodyBytes, _ := json.Marshal(payload)
+	reqBatch := authRequest(t, http.MethodPost, "/api/reviews/batch", string(bodyBytes), token)
+	recBatch := httptest.NewRecorder()
+	router.ServeHTTP(recBatch, reqBatch)
+
+	if recBatch.Code != http.StatusOK {
+		t.Fatalf("expected status %d for POST /api/reviews/batch, got %d. Body: %s", http.StatusOK, recBatch.Code, recBatch.Body.String())
+	}
+
+	var batchRes words.BatchReviewResult
+	if err := json.NewDecoder(recBatch.Body).Decode(&batchRes); err != nil {
+		t.Fatalf("decode batch reviews response: %v", err)
+	}
+
+	if !batchRes.Success {
+		t.Fatal("expected batch reviews success to be true")
+	}
+	if batchRes.XPEarned != 10 {
+		t.Fatalf("expected 10 XP earned, got %d", batchRes.XPEarned)
+	}
+
+	// Verify database persistence: check review_attempts table
+	var loggedRating string
+	var loggedScore float64
+	err = pool.QueryRow(ctx, `
+		select review_rating, rating_score
+		from review_attempts
+		where user_word_sense_id = $1::uuid`,
+		uwsID,
+	).Scan(&loggedRating, &loggedScore)
+	if err != nil {
+		t.Fatalf("fetch logged review attempt: %v", err)
+	}
+
+	if loggedRating != "good" {
+		t.Fatalf("expected logged review_rating 'good', got %q", loggedRating)
+	}
+	diff := loggedScore - 2.5
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > 0.001 {
+		t.Fatalf("expected logged rating_score 2.5, got %f", loggedScore)
+	}
+
+	// Verify review_states table: due_at should be pushed in the future
+	var newDueAt time.Time
+	var newInterval int
+	err = pool.QueryRow(ctx, `
+		select due_at, interval_days
+		from review_states
+		where user_word_sense_id = $1::uuid`,
+		uwsID,
+	).Scan(&newDueAt, &newInterval)
+	if err != nil {
+		t.Fatalf("fetch updated review state: %v", err)
+	}
+
+	if newInterval != 1 {
+		t.Fatalf("expected next interval to be 1 day (since it was the first review), got %d", newInterval)
+	}
+
+	if newDueAt.Before(time.Now()) {
+		t.Fatal("expected new due_at to be in the future")
+	}
+}
+

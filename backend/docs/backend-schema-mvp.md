@@ -266,7 +266,6 @@ One word can have multiple meanings, so definitions should not be stored only on
 word_senses
 - id uuid primary key default gen_random_uuid()
 - word_id uuid not null references words(id) on delete cascade
-- definition_language_code text not null
 - definition text not null
 - short_definition text
 - cefr_level text
@@ -279,7 +278,7 @@ Recommended constraints:
 
 ```sql
 constraint word_senses_order_unique
-  unique (word_id, definition_language_code, meaning_order)
+  unique (word_id, meaning_order)
 constraint word_senses_meaning_order_positive
   check (meaning_order > 0)
 constraint word_senses_cefr_valid
@@ -297,9 +296,38 @@ sense 3: to store electrical energy in a device
 
 Rules:
 
-- Senses are global dictionary data.
+- Senses are global dictionary data written in the word's target `language_code` (canonical definitions).
 - A user can learn any number of senses for the same word.
 - Review state must not be stored here because memory belongs to the user.
+- Per-display-language definitions live in `sense_translations`, filled on demand and cached.
+
+## sense_translations
+
+Stores localized definitions for a word sense in the learner's display language.
+
+```sql
+sense_translations
+- id uuid primary key default gen_random_uuid()
+- word_sense_id uuid not null references word_senses(id) on delete cascade
+- language_code text not null
+- definition text not null
+- short_definition text
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Recommended constraints:
+
+```sql
+constraint sense_translations_unique
+  unique (word_sense_id, language_code)
+```
+
+Rules:
+
+- `language_code` is the learner/native/display language (for example `ko`, `ja`).
+- Rows are created lazily when a lookup or add flow requests a display language different from the word's target language.
+- Validated translations are cached permanently; failed translations are not stored.
 
 ## user_word_senses
 
@@ -458,8 +486,6 @@ examples
 - id uuid primary key default gen_random_uuid()
 - word_sense_id uuid not null references word_senses(id) on delete cascade
 - sentence text not null
-- translation text
-- translation_language_code text
 - source text
 - difficulty_level text
 - cloze_text text
@@ -478,8 +504,36 @@ constraint examples_difficulty_level_valid
 Rules:
 
 - Examples should be sense-specific, not only word-specific.
-- `translation_language_code` identifies the language of `translation`.
+- Example sentences are stored once in the word's target language.
+- Localized sentence translations (with optional `**...**` highlight markers) live in `example_translations`.
 - `cloze_text` and `cloze_answer` are optional MVP fields for fill-in-the-blank exercises.
+
+## example_translations
+
+Stores localized translations for example sentences.
+
+```sql
+example_translations
+- id uuid primary key default gen_random_uuid()
+- example_id uuid not null references examples(id) on delete cascade
+- language_code text not null
+- translation text not null
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Recommended constraints:
+
+```sql
+constraint example_translations_unique
+  unique (example_id, language_code)
+```
+
+Rules:
+
+- `language_code` is the learner/native/display language.
+- Translations may include inline `**...**` markers highlighting the target word's meaning.
+- Rows are created lazily alongside `sense_translations` for the same display language.
 
 ## Suggested Relationships
 
@@ -491,7 +545,9 @@ users 1 -> many magic_login_exchanges
 users 1 -> many user_word_senses
 words 1 -> many word_senses
 word_senses 1 -> many user_word_senses
+word_senses 1 -> many sense_translations
 word_senses 1 -> many examples
+examples 1 -> many example_translations
 user_word_senses 1 -> 1 review_states
 user_word_senses 1 -> many review_attempts
 ```
@@ -510,6 +566,12 @@ create index review_attempts_user_word_sense_reviewed_at_idx
 create index examples_word_sense_id_idx
   on examples (word_sense_id);
 
+create index sense_translations_sense_lang_idx
+  on sense_translations (word_sense_id, language_code);
+
+create index example_translations_example_lang_idx
+  on example_translations (example_id, language_code);
+
 create index user_word_senses_active_user_added_idx
   on user_word_senses (user_id, added_at desc, id desc)
   where archived_at is null;
@@ -521,6 +583,8 @@ create index words_normalized_text_prefix_idx
 - `review_states_due_at_idx` powers the due-review query that filters on `due_at <= now()`.
 - `review_attempts_user_word_sense_reviewed_at_idx` powers the per-item history read in `reviewed_at desc` order.
 - `examples_word_sense_id_idx` powers the sense-level example join used by the lookup response.
+- `sense_translations_sense_lang_idx` powers localized definition joins for lookup and learning-item lists.
+- `example_translations_example_lang_idx` powers localized example translation joins.
 - `user_word_senses_active_user_added_idx` powers cursor pagination for the authenticated user's active learning list.
 - `words_normalized_text_prefix_idx` powers prefix search for normalized vocabulary text without adding a new PostgreSQL extension.
 
@@ -532,7 +596,6 @@ A small set of fields are intentionally left unenforced at the DB level so the L
 |-------|--------|
 | `words.part_of_speech` | Enricher emits one entry per POS; the project keeps the set open. Lowercase on persist. |
 | `words.language_code` | Free text by design. Treat as ISO 639-1 in application code. |
-| `word_senses.definition_language_code` | Same as `words.language_code`. |
 | `user_word_senses.personal_note`, `source_context` | Free-form user text. |
 
 The above do not have a check constraint. Do not add one without first freezing the enricher's output contract.

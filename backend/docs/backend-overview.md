@@ -110,7 +110,9 @@ See `backend/docs/go-backend-setup.md` for the staging compose stack and `backen
 
 ## Enrichment
 
-When the global cache misses, the API can call an OpenAI-compatible chat-completions endpoint to generate definitions, short definitions, CEFR levels, and example sentences. The `Enricher` interface lives in `backend/internal/enrich/`.
+When the global cache misses, the API can call an OpenAI-compatible chat-completions endpoint to generate canonical target-language definitions, short definitions, CEFR levels, and 3–5 example sentences per sense (spanning difficulty levels). On a cache hit, the same enricher can translate canonical content into an additional display language on demand. The `Enricher` interface (`Enrich` + `Translate`) lives in `backend/internal/enrich/`.
+
+Canonical dictionary text is stored on `word_senses` and `examples`. Localized definitions and example translations are stored in `sense_translations` and `example_translations`, filled lazily per display language and cached permanently when validation passes.
 
 Toggled by environment variables:
 

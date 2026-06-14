@@ -70,22 +70,22 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 	`)
 
 	if err := pool.QueryRow(ctx, `
-		insert into word_senses (word_id, definition_language_code, definition, meaning_order)
-		values ($1, 'en', 'to ask someone to pay an amount of money', 1)
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1, 'to ask someone to pay an amount of money', 1)
 		returning id
 	`, wordID).Scan(&sensePayment); err != nil {
 		t.Fatalf("insert payment sense: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `
-		insert into word_senses (word_id, definition_language_code, definition, meaning_order)
-		values ($1, 'en', 'to accuse someone officially of a crime', 2)
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1, 'to accuse someone officially of a crime', 2)
 		returning id
 	`, wordID).Scan(&senseLegal); err != nil {
 		t.Fatalf("insert legal sense: %v", err)
 	}
 	assertRejects("invalid CEFR", `
-		insert into word_senses (word_id, definition_language_code, definition, cefr_level, meaning_order)
-		values ($1, 'en', 'invalid level', 'Z9', 3)
+		insert into word_senses (word_id, definition, cefr_level, meaning_order)
+		values ($1, 'invalid level', 'Z9', 3)
 	`, wordID)
 
 	if err := pool.QueryRow(ctx, `

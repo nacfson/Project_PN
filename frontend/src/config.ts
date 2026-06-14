@@ -25,3 +25,18 @@ export const API_BASE_URL = resolveApiBaseUrl();
 
 export const DEFAULT_LANGUAGE_CODE = 'en';
 export const DEFAULT_DEFINITION_LANGUAGE_CODE = 'ko';
+
+export interface LanguageOption {
+  code: string;
+  name: string;
+}
+
+export const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  { code: 'en', name: 'English' },
+  { code: 'ko', name: 'Korean' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'de', name: 'German' },
+  { code: 'zh', name: 'Chinese' },
+];

@@ -14,7 +14,10 @@ import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { ApiError } from '../api/client';
-import { login, loginWithGoogle, register, requestMagicLink } from '../api/auth';
+import { getLanguageOptions, login, loginWithGoogle, register, requestMagicLink } from '../api/auth';
+import type { LanguageOptionsResponse } from '../types/auth';
+import { SUPPORTED_LANGUAGES } from '../config';
+import { getDeviceLanguageCode } from '../utils/locale';
 import { AUTH_CALLBACK_PATH, AUTH_CALLBACK_SCHEME } from '../utils/authCallback';
 import { isTauri } from '../utils/platform';
 
@@ -107,14 +110,52 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [magicSent, setMagicSent] = useState(false);
 
+  const [langOptions, setLangOptions] = useState<LanguageOptionsResponse | null>(null);
+  const [targetLang, setTargetLang] = useState<string>('');
+  const [nativeLang, setNativeLang] = useState<string>('');
+
   const trimmedEmail = email.trim();
+
+  useEffect(() => {
+    let cancelled = false;
+    getLanguageOptions()
+      .then((options) => {
+        if (cancelled) return;
+        setLangOptions(options);
+        const deviceLang = getDeviceLanguageCode();
+
+        const nextTarget = options.forced.target_language || options.defaults.target_language;
+        setTargetLang(nextTarget);
+
+        let nextNative = options.defaults.definition_language;
+        if (options.forced.definition_language) {
+          nextNative = options.forced.definition_language;
+        } else if (
+          deviceLang &&
+          (options.allowed.definition_languages.length === 0 ||
+            options.allowed.definition_languages.includes(deviceLang))
+        ) {
+          nextNative = deviceLang;
+        }
+        setNativeLang(nextNative);
+      })
+      .catch(() => {
+        // The endpoint is public; if it fails, the form will fall back to backend defaults on submit.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const submitPassword = async () => {
     setError(null);
     setBusy(true);
     try {
       if (mode === 'register') {
-        await register(trimmedEmail, password);
+        await register(trimmedEmail, password, {
+          targetLanguage: targetLang,
+          nativeLanguage: nativeLang,
+        });
       } else {
         await login(trimmedEmail, password);
       }
@@ -141,6 +182,80 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const isForcedTarget = !!langOptions?.forced.target_language;
+  const isForcedNative = !!langOptions?.forced.definition_language;
+
+  const targetOptions = (() => {
+    if (!langOptions) return SUPPORTED_LANGUAGES;
+    const allowed = langOptions.allowed.target_languages;
+    return allowed.length > 0
+      ? SUPPORTED_LANGUAGES.filter((l) => allowed.includes(l.code))
+      : SUPPORTED_LANGUAGES;
+  })();
+
+  const nativeOptions = (() => {
+    if (!langOptions) return SUPPORTED_LANGUAGES;
+    const allowed = langOptions.allowed.definition_languages;
+    return allowed.length > 0
+      ? SUPPORTED_LANGUAGES.filter((l) => allowed.includes(l.code))
+      : SUPPORTED_LANGUAGES;
+  })();
+
+  const renderLanguageRow = ({
+    label,
+    value,
+    options,
+    onChange,
+    forced,
+  }: {
+    label: string;
+    value: string;
+    options: { code: string; name: string }[];
+    onChange: (code: string) => void;
+    forced: boolean;
+  }) => {
+    const selected = options.find((l) => l.code === value);
+    if (forced) {
+      return (
+        <>
+          <Text style={styles.label}>{label}</Text>
+          <View style={styles.lockedRow}>
+            <Text style={styles.lockedValue}>
+              {selected ? `${selected.name} (${selected.code})` : value}
+            </Text>
+            <Text style={styles.lockedBadge}>Locked by admin</Text>
+          </View>
+        </>
+      );
+    }
+    return (
+      <>
+        <Text style={styles.label}>{label}</Text>
+        <View style={styles.pickerWrapper}>
+          {options.map((lang) => (
+            <TouchableOpacity
+              key={lang.code}
+              onPress={() => onChange(lang.code)}
+              style={[
+                styles.pickerChip,
+                value === lang.code && styles.pickerChipSelected,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.pickerChipText,
+                  value === lang.code && styles.pickerChipTextSelected,
+                ]}
+              >
+                {lang.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </>
+    );
   };
 
   if (magicSent) {
@@ -196,6 +311,25 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           onSubmitEditing={() => void submitPassword()}
           returnKeyType="go"
         />
+
+        {mode === 'register' && (
+          <>
+            {renderLanguageRow({
+              label: 'I want to learn',
+              value: targetLang,
+              options: targetOptions,
+              onChange: setTargetLang,
+              forced: isForcedTarget,
+            })}
+            {renderLanguageRow({
+              label: 'My native language',
+              value: nativeLang,
+              options: nativeOptions,
+              onChange: setNativeLang,
+              forced: isForcedNative,
+            })}
+          </>
+        )}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -383,5 +517,59 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94a3b8',
     textAlign: 'center',
+  },
+  pickerWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  pickerChip: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  pickerChipSelected: {
+    backgroundColor: '#1e293b',
+    borderColor: '#1e293b',
+  },
+  pickerChipText: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pickerChipTextSelected: {
+    color: '#ffffff',
+  },
+  lockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  lockedValue: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  lockedBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: '#475569',
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
 });
