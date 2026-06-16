@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
@@ -135,6 +138,10 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
   const { colors } = useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
   const startRatingScore = useRef(ratingScore);
+  const handleScale = useRef(new Animated.Value(1)).current;
+  const lastStateVal = useRef(
+    ratingScore < 0.75 ? 0 : ratingScore < 1.5 ? 1 : ratingScore < 2.25 ? 2 : 3
+  );
 
   const stateVal =
     ratingScore < 0.75 ? 0 : ratingScore < 1.5 ? 1 : ratingScore < 2.25 ? 2 : 3;
@@ -149,6 +156,10 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         startRatingScore.current = ratingScore;
+        Animated.spring(handleScale, {
+          toValue: 1.2,
+          useNativeDriver: true,
+        }).start();
       },
       onPanResponderMove: (evt, gestureState) => {
         const maxLeft = trackWidth - handleWidth;
@@ -163,7 +174,27 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
 
         const newPercent = targetX / maxLeft;
         const score = Math.max(0, Math.min(3.0, newPercent * 3.0));
+        const newStateVal =
+          score < 0.75 ? 0 : score < 1.5 ? 1 : score < 2.25 ? 2 : 3;
+        if (newStateVal !== lastStateVal.current) {
+          lastStateVal.current = newStateVal;
+          if (Platform.OS !== 'web') {
+            Haptics.selectionAsync().catch(() => {});
+          }
+        }
         onChange(score);
+      },
+      onPanResponderRelease: () => {
+        Animated.spring(handleScale, {
+          toValue: 1.0,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(handleScale, {
+          toValue: 1.0,
+          useNativeDriver: true,
+        }).start();
       },
     })
   ).current;
@@ -188,7 +219,7 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
             },
           ]}
         />
-        <View
+        <Animated.View
           {...panResponder.panHandlers}
           style={[
             sliderStyles.handle,
@@ -197,11 +228,12 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
               borderColor: color,
               backgroundColor: bgColor,
               shadowColor: color,
+              transform: [{ scale: handleScale }],
             },
           ]}
         >
           <Face stateVal={stateVal} color={color} />
-        </View>
+        </Animated.View>
       </View>
       <Text style={[sliderStyles.label, { color }]}>{label}</Text>
     </View>
@@ -221,7 +253,8 @@ function getBlankedSentence(sentence: string, word: string) {
 }
 
 export function PracticeScreen() {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, radii } = useTheme();
+  const flipAnim = useRef(new Animated.Value(0)).current;
   const navigation = useNavigation<NavigationProp>();
 
   // Review states
@@ -384,9 +417,34 @@ export function PracticeScreen() {
     }
 
     // Advance queue
+    flipAnim.setValue(0);
     setCurrentIndex((prev) => prev + 1);
     setIsFlipped(false);
     setRatingScore(2.0); // Reset score to Good
+  };
+
+  const toggleFlip = () => {
+    const nextFlipped = !isFlipped;
+    setIsFlipped(nextFlipped);
+    Animated.spring(flipAnim, {
+      toValue: nextFlipped ? 1 : 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const frontInterpolate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+  const backInterpolate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['180deg', '360deg'],
+  });
+  const frontAnimatedStyle = {
+    transform: [{ perspective: 1000 }, { rotateY: frontInterpolate }],
+  };
+  const backAnimatedStyle = {
+    transform: [{ perspective: 1000 }, { rotateY: backInterpolate }],
   };
 
   // UI state renderers
@@ -541,6 +599,14 @@ export function PracticeScreen() {
       ? Math.min(100, Math.floor((dueItemsReviewedCount / dueItems.length) * 100))
       : 0;
 
+  const cardSurface = {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backfaceVisibility: 'hidden' as const,
+  };
+
   return (
     <Screen padded>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -566,10 +632,11 @@ export function PracticeScreen() {
         </View>
 
         {/* Flashcard */}
-        <Pressable onPress={() => setIsFlipped(!isFlipped)} style={styles.cardPressable}>
-          <Card style={styles.flashcard}>
-            {!isFlipped ? (
-              // Front Face (Question)
+        <Pressable onPress={toggleFlip} style={styles.cardPressable}>
+          <View style={styles.cardContainer}>
+            <Animated.View
+              style={[styles.flashcard, cardSurface, frontAnimatedStyle]}
+            >
               <View style={styles.cardContent}>
                 <Badge
                   label={currentItem.part_of_speech.toUpperCase()}
@@ -591,8 +658,10 @@ export function PracticeScreen() {
                   ⚡ TAP TO REVEAL ANSWER
                 </Text>
               </View>
-            ) : (
-              // Back Face (Answer)
+            </Animated.View>
+            <Animated.View
+              style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}
+            >
               <View style={styles.cardContent}>
                 <Badge
                   label={currentItem.part_of_speech.toUpperCase()}
@@ -617,8 +686,8 @@ export function PracticeScreen() {
                   </View>
                 )}
               </View>
-            )}
-          </Card>
+            </Animated.View>
+          </View>
         </Pressable>
 
         {/* Grading panel (only when flipped) */}
@@ -672,6 +741,11 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 280,
   },
+  cardContainer: {
+    flex: 1,
+    position: 'relative',
+    minHeight: 280,
+  },
   flashcard: {
     flex: 1,
     minHeight: 280,
@@ -682,6 +756,13 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  flashcardBack: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   cardContent: {
     flex: 1,
