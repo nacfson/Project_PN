@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { addLearningItem, lookupWord } from '../api/words';
 import { ApiError } from '../api/client';
+import { useAppLanguage } from '../i18n';
 import type { PartOfSpeech, PosFilter, SenseOption } from '../types';
 
 interface SenseFlowCallbacks {
@@ -10,14 +11,15 @@ interface SenseFlowCallbacks {
   onDismiss?: () => void;
 }
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     return error.message;
   }
-  return 'Something went wrong.';
+  return fallback;
 }
 
 export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
+  const { t } = useAppLanguage();
   const [pickerVisible, setPickerVisible] = useState(false);
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState<SenseOption[]>([]);
@@ -44,12 +46,12 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       setOptions(response.sense_options);
       return true;
     } catch (err) {
-      setError(messageOf(err));
+      setError(messageOf(err, t('common.somethingWrong')));
       return false;
     } finally {
       setGenerating(false);
     }
-  }, []);
+  }, [t]);
 
   const forceExisting = useCallback(async (wordId: string) => {
     setError(null);
@@ -58,11 +60,11 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       const response = await lookupWord(lastText.current, { wordId, force: true });
       setOptions(response.sense_options);
     } catch (err) {
-      setError(messageOf(err));
+      setError(messageOf(err, t('common.somethingWrong')));
     } finally {
       setGenerating(false);
     }
-  }, []);
+  }, [t]);
 
   const forceWithPos = useCallback(async (pos: PartOfSpeech) => {
     setError(null);
@@ -71,11 +73,11 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       const response = await lookupWord(lastText.current, { partOfSpeech: pos, force: true });
       setOptions(response.sense_options);
     } catch (err) {
-      setError(messageOf(err));
+      setError(messageOf(err, t('common.somethingWrong')));
     } finally {
       setGenerating(false);
     }
-  }, []);
+  }, [t]);
 
   const confirm = useCallback(
     async (wordSenseId: string) => {
@@ -86,12 +88,12 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setPickerVisible(false);
         callbacks.onAdded?.(wordSenseId);
       } catch (err) {
-        setError(messageOf(err));
+        setError(messageOf(err, t('common.somethingWrong')));
       } finally {
         setGenerating(false);
       }
     },
-    [callbacks],
+    [callbacks, t],
   );
 
   const close = useCallback(() => {

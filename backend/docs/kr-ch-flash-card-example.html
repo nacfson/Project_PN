@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KR => CH Flash Card Example</title>
+  <style>
+    :root {
+      --bg: #f6f1e8;
+      --ink: #20201d;
+      --muted: #706a60;
+      --line: #ded3c3;
+      --card: #fffaf1;
+      --accent: #d54b32;
+      --accent-soft: #ffe0d8;
+      --good: #2f7d57;
+      --shadow: 0 24px 70px rgba(74, 55, 32, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background:
+        radial-gradient(circle at top left, rgba(213, 75, 50, 0.16), transparent 34rem),
+        linear-gradient(135deg, #fbf7ef, var(--bg));
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(960px, 100%);
+      display: grid;
+      gap: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 5vw, 52px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .language-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255, 250, 241, 0.74);
+      color: var(--muted);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .language-pill strong {
+      color: var(--ink);
+    }
+
+    .card-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .flash-card {
+      min-height: 430px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      padding: clamp(22px, 4vw, 42px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 28px;
+    }
+
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hanzi {
+      margin: 18px 0 10px;
+      font-size: clamp(72px, 14vw, 132px);
+      line-height: 1;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .pinyin {
+      text-align: center;
+      color: var(--accent);
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .front-hint {
+      text-align: center;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .back-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .field {
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .korean-meaning {
+      font-size: clamp(24px, 4vw, 38px);
+      line-height: 1.2;
+      font-weight: 900;
+    }
+
+    .definition {
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.55;
+    }
+
+    .example {
+      display: grid;
+      gap: 8px;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+
+    .example strong {
+      color: var(--good);
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    button {
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffaf1;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 850;
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #c9b8a1;
+    }
+
+    .primary {
+      background: var(--ink);
+      color: #fffaf1;
+      border-color: var(--ink);
+    }
+
+    .ratings {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .rating {
+      background: var(--accent-soft);
+      border-color: #f4b5a8;
+      color: #7a2418;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--muted);
+      background: rgba(255, 250, 241, 0.7);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 18px;
+      }
+
+      .card-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .flash-card {
+        min-height: 400px;
+      }
+
+      .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .note {
+        grid-column: 1 / -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Flash Card Preview</h1>
+        <p class="subtitle">A KR => CH card: learn the Chinese word, but show the Korean meaning as the learner-facing explanation.</p>
+      </div>
+      <div class="language-pill"><strong>KR</strong> display <span>=> </span><strong>CH</strong> target</div>
+    </header>
+
+    <section class="card-shell" aria-label="Flash card example">
+      <article class="flash-card" id="card">
+        <div class="meta">
+          <span id="progress">Card 1 of 3</span>
+          <span>Chinese word</span>
+        </div>
+
+        <div id="front">
+          <div class="hanzi" id="hanzi">学习</div>
+          <div class="pinyin" id="pinyin">xuexi</div>
+          <p class="front-hint">Try to recall the Korean meaning, then flip the card.</p>
+        </div>
+
+        <div id="back" class="back-grid hidden">
+          <div>
+            <div class="hanzi" id="backHanzi">学习</div>
+            <div class="pinyin" id="backPinyin">xuexi</div>
+          </div>
+
+          <div class="field">
+            <div class="label">Korean meaning shown to learner</div>
+            <div class="korean-meaning" id="korean">지식이나 기술을 배우고 익히는 것</div>
+          </div>
+
+          <div class="field">
+            <div class="label">Canonical Chinese definition kept in the background</div>
+            <div class="definition" id="definition">获取知识或技能的过程。</div>
+          </div>
+
+          <div class="field">
+            <div class="label">Example</div>
+            <div class="example">
+              <span id="sentence">我正在学习中文。</span>
+              <span id="translation">나는 중국어를 <strong>공부하고 있다</strong>.</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="controls">
+        <button class="primary" id="flipButton" type="button">Flip card</button>
+        <button id="nextButton" type="button">Next word</button>
+        <div class="ratings">
+          <button class="rating" type="button">Again</button>
+          <button class="rating" type="button">Good</button>
+        </div>
+        <p class="note">
+          This maps to the API fields as: Chinese text in <b>definition</b>, Korean text in <b>localized_definition</b>.
+        </p>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const cards = [
+      {
+        hanzi: '学习',
+        pinyin: 'xuexi',
+        korean: '지식이나 기술을 배우고 익히는 것',
+        definition: '获取知识或技能的过程。',
+        sentence: '我正在学习中文。',
+        translation: '나는 중국어를 <strong>공부하고 있다</strong>.'
+      },
+      {
+        hanzi: '决定',
+        pinyin: 'jueding',
+        korean: '여러 가능성 중 하나를 선택하거나 정하는 것',
+        definition: '在几种可能中选择一种。',
+        sentence: '我决定明天去北京。',
+        translation: '나는 내일 베이징에 가기로 <strong>결정했다</strong>.'
+      },
+      {
+        hanzi: '重要',
+        pinyin: 'zhongyao',
+        korean: '가치나 영향이 커서 꼭 신경 써야 하는 것',
+        definition: '具有很大意义、作用或影响。',
+        sentence: '这次会议很重要。',
+        translation: '이번 회의는 매우 <strong>중요하다</strong>.'
+      }
+    ];
+
+    let index = 0;
+    let showingBack = false;
+
+    const front = document.getElementById('front');
+    const back = document.getElementById('back');
+    const flipButton = document.getElementById('flipButton');
+    const nextButton = document.getElementById('nextButton');
+
+    function setText(id, value) {
+      document.getElementById(id).textContent = value;
+    }
+
+    function render() {
+      const card = cards[index];
+      setText('progress', `Card ${index + 1} of ${cards.length}`);
+      setText('hanzi', card.hanzi);
+      setText('pinyin', card.pinyin);
+      setText('backHanzi', card.hanzi);
+      setText('backPinyin', card.pinyin);
+      setText('korean', card.korean);
+      setText('definition', card.definition);
+      setText('sentence', card.sentence);
+      document.getElementById('translation').innerHTML = card.translation;
+      front.classList.toggle('hidden', showingBack);
+      back.classList.toggle('hidden', !showingBack);
+      flipButton.textContent = showingBack ? 'Show front' : 'Flip card';
+    }
+
+    flipButton.addEventListener('click', () => {
+      showingBack = !showingBack;
+      render();
+    });
+
+    nextButton.addEventListener('click', () => {
+      index = (index + 1) % cards.length;
+      showingBack = false;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

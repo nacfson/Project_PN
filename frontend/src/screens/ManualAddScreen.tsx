@@ -1,11 +1,16 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
 import { WordChip } from '../components/WordChip';
 import { useAddQueue } from '../hooks/useAddQueue';
+import { useAppLanguage } from '../i18n';
+import { useTheme } from '../theme/ThemeProvider';
+import { Button, EmptyState, Input, Text } from '../ui';
 import type { PosFilter } from '../types';
 
 export function ManualAddScreen() {
+  const { spacing } = useTheme();
+  const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [added, setAdded] = useState<string[]>([]);
@@ -24,38 +29,56 @@ export function ManualAddScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.label}>Word</Text>
-        <TextInput
-          value={word}
-          onChangeText={setWord}
-          placeholder="Type a word to add"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-          onSubmitEditing={submit}
-          returnKeyType="search"
-        />
+      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md }]}>
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="label" color="muted">
+            {t('add.word')}
+          </Text>
+          <Input
+            value={word}
+            onChangeText={setWord}
+            placeholder={t('add.wordPlaceholder')}
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={submit}
+            returnKeyType="search"
+            onClear={() => setWord('')}
+          />
+        </View>
 
-        <Text style={styles.label}>Part of speech (optional)</Text>
-        <PosSelector value={pos} onChange={setPos} />
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="label" color="muted">
+            {t('add.partOfSpeechOptional')}
+          </Text>
+          <PosSelector value={pos} onChange={setPos} />
+        </View>
 
-        <TouchableOpacity
+        <Button
+          label={t('add.lookUp')}
+          iconLeft="search"
           onPress={submit}
           disabled={word.trim().length === 0}
-          style={[styles.lookupButton, word.trim().length === 0 && styles.buttonDisabled]}
-        >
-          <Text style={styles.lookupLabel}>Look up</Text>
-        </TouchableOpacity>
+          style={{ marginTop: spacing.sm }}
+        />
 
-        {added.length > 0 && (
-          <View style={styles.addedSection}>
-            <Text style={styles.label}>Added</Text>
+        {added.length > 0 ? (
+          <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
+            <Text variant="label" color="muted">
+              {t('add.added')}
+            </Text>
             <View style={styles.addedRow}>
               {added.map((w, index) => (
                 <WordChip key={`${w}-${index}`} word={w} status={statusOf(w)} />
               ))}
             </View>
+          </View>
+        ) : (
+          <View style={{ marginTop: spacing.xl }}>
+            <EmptyState
+              icon="create-outline"
+              title={t('add.emptyManualTitle')}
+              message={t('add.emptyManualMessage')}
+            />
           </View>
         )}
       </ScrollView>
@@ -70,39 +93,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     gap: 12,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: '#ffffff',
-  },
-  lookupButton: {
-    marginTop: 8,
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  lookupLabel: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  buttonDisabled: {
-    opacity: 0.45,
-  },
-  addedSection: {
-    marginTop: 20,
-    gap: 8,
   },
   addedRow: {
     flexDirection: 'row',

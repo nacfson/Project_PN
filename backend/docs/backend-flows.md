@@ -111,13 +111,37 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 ## Review Flow
 
 1. App queries due items by joining `review_states` to `user_word_senses`.
-2. App excludes rows where `user_word_senses.archived_at is not null`.
-3. User answers a prompt.
-4. App inserts a row in `review_attempts`.
-5. App updates `review_states.due_at`, `interval_days`, `ease_factor`, `last_reviewed_at`, `review_count`, and `lapse_count` in the same transaction.
-6. App may update `user_word_senses.learning_stage`, but scheduling must still come from `review_states.due_at`.
+2. App loads or creates the user's `review_settings` (lazily, with defaults).
+3. App loads today's `daily_review_counts` for the user.
+4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.
+5. App returns Review/Relearning items first (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`).
+6. User answers a prompt.
+7. App loads the user's `review_settings` and builds a `SchedulerConfig` (learning steps, relearning steps, desired retention, fuzz, FSRS weights).
+8. App calls `CalculateNextFSRSState` with the config, which applies Anki-style step logic:
+   - New + again/hard → Learning state, scheduled in minutes (learning_steps).
+   - Learning → advances or resets steps; graduates to Review when exhausted.
+   - Review + again → Relearning state, scheduled in minutes (relearning_steps).
+   - Relearning → advances or resets steps; graduates to Review when exhausted.
+   - Review + hard/good/easy → day-level FSRS scheduling with optional fuzz.
+9. App inserts a row in `review_attempts` (with `metadata` including leech flag if applicable).
+10. App updates `review_states` (due_at, interval_days, ease_factor, last_reviewed_at, review_count, lapse_count, fsrs_state, stability, difficulty, scheduled_days, remaining_steps, is_suspended) in the same transaction.
+11. App upserts `daily_review_counts`, incrementing `new_cards_done` or `reviews_done` based on the card's previous state.
+12. App checks leech condition: if `lapse_count >= leech_threshold` and `leech_action = suspend`, archives the card and sets `is_suspended = true`.
+13. App buries other senses of the same word: sets `buried_until = end_of_today_utc` on all sibling `user_word_senses` sharing the same `word_id`.
+14. App may update `user_word_senses.learning_stage`, but scheduling must still come from `review_states.due_at`.
 
 The Go API exposes due-review reads through `GET /api/reviews/due` and batch attempt writes through `POST /api/reviews/batch`. The batch endpoint inserts attempts and updates review state in one transaction.
+
+## FSRS Weight Optimization Flow
+
+1. Client calls `POST /api/reviews/optimize-weights`.
+2. API counts the user's `review_attempts`. If fewer than 1000, returns success with `weights_updated: false`.
+3. API loads the user's review history (stability, difficulty, elapsed days, correctness) from `review_attempts` joined to `review_states`.
+4. API runs gradient descent on the first 8 FSRS weights to minimize log-likelihood loss between predicted retrievability and actual outcomes.
+5. API saves optimized weights to `review_settings.fsrs_weights` with a timestamp.
+6. Subsequent reviews use the optimized weights via `SchedulerConfig`.
+
+The optimization status can be checked via `GET /api/reviews/optimization-status`.
 
 ## HTTP Mapping
 
@@ -138,6 +162,8 @@ The Go API exposes due-review reads through `GET /api/reviews/due` and batch att
 | `POST /api/learning-items` | Add-Word (steps 5-6) | `words.Service.AddLearningItem` |
 | `GET /api/reviews/due` | Due Review List | `words.Service.GetDueReviewItems` |
 | `POST /api/reviews/batch` | Review | `words.Service.RecordBatchReviewAttempts` |
+| `POST /api/reviews/optimize-weights` | FSRS Weight Optimization | `words.Service.OptimizeWeights` |
+| `GET /api/reviews/optimization-status` | Optimization Status | `words.Service.GetOptimizationStatus` |
 | `GET /healthz` | liveness | n/a |
 | `GET /readyz` | readiness (DB ping) | n/a |
 
@@ -148,8 +174,14 @@ Protected learning routes run `authMiddleware` then `requireVerified` when `REQU
 - Normalize user input before inserting or looking up a word.
 - `review_states.due_at` determines when an item appears again.
 - `review_attempts` remains append-only even when `review_states` changes.
-- Archived user items must not appear in due-review queries.
+- Archived, suspended, and buried user items must not appear in due-review queries.
+- Daily quotas (`new_cards_per_day`, `reviews_per_day`) are enforced by the due-review query using `daily_review_counts`.
+- Learning and relearning steps use minute-level `due_at` until the card graduates to Review.
+- Leech cards (lapse_count >= threshold) are suspended or tagged per `review_settings.leech_action`.
+- Sibling senses of the same word are buried until end-of-day after one is reviewed.
+- Interval fuzz (±25%) is applied to day-level intervals >= 2 when `fuzz_enabled` is true.
+- FSRS weights can be optimized per user after 1000+ reviews via `POST /api/reviews/optimize-weights`.
 - The Add-Word and Review transactions are atomic: any failure rolls back the attempt insert together with the `review_states` update.
 - Full table definitions live in `backend/docs/backend-schema-mvp.md`.
 - Learning and scheduling policy details live in `backend/docs/learning-review-model.md`.
-- Go service code lives under `backend/internal/words/service.go` and `backend/internal/auth/`.
+- Go service code lives under `backend/internal/words/service.go`, `backend/internal/words/scheduler.go`, `backend/internal/words/batch_reviews.go`, `backend/internal/words/fsrs_optimizer.go`, and `backend/internal/auth/`.

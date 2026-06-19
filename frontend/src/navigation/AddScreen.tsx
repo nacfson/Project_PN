@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CaptureScreen } from '../screens/CaptureScreen';
 import { ManualAddScreen } from '../screens/ManualAddScreen';
+import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from '../ui';
 
@@ -9,26 +11,34 @@ type AddMode = 'capture' | 'manual';
 
 export function AddScreen() {
   const { colors, spacing, radii } = useTheme();
+  const { t } = useAppLanguage();
   const [mode, setMode] = useState<AddMode>('capture');
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surfaceAlt }]}>
-      <View style={[styles.tabs, { paddingHorizontal: spacing.xl, gap: spacing.sm, marginBottom: spacing.sm }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: colors.surfaceAlt }]}>
+      <View
+        style={[
+          styles.tabs,
+          {
+            paddingHorizontal: spacing.xl,
+            gap: spacing.sm,
+            marginBottom: spacing.sm,
+          },
+        ]}
+      >
         <Pressable
           onPress={() => setMode('capture')}
           style={[
             styles.tab,
             {
               borderRadius: radii.md,
-              backgroundColor: mode === 'capture' ? colors.primary : colors.border,
+              backgroundColor: mode === 'capture' ? colors.primary : colors.surface,
+              borderColor: mode === 'capture' ? colors.primary : colors.border,
             },
           ]}
         >
-          <Text
-            variant="label"
-            style={{ color: mode === 'capture' ? colors.surface : colors.textMuted }}
-          >
-            Capture
+          <Text variant="label" color={mode === 'capture' ? 'inverse' : 'muted'}>
+            {t('add.capture')}
           </Text>
         </Pressable>
         <Pressable
@@ -37,21 +47,19 @@ export function AddScreen() {
             styles.tab,
             {
               borderRadius: radii.md,
-              backgroundColor: mode === 'manual' ? colors.primary : colors.border,
+              backgroundColor: mode === 'manual' ? colors.primary : colors.surface,
+              borderColor: mode === 'manual' ? colors.primary : colors.border,
             },
           ]}
         >
-          <Text
-            variant="label"
-            style={{ color: mode === 'manual' ? colors.surface : colors.textMuted }}
-          >
-            Manual Add
+          <Text variant="label" color={mode === 'manual' ? 'inverse' : 'muted'}>
+            {t('add.manual')}
           </Text>
         </Pressable>
       </View>
 
       <View style={styles.body}>{mode === 'capture' ? <CaptureScreen /> : <ManualAddScreen />}</View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -67,6 +75,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
+    borderWidth: 1,
   },
   body: {
     flex: 1,

@@ -132,6 +132,16 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 		insert into review_states (user_word_sense_id, interval_days)
 		values ($1, -1)
 	`, userSenseA)
+	assertRejects("invalid fsrs state", `
+		update review_states
+		set fsrs_state = 'Done'
+		where user_word_sense_id = $1
+	`, userSenseA)
+	assertRejects("negative fsrs stability", `
+		update review_states
+		set stability = -1
+		where user_word_sense_id = $1
+	`, userSenseA)
 
 	if _, err := pool.Exec(ctx, `
 		insert into review_attempts (user_word_sense_id, activity_type, prompt, user_answer, correct_answer, is_correct, review_rating, response_time_ms, confidence_rating)

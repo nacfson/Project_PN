@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { me } from './src/api/auth';
 import { sessionStorage } from './src/api/storage';
 import { AuthCallbackHandler } from './src/components/AuthCallbackHandler';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
+import { AppLanguageProvider } from './src/i18n';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
@@ -65,7 +66,10 @@ function AppContent() {
           <RootNavigator onLogout={() => setAuthState('unauthenticated')} />
         </AddQueueProvider>
       ) : (
-        <SafeAreaView style={[styles.safe, { backgroundColor: colors.surfaceAlt }]}>
+        <SafeAreaView
+          edges={['top', 'right', 'bottom', 'left']}
+          style={[styles.safe, { backgroundColor: colors.surfaceAlt }]}
+        >
           <StatusBar style="dark" />
           {callbackError ? (
             <Text style={[styles.callbackError, { color: colors.danger }]}>{callbackError}</Text>
@@ -81,7 +85,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <AppLanguageProvider>
+          <AppContent />
+        </AppLanguageProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

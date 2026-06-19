@@ -248,3 +248,21 @@ func (h *wordsHandler) recordBatchReviewAttempts(w http.ResponseWriter, r *http.
 
 	writeJSON(w, http.StatusOK, result)
 }
+
+func (h *wordsHandler) optimizeWeights(w http.ResponseWriter, r *http.Request) {
+	result, err := h.svc.OptimizeWeights(r.Context(), userIDFromRequest(r))
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, result)
+}
+
+func (h *wordsHandler) optimizationStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := h.svc.GetOptimizationStatus(r.Context(), userIDFromRequest(r))
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}

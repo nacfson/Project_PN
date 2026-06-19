@@ -10,12 +10,44 @@ The backend schema should satisfy these scenarios:
 - Two users can have independent schedules for the same `word_sense`.
 - A review attempt remains preserved after `review_states` changes.
 - Archived user items do not appear in due-review queries.
+- Suspended user items (`review_states.is_suspended = true`) do not appear in due-review queries.
+- Buried user items (`review_states.buried_until > now()`) do not appear in due-review queries.
 - Invalid CEFR values are rejected.
 - Invalid learning stages are rejected.
 - Invalid review ratings are rejected.
 - Invalid confidence ratings are rejected.
 - Invalid `difficulty_rating` (out of 1-5) is rejected.
 - Negative intervals, review counts, lapse counts, or response times are rejected.
+- Invalid FSRS states and negative FSRS stability/difficulty/scheduled step values are rejected.
+- Invalid `review_settings.leech_action` values are rejected.
+- `review_settings.desired_retention` outside 0.7–0.99 is rejected.
+- Duplicate `review_settings` rows for the same user are rejected.
+- Duplicate `daily_review_counts` rows for the same (user, date) are rejected.
+
+### Learning step behavior (migration `000009`)
+
+- New card answered "again" enters Learning state with `remaining_steps > 0` and `due_at` within minutes (not days).
+- Learning card advancing past the last step graduates to Review state with day-level scheduling.
+- Learning card answered "again" resets to the first step.
+- Review card answered "again" enters Relearning state with minute-level `due_at` (not +1 day).
+- Relearning card graduating returns to Review with recomputed stability.
+- `review_settings` is created lazily with defaults on first due-review or batch-review call.
+- `daily_review_counts` is upserted on every batch review, incrementing new or review counts.
+
+### Leech, bury, and fuzz behavior
+
+- A card reaching `leech_threshold` lapses with `leech_action = suspend` is archived and `is_suspended = true`.
+- A card reaching `leech_threshold` lapses with `leech_action = tag` has `{"leech": true}` in `review_attempts.metadata` and is not suspended.
+- After answering a card, sibling senses of the same word have `buried_until` set to end-of-day UTC.
+- Interval fuzz (±25%) is applied to intervals >= 2 days when `fuzz_enabled = true`; disabled fuzz produces deterministic intervals.
+
+### FSRS optimization (migration `000010`)
+
+- `review_settings.fsrs_weights` defaults to the 19 FSRS v4 public weights.
+- `POST /api/reviews/optimize-weights` with fewer than 1000 reviews returns success with `weights_updated: false`.
+- `POST /api/reviews/optimize-weights` with 1000+ reviews returns 202 with `weights_updated: true` and a timestamp.
+- `GET /api/reviews/optimization-status` returns the current weights, optimization timestamp, and review count.
+- The scheduler uses `review_settings.fsrs_weights` instead of the global default when computing state transitions.
 
 ### Auth schema (migration `000003`)
 
@@ -84,8 +116,10 @@ HTTP tests inject a stub `OAuthVerifier` (production uses `google.golang.org/api
 - `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
 
-- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled items.
-- `POST /api/reviews/batch` records attempts and updates `review_states` in one transaction; invalid `activity_type` values return 400 before any attempt is inserted.
+- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled, buried, and suspended items. Reviews are returned before new cards, respecting daily quotas.
+- `POST /api/reviews/batch` records attempts and updates `review_states` in one transaction; invalid `activity_type` values return 400 before any attempt is inserted. Applies learning steps, leech detection, sibling bury, and daily count tracking.
+- `POST /api/reviews/optimize-weights` triggers FSRS weight optimization; returns 202. Requires 1000+ reviews for actual optimization.
+- `GET /api/reviews/optimization-status` returns current FSRS weights, optimization timestamp, and review count.
 
 ## Reference
 

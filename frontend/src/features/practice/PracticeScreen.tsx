@@ -13,8 +13,9 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
+import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, Screen, Text } from '../../ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, Screen, Text } from '../../ui';
 import {
   getDueLearningItems,
   listLearningItems,
@@ -32,8 +33,6 @@ type SessionStatus =
   | 'success'
   | 'error';
 
-// Piecewise linear mapping from ratingScore (0.0 to 3.0) to SM-2 Quality (0.0 to 5.0)
-// This mirrors the backend scheduler.go logic exactly.
 export function mapScoreToQuality(score: number): number {
   if (score < 1.0) {
     return score * 3.0;
@@ -41,7 +40,6 @@ export function mapScoreToQuality(score: number): number {
   return 3.0 + (score - 1.0) * 1.0;
 }
 
-// Helpers for the custom SVG-less morphing Face component
 interface FaceProps {
   stateVal: number;
   color: string;
@@ -61,7 +59,6 @@ function Face({ stateVal, color }: FaceProps) {
 
 function Eye({ stateVal, color }: { stateVal: number; color: string }) {
   if (stateVal === 0) {
-    // Forgot: X eyes
     return (
       <View style={faceStyles.eyeXContainer}>
         <View style={[faceStyles.eyeXLine, { backgroundColor: color, transform: [{ rotate: '45deg' }] }]} />
@@ -70,10 +67,8 @@ function Eye({ stateVal, color }: { stateVal: number; color: string }) {
     );
   }
   if (stateVal === 1) {
-    // Hard: flat lines
     return <View style={[faceStyles.eyeFlat, { backgroundColor: color }]} />;
   }
-  // Good/Easy (stateVal 2 or 3): Arches
   const isExcited = stateVal === 3;
   return (
     <View
@@ -91,14 +86,11 @@ function Eye({ stateVal, color }: { stateVal: number; color: string }) {
 
 function Mouth({ stateVal, color }: { stateVal: number; color: string }) {
   if (stateVal === 0) {
-    // Forgot: frown
     return <View style={[faceStyles.mouthFrown, { borderColor: color }]} />;
   }
   if (stateVal === 1) {
-    // Hard: flat line
     return <View style={[faceStyles.mouthFlat, { backgroundColor: color }]} />;
   }
-  // Good/Easy (stateVal 2 or 3): Smile / Big Smile
   const isBig = stateVal === 3;
   return (
     <View
@@ -118,7 +110,6 @@ function Mouth({ stateVal, color }: { stateVal: number; color: string }) {
   );
 }
 
-// Custom horizontal Slidebar with integrated Character handle
 interface SlidebarProps {
   ratingScore: number;
   onChange: (score: number) => void;
@@ -132,10 +123,16 @@ const sliderBgColors = [
   'rgba(16, 185, 129, 0.15)',
   'rgba(59, 130, 246, 0.15)',
 ];
-const sliderLabels = ['Forgot', 'Hard', 'Good', 'Easy'];
+const sliderLabelKeys = [
+  'practice.ratingForgot',
+  'practice.ratingHard',
+  'practice.ratingGood',
+  'practice.ratingEasy',
+] as const;
 
 function Slidebar({ ratingScore, onChange }: SlidebarProps) {
   const { colors } = useTheme();
+  const { t } = useAppLanguage();
   const [trackWidth, setTrackWidth] = useState(0);
   const startRatingScore = useRef(ratingScore);
   const handleScale = useRef(new Animated.Value(1)).current;
@@ -147,7 +144,7 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
     ratingScore < 0.75 ? 0 : ratingScore < 1.5 ? 1 : ratingScore < 2.25 ? 2 : 3;
 
   const color = sliderColors[stateVal];
-  const label = sliderLabels[stateVal];
+  const label = t(sliderLabelKeys[stateVal]);
   const bgColor = sliderBgColors[stateVal];
 
   const panResponder = useRef(
@@ -240,7 +237,6 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
   );
 }
 
-// Cloze replacement helper
 function getBlankedSentence(sentence: string, word: string) {
   if (!sentence || !word) return sentence || '';
   const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -253,28 +249,25 @@ function getBlankedSentence(sentence: string, word: string) {
 }
 
 export function PracticeScreen() {
-  const { colors, spacing, radii } = useTheme();
+  const { colors, spacing, radii, shadows } = useTheme();
+  const { t } = useAppLanguage();
   const flipAnim = useRef(new Animated.Value(0)).current;
   const navigation = useNavigation<NavigationProp>();
 
-  // Review states
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [dueItems, setDueItems] = useState<DueItem[]>([]);
   const [queue, setQueue] = useState<DueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [ratingScore, setRatingScore] = useState(2.0); // Default to Good
+  const [ratingScore, setRatingScore] = useState(2.0);
 
-  // Custom feedback state
   const [attempts, setAttempts] = useState<ReviewAttemptParams[]>([]);
   const [xpEarned, setXpEarned] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Dynamic examples tracking
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
 
-  // Fetch due cards
   const loadDueItems = useCallback(() => {
     setStatus('loading_due');
     setErrorMsg(null);
@@ -296,22 +289,19 @@ export function PracticeScreen() {
       })
       .catch((err) => {
         console.error('Error fetching due reviews:', err);
-        setErrorMsg(err.message || 'Failed to load due review items.');
+        setErrorMsg(err.message || t('practice.loadDueFailed'));
         setStatus('idle');
       });
-  }, []);
+  }, [t]);
 
-  // Fetch due items on mount when screen is focused
   useFocusEffect(
     useCallback(() => {
-      // Only load automatically if we are not currently in an active or success state
       if (status !== 'active' && status !== 'success' && status !== 'submitting') {
         loadDueItems();
       }
     }, [loadDueItems, status])
   );
 
-  // Start preview session using all words
   const startPreviewSession = () => {
     setStatus('loading_preview');
     setErrorMsg(null);
@@ -335,7 +325,7 @@ export function PracticeScreen() {
             meaning_order: item.meaning_order,
             learning_stage: item.learning_stage,
             due_at: item.due_at,
-            examples: [], // Empty examples in preview lists
+            examples: [],
           }));
           setDueItems(previewItems);
           setQueue(previewItems);
@@ -348,17 +338,16 @@ export function PracticeScreen() {
           setStatus('active');
         } else {
           setStatus('idle');
-          setErrorMsg('No words in your library. Add some words first!');
+          setErrorMsg(t('practice.noWordsPreview'));
         }
       })
       .catch((err) => {
         console.error('Error starting preview session:', err);
-        setErrorMsg(err.message || 'Failed to start preview session.');
+        setErrorMsg(err.message || t('practice.previewFailed'));
         setStatus('idle');
       });
   };
 
-  // Submit reviews when queue finishes
   useEffect(() => {
     if (status === 'active' && queue.length > 0 && currentIndex === queue.length) {
       setStatus('submitting');
@@ -369,13 +358,12 @@ export function PracticeScreen() {
         })
         .catch((err) => {
           console.error('Error submitting batch reviews:', err);
-          setErrorMsg(err.message || 'Failed to submit review attempts.');
+          setErrorMsg(err.message || t('practice.submitFailed'));
           setStatus('error');
         });
     }
   }, [currentIndex, queue.length, status, attempts]);
 
-  // Handle grade confirmations
   const confirmGrade = () => {
     const currentItem = queue[currentIndex];
     if (!currentItem) return;
@@ -388,23 +376,20 @@ export function PracticeScreen() {
       ? getBlankedSentence(example.sentence, currentItem.normalized_text)
       : 'Definition: ' + currentItem.definition;
 
-    // Create review attempt parameters matching backend schema exactly
     const attempt: ReviewAttemptParams = {
       user_word_sense_id: currentItem.user_word_sense_id,
       activity_type: activityType,
       prompt,
       user_answer: currentItem.normalized_text,
       correct_answer: currentItem.normalized_text,
-      is_correct: ratingScore >= 0.75, // true if rating score >= 0.75 (i.e. not Forgot)
+      is_correct: ratingScore >= 0.75,
       rating_score: ratingScore,
       response_time_ms: null,
       confidence_rating: null,
     };
 
-    // Append attempt
     setAttempts((prev) => [...prev, attempt]);
 
-    // Handle Fail (Forgot) -> Re-queue item at the end and cycle sentence example
     if (ratingScore < 0.75) {
       setFailedMap((prev) => ({ ...prev, [currentItem.user_word_sense_id]: true }));
       if (examplesList.length > 1) {
@@ -416,11 +401,10 @@ export function PracticeScreen() {
       setQueue((prev) => [...prev, currentItem]);
     }
 
-    // Advance queue
     flipAnim.setValue(0);
     setCurrentIndex((prev) => prev + 1);
     setIsFlipped(false);
-    setRatingScore(2.0); // Reset score to Good
+    setRatingScore(2.0);
   };
 
   const toggleFlip = () => {
@@ -447,16 +431,10 @@ export function PracticeScreen() {
     transform: [{ perspective: 1000 }, { rotateY: backInterpolate }],
   };
 
-  // UI state renderers
   if (status === 'loading_due' || status === 'loading_preview') {
     return (
       <Screen padded>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ marginTop: spacing.md }} muted>
-            Preparing practice session...
-          </Text>
-        </View>
+        <LoadingState message={t('practice.preparing')} />
       </Screen>
     );
   }
@@ -464,12 +442,7 @@ export function PracticeScreen() {
   if (status === 'submitting') {
     return (
       <Screen padded>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ marginTop: spacing.md }} muted>
-            Syncing results with server...
-          </Text>
-        </View>
+        <LoadingState message={t('practice.syncing')} />
       </Screen>
     );
   }
@@ -478,20 +451,23 @@ export function PracticeScreen() {
     return (
       <Screen padded>
         <View style={[styles.center, { gap: spacing.lg }]}>
-          <Text variant="heading" style={{ color: colors.success }}>
-            🎉 Practice Complete!
+          <View style={[styles.successIconCircle, { backgroundColor: colors.successSurface }]}>
+            <Icon name="checkmark-circle" size="xl" color={colors.success} />
+          </View>
+          <Text variant="heading" color="success" style={{ textAlign: 'center' }}>
+            {t('practice.complete')}
           </Text>
-          <Card style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
+          <Card elevated style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
             <Text variant="title" bold>
-              XP Earned
+              {t('practice.xpEarned')}
             </Text>
             <Badge label={`+${xpEarned} XP`} variant="success" />
-            <Text muted style={{ marginTop: spacing.sm, textAlign: 'center' }}>
-              Excellent job completing your review session! Your spaced-repetition progress has been saved.
+            <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
+              {t('practice.progressSaved')}
             </Text>
           </Card>
           <Button
-            label="Back to Home"
+            label={t('practice.backHome')}
             variant="primary"
             style={{ width: '100%' }}
             onPress={() => {
@@ -508,14 +484,12 @@ export function PracticeScreen() {
     return (
       <Screen padded>
         <View style={[styles.center, { gap: spacing.lg }]}>
-          <Text variant="heading" style={{ color: colors.danger }}>
-            Submission Failed
-          </Text>
-          <Text muted style={{ textAlign: 'center' }}>
-            {errorMsg || 'An error occurred while saving your session attempts.'}
-          </Text>
+          <ErrorState
+            title={t('practice.submissionFailed')}
+            message={errorMsg || t('practice.saveError')}
+          />
           <Button
-            label="Retry Sync"
+            label={t('practice.retrySync')}
             variant="primary"
             style={{ width: '100%' }}
             onPress={() => {
@@ -527,13 +501,13 @@ export function PracticeScreen() {
                 })
                 .catch((err) => {
                   console.error('Retry submission error:', err);
-                  setErrorMsg(err.message || 'Failed to submit review attempts.');
+                  setErrorMsg(err.message || t('practice.submitFailed'));
                   setStatus('error');
                 });
             }}
           />
           <Button
-            label="Discard Progress"
+            label={t('practice.discardProgress')}
             variant="ghost"
             style={{ width: '100%' }}
             onPress={() => {
@@ -550,29 +524,30 @@ export function PracticeScreen() {
     return (
       <Screen padded>
         <View style={[styles.center, { gap: spacing.lg }]}>
-          <View style={{ alignItems: 'center', gap: spacing.xs }}>
-            <Text variant="heading">Practice</Text>
-            <Text muted style={{ textAlign: 'center' }}>
-              All caught up! You have no words due for review today.
-            </Text>
-          </View>
+          <EmptyState
+            icon="layers-outline"
+            title={t('home.allCaughtUp')}
+            message={t('practice.noDueMessage')}
+          />
 
           {errorMsg && (
-            <Text style={{ color: colors.danger, textAlign: 'center' }}>
+            <Text color="danger" style={{ textAlign: 'center' }}>
               {errorMsg}
             </Text>
           )}
 
           <Button
-            label="Refresh Due Words"
+            label={t('practice.refreshDue')}
             variant="primary"
+            iconLeft="refresh"
             style={{ width: '100%' }}
             onPress={loadDueItems}
           />
 
           <Button
-            label="Preview Practice Session (All Words)"
+            label={t('practice.previewSession')}
             variant="secondary"
+            iconLeft="play"
             style={{ width: '100%' }}
             onPress={startPreviewSession}
           />
@@ -581,7 +556,6 @@ export function PracticeScreen() {
     );
   }
 
-  // Active Practice Session
   const currentItem = queue[currentIndex];
   if (!currentItem) return null;
 
@@ -590,7 +564,6 @@ export function PracticeScreen() {
   const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
   const isPreviouslyFailed = failedMap[currentItem.user_word_sense_id] ?? false;
 
-  // Session Progress (from original due items list)
   const dueItemsReviewedCount = attempts.filter((att) =>
     dueItems.some((di) => di.user_word_sense_id === att.user_word_sense_id)
   ).length;
@@ -601,20 +574,23 @@ export function PracticeScreen() {
 
   const cardSurface = {
     backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backfaceVisibility: 'hidden' as const,
+    ...shadows.md,
   };
 
   return (
     <Screen padded>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Progress header */}
         <View style={[styles.progressHeader, { gap: spacing.sm }]}>
-          <Text variant="caption" muted>
-            Review Session: {currentIndex + 1} / {queue.length}
-          </Text>
+          <View style={styles.progressTextRow}>
+            <Text variant="caption" color="muted">
+              {t('practice.cardProgress', { current: currentIndex + 1, total: queue.length })}
+            </Text>
+            {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+          </View>
           <View style={[styles.progressBarContainer, { backgroundColor: colors.border }]}>
             <View
               style={[
@@ -626,60 +602,49 @@ export function PracticeScreen() {
               ]}
             />
           </View>
-          {isPreviouslyFailed && (
-            <Badge label="Retrying Failed Card" variant="danger" style={{ alignSelf: 'center' }} />
-          )}
         </View>
 
-        {/* Flashcard */}
         <Pressable onPress={toggleFlip} style={styles.cardPressable}>
           <View style={styles.cardContainer}>
-            <Animated.View
-              style={[styles.flashcard, cardSurface, frontAnimatedStyle]}
-            >
+            <Animated.View style={[styles.flashcard, cardSurface, frontAnimatedStyle]}>
               <View style={styles.cardContent}>
-                <Badge
-                  label={currentItem.part_of_speech.toUpperCase()}
-                  variant="primary"
-                />
+                <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
                 <Text variant="title" bold style={styles.definitionText}>
                   {currentItem.definition}
                 </Text>
                 {example ? (
-                  <Text style={styles.clozeText}>
-                    "{getBlankedSentence(example.sentence, currentItem.normalized_text)}"
+                  <Text variant="body" style={styles.clozeText}>
+                    &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
                   </Text>
                 ) : (
-                  <Text style={styles.clozePlaceholder} muted>
-                    No example sentence. Use definition to recall.
+                  <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                    {t('practice.noExample')}
                   </Text>
                 )}
-                <Text variant="caption" style={styles.tapPrompt} muted>
-                  ⚡ TAP TO REVEAL ANSWER
-                </Text>
+                <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+                  <Icon name="finger-print" size="md" color={colors.primary} />
+                  <Text variant="caption" color="primary" bold>
+                    {t('practice.tapReveal')}
+                  </Text>
+                </View>
               </View>
             </Animated.View>
-            <Animated.View
-              style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}
-            >
+            <Animated.View style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}>
               <View style={styles.cardContent}>
-                <Badge
-                  label={currentItem.part_of_speech.toUpperCase()}
-                  variant="primary"
-                />
+                <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
                 <Text variant="heading" style={styles.wordText}>
                   {currentItem.lemma}
                 </Text>
-                <Text variant="body" muted style={styles.backDefinitionText}>
+                <Text variant="body" color="muted" style={styles.backDefinitionText}>
                   {currentItem.definition}
                 </Text>
                 {example && (
-                  <View style={styles.exampleContainer}>
-                    <Text style={styles.exampleSentence}>
-                      "{example.sentence}"
+                  <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
+                    <Text variant="body" style={styles.exampleSentence}>
+                      &ldquo;{example.sentence}&rdquo;
                     </Text>
                     {example.localized_translation && (
-                      <Text style={styles.exampleTranslation} muted>
+                      <Text variant="caption" color="muted" style={styles.exampleTranslation}>
                         {example.localized_translation}
                       </Text>
                     )}
@@ -690,16 +655,16 @@ export function PracticeScreen() {
           </View>
         </Pressable>
 
-        {/* Grading panel (only when flipped) */}
         {isFlipped && (
-          <View style={[styles.gradingPanel, { gap: spacing.md }]}>
+          <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.border }]}>
             <Text style={{ textAlign: 'center' }} bold>
-              Rate your memory recall:
+              {t('practice.rateRecall')}
             </Text>
             <Slidebar ratingScore={ratingScore} onChange={setRatingScore} />
             <Button
-              label="Confirm Grade"
+              label={t('practice.confirmGrade')}
               variant="primary"
+              iconRight="arrow-forward"
               style={{ width: '100%', marginTop: spacing.xs }}
               onPress={confirmGrade}
             />
@@ -710,7 +675,6 @@ export function PracticeScreen() {
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
@@ -722,10 +686,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressHeader: {
+  successIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressHeader: {
     width: '100%',
     marginBottom: 20,
+  },
+  progressTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   progressBarContainer: {
     width: '100%',
@@ -751,11 +726,6 @@ const styles = StyleSheet.create({
     minHeight: 280,
     justifyContent: 'center',
     padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
   },
   flashcardBack: {
     position: 'absolute',
@@ -776,7 +746,6 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   clozeText: {
-    fontSize: 17,
     fontStyle: 'italic',
     textAlign: 'center',
     lineHeight: 24,
@@ -787,10 +756,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tapPrompt: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   wordText: {
     fontSize: 28,
@@ -805,17 +773,13 @@ const styles = StyleSheet.create({
   },
   exampleContainer: {
     alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
   },
   exampleSentence: {
-    fontSize: 16,
     fontStyle: 'italic',
     textAlign: 'center',
     lineHeight: 22,
   },
   exampleTranslation: {
-    fontSize: 14,
     textAlign: 'center',
   },
   gradingPanel: {
@@ -823,7 +787,6 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
   },
 });
 

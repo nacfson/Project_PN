@@ -4,14 +4,16 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { mockProgress } from './mockProgress';
+import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Card, Screen, Text } from '../../ui';
+import { Badge, Button, Card, Icon, Screen, Text } from '../../ui';
 import { getDueLearningItems } from '../../api/learningItems';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Learn'>;
 
 export function HomeScreen() {
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
+  const { t } = useAppLanguage();
   const navigation = useNavigation<NavigationProp>();
   const { displayName, streakDays, xpToday, dailyGoalXp } = mockProgress;
   const [wordsDueToday, setWordsDueToday] = useState<number | null>(null);
@@ -37,54 +39,88 @@ export function HomeScreen() {
     }, [])
   );
 
+  const dueCount = wordsDueToday ?? 0;
+  const hasDue = dueCount > 0;
+
   return (
     <Screen padded>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingVertical: spacing.lg, gap: spacing.lg }]}>
-        <View>
-          <Text variant="heading">Hello, {displayName}</Text>
-          <Text muted style={{ marginTop: spacing.xs }}>
-            Ready to keep your streak going?
-          </Text>
+        <View style={{ gap: spacing.xs }}>
+          <Text variant="heading">{t('home.greeting', { name: displayName })}</Text>
+          <Text color="muted">{t('home.subtitle')}</Text>
         </View>
 
-        <Card>
-          <View style={styles.row}>
-            <Text variant="title">Streak</Text>
-            <Badge label={`${streakDays} days`} variant="primary" />
-          </View>
-          <Text muted style={{ marginTop: spacing.sm }}>
-            Keep reviewing daily to maintain your streak.
-          </Text>
-        </Card>
-
-        <Card>
-          <View style={styles.row}>
-            <Text variant="title">XP today</Text>
-            <Badge label={`${xpToday} / ${dailyGoalXp}`} variant="success" />
-          </View>
-          <Text muted style={{ marginTop: spacing.sm }}>
-            {dailyGoalXp - xpToday} XP left to hit your daily goal.
-          </Text>
-        </Card>
-
-        <Pressable onPress={() => navigation.navigate('Practice')}>
-          <Card style={styles.clickableCard}>
+        <Pressable
+          onPress={() => navigation.navigate('Practice')}
+          style={({ pressed }) => ({ opacity: pressed ? 0.95 : 1 })}
+        >
+          <Card elevated style={[styles.heroCard, { borderColor: hasDue ? colors.primary : colors.border }]}>
             <View style={styles.row}>
-              <Text variant="title">Words due today</Text>
+              <View style={styles.heroTitleRow}>
+                <View style={[styles.heroIconCircle, { backgroundColor: hasDue ? colors.primary : colors.successSurface }]}>
+                  <Icon name={hasDue ? 'layers' : 'checkmark-circle'} size="lg" color={hasDue ? colors.onPrimary : colors.success} />
+                </View>
+                <View>
+                  <Text variant="title">{t('home.wordsDue')}</Text>
+                  <Text variant="caption" color="muted">
+                    {hasDue ? t('home.tapToStart') : t('home.allCaughtUp')}
+                  </Text>
+                </View>
+              </View>
               <Badge
-                label={wordsDueToday === null ? '...' : String(wordsDueToday)}
-                variant={wordsDueToday !== null && wordsDueToday > 0 ? 'primary' : 'default'}
+                label={wordsDueToday === null ? '...' : String(dueCount)}
+                variant={hasDue ? 'primary' : 'success'}
               />
             </View>
-            <Text muted style={{ marginTop: spacing.sm }}>
-              {wordsDueToday === null
-                ? 'Checking for due cards...'
-                : wordsDueToday > 0
-                  ? 'Tap to start reviewing your due cards!'
-                  : 'All caught up! No cards due for review.'}
-            </Text>
+
+            {wordsDueToday === null ? (
+              <Text color="muted">{t('home.checkingDue')}</Text>
+            ) : hasDue ? (
+              <Button
+                label={t('home.startReview', { count: dueCount })}
+                iconRight="arrow-forward"
+                onPress={() => navigation.navigate('Practice')}
+                style={{ marginTop: spacing.md }}
+              />
+            ) : (
+              <Button
+                label={t('home.previewPractice')}
+                variant="secondary"
+                iconRight="arrow-forward"
+                onPress={() => navigation.navigate('Practice')}
+                style={{ marginTop: spacing.md }}
+              />
+            )}
           </Card>
         </Pressable>
+
+        <View style={[styles.statsGrid, { gap: spacing.md }]}>
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconCircle, { backgroundColor: colors.warningSurface }]}>
+              <Icon name="flame" size="md" color={colors.warning} />
+            </View>
+            <View style={{ gap: spacing.xs }}>
+              <Text variant="title">{streakDays}</Text>
+              <Text variant="caption" color="muted">
+                {t('home.dayStreak')}
+              </Text>
+            </View>
+          </Card>
+
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconCircle, { backgroundColor: colors.infoSurface }]}>
+              <Icon name="trophy" size="md" color={colors.info} />
+            </View>
+            <View style={{ gap: spacing.xs }}>
+              <Text variant="title">
+                {xpToday} / {dailyGoalXp}
+              </Text>
+              <Text variant="caption" color="muted">
+                {t('home.xpToday')}
+              </Text>
+            </View>
+          </Card>
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -98,8 +134,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
-  clickableCard: {
-    cursor: 'pointer',
+  heroCard: {
+    borderWidth: 2,
+    padding: 20,
+  },
+  heroTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  heroIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+  },
+  statCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+  },
+  statIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

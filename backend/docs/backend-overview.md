@@ -5,11 +5,12 @@
 Build a personal vocabulary learning system where users add words they do not know, then study those words through evidence-based methods:
 
 - active recall
-- spaced repetition
+- spaced repetition (FSRS v4 with Anki-aligned learning steps, daily limits, fuzz, leech detection, and sibling bury)
 - contextual examples
 - repeated retrieval
 - productive use through writing or speaking
 - progress tracking based on memory strength, not only streaks
+- per-user FSRS parameter optimization from review history
 
 The backend should not only store vocabulary. It should store each user's learning state for each meaning they are trying to learn.
 
@@ -85,8 +86,10 @@ Requires `Authorization: Bearer <token>`. When `REQUIRE_EMAIL_VERIFIED=true`, mu
 | `POST` | `/api/words/lookup` | Look up senses for a word. Cache hit returns existing rows. Cache miss + enricher configured returns generated senses, persisted in the same transaction. Cache miss + no enricher returns 503. `force: true` runs Force-Generate. |
 | `GET` | `/api/learning-items?limit=50&descending=true&cursor=...&q=app` | List the authenticated user's active learning items. Uses keyset pagination, excludes archived items, supports optional prefix search on `q`, and returns `next_cursor` when more rows are available. |
 | `POST` | `/api/learning-items` | Add a `(user, word_sense)` to the authenticated user's learning set. Idempotent. Returns the `user_word_senses` row and its current `due_at`. |
-| `GET` | `/api/reviews/due?limit=50` | Return due review items by joining `review_states` to active `user_word_senses`. |
-| `POST` | `/api/reviews/batch` | Record review attempts and update `review_states` atomically. |
+| `GET` | `/api/reviews/due?limit=50` | Return due review items by joining `review_states` to active `user_word_senses`. Respects daily limits (`new_cards_per_day`, `reviews_per_day`), excludes buried and suspended cards, and returns reviews first then new cards. |
+| `POST` | `/api/reviews/batch` | Record review attempts and update `review_states` atomically. Applies Anki-style learning/relearning steps, leech detection, sibling-sense burying, and daily count tracking. |
+| `POST` | `/api/reviews/optimize-weights` | Trigger FSRS parameter optimization for the authenticated user based on review history (requires 1000+ reviews). Returns 202. |
+| `GET` | `/api/reviews/optimization-status` | Return the user's current FSRS weights, last optimization timestamp, and review count. |
 
 ## Authentication
 
@@ -100,13 +103,11 @@ The acting user is derived from the `Authorization: Bearer` header, not from the
 
 Auth configuration (`SESSION_TTL`, `REQUIRE_EMAIL_VERIFIED`, `EMAIL_PROVIDER`, `APP_PUBLIC_URL`, etc.) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
 
-## Staging vs production TLS
+## Public Docker Deployment
 
-Private staging deploy (`deploy/`) runs **plain HTTP on port 80** behind nginx. This is intentional for early integration testing only.
+The public deploy path uses Docker Compose on `zlUbuntu`: PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Forward router ports `80/tcp` and `443/tcp` to `zlUbuntu`, mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend, Google, and enrichment providers works from inside the container.
 
-**Do not treat staging as production-safe** for passwords, bearer tokens, or magic-link URLs until TLS is enabled in a separate follow-up (domain + certificate mount or Let's Encrypt, public `:443`, HTTP→HTTPS redirect). The API Docker runtime image includes CA certificates so outbound HTTPS to Resend, Google, and enrichment providers works from inside the container even when inbound traffic is HTTP.
-
-See `backend/docs/go-backend-setup.md` for the staging compose stack and `backend/docs/backend-future-scope.md` for the TLS follow-up note.
+See `backend/docs/go-backend-setup.md` and `backend/docs/remote-deploy-runbook.md` for deployment steps.
 
 ## Enrichment
 

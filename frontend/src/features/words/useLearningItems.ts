@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listLearningItems } from '../../api/learningItems';
 import { ApiError } from '../../api/client';
+import { useAppLanguage } from '../../i18n';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { LearningItemListItem } from '../../types';
 
@@ -8,14 +9,15 @@ const PAGE_SIZE = 50;
 
 type Status = 'loading' | 'ready' | 'error';
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     return error.message;
   }
-  return 'Something went wrong.';
+  return fallback;
 }
 
 export function useLearningItems(q: string) {
+  const { t } = useAppLanguage();
   const debouncedQ = useDebouncedValue(q, 300);
   const [items, setItems] = useState<LearningItemListItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -60,10 +62,10 @@ export function useLearningItems(q: string) {
       if (requestId !== requestIdRef.current) {
         return;
       }
-      setError(messageOf(err));
+      setError(messageOf(err, t('common.somethingWrong')));
       setStatus('error');
     }
-  }, [fetchPage]);
+  }, [fetchPage, t]);
 
   useEffect(() => {
     void reload();
@@ -84,12 +86,12 @@ export function useLearningItems(q: string) {
       if (requestId !== requestIdRef.current) {
         return;
       }
-      setError(messageOf(err));
+      setError(messageOf(err, t('common.somethingWrong')));
     } finally {
       loadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [fetchPage, nextCursor, status]);
+  }, [fetchPage, nextCursor, status, t]);
 
   const refresh = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -102,14 +104,14 @@ export function useLearningItems(q: string) {
       if (requestId !== requestIdRef.current) {
         return;
       }
-      setError(messageOf(err));
+      setError(messageOf(err, t('common.somethingWrong')));
       setStatus('error');
     } finally {
       if (requestId === requestIdRef.current) {
         setIsRefreshing(false);
       }
     }
-  }, [fetchPage]);
+  }, [fetchPage, t]);
 
   return {
     items,

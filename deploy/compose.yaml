@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: ${BACKEND_IMAGE:-ghcr.io/nacfson/project-pn-backend:latest}
+    image: ${BACKEND_IMAGE:-project-pn-backend:latest}
     command: ["./migrate", "up"]
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -30,7 +30,7 @@ services:
     restart: "no"
 
   api:
-    image: ${BACKEND_IMAGE:-ghcr.io/nacfson/project-pn-backend:latest}
+    image: ${BACKEND_IMAGE:-project-pn-backend:latest}
     environment:
       APP_ADDR: :8080
       DATABASE_URL: ${DATABASE_URL}
@@ -41,6 +41,10 @@ services:
       ENRICH_MODEL: ${ENRICH_MODEL:-}
       DEFAULT_TARGET_LANG: ${DEFAULT_TARGET_LANG:-en}
       DEFAULT_DEFINITION_LANG: ${DEFAULT_DEFINITION_LANG:-ko}
+      ALLOWED_TARGET_LANGS: ${ALLOWED_TARGET_LANGS:-}
+      ALLOWED_DEFINITION_LANGS: ${ALLOWED_DEFINITION_LANGS:-}
+      FORCE_TARGET_LANG: ${FORCE_TARGET_LANG:-}
+      FORCE_DEFINITION_LANG: ${FORCE_DEFINITION_LANG:-}
       SESSION_TTL: ${SESSION_TTL:-720h}
       REQUIRE_EMAIL_VERIFIED: ${REQUIRE_EMAIL_VERIFIED:-false}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
@@ -59,8 +63,11 @@ services:
     image: nginx:1.27-alpine
     ports:
       - "80:80"
+      - "53412:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - api
     restart: unless-stopped

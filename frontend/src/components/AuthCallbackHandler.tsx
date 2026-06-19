@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Linking, Platform } from 'react-native';
 import { exchangeMagicCode } from '../api/auth';
+import { useAppLanguage } from '../i18n';
 import { isAuthCallbackUrl, parseMagicCodeFromCallbackUrl } from '../utils/authCallback';
 import { isTauri } from '../utils/platform';
 
@@ -45,6 +46,7 @@ function stripCallbackFromHistory(): void {
  */
 export function AuthCallbackHandler({ onAuthenticated, onError }: AuthCallbackHandlerProps) {
   const handled = useRef(false);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     const exchangeCode = async (code: string, stripWebHistory: boolean) => {
@@ -63,7 +65,7 @@ export function AuthCallbackHandler({ onAuthenticated, onError }: AuthCallbackHa
         if (stripWebHistory) {
           stripCallbackFromHistory();
         }
-        const message = err instanceof Error ? err.message : 'Magic link sign-in failed';
+        const message = err instanceof Error ? err.message : t('auth.magicLinkSignInFailed');
         onError?.(message);
       }
     };
@@ -120,7 +122,7 @@ export function AuthCallbackHandler({ onAuthenticated, onError }: AuthCallbackHa
       cancelled = true;
       removeLinking?.();
     };
-  }, [onAuthenticated, onError]);
+  }, [onAuthenticated, onError, t]);
 
   return null;
 }

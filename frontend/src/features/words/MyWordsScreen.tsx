@@ -8,12 +8,14 @@ import {
   type ListRenderItem,
 } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useAppLanguage } from '../../i18n';
 import type { LearningItemListItem } from '../../types';
-import { Badge, Button, Card, Input, Screen, Text } from '../../ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import { useLearningItems } from './useLearningItems';
 
 export function MyWordsScreen() {
   const { colors, spacing } = useTheme();
+  const { t } = useAppLanguage();
   const [q, setQ] = useState('');
   const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(q);
 
@@ -23,42 +25,50 @@ export function MyWordsScreen() {
     ({ item }) => (
       <Card style={{ marginBottom: spacing.md }}>
         <View style={styles.row}>
-          <Text variant="title">{item.lemma}</Text>
-          <Badge label={item.part_of_speech} />
+          <View style={{ flex: 1, gap: spacing.xs }}>
+            <Text variant="title" bold>
+              {item.lemma}
+            </Text>
+            <Text variant="caption" color="muted">
+              {item.short_definition ?? item.definition}
+            </Text>
+          </View>
+          <Icon name="chevron-forward" size="md" />
         </View>
-        <Text muted style={{ marginTop: spacing.sm }}>
-          {item.short_definition ?? item.definition}
-        </Text>
-        <Badge label={item.learning_stage} variant="primary" style={{ marginTop: spacing.sm }} />
+        <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm }]}>
+          <Badge label={item.part_of_speech} variant="default" />
+          <Badge label={item.learning_stage} variant="primary" />
+        </View>
       </Card>
     ),
-    [spacing.sm, spacing.md],
+    [spacing.sm, spacing.md, spacing.xs]
   );
 
   const listEmpty = () => {
     if (status === 'loading') {
-      return (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      );
+      return <LoadingState />;
     }
 
     if (status === 'error') {
+      return <ErrorState message={error ?? t('words.loadFailed')} onRetry={() => void refresh()} />;
+    }
+
+    if (hasSearch) {
       return (
-        <View style={styles.centered}>
-          <Text muted style={{ marginBottom: spacing.md, textAlign: 'center' }}>
-            {error ?? 'Failed to load words.'}
-          </Text>
-          <Button label="Retry" onPress={() => void refresh()} />
-        </View>
+        <EmptyState
+          icon="search"
+          title={t('words.noMatches', { query: q.trim() })}
+          message={t('words.noMatchesMessage')}
+        />
       );
     }
 
     return (
-      <View style={styles.centered}>
-        <Text muted>{hasSearch ? `No matches for "${q.trim()}"` : 'No words yet'}</Text>
-      </View>
+      <EmptyState
+        icon="book-outline"
+        title={t('words.emptyTitle')}
+        message={t('words.emptyMessage')}
+      />
     );
   };
 
@@ -76,13 +86,14 @@ export function MyWordsScreen() {
   return (
     <Screen padded>
       <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md }]}>
-        <Text variant="heading">My Words</Text>
+        <Text variant="heading">{t('words.title')}</Text>
         <Input
           value={q}
           onChangeText={setQ}
-          placeholder="Search your words"
+          placeholder={t('words.searchPlaceholder')}
           autoCapitalize="none"
           autoCorrect={false}
+          onClear={() => setQ('')}
         />
       </View>
 
@@ -126,15 +137,13 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
   },
-  centered: {
-    flex: 1,
+  badgeRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 48,
   },
   footer: {
     paddingVertical: 16,

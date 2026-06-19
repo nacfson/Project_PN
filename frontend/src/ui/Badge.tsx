@@ -2,7 +2,7 @@ import { StyleSheet, View, type ViewProps } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from './Text';
 
-type BadgeVariant = 'default' | 'success' | 'danger' | 'primary';
+type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
 
 interface BadgeProps extends ViewProps {
   label: string;
@@ -12,24 +12,23 @@ interface BadgeProps extends ViewProps {
 export function Badge({ label, variant = 'default', style, ...rest }: BadgeProps) {
   const { colors, spacing, radii } = useTheme();
 
-  const bgColor =
-    variant === 'success'
-      ? '#dcfce7'
-      : variant === 'danger'
-        ? '#fee2e2'
-        : variant === 'primary'
-          ? colors.primary
-          : colors.border;
+  const palette = {
+    default: { bg: colors.surfaceAlt, text: colors.text },
+    primary: { bg: colors.primary, text: colors.onPrimary },
+    success: { bg: colors.successSurface, text: colors.success },
+    warning: { bg: colors.warningSurface, text: colors.warning },
+    danger: { bg: colors.dangerSurface, text: colors.danger },
+    info: { bg: colors.infoSurface, text: colors.info },
+  };
 
-  const textColor =
-    variant === 'primary' ? colors.surface : variant === 'success' ? colors.success : variant === 'danger' ? colors.danger : colors.text;
+  const { bg, text } = palette[variant];
 
   return (
     <View
       style={[
         styles.base,
         {
-          backgroundColor: bgColor,
+          backgroundColor: bg,
           borderRadius: radii.full,
           paddingHorizontal: spacing.md,
           paddingVertical: spacing.xs,
@@ -38,7 +37,7 @@ export function Badge({ label, variant = 'default', style, ...rest }: BadgeProps
       ]}
       {...rest}
     >
-      <Text variant="caption" style={{ color: textColor, fontWeight: '600' }}>
+      <Text variant="caption" color={variant === 'primary' ? 'inverse' : 'default'} style={{ fontWeight: '600' }}>
         {label}
       </Text>
     </View>

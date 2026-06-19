@@ -88,25 +88,52 @@ curl http://localhost:8080/readyz
 
 `/healthz` checks that the service is running. `/readyz` checks PostgreSQL connectivity.
 
-## Staging deploy (`deploy/`)
+## Public Docker deploy (`deploy/`)
 
-For a private staging stack (PostgreSQL + migrate + API + nginx on plain HTTP `:80`), use the repo-root `deploy/` folder. The staging compose file pulls the backend image from GHCR by default:
+Detailed deployment steps and troubleshooting live in `backend/docs/remote-deploy-runbook.md`.
 
-```sh
-cp deploy/.env.example deploy/.env
-# edit deploy/.env (BACKEND_IMAGE, DATABASE_URL, ALLOWED_ORIGINS, APP_PUBLIC_URL, POSTGRES_PASSWORD, ...)
-docker compose -f deploy/compose.yaml --env-file deploy/.env pull
-docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
-curl http://YOUR_SERVER_IP/readyz
-```
-
-If the GHCR package is private, log in on the server before pulling:
+For a public Docker-only stack on `zlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. The script builds the backend image locally, uploads it to the remote server over SSH/SCP, loads it with Docker, and starts the remote compose stack.
 
 ```sh
-docker login ghcr.io -u nacfson
+DEPLOY_HOST=user@YOUR_SERVER_IP scripts/deploy-remote.sh
 ```
 
-Use a GitHub personal access token with `read:packages` as the password.
+Or create a local deploy environment file and run the script without inline variables:
+
+```sh
+cp deploy/.deploy.env.example deploy/.deploy.env
+# edit DEPLOY_HOST to match a ~/.ssh/config host alias, for example project-pn
+scripts/deploy-remote.sh
+```
+
+Optional script inputs:
+
+```sh
+DEPLOY_ENV_FILE=deploy/.deploy.env
+DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
+DEPLOY_ACCESS_SCOPE=public
+EXISTING_POSTGRES_PASSWORD=old-password
+REMOTE_DIR=~/project-pn/deploy
+IMAGE_NAME=project-pn-backend
+IMAGE_TAG=$(git rev-parse --short HEAD)
+PLATFORM=linux/amd64
+```
+
+For an internet-facing deploy, use a public domain or public IP and set
+`DEPLOY_ACCESS_SCOPE=public`. The deploy script refuses private/local URLs
+(`localhost`, `127.0.0.1`, `10.x.x.x`, `172.16.x.x`-`172.31.x.x`,
+`192.168.x.x`) in public mode because those addresses only work on the same
+machine or private network.
+
+If the host is behind a router that does not forward public traffic to the
+Ubuntu server, use router port-forwarding, a public cloud host, or a named
+Cloudflare Tunnel for durable outside-intranet access. For temporary testing
+only, `scripts/start-remote-quick-tunnel.sh` can start a TryCloudflare quick
+tunnel after `QUICK_TUNNEL_ACK=public-test-only` is set.
+
+On first run, the script uploads `deploy/.env.example` and creates a remote `.env` if one does not exist. It generates a Postgres password, sets `DATABASE_URL`, and uses `DEPLOY_PUBLIC_URL` for `ALLOWED_ORIGINS` and `APP_PUBLIC_URL`. The script never overwrites an existing remote `.env`.
+
+If the remote Postgres volume was already initialized with an older password, set `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env`. The script will start Postgres, update the `project_pn` database user password to match the remote `.env`, then continue the deployment.
 
 Services:
 
@@ -117,23 +144,22 @@ Services:
 | `api` | Go API on internal `:8080` |
 | `nginx` | Publishes `80:80`; reverse-proxies to `api` |
 
-The backend image is published to `ghcr.io/nacfson/project-pn-backend` by `.github/workflows/backend-image.yml` on pushes to `main` that touch `backend/**`. The image is built from `backend/Dockerfile` and tagged as both `latest` and `sha-<commit>`.
-
-On a remote server, only these deployment files are required:
+On a remote server, only these deployment files and TLS certs are required:
 
 - `deploy/compose.yaml`
 - `deploy/.env`
 - `deploy/nginx/nginx.conf`
+- `deploy/certs/fullchain.pem`
+- `deploy/certs/privkey.pem`
 
 From the server's `deploy/` directory, deploy with:
 
 ```sh
-docker compose --env-file .env pull
 docker compose --env-file .env up -d
-curl http://YOUR_SERVER_IP/readyz
+curl https://YOUR_PUBLIC_DOMAIN/readyz
 ```
 
-Set `BACKEND_IMAGE` in `deploy/.env` to pin a reproducible deployment, for example `ghcr.io/nacfson/project-pn-backend:sha-abc1234`.
+The primary deployment path does not require GHCR. `scripts/deploy-remote.sh` loads both `project-pn-backend:<git-short-sha>` and `project-pn-backend:latest` on the server, then supplies `BACKEND_IMAGE=project-pn-backend:<git-short-sha>` when it starts Docker Compose remotely.
 
 The backend image contains:
 
@@ -141,7 +167,7 @@ The backend image contains:
 - Runtime: **`debian:bookworm-slim` + `ca-certificates`** (required for outbound HTTPS to Resend, Google token verification, and enrichment APIs — do not use a scratch/distroless runtime without bundled CA certs)
 - Migrations copied to `/app/db/migrations`
 
-TLS termination is **not** enabled in staging. See commented `:443` block in `deploy/nginx/nginx.conf` and `backend/docs/backend-future-scope.md`.
+TLS termination is enabled in `deploy/nginx/nginx.conf`. Forward public `80/tcp` and `443/tcp` from the router to `zlUbuntu`, and keep `APP_PUBLIC_URL` / native build `EXPO_PUBLIC_API_BASE_URL` on the same HTTPS domain.
 
 Local development continues to use `backend/compose.yaml` (PostgreSQL on host port `5433`) and `go run ./cmd/api`.
 

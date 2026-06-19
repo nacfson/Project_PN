@@ -1,4 +1,5 @@
-import { SafeAreaView, StyleSheet, View, type ViewProps } from 'react-native';
+import { StyleSheet, View, type ViewProps } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface ScreenProps extends ViewProps {
@@ -9,9 +10,16 @@ export function Screen({ padded, style, children, ...rest }: ScreenProps) {
   const { colors, spacing } = useTheme();
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.surfaceAlt }]}>
+    <SafeAreaView
+      edges={['top', 'right', 'bottom', 'left']}
+      style={[styles.safe, { backgroundColor: colors.surfaceAlt }]}
+    >
       <View
-        style={[styles.inner, padded && { paddingHorizontal: spacing.xl }, style]}
+        style={[
+          styles.inner,
+          padded && { paddingHorizontal: spacing.xl },
+          style,
+        ]}
         {...rest}
       >
         {children}
@@ -26,5 +34,8 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
   },
 });

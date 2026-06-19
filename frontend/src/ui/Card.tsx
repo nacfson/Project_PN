@@ -1,8 +1,12 @@
 import { StyleSheet, View, type ViewProps } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 
-export function Card({ style, children, ...rest }: ViewProps) {
-  const { colors, spacing, radii } = useTheme();
+interface CardProps extends ViewProps {
+  elevated?: boolean;
+}
+
+export function Card({ elevated, style, children, ...rest }: CardProps) {
+  const { colors, spacing, radii, shadows } = useTheme();
 
   return (
     <View
@@ -14,6 +18,7 @@ export function Card({ style, children, ...rest }: ViewProps) {
           padding: spacing.lg,
           borderColor: colors.border,
         },
+        elevated ? shadows.md : shadows.none,
         style,
       ]}
       {...rest}

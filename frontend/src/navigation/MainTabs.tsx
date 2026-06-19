@@ -6,14 +6,16 @@ import { HomeScreen } from '../features/learn/HomeScreen';
 import { MyWordsScreen } from '../features/words/MyWordsScreen';
 import { PracticeScreen } from '../features/practice/PracticeScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
+import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
+import { Icon } from '../ui';
 
 export type MainTabParamList = {
   Learn: undefined;
   Words: undefined;
   Add: undefined;
   Practice: undefined;
-  Profile: undefined;
+  Settings: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -22,8 +24,14 @@ interface MainTabsProps {
   onLogout: () => void;
 }
 
-export function MainTabs({ onLogout }: MainTabsProps) {
+function TabIcon({ name, focused }: { name: React.ComponentProps<typeof Icon>['name']; focused: boolean }) {
   const { colors } = useTheme();
+  return <Icon name={name} size="md" color={focused ? colors.primary : colors.textMuted} />;
+}
+
+export function MainTabs({ onLogout }: MainTabsProps) {
+  const { colors, spacing } = useTheme();
+  const { t } = useAppLanguage();
 
   return (
     <View style={styles.root}>
@@ -37,16 +45,54 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             backgroundColor: colors.surface,
             borderTopColor: colors.border,
           },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '600',
+            marginBottom: spacing.xs,
+          },
         }}
       >
-        <Tab.Screen name="Learn" component={HomeScreen} />
-        <Tab.Screen name="Words" component={MyWordsScreen} />
-        <Tab.Screen name="Add" component={AddScreen} />
-        <Tab.Screen name="Practice" component={PracticeScreen} />
         <Tab.Screen
-          name="Profile"
-          children={() => <ProfileScreen onLogout={onLogout} />}
+          name="Learn"
+          component={HomeScreen}
+          options={{
+            tabBarLabel: t('tabs.learn'),
+            tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />,
+          }}
         />
+        <Tab.Screen
+          name="Words"
+          component={MyWordsScreen}
+          options={{
+            tabBarLabel: t('tabs.words'),
+            tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'book' : 'book-outline'} focused={focused} />,
+          }}
+        />
+        <Tab.Screen
+          name="Add"
+          component={AddScreen}
+          options={{
+            tabBarLabel: t('tabs.add'),
+            tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'add-circle' : 'add-circle-outline'} focused={focused} />,
+          }}
+        />
+        <Tab.Screen
+          name="Practice"
+          component={PracticeScreen}
+          options={{
+            tabBarLabel: t('tabs.practice'),
+            tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'layers' : 'layers-outline'} focused={focused} />,
+          }}
+        />
+        <Tab.Screen
+          name="Settings"
+          options={{
+            tabBarLabel: t('tabs.settings'),
+            tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'settings' : 'settings-outline'} focused={focused} />,
+          }}
+        >
+          {() => <ProfileScreen onLogout={onLogout} />}
+        </Tab.Screen>
       </Tab.Navigator>
     </View>
   );

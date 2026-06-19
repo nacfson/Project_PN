@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const TOKEN_KEY = 'project_pn_session_token';
+const APP_LANGUAGE_KEY = 'project_pn_app_language';
 
 /** Abstraction for session token persistence. Web uses localStorage; native uses SecureStore. */
 export interface SessionStorage {
@@ -47,3 +48,42 @@ function createSecureStorage(): SessionStorage {
 
 export const sessionStorage: SessionStorage =
   Platform.OS === 'web' ? createWebStorage() : createSecureStorage();
+
+export interface AppLanguageStorage {
+  getLanguage(): Promise<string | null>;
+  setLanguage(language: string): Promise<void>;
+}
+
+function createWebAppLanguageStorage(): AppLanguageStorage {
+  return {
+    async getLanguage() {
+      if (typeof localStorage === 'undefined') {
+        return null;
+      }
+      return localStorage.getItem(APP_LANGUAGE_KEY);
+    },
+    async setLanguage(language: string) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(APP_LANGUAGE_KEY, language);
+      }
+    },
+  };
+}
+
+function createSecureAppLanguageStorage(): AppLanguageStorage {
+  return {
+    async getLanguage() {
+      try {
+        return await SecureStore.getItemAsync(APP_LANGUAGE_KEY);
+      } catch {
+        return null;
+      }
+    },
+    async setLanguage(language: string) {
+      await SecureStore.setItemAsync(APP_LANGUAGE_KEY, language);
+    },
+  };
+}
+
+export const appLanguageStorage: AppLanguageStorage =
+  Platform.OS === 'web' ? createWebAppLanguageStorage() : createSecureAppLanguageStorage();

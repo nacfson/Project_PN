@@ -1,12 +1,17 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
 import { WordChip } from '../components/WordChip';
 import { TappablePassage } from '../components/TappablePassage';
 import { useAddQueue } from '../hooks/useAddQueue';
+import { useAppLanguage } from '../i18n';
+import { useTheme } from '../theme/ThemeProvider';
+import { Button, Card, Icon, Text } from '../ui';
 import type { PosFilter } from '../types';
 
 export function CaptureScreen() {
+  const { colors, spacing } = useTheme();
+  const { t } = useAppLanguage();
   const [passage, setPassage] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -39,48 +44,76 @@ export function CaptureScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.label}>Passage</Text>
-        <TextInput
-          value={passage}
-          onChangeText={setPassage}
-          placeholder="Paste or type text here..."
-          multiline
-          style={styles.input}
-          textAlignVertical="top"
-        />
-
-        <Text style={styles.label}>Tap words to select</Text>
-        <View style={styles.passageBox}>
-          <TappablePassage text={passage} selected={selected} onToggle={toggle} />
+      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md }]}>
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="label" color="muted">
+            {t('add.passage')}
+          </Text>
+          <TextInput
+            value={passage}
+            onChangeText={setPassage}
+            placeholder={t('add.passagePlaceholder')}
+            multiline
+            style={[
+              styles.input,
+              {
+                borderColor: colors.border,
+                borderRadius: 10,
+                backgroundColor: colors.surface,
+                color: colors.text,
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+              },
+            ]}
+            textAlignVertical="top"
+          />
         </View>
 
-        <Text style={styles.label}>Part of speech (optional)</Text>
-        <PosSelector value={pos} onChange={setPos} />
+        <View style={{ gap: spacing.sm }}>
+          <View style={styles.labelRow}>
+            <Text variant="label" color="muted">
+              {t('add.tapWords')}
+            </Text>
+            {passage.length > 0 && (
+              <TouchableOpacity onPress={() => setPassage('')} hitSlop={8}>
+                <Text variant="caption" color="primary">
+                  {t('add.clearPassage')}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Card>
+            <TappablePassage text={passage} selected={selected} onToggle={toggle} />
+          </Card>
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="label" color="muted">
+            {t('add.partOfSpeechOptional')}
+          </Text>
+          <PosSelector value={pos} onChange={setPos} />
+        </View>
 
         {selectedList.length > 0 && (
-          <View style={styles.selectedSection}>
-            <Text style={styles.label}>Selected ({selectedList.length})</Text>
+          <View style={{ gap: spacing.sm }}>
+            <Text variant="label" color="muted">
+              {t('add.selected', { count: selectedList.length })}
+            </Text>
             <View style={styles.chipRow}>
               {selectedList.map((w) => (
-                <WordChip
-                  key={w}
-                  word={w}
-                  status={statusOf(w)}
-                  onRemove={() => toggle(w)}
-                />
+                <WordChip key={w} word={w} status={statusOf(w)} onRemove={() => toggle(w)} />
               ))}
             </View>
           </View>
         )}
 
-        <TouchableOpacity
+        <Button
+          label={t('add.addSelected', { count: selected.size })}
+          iconLeft="add"
           onPress={addSelected}
           disabled={selected.size === 0}
-          style={[styles.addButton, selected.size === 0 && styles.buttonDisabled]}
-        >
-          <Text style={styles.addLabel}>Add selected ({selected.size})</Text>
-        </TouchableOpacity>
+          style={{ marginTop: spacing.sm }}
+        />
       </ScrollView>
     </View>
   );
@@ -94,50 +127,19 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: '#ffffff',
     minHeight: 110,
-  },
-  passageBox: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: '#f8fafc',
-    minHeight: 60,
-  },
-  selectedSection: {
-    gap: 8,
+    fontSize: 16,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  addButton: {
-    marginTop: 8,
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  addLabel: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  buttonDisabled: {
-    opacity: 0.45,
   },
 });

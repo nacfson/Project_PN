@@ -388,6 +388,13 @@ review_states
 - last_reviewed_at timestamptz
 - review_count integer not null default 0
 - lapse_count integer not null default 0
+- fsrs_state text not null default 'New'
+- stability double precision not null default 0
+- difficulty double precision not null default 0
+- scheduled_days integer not null default 0
+- remaining_steps integer not null default 0
+- buried_until timestamptz
+- is_suspended boolean not null default false
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 ```
@@ -405,14 +412,95 @@ constraint review_states_review_count_nonnegative
   check (review_count >= 0)
 constraint review_states_lapse_count_nonnegative
   check (lapse_count >= 0)
+constraint review_states_fsrs_state_valid
+  check (fsrs_state in ('New', 'Learning', 'Review', 'Relearning'))
+constraint review_states_stability_nonnegative
+  check (stability >= 0)
+constraint review_states_difficulty_nonnegative
+  check (difficulty >= 0)
+constraint review_states_scheduled_days_nonnegative
+  check (scheduled_days >= 0)
+constraint review_states_remaining_steps_nonnegative
+  check (remaining_steps >= 0)
 ```
 
 Rules:
 
 - `due_at` is the source of truth for scheduling.
-- A due-review query should join `review_states` to `user_word_senses` and exclude archived items.
-- The MVP scheduler is SM-2-flavored: `ease_factor`, `interval_days`, `review_count`, `lapse_count`. FSRS-style `stability` and item-level scheduler `difficulty` are not in MVP.
-- The `user_word_senses.difficulty_rating` column (1-5) is the user's subjective rating, not the scheduler's difficulty parameter. Do not confuse the two.
+- A due-review query should join `review_states` to `user_word_senses` and exclude archived, suspended, and buried items.
+- The scheduler uses an FSRS-style DSR memory state: `difficulty`, `stability`, `fsrs_state`, and `scheduled_days`.
+- `remaining_steps` tracks the position in the current learning/relearning step progression. When > 0, the card is in an intra-day step phase.
+- `buried_until` temporarily hides a card (e.g., sibling senses of the same word) until the end of the current UTC day. The due query excludes cards where `buried_until > now()`.
+- `is_suspended` permanently hides a card (e.g., leech suspension). Suspended cards are also archived on `user_word_senses`.
+- `interval_days` and `ease_factor` are retained as legacy compatibility fields and are updated from the FSRS result; they are not the scheduler source of truth.
+- The `user_word_senses.difficulty_rating` column (1-5) is the user's subjective rating, not the FSRS scheduler `difficulty` parameter. Do not confuse the two.
+
+## review_settings
+
+Stores per-user scheduling configuration (Anki deck-level equivalent).
+
+```sql
+review_settings
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- new_cards_per_day integer not null default 20
+- reviews_per_day integer not null default 200
+- learning_steps integer[] not null default '{1,10}'       -- minutes
+- relearning_steps integer[] not null default '{10}'        -- minutes
+- leech_threshold integer not null default 8
+- leech_action text not null default 'suspend'              -- 'suspend' | 'tag'
+- fuzz_enabled boolean not null default true
+- desired_retention double precision not null default 0.90
+- fsrs_weights double precision[] not null default '{...}'  -- 19 FSRS v4 weights
+- weights_optimized_at timestamptz
+- weights_review_count integer not null default 0
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Required constraints:
+
+```sql
+constraint review_settings_user_unique unique (user_id)
+constraint review_settings_leech_action_valid check (leech_action in ('suspend', 'tag'))
+constraint review_settings_desired_retention_valid check (desired_retention between 0.7 and 0.99)
+constraint review_settings_new_cards_positive check (new_cards_per_day >= 0)
+constraint review_settings_reviews_positive check (reviews_per_day >= 0)
+constraint review_settings_leech_threshold_positive check (leech_threshold >= 1)
+```
+
+Rules:
+
+- One row per user, created lazily with defaults on first due-review or batch-review call.
+- `learning_steps` and `relearning_steps` are arrays of minutes defining the intra-day step progression for new and lapsed cards.
+- `fsrs_weights` contains the 19 FSRS v4 weights used by the scheduler. Defaults match the public FSRS v4 model. Can be optimized per user via `POST /api/reviews/optimize-weights`.
+- `weights_optimized_at` and `weights_review_count` track optimization status.
+
+## daily_review_counts
+
+Tracks per-user per-day review counts for daily quota enforcement.
+
+```sql
+daily_review_counts
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- review_date date not null
+- new_cards_done integer not null default 0
+- reviews_done integer not null default 0
+```
+
+Required constraints:
+
+```sql
+constraint daily_review_counts_user_date_unique unique (user_id, review_date)
+```
+
+Rules:
+
+- One row per (user, date). Created lazily on first review of the day.
+- `new_cards_done` increments when a card in `New` state is reviewed.
+- `reviews_done` increments when a card in `Review` or `Relearning` state is reviewed.
+- The due-review query subtracts these counts from `review_settings` quotas to determine how many more cards to show.
 
 ## review_attempts
 
@@ -542,6 +630,8 @@ users 1 -> many sessions
 users 1 -> many user_identities
 users 1 -> many magic_link_tokens
 users 1 -> many magic_login_exchanges
+users 1 -> 1 review_settings
+users 1 -> many daily_review_counts
 users 1 -> many user_word_senses
 words 1 -> many word_senses
 word_senses 1 -> many user_word_senses
@@ -554,7 +644,7 @@ user_word_senses 1 -> many review_attempts
 
 ## Indexes
 
-These indexes are required for the documented query patterns (due-review, per-user-sense attempt history, sense-level example lookups, active learning-item lists, and prefix search):
+These indexes are required for the documented query patterns (due-review, per-user-sense attempt history, sense-level example lookups, active learning-item lists, prefix search, daily quota, and review settings):
 
 ```sql
 create index review_states_due_at_idx
@@ -578,6 +668,12 @@ create index user_word_senses_active_user_added_idx
 
 create index words_normalized_text_prefix_idx
   on words (normalized_text text_pattern_ops);
+
+create index review_settings_user_id_idx
+  on review_settings (user_id);
+
+create index daily_review_counts_user_date_idx
+  on daily_review_counts (user_id, review_date);
 ```
 
 - `review_states_due_at_idx` powers the due-review query that filters on `due_at <= now()`.
@@ -587,6 +683,8 @@ create index words_normalized_text_prefix_idx
 - `example_translations_example_lang_idx` powers localized example translation joins.
 - `user_word_senses_active_user_added_idx` powers cursor pagination for the authenticated user's active learning list.
 - `words_normalized_text_prefix_idx` powers prefix search for normalized vocabulary text without adding a new PostgreSQL extension.
+- `review_settings_user_id_idx` powers the per-user settings lookup used by the due query and batch review flow.
+- `daily_review_counts_user_date_idx` powers the daily quota check in the due-review query.
 
 ## Open / Unenforced Fields
 

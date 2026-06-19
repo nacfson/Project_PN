@@ -1,4 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { useAppLanguage } from '../i18n';
+import { useTheme } from '../theme/ThemeProvider';
+import { Text } from '../ui';
 import type { PosFilter } from '../types';
 
 const OPTIONS: PosFilter[] = [
@@ -19,9 +22,10 @@ interface PosSelectorProps {
   onChange: (value: PosFilter) => void;
 }
 
-// Optional part-of-speech filter. "Any" is the default and is a lookup filter
-// only; it is never persisted or sent when adding a learning item.
 export function PosSelector({ value, onChange }: PosSelectorProps) {
+  const { colors, radii, spacing } = useTheme();
+  const { t } = useAppLanguage();
+
   return (
     <View style={styles.row}>
       {OPTIONS.map((option) => {
@@ -30,11 +34,20 @@ export function PosSelector({ value, onChange }: PosSelectorProps) {
           <Pressable
             key={option}
             onPress={() => onChange(option)}
-            style={[styles.chip, active && styles.chipActive]}
+            style={[
+              styles.chip,
+              {
+                borderRadius: radii.full,
+                borderColor: active ? colors.primary : colors.border,
+                backgroundColor: active ? colors.primary : colors.surface,
+              },
+            ]}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <Text style={[styles.label, active && styles.labelActive]}>{option}</Text>
+            <Text variant="label" color={active ? 'inverse' : 'muted'}>
+              {t(`pos.${option}`)}
+            </Text>
           </Pressable>
         );
       })}
@@ -46,25 +59,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipActive: {
-    backgroundColor: '#1e293b',
-    borderColor: '#1e293b',
-  },
-  label: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  labelActive: {
-    color: '#ffffff',
-    fontWeight: '600',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
 });

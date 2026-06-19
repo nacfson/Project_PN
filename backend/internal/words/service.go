@@ -950,13 +950,60 @@ func firstNonEmpty(values ...string) string {
 
 // TODO: negative-cache / backoff for repeatedly-failing (word, language) pairs
 
-// GetDueReviewItems returns all active personal learning items that are due for review.
+// GetDueReviewItems returns due review items, respecting daily limits and
+// excluding buried/suspended cards. Reviews (Review/Relearning state) are
+// returned first, then new cards, up to their respective daily quotas.
 func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit int) ([]DueItem, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 
-	query := `
+	// Load or create review settings for the user.
+	settings, err := s.ensureReviewSettingsPool(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("words: load review settings: %w", err)
+	}
+
+	// Load today's daily counts.
+	now := time.Now().UTC()
+	today := now.Format("2006-01-02")
+	var dailyNew, dailyReviews int
+	err = s.pool.QueryRow(ctx, `
+		select coalesce(new_cards_done, 0), coalesce(reviews_done, 0)
+		from daily_review_counts
+		where user_id = $1::uuid and review_date = $2::date`,
+		userID, today,
+	).Scan(&dailyNew, &dailyReviews)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("words: load daily counts: %w", err)
+	}
+
+	reviewQuota := settings.ReviewsPerDay - dailyReviews
+	newQuota := settings.NewCardsPerDay - dailyNew
+	if reviewQuota < 0 {
+		reviewQuota = 0
+	}
+	if newQuota < 0 {
+		newQuota = 0
+	}
+
+	// Cap by the requested limit.
+	totalQuota := reviewQuota + newQuota
+	if totalQuota > limit {
+		// Reduce proportionally but prioritize reviews.
+		if reviewQuota > limit {
+			reviewQuota = limit
+			newQuota = 0
+		} else {
+			newQuota = limit - reviewQuota
+		}
+	}
+
+	if reviewQuota == 0 && newQuota == 0 {
+		return []DueItem{}, nil
+	}
+
+	baseQuery := `
 		select uws.id::text, uws.word_sense_id::text, w.id::text,
 		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
 		       u.native_language,
@@ -976,36 +1023,78 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		  and uws.archived_at is null
 		  and uws.learning_stage != 'archived'
 		  and rs.due_at <= now()
+		  and rs.is_suspended = false
+		  and (rs.buried_until is null or rs.buried_until <= now())`
+
+	var items []DueItem
+
+	// Fetch review items (Review and Relearning states) first.
+	if reviewQuota > 0 {
+		reviewQuery := baseQuery + `
+		  and rs.fsrs_state in ('Review', 'Relearning')
 		order by rs.due_at asc
 		limit $2`
 
-	rows, err := s.pool.Query(ctx, query, userID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("words: get due review items: %w", err)
-	}
-	defer rows.Close()
-
-	var items []DueItem
-	for rows.Next() {
-		var item DueItem
-		if err := rows.Scan(
-			&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
-			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
-			&item.DisplayLanguageCode,
-			&item.Definition, &item.ShortDefinition,
-			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
-			&item.CEFRLevel, &item.MeaningOrder,
-			&item.LearningStage, &item.DueAt,
-		); err != nil {
+		rows, err := s.pool.Query(ctx, reviewQuery, userID, reviewQuota)
+		if err != nil {
+			return nil, fmt.Errorf("words: get due review items: %w", err)
+		}
+		for rows.Next() {
+			var item DueItem
+			if err := rows.Scan(
+				&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
+				&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+				&item.DisplayLanguageCode,
+				&item.Definition, &item.ShortDefinition,
+				&item.LocalizedDefinition, &item.LocalizedShortDefinition,
+				&item.CEFRLevel, &item.MeaningOrder,
+				&item.LearningStage, &item.DueAt,
+			); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			items = append(items, item)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
 			return nil, err
 		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
-	// Load example sentences for each due item
+	// Fetch new cards (New state) up to the new quota.
+	if newQuota > 0 {
+		newQuery := baseQuery + `
+		  and rs.fsrs_state = 'New'
+		order by uws.added_at asc
+		limit $2`
+
+		rows, err := s.pool.Query(ctx, newQuery, userID, newQuota)
+		if err != nil {
+			return nil, fmt.Errorf("words: get due new cards: %w", err)
+		}
+		for rows.Next() {
+			var item DueItem
+			if err := rows.Scan(
+				&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
+				&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+				&item.DisplayLanguageCode,
+				&item.Definition, &item.ShortDefinition,
+				&item.LocalizedDefinition, &item.LocalizedShortDefinition,
+				&item.CEFRLevel, &item.MeaningOrder,
+				&item.LearningStage, &item.DueAt,
+			); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			items = append(items, item)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Load example sentences for each due item.
 	for i := range items {
 		examples, err := loadExamples(ctx, s.pool, items[i].WordSenseID, items[i].DisplayLanguageCode)
 		if err != nil {
@@ -1014,6 +1103,52 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		items[i].Examples = examples
 	}
 
+	if items == nil {
+		items = []DueItem{}
+	}
 	return items, nil
+}
+
+// ensureReviewSettingsPool loads or creates the user's review_settings row
+// using the connection pool (non-transactional).
+func (s *Service) ensureReviewSettingsPool(ctx context.Context, userID string) (ReviewSettings, error) {
+	settings := DefaultReviewSettings(userID)
+
+	var weightsArr []float64
+	var optimizedAt *time.Time
+	var weightsReviewCount int
+
+	err := s.pool.QueryRow(ctx, `
+		insert into review_settings (user_id)
+		values ($1::uuid)
+		on conflict (user_id) do update set updated_at = now()
+		returning new_cards_per_day, reviews_per_day, learning_steps, relearning_steps,
+		          leech_threshold, leech_action, fuzz_enabled, desired_retention,
+		          fsrs_weights, weights_optimized_at, weights_review_count`,
+		userID,
+	).Scan(
+		&settings.NewCardsPerDay,
+		&settings.ReviewsPerDay,
+		&settings.LearningSteps,
+		&settings.RelearningSteps,
+		&settings.LeechThreshold,
+		&settings.LeechAction,
+		&settings.FuzzEnabled,
+		&settings.DesiredRetention,
+		&weightsArr,
+		&optimizedAt,
+		&weightsReviewCount,
+	)
+	if err != nil {
+		return ReviewSettings{}, fmt.Errorf("ensure review settings: %w", err)
+	}
+
+	if len(weightsArr) == 19 {
+		settings.FSRSWeights = weightsArr
+	}
+	settings.WeightsOptimizedAt = optimizedAt
+	settings.WeightsReviewCount = weightsReviewCount
+
+	return settings, nil
 }
 

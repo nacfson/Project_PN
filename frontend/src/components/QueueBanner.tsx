@@ -1,7 +1,12 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useAppLanguage } from '../i18n';
+import { useTheme } from '../theme/ThemeProvider';
+import { Icon, Text } from '../ui';
 import { useAddQueue } from '../hooks/useAddQueue';
 
 export function QueueBanner() {
+  const { colors, radii, spacing } = useTheme();
+  const { t } = useAppLanguage();
   const { jobs, pendingCount, dismissedIds, dismiss } = useAddQueue();
 
   const toasts = jobs.filter(
@@ -14,12 +19,21 @@ export function QueueBanner() {
   }
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={[styles.container, { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, gap: spacing.sm }]}>
       {pendingCount > 0 && (
-        <View style={styles.progress}>
-          <ActivityIndicator size="small" color="#854d0e" />
-          <Text style={styles.progressText}>
-            Adding {pendingCount} word{pendingCount === 1 ? '' : 's'}...
+        <View
+          style={[
+            styles.banner,
+            {
+              backgroundColor: colors.warningSurface,
+              borderColor: colors.warningBorder,
+              borderRadius: radii.md,
+            },
+          ]}
+        >
+          <ActivityIndicator size="small" color={colors.warning} />
+          <Text variant="body" style={{ color: colors.warning }}>
+            {t('queue.adding', { count: pendingCount, plural: pendingCount === 1 ? '' : 's' })}
           </Text>
         </View>
       )}
@@ -27,20 +41,32 @@ export function QueueBanner() {
       {toasts.map((job) => (
         <View
           key={job.id}
-          style={[styles.toast, job.status === 'done' ? styles.toastDone : styles.toastError]}
+          style={[
+            styles.banner,
+            {
+              borderRadius: radii.md,
+              backgroundColor: job.status === 'done' ? colors.successSurface : colors.dangerSurface,
+              borderColor: job.status === 'done' ? colors.successBorder : colors.dangerBorder,
+            },
+          ]}
         >
-          <Text style={styles.toastText} numberOfLines={2}>
+          <Icon
+            name={job.status === 'done' ? 'checkmark-circle' : 'alert-circle'}
+            size="md"
+            color={job.status === 'done' ? colors.success : colors.danger}
+          />
+          <Text variant="body" style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }} numberOfLines={2}>
             {job.status === 'done'
-              ? `"${job.text}" added`
-              : `"${job.text}" failed: ${job.error ?? 'Unknown error'}`}
+              ? t('queue.added', { text: job.text })
+              : t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}
           </Text>
           <Pressable
             onPress={() => dismiss(job.id)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Dismiss notification"
+            accessibilityLabel={t('queue.dismiss')}
           >
-            <Text style={styles.dismiss}>Dismiss</Text>
+            <Icon name="close" size="md" color={job.status === 'done' ? colors.success : colors.danger} />
           </Pressable>
         </View>
       ))}
@@ -50,52 +76,15 @@ export function QueueBanner() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingTop: 8,
     gap: 8,
   },
-  progress: {
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#fef9c3',
-    borderColor: '#fde047',
+    gap: 10,
     borderWidth: 1,
-    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-  },
-  progressText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#854d0e',
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  toastDone: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#86efac',
-  },
-  toastError: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fca5a5',
-  },
-  toastText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#1e293b',
-  },
-  dismiss: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
   },
 });

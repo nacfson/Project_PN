@@ -57,6 +57,7 @@ fastlane/test_output
 .env
 .env.*
 !.env.example
+deploy/.deploy.env
 *.pem
 *.p12
 GoogleService-Info.plist
@@ -66,6 +67,7 @@ Secrets.swift
 bin/
 *.test
 coverage.out
+backend/.tmp/
 
 # IDE
 .idea/

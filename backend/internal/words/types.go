@@ -123,3 +123,49 @@ type BatchReviewResult struct {
 	Success  bool `json:"success"`
 }
 
+// ReviewSettings holds per-user scheduling configuration (Anki deck-level equivalent).
+type ReviewSettings struct {
+	UserID             string    `json:"user_id"`
+	NewCardsPerDay     int       `json:"new_cards_per_day"`
+	ReviewsPerDay      int       `json:"reviews_per_day"`
+	LearningSteps      []int     `json:"learning_steps"`    // minutes
+	RelearningSteps    []int     `json:"relearning_steps"`  // minutes
+	LeechThreshold     int       `json:"leech_threshold"`
+	LeechAction        string    `json:"leech_action"`      // 'suspend' | 'tag'
+	FuzzEnabled        bool      `json:"fuzz_enabled"`
+	DesiredRetention   float64   `json:"desired_retention"`
+	FSRSWeights        []float64 `json:"fsrs_weights"`
+	WeightsOptimizedAt *time.Time `json:"weights_optimized_at"`
+	WeightsReviewCount int       `json:"weights_review_count"`
+}
+
+// DefaultReviewSettings returns Anki-standard defaults for a user.
+func DefaultReviewSettings(userID string) ReviewSettings {
+	return ReviewSettings{
+		UserID:           userID,
+		NewCardsPerDay:   20,
+		ReviewsPerDay:    200,
+		LearningSteps:    []int{1, 10},
+		RelearningSteps:  []int{10},
+		LeechThreshold:   8,
+		LeechAction:      "suspend",
+		FuzzEnabled:      true,
+		DesiredRetention: 0.90,
+		FSRSWeights:      defaultFSRSWeights(),
+	}
+}
+
+// OptimizationStatus is the response for GET /api/reviews/optimization-status.
+type OptimizationStatus struct {
+	FSRSWeights        []float64  `json:"fsrs_weights"`
+	WeightsOptimizedAt *time.Time `json:"weights_optimized_at"`
+	WeightsReviewCount int        `json:"weights_review_count"`
+	MinReviewsForOpt   int        `json:"min_reviews_for_optimization"`
+}
+
+// DailyReviewCount tracks per-day quota usage.
+type DailyReviewCount struct {
+	NewCardsDone int
+	ReviewsDone  int
+}
+

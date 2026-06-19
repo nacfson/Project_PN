@@ -2,22 +2,32 @@ import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react
 import { useTheme } from '../theme/ThemeProvider';
 
 type TextVariant = 'body' | 'caption' | 'title' | 'heading' | 'label';
+type TextColor = 'default' | 'muted' | 'inverse' | 'primary' | 'danger' | 'success';
 
 interface TextProps extends RNTextProps {
   variant?: TextVariant;
-  muted?: boolean;
+  color?: TextColor;
   bold?: boolean;
 }
 
-export function Text({ variant = 'body', muted, bold, style, ...rest }: TextProps) {
+export function Text({ variant = 'body', color = 'default', bold, style, ...rest }: TextProps) {
   const { colors, typography } = useTheme();
+
+  const colorMap = {
+    default: colors.text,
+    muted: colors.textMuted,
+    inverse: colors.textInverse,
+    primary: colors.primary,
+    danger: colors.danger,
+    success: colors.success,
+  };
 
   return (
     <RNText
       style={[
         styles.base,
         variantStyles[variant],
-        { color: muted ? colors.textMuted : colors.text },
+        { color: colorMap[color] },
         bold && { fontWeight: typography.weights.bold },
         style,
       ]}
@@ -33,9 +43,9 @@ const styles = StyleSheet.create({
 });
 
 const variantStyles = StyleSheet.create({
-  body: { fontSize: 15 },
-  caption: { fontSize: 13 },
-  title: { fontSize: 18, fontWeight: '600' },
-  heading: { fontSize: 22, fontWeight: '800' },
-  label: { fontSize: 13, fontWeight: '600' },
+  body: { fontSize: 15, lineHeight: 22 },
+  caption: { fontSize: 13, lineHeight: 18 },
+  title: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
+  heading: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
+  label: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
 });

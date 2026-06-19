@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
-    "version": "1.0.0",
+    "name": "Project PN",
+    "slug": "project-pn",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.projectpn.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +24,9 @@
     },
     "scheme": "projectpn",
     "plugins": [
-      "expo-localization"
+      "expo-localization",
+      "expo-secure-store",
+      "expo-web-browser"
     ]
   }
 }

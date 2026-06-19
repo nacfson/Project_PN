@@ -10,6 +10,7 @@ import {
 import { addLearningItem, lookupWord } from '../api/words';
 import { ApiError } from '../api/client';
 import { DEFAULT_DEFINITION_LANGUAGE_CODE } from '../config';
+import { useAppLanguage } from '../i18n';
 import type { WordStatus } from '../components/WordChip';
 import type { PosFilter } from '../types';
 import { bestMatch } from '../utils/senses';
@@ -37,11 +38,11 @@ interface AddQueueContextValue {
 
 const AddQueueContext = createContext<AddQueueContextValue | null>(null);
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     return error.message;
   }
-  return 'Something went wrong.';
+  return fallback;
 }
 
 function nextJobId(): string {
@@ -52,6 +53,7 @@ function nextJobId(): string {
 }
 
 export function AddQueueProvider({ children }: { children: ReactNode }) {
+  const { t } = useAppLanguage();
   const [jobs, setJobs] = useState<AddJob[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
   const workerRunning = useRef(false);
@@ -89,14 +91,14 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
           });
           const match = bestMatch(response.sense_options);
           if (!match) {
-            updateJob(next.id, { status: 'error', error: 'No senses found.' });
+            updateJob(next.id, { status: 'error', error: t('sense.noneFound') });
             continue;
           }
 
           await addLearningItem(match.word_sense_id, DEFAULT_DEFINITION_LANGUAGE_CODE);
           updateJob(next.id, { status: 'done', wordSenseId: match.word_sense_id });
         } catch (err) {
-          updateJob(next.id, { status: 'error', error: messageOf(err) });
+          updateJob(next.id, { status: 'error', error: messageOf(err, t('common.somethingWrong')) });
         }
       }
     } finally {
@@ -105,7 +107,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
         void runWorker();
       }
     }
-  }, [updateJob]);
+  }, [t, updateJob]);
 
   const kickWorker = useCallback(() => {
     void runWorker();

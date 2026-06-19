@@ -1,16 +1,38 @@
 import { Platform } from 'react-native';
 
 // API base URL resolution per platform.
-// - web / desktop (Tauri renders the web bundle, Platform.OS === 'web'): localhost
-// - iOS simulator: localhost reaches the host machine
-// - Android emulator: 10.0.2.2 is the host loopback alias
-// A physical device should override this with its host's LAN IP.
+// - EXPO_PUBLIC_API_BASE_URL always wins and should be set for native/Tauri builds.
+// - hosted web builds default to their own origin so a reverse proxy can serve
+//   the app and API from the same public host.
+// - local dev keeps localhost/emulator defaults.
 const DEFAULT_PORT = 8080;
+
+function browserOrigin(): string | null {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return null;
+  }
+
+  return window.location.origin;
+}
+
+function isLocalOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+  } catch {
+    return false;
+  }
+}
 
 function resolveApiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (fromEnv && fromEnv.length > 0) {
     return fromEnv;
+  }
+
+  const origin = browserOrigin();
+  if (Platform.OS === 'web' && origin && !isLocalOrigin(origin)) {
+    return origin;
   }
 
   return Platform.select({

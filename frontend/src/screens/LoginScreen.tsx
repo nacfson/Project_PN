@@ -5,9 +5,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
@@ -20,6 +17,9 @@ import { SUPPORTED_LANGUAGES } from '../config';
 import { getDeviceLanguageCode } from '../utils/locale';
 import { AUTH_CALLBACK_PATH, AUTH_CALLBACK_SCHEME } from '../utils/authCallback';
 import { isTauri } from '../utils/platform';
+import { useAppLanguage } from '../i18n';
+import { useTheme } from '../theme/ThemeProvider';
+import { Button, Card, Icon, Input, Text } from '../ui';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -45,9 +45,8 @@ interface GoogleSignInButtonProps {
   onAuthenticated: () => void;
 }
 
-// Isolated so Google.useAuthRequest (which throws when no client ID is set for
-// the current platform) only runs when a client ID is actually configured.
 function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: GoogleSignInButtonProps) {
+  const { t } = useAppLanguage();
   const useCustomRedirect = Platform.OS !== 'web' || isTauri();
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: AUTH_CALLBACK_SCHEME,
@@ -67,12 +66,10 @@ function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: Go
     }
 
     const idToken =
-      googleResponse.params.id_token ??
-      googleResponse.authentication?.idToken ??
-      null;
+      googleResponse.params.id_token ?? googleResponse.authentication?.idToken ?? null;
 
     if (!idToken) {
-      onError('Google sign-in did not return an ID token.');
+      onError(t('auth.googleNoToken'));
       return;
     }
 
@@ -81,7 +78,7 @@ function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: Go
     loginWithGoogle(idToken)
       .then(() => onAuthenticated())
       .catch((err: unknown) => {
-        onError(err instanceof ApiError ? err.message : 'Google sign-in failed');
+        onError(err instanceof ApiError ? err.message : t('auth.googleFailed'));
       })
       .finally(() => onBusyChange(false));
   }, [googleResponse, onAuthenticated, onBusyChange, onError]);
@@ -89,20 +86,22 @@ function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: Go
   const googleDisabled = busy || !googleRequest;
 
   return (
-    <TouchableOpacity
+    <Button
+      label={t('auth.google')}
+      variant="secondary"
+      iconLeft="logo-google"
       onPress={() => {
         onError('');
         void promptGoogleAsync();
       }}
       disabled={googleDisabled}
-      style={[styles.googleButton, googleDisabled && styles.buttonDisabled]}
-    >
-      <Text style={styles.googleLabel}>Continue with Google</Text>
-    </TouchableOpacity>
+    />
   );
 }
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
+  const { colors, spacing } = useTheme();
+  const { t } = useAppLanguage();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -161,7 +160,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       }
       onAuthenticated();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Sign-in failed');
+      setError(err instanceof ApiError ? err.message : t('auth.signInFailed'));
     } finally {
       setBusy(false);
     }
@@ -169,7 +168,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   const sendMagicLink = async () => {
     if (trimmedEmail.length === 0) {
-      setError('Enter your email first');
+      setError(t('auth.enterEmailFirst'));
       return;
     }
     setError(null);
@@ -178,7 +177,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       await requestMagicLink(trimmedEmail);
       setMagicSent(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not send magic link');
+      setError(err instanceof ApiError ? err.message : t('auth.magicLinkFailed'));
     } finally {
       setBusy(false);
     }
@@ -219,177 +218,202 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     const selected = options.find((l) => l.code === value);
     if (forced) {
       return (
-        <>
-          <Text style={styles.label}>{label}</Text>
-          <View style={styles.lockedRow}>
-            <Text style={styles.lockedValue}>
+        <View style={{ marginTop: spacing.md }}>
+          <Text variant="label" color="muted">
+            {label}
+          </Text>
+          <View style={[styles.lockedRow, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
+            <Text variant="body" bold>
               {selected ? `${selected.name} (${selected.code})` : value}
             </Text>
-            <Text style={styles.lockedBadge}>Locked by admin</Text>
+            <View style={[styles.lockedBadge, { backgroundColor: colors.border }]}>
+              <Text variant="caption">{t('auth.lockedByAdmin')}</Text>
+            </View>
           </View>
-        </>
+        </View>
       );
     }
     return (
-      <>
-        <Text style={styles.label}>{label}</Text>
+      <View style={{ marginTop: spacing.md }}>
+        <Text variant="label" color="muted">
+          {label}
+        </Text>
         <View style={styles.pickerWrapper}>
           {options.map((lang) => (
-            <TouchableOpacity
+            <Button
               key={lang.code}
+              label={lang.name}
+              variant={value === lang.code ? 'primary' : 'secondary'}
               onPress={() => onChange(lang.code)}
-              style={[
-                styles.pickerChip,
-                value === lang.code && styles.pickerChipSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.pickerChipText,
-                  value === lang.code && styles.pickerChipTextSelected,
-                ]}
-              >
-                {lang.name}
-              </Text>
-            </TouchableOpacity>
+              style={styles.pickerChip}
+            />
           ))}
         </View>
-      </>
+      </View>
     );
   };
 
   if (magicSent) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>Check your email</Text>
-        <Text style={styles.hint}>
-          If an account exists for {trimmedEmail}, we sent a sign-in link. Open it on this device to
-          continue.
+      <View style={[styles.centered, { backgroundColor: colors.surfaceAlt }]}>
+        <View style={[styles.iconCircle, { backgroundColor: colors.successSurface }]}>
+          <Icon name="mail" size="xl" color={colors.success} />
+        </View>
+        <Text variant="heading" style={{ marginTop: spacing.lg }}>
+          {t('auth.checkEmailTitle')}
         </Text>
-        <TouchableOpacity
+        <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
+          {t('auth.checkEmailMessage', { email: trimmedEmail })}
+        </Text>
+        <Button
+          label={t('auth.backToSignIn')}
+          variant="ghost"
           onPress={() => {
             setMagicSent(false);
             setError(null);
           }}
-          style={styles.secondaryButton}
-        >
-          <Text style={styles.secondaryLabel}>Back to sign in</Text>
-        </TouchableOpacity>
+          style={{ marginTop: spacing.lg }}
+        />
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{mode === 'login' ? 'Sign in' : 'Create account'}</Text>
-        <Text style={styles.subtitle}>Project PN vocabulary capture</Text>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <Card elevated style={styles.card}>
+          <View style={[styles.header, { gap: spacing.xs }]}>
+            <Text variant="heading">{mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}</Text>
+            <Text color="muted">{t('auth.subtitle')}</Text>
+          </View>
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          style={styles.input}
-        />
+          <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceAlt, borderRadius: 999 }]}>
+            <Button
+              label={t('auth.signIn')}
+              variant={mode === 'login' ? 'primary' : 'ghost'}
+              onPress={() => {
+                setMode('login');
+                setError(null);
+              }}
+              style={styles.segmentButton}
+            />
+            <Button
+              label={t('auth.createAccount')}
+              variant={mode === 'register' ? 'primary' : 'ghost'}
+              onPress={() => {
+                setMode('register');
+                setError(null);
+              }}
+              style={styles.segmentButton}
+            />
+          </View>
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder={mode === 'register' ? 'At least 8 characters' : 'Password'}
-          style={styles.input}
-          onSubmitEditing={() => void submitPassword()}
-          returnKeyType="go"
-        />
+          <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+            <Text variant="label" color="muted">
+              {t('auth.email')}
+            </Text>
+            <Input
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              placeholder={t('auth.emailPlaceholder')}
+              onSubmitEditing={() => void submitPassword()}
+              returnKeyType="next"
+            />
 
-        {mode === 'register' && (
-          <>
-            {renderLanguageRow({
-              label: 'I want to learn',
-              value: targetLang,
-              options: targetOptions,
-              onChange: setTargetLang,
-              forced: isForcedTarget,
-            })}
-            {renderLanguageRow({
-              label: 'My native language',
-              value: nativeLang,
-              options: nativeOptions,
-              onChange: setNativeLang,
-              forced: isForcedNative,
-            })}
-          </>
-        )}
+            <Text variant="label" color="muted">
+              {t('auth.password')}
+            </Text>
+            <Input
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={mode === 'register' ? t('auth.passwordCreatePlaceholder') : t('auth.passwordPlaceholder')}
+              onSubmitEditing={() => void submitPassword()}
+              returnKeyType="go"
+            />
+            {mode === 'register' && (
+              <Text variant="caption" color="muted">
+                {t('auth.passwordHelp')}
+              </Text>
+            )}
+          </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <TouchableOpacity
-          onPress={() => void submitPassword()}
-          disabled={busy || trimmedEmail.length === 0 || password.length === 0}
-          style={[
-            styles.primaryButton,
-            (busy || trimmedEmail.length === 0 || password.length === 0) && styles.buttonDisabled,
-          ]}
-        >
-          {busy ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.primaryLabel}>{mode === 'login' ? 'Sign in' : 'Register'}</Text>
+          {mode === 'register' && (
+            <>
+              {renderLanguageRow({
+                label: t('auth.targetLanguage'),
+                value: targetLang,
+                options: targetOptions,
+                onChange: setTargetLang,
+                forced: isForcedTarget,
+              })}
+              {renderLanguageRow({
+                label: t('auth.nativeLanguage'),
+                value: nativeLang,
+                options: nativeOptions,
+                onChange: setNativeLang,
+                forced: isForcedNative,
+              })}
+            </>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => {
-            setMode(mode === 'login' ? 'register' : 'login');
-            setError(null);
-          }}
-          style={styles.linkButton}
-        >
-          <Text style={styles.linkLabel}>
-            {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
-          </Text>
-        </TouchableOpacity>
+          {error ? (
+            <View style={[styles.errorRow, { backgroundColor: colors.dangerSurface }]}>
+              <Icon name="alert-circle" size="sm" color={colors.danger} />
+              <Text variant="body" color="danger">
+                {error}
+              </Text>
+            </View>
+          ) : null}
 
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <TouchableOpacity
-          onPress={() => void sendMagicLink()}
-          disabled={busy || trimmedEmail.length === 0}
-          style={[styles.secondaryButton, (busy || trimmedEmail.length === 0) && styles.buttonDisabled]}
-        >
-          <Text style={styles.secondaryLabel}>Email me a sign-in link</Text>
-        </TouchableOpacity>
-
-        {hasGoogleClient ? (
-          <GoogleSignInButton
-            busy={busy}
-            onError={setError}
-            onBusyChange={setBusy}
-            onAuthenticated={onAuthenticated}
+          <Button
+            label={mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}
+            loading={busy}
+            disabled={trimmedEmail.length === 0 || password.length === 0}
+            onPress={() => void submitPassword()}
+            style={{ marginTop: spacing.lg }}
           />
-        ) : (
-          <Text style={styles.platformHint}>
-            {Platform.OS === 'ios'
-              ? 'Set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in frontend/.env'
-              : Platform.OS === 'android'
-                ? 'Set EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in frontend/.env'
-                : 'Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in frontend/.env'}
-          </Text>
-        )}
+
+          <View style={[styles.dividerRow, { marginVertical: spacing.xl }]}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text variant="caption" color="muted">
+              {t('auth.or')}
+            </Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          <View style={{ gap: spacing.md }}>
+            <Button
+              label={t('auth.magicLink')}
+              variant="secondary"
+              iconLeft="mail"
+              onPress={() => void sendMagicLink()}
+              disabled={busy || trimmedEmail.length === 0}
+            />
+
+            {hasGoogleClient ? (
+              <GoogleSignInButton
+                busy={busy}
+                onError={setError}
+                onBusyChange={setBusy}
+                onAuthenticated={onAuthenticated}
+              />
+            ) : (
+              <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+                {Platform.OS === 'ios'
+                  ? t('auth.googleIosMissing')
+                  : Platform.OS === 'android'
+                    ? t('auth.googleAndroidMissing')
+                    : t('auth.googleWebMissing')}
+              </Text>
+            )}
+          </View>
+        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -399,175 +423,81 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  content: {
+  scrollContent: {
     padding: 20,
     paddingTop: 32,
+    justifyContent: 'center',
+    flexGrow: 1,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+  },
+  header: {
+    marginBottom: 16,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#0f172a',
-  },
-  error: {
-    marginTop: 12,
-    color: '#dc2626',
-    fontSize: 14,
-  },
-  hint: {
-    fontSize: 15,
-    color: '#475569',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  primaryButton: {
-    marginTop: 20,
-    backgroundColor: '#1e293b',
-    borderRadius: 10,
-    paddingVertical: 14,
     alignItems: 'center',
+    padding: 32,
   },
-  primaryLabel: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  secondaryButton: {
-    backgroundColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingVertical: 14,
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  secondaryLabel: {
-    color: '#1e293b',
-    fontWeight: '600',
-    fontSize: 15,
+  segmentedControl: {
+    flexDirection: 'row',
+    padding: 4,
+    gap: 4,
   },
-  googleButton: {
-    marginTop: 12,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingVertical: 14,
+  segmentButton: {
+    flex: 1,
+  },
+  errorRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  googleLabel: {
-    color: '#0f172a',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  linkButton: {
+    gap: 8,
     marginTop: 16,
-    alignItems: 'center',
-  },
-  linkLabel: {
-    color: '#2563eb',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
     gap: 12,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#cbd5e1',
-  },
-  dividerText: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  platformHint: {
-    marginTop: 12,
-    fontSize: 13,
-    color: '#94a3b8',
-    textAlign: 'center',
   },
   pickerWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 4,
+    marginTop: 8,
   },
   pickerChip: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 999,
-    paddingHorizontal: 14,
     paddingVertical: 8,
-  },
-  pickerChipSelected: {
-    backgroundColor: '#1e293b',
-    borderColor: '#1e293b',
-  },
-  pickerChipText: {
-    color: '#0f172a',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  pickerChipTextSelected: {
-    color: '#ffffff',
+    paddingHorizontal: 14,
   },
   lockedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#cbd5e1',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    marginTop: 4,
-  },
-  lockedValue: {
-    color: '#0f172a',
-    fontSize: 16,
-    fontWeight: '600',
+    marginTop: 8,
   },
   lockedBadge: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    color: '#475569',
-    backgroundColor: '#e2e8f0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
