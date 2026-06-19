@@ -4,9 +4,9 @@ import {
   Animated,
   PanResponder,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -251,7 +251,7 @@ function getBlankedSentence(sentence: string, word: string) {
 export function PracticeScreen() {
   const { colors, spacing, radii, shadows } = useTheme();
   const { t } = useAppLanguage();
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  const cardStartedAtRef = useRef(Date.now());
   const navigation = useNavigation<NavigationProp>();
 
   const [status, setStatus] = useState<SessionStatus>('idle');
@@ -259,6 +259,8 @@ export function PracticeScreen() {
   const [queue, setQueue] = useState<DueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [responseTimeMs, setResponseTimeMs] = useState<number | null>(null);
   const [ratingScore, setRatingScore] = useState(2.0);
 
   const [attempts, setAttempts] = useState<ReviewAttemptParams[]>([]);
@@ -267,6 +269,14 @@ export function PracticeScreen() {
 
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
+
+  const resetCardInteraction = useCallback(() => {
+    cardStartedAtRef.current = Date.now();
+    setIsFlipped(false);
+    setUserAnswer('');
+    setResponseTimeMs(null);
+    setRatingScore(2.0);
+  }, []);
 
   const loadDueItems = useCallback(() => {
     setStatus('loading_due');
@@ -280,8 +290,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setFailedMap({});
           setExampleIndexMap({});
-          setIsFlipped(false);
-          setRatingScore(2.0);
+          resetCardInteraction();
           setStatus('active');
         } else {
           setStatus('idle');
@@ -292,7 +301,7 @@ export function PracticeScreen() {
         setErrorMsg(err.message || t('practice.loadDueFailed'));
         setStatus('idle');
       });
-  }, [t]);
+  }, [resetCardInteraction, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -333,8 +342,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setFailedMap({});
           setExampleIndexMap({});
-          setIsFlipped(false);
-          setRatingScore(2.0);
+          resetCardInteraction();
           setStatus('active');
         } else {
           setStatus('idle');
@@ -380,11 +388,11 @@ export function PracticeScreen() {
       user_word_sense_id: currentItem.user_word_sense_id,
       activity_type: activityType,
       prompt,
-      user_answer: currentItem.normalized_text,
+      user_answer: userAnswer.trim().length > 0 ? userAnswer.trim() : null,
       correct_answer: currentItem.normalized_text,
       is_correct: ratingScore >= 0.75,
       rating_score: ratingScore,
-      response_time_ms: null,
+      response_time_ms: responseTimeMs ?? Date.now() - cardStartedAtRef.current,
       confidence_rating: null,
     };
 
@@ -401,34 +409,23 @@ export function PracticeScreen() {
       setQueue((prev) => [...prev, currentItem]);
     }
 
-    flipAnim.setValue(0);
     setCurrentIndex((prev) => prev + 1);
-    setIsFlipped(false);
-    setRatingScore(2.0);
+    resetCardInteraction();
   };
 
-  const toggleFlip = () => {
-    const nextFlipped = !isFlipped;
-    setIsFlipped(nextFlipped);
-    Animated.spring(flipAnim, {
-      toValue: nextFlipped ? 1 : 0,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const frontInterpolate = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-  const backInterpolate = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['180deg', '360deg'],
-  });
-  const frontAnimatedStyle = {
-    transform: [{ perspective: 1000 }, { rotateY: frontInterpolate }],
-  };
-  const backAnimatedStyle = {
-    transform: [{ perspective: 1000 }, { rotateY: backInterpolate }],
+  const revealAnswer = (forgot = false) => {
+    if (isFlipped) {
+      return;
+    }
+    if (!forgot && userAnswer.trim().length === 0) {
+      return;
+    }
+    if (forgot) {
+      setUserAnswer('');
+      setRatingScore(0);
+    }
+    setResponseTimeMs(Date.now() - cardStartedAtRef.current);
+    setIsFlipped(true);
   };
 
   if (status === 'loading_due' || status === 'loading_preview') {
@@ -563,6 +560,7 @@ export function PracticeScreen() {
   const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
   const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
   const isPreviouslyFailed = failedMap[currentItem.user_word_sense_id] ?? false;
+  const trimmedAnswer = userAnswer.trim();
 
   const dueItemsReviewedCount = attempts.filter((att) =>
     dueItems.some((di) => di.user_word_sense_id === att.user_word_sense_id)
@@ -577,7 +575,6 @@ export function PracticeScreen() {
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    backfaceVisibility: 'hidden' as const,
     ...shadows.md,
   };
 
@@ -604,56 +601,104 @@ export function PracticeScreen() {
           </View>
         </View>
 
-        <Pressable onPress={toggleFlip} style={styles.cardPressable}>
+        <View style={styles.cardPressable}>
           <View style={styles.cardContainer}>
-            <Animated.View style={[styles.flashcard, cardSurface, frontAnimatedStyle]}>
-              <View style={styles.cardContent}>
-                <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                <Text variant="title" bold style={styles.definitionText}>
-                  {currentItem.definition}
-                </Text>
-                {example ? (
-                  <Text variant="body" style={styles.clozeText}>
-                    &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+            {!isFlipped ? (
+              <View style={[styles.flashcard, cardSurface]}>
+                <View style={styles.cardContent}>
+                  <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+                  <Text variant="caption" color="muted" style={styles.promptLabel}>
+                    {t('practice.recallPrompt')}
                   </Text>
-                ) : (
-                  <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                    {t('practice.noExample')}
+                  <Text variant="title" bold style={styles.definitionText}>
+                    {currentItem.definition}
                   </Text>
-                )}
-                <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-                  <Icon name="finger-print" size="md" color={colors.primary} />
-                  <Text variant="caption" color="primary" bold>
-                    {t('practice.tapReveal')}
-                  </Text>
+                  {example ? (
+                    <Text variant="body" style={styles.clozeText}>
+                      &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+                    </Text>
+                  ) : (
+                    <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                      {t('practice.noExample')}
+                    </Text>
+                  )}
+
+                  <View style={[styles.answerBlock, { gap: spacing.sm, marginTop: spacing.md }]}>
+                    <Text variant="label" color="muted">
+                      {t('practice.yourAnswer')}
+                    </Text>
+                    <TextInput
+                      value={userAnswer}
+                      onChangeText={setUserAnswer}
+                      placeholder={t('practice.answerPlaceholder')}
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={() => revealAnswer(false)}
+                      style={[
+                        styles.answerInput,
+                        {
+                          borderColor: colors.primary,
+                          backgroundColor: colors.surfaceAlt,
+                          color: colors.text,
+                        },
+                      ]}
+                    />
+                    <View style={[styles.revealActions, { gap: spacing.sm }]}>
+                      <Button
+                        label={t('practice.revealAnswer')}
+                        variant="primary"
+                        iconRight="eye"
+                        disabled={trimmedAnswer.length === 0}
+                        style={styles.revealButton}
+                        onPress={() => revealAnswer(false)}
+                      />
+                      <Button
+                        label={t('practice.dontKnow')}
+                        variant="secondary"
+                        style={styles.revealButton}
+                        onPress={() => revealAnswer(true)}
+                      />
+                    </View>
+                  </View>
                 </View>
               </View>
-            </Animated.View>
-            <Animated.View style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}>
-              <View style={styles.cardContent}>
-                <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                <Text variant="heading" style={styles.wordText}>
-                  {currentItem.lemma}
-                </Text>
-                <Text variant="body" color="muted" style={styles.backDefinitionText}>
-                  {currentItem.definition}
-                </Text>
-                {example && (
-                  <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
-                    <Text variant="body" style={styles.exampleSentence}>
-                      &ldquo;{example.sentence}&rdquo;
+            ) : (
+              <View style={[styles.flashcard, cardSurface]}>
+                <View style={styles.cardContent}>
+                  <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+                  <Text variant="heading" style={styles.wordText}>
+                    {currentItem.lemma}
+                  </Text>
+                  <View style={[styles.answerResult, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
+                    <Text variant="caption" color="muted">
+                      {t('practice.yourAnswer')}
                     </Text>
-                    {example.localized_translation && (
-                      <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-                        {example.localized_translation}
-                      </Text>
-                    )}
+                    <Text variant="body" style={styles.answerResultText}>
+                      {trimmedAnswer.length > 0 ? trimmedAnswer : t('practice.noAnswerGiven')}
+                    </Text>
                   </View>
-                )}
+                  <Text variant="body" color="muted" style={styles.backDefinitionText}>
+                    {currentItem.definition}
+                  </Text>
+                  {example && (
+                    <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
+                      <Text variant="body" style={styles.exampleSentence}>
+                        &ldquo;{example.sentence}&rdquo;
+                      </Text>
+                      {example.localized_translation && (
+                        <Text variant="caption" color="muted" style={styles.exampleTranslation}>
+                          {example.localized_translation}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
               </View>
-            </Animated.View>
+            )}
           </View>
-        </Pressable>
+        </View>
 
         {isFlipped && (
           <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.border }]}>
@@ -727,18 +772,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  flashcardBack: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
   cardContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
+  },
+  promptLabel: {
+    textAlign: 'center',
   },
   definitionText: {
     textAlign: 'center',
@@ -755,10 +796,25 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
   },
-  tapPrompt: {
+  answerBlock: {
+    width: '100%',
+  },
+  answerInput: {
+    width: '100%',
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  revealActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+  },
+  revealButton: {
+    flex: 1,
   },
   wordText: {
     fontSize: 28,
@@ -770,6 +826,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
+  },
+  answerResult: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  answerResultText: {
+    fontWeight: '700',
   },
   exampleContainer: {
     alignItems: 'center',
