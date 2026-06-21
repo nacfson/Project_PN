@@ -43,7 +43,23 @@ function resolveApiBaseUrl(): string {
   }) as string;
 }
 
+function resolveApiFallbackUrls(): string[] {
+  const fallbackEnv = process.env.EXPO_PUBLIC_API_FALLBACK_URLS as string | undefined;
+  if (!fallbackEnv || fallbackEnv.length === 0) {
+    return [];
+  }
+
+  return fallbackEnv
+    .split(',')
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
+}
+
 export const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URLS = [
+  API_BASE_URL,
+  ...resolveApiFallbackUrls().filter((url) => url !== API_BASE_URL),
+];
 
 export const DEFAULT_LANGUAGE_CODE = 'en';
 export const DEFAULT_DEFINITION_LANGUAGE_CODE = 'ko';

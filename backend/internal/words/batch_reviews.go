@@ -259,6 +259,10 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 		}
 	}
 
+	if err := s.applyStreakReview(ctx, tx, userID, now); err != nil {
+		return BatchReviewResult{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return BatchReviewResult{}, fmt.Errorf("words: commit batch reviews: %w", err)
 	}
@@ -282,7 +286,7 @@ func ensureReviewSettingsTx(ctx context.Context, tx pgx.Tx, userID string) (Revi
 		on conflict (user_id) do update set updated_at = now()
 		returning new_cards_per_day, reviews_per_day, learning_steps, relearning_steps,
 		          leech_threshold, leech_action, fuzz_enabled, desired_retention,
-		          fsrs_weights, weights_optimized_at, weights_review_count`,
+		          daily_goal_xp, fsrs_weights, weights_optimized_at, weights_review_count`,
 		userID,
 	).Scan(
 		&settings.NewCardsPerDay,
@@ -293,6 +297,7 @@ func ensureReviewSettingsTx(ctx context.Context, tx pgx.Tx, userID string) (Revi
 		&settings.LeechAction,
 		&settings.FuzzEnabled,
 		&settings.DesiredRetention,
+		&settings.DailyGoalXP,
 		&weightsArr,
 		&optimizedAt,
 		&weightsReviewCount,

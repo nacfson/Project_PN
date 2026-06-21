@@ -69,6 +69,7 @@ type LearningItemListItem struct {
 	LearningStage            string    `json:"learning_stage"`
 	DueAt                    time.Time `json:"due_at"`
 	AddedAt                  time.Time `json:"added_at"`
+	Examples                 []Example `json:"examples"`
 }
 
 type ListLearningItemsParams struct {
@@ -134,6 +135,7 @@ type ReviewSettings struct {
 	LeechAction        string    `json:"leech_action"`      // 'suspend' | 'tag'
 	FuzzEnabled        bool      `json:"fuzz_enabled"`
 	DesiredRetention   float64   `json:"desired_retention"`
+	DailyGoalXP        int       `json:"daily_goal_xp"`
 	FSRSWeights        []float64 `json:"fsrs_weights"`
 	WeightsOptimizedAt *time.Time `json:"weights_optimized_at"`
 	WeightsReviewCount int       `json:"weights_review_count"`
@@ -151,6 +153,7 @@ func DefaultReviewSettings(userID string) ReviewSettings {
 		LeechAction:      "suspend",
 		FuzzEnabled:      true,
 		DesiredRetention: 0.90,
+		DailyGoalXP:      200,
 		FSRSWeights:      defaultFSRSWeights(),
 	}
 }
@@ -167,5 +170,26 @@ type OptimizationStatus struct {
 type DailyReviewCount struct {
 	NewCardsDone int
 	ReviewsDone  int
+}
+
+// StatsForecastDay is one day in the 14-day due forecast.
+type StatsForecastDay struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+// StatsSummary is the response for GET /api/stats/summary.
+type StatsSummary struct {
+	ReviewStreakDays   int                `json:"review_streak_days"`
+	LongestStreakDays  int                `json:"longest_streak_days"`
+	StreakFreezeTokens int                `json:"streak_freeze_tokens"`
+	VacationModeActive bool               `json:"vacation_mode_active"`
+	StreakAtRisk       bool               `json:"streak_at_risk"`
+	DailyGoalXP        int                `json:"daily_goal_xp"`
+	ReviewsToday       int                `json:"reviews_today"`
+	CorrectToday       int                `json:"correct_today"`
+	DueToday           int                `json:"due_today"`
+	StageCounts        map[string]int     `json:"stage_counts"`
+	Forecast           []StatsForecastDay `json:"forecast"`
 }
 

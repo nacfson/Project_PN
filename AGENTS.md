@@ -22,6 +22,9 @@ Core backend principle:
 - **Go backend setup, local PostgreSQL setup, migration commands, health checks, or DB connection logic 수정 시**: `backend/docs/go-backend-setup.md`
 - **MVP scope 변경, study sessions, imports, tags, collections, AI enrichment, writing, or speaking 기능 추가 시**: `backend/docs/backend-future-scope.md`
 - **Migration tests, backend acceptance criteria, or schema behavior 검증 작성 시**: `backend/docs/backend-acceptance-tests.md`
+- **Project PN web app을 zlUbuntu에 배포하거나, frontend web build를 build/deploy/publish 할 시**: `.cursor/skills/deploy-web-ubuntu/SKILL.md`
+- **Frontend UI component, form validation, loading state, practice UX, or translation string 추가/수정 시**: `frontend/docs/frontend-ux-patterns.md`
+- **Deploy 실패, nginx 오류, CORS 오류, migration password 오류, public IP unreachable, 또는 zlUbuntu에서 backend/container 예외 발생 시**: `deploy/deploy-exception-runbook.md`
 
 ## Backend Rules
 
@@ -48,6 +51,11 @@ Core backend principle:
 - Model client-side interfaces (`frontend/src/types`) to match backend DTO structs exactly.
 - Isolate data fetching in repository wrappers within `frontend/src/api/` instead of triggering inline Axios/Fetch calls in screen UI code.
 - Prefer standard React Native styling or a clean Tailwind configuration (if requested) but default to standard CSS-in-JS StyleSheet.
+- Reuse the shared `Input` component and its props (`secureTextEntryToggle`, `loading`, `error`, `helperText`, `onClear`) instead of building one-off variants.
+- Show soft inline validation feedback on blur, and add translation keys for both `en` and `ko` in `frontend/src/i18n/translations.ts`.
+- Prefer an undo pattern over blocking confirmation dialogs for local destructive actions (e.g., clearing a passage).
+- Adapt controls for desktop/web/Tauri: larger hit targets, click-to-set sliders, and keyboard shortcuts where appropriate.
+- Show generic user-facing messages for missing OAuth/third-party config; expose environment-variable hints only when `__DEV__` is true.
 
 ## Future Scope Rules
 

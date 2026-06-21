@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project PN macOS DMG Package"
+  short_description: "Build and verify Project PN macOS DMG releases."
+  default_prompt: "Package the Project PN macOS DMG for distribution."

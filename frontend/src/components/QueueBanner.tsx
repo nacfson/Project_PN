@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon, Text } from '../ui';
@@ -19,7 +20,10 @@ export function QueueBanner() {
   }
 
   return (
-    <View style={[styles.container, { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, gap: spacing.sm }]}>
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.container, { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, gap: spacing.sm }]}
+    >
       {pendingCount > 0 && (
         <View
           style={[
@@ -70,7 +74,7 @@ export function QueueBanner() {
           </Pressable>
         </View>
       ))}
-    </View>
+    </SafeAreaView>
   );
 }
 

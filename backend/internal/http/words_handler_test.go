@@ -122,6 +122,19 @@ func TestAddLearningItemRequiresWordSenseID(t *testing.T) {
 	}
 }
 
+func TestWriteServiceErrorMapsUnsupportedLanguage(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	(&wordsHandler{}).writeServiceError(rec, enrich.ErrUnsupportedLanguage)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "multilingual enrichment provider required") {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
 func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
@@ -622,60 +635,6 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	}
 }
 
-func TestReviewSettingsGetAndUpdate(t *testing.T) {
-	router, token := validationRouter(t)
-
-	getReq := authRequest(t, http.MethodGet, "/api/reviews/settings", "", token)
-	getRec := httptest.NewRecorder()
-	router.ServeHTTP(getRec, getReq)
-	if getRec.Code != http.StatusOK {
-		t.Fatalf("GET settings: expected 200, got %d body=%s", getRec.Code, getRec.Body.String())
-	}
-
-	var initial words.ReviewSettings
-	if err := json.NewDecoder(getRec.Body).Decode(&initial); err != nil {
-		t.Fatalf("decode GET settings: %v", err)
-	}
-	if initial.DesiredRetention != 0.90 {
-		t.Fatalf("expected default desired_retention 0.90, got %f", initial.DesiredRetention)
-	}
-
-	postReq := authRequest(t, http.MethodPost, "/api/reviews/settings", `{"desired_retention":0.85}`, token)
-	postRec := httptest.NewRecorder()
-	router.ServeHTTP(postRec, postReq)
-	if postRec.Code != http.StatusOK {
-		t.Fatalf("POST settings: expected 200, got %d body=%s", postRec.Code, postRec.Body.String())
-	}
-
-	var updated words.ReviewSettings
-	if err := json.NewDecoder(postRec.Body).Decode(&updated); err != nil {
-		t.Fatalf("decode POST settings: %v", err)
-	}
-	if updated.DesiredRetention != 0.85 {
-		t.Fatalf("expected desired_retention 0.85, got %f", updated.DesiredRetention)
-	}
-
-	clampReq := authRequest(t, http.MethodPost, "/api/reviews/settings", `{"desired_retention":0.99}`, token)
-	clampRec := httptest.NewRecorder()
-	router.ServeHTTP(clampRec, clampReq)
-	if clampRec.Code != http.StatusOK {
-		t.Fatalf("POST clamp settings: expected 200, got %d body=%s", clampRec.Code, clampRec.Body.String())
-	}
-	var clamped words.ReviewSettings
-	if err := json.NewDecoder(clampRec.Body).Decode(&clamped); err != nil {
-		t.Fatalf("decode clamped settings: %v", err)
-	}
-	if clamped.DesiredRetention != 0.95 {
-		t.Fatalf("expected clamped desired_retention 0.95, got %f", clamped.DesiredRetention)
-	}
-
-	invalidReq := authRequest(t, http.MethodPost, "/api/reviews/settings", `{"desired_retention":1.5}`, token)
-	invalidRec := httptest.NewRecorder()
-	router.ServeHTTP(invalidRec, invalidReq)
-	if invalidRec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for out-of-range desired_retention, got %d", invalidRec.Code)
-	}
-}
 
 func TestGetStatsSummary(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)

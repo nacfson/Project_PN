@@ -116,6 +116,7 @@ require_cmd gzip
 require_cmd openssl
 require_cmd scp
 require_cmd ssh
+require_cmd npm
 
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
 IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
@@ -145,13 +146,24 @@ fi
 log "saving image to ${TARBALL}"
 docker save "${SAVE_REFS[@]}" | gzip > "$TARBALL"
 
-log "creating remote deploy directories on ${DEPLOY_HOST}:${REMOTE_DIR}"
-ssh "$DEPLOY_HOST" "mkdir -p ${REMOTE_DIR}/nginx ${REMOTE_DIR}/certs"
+log "building frontend web bundle"
+(
+  cd frontend
+  npm install
+  # Empty EXPO_PUBLIC_API_BASE_URL lets the web app resolve API calls from
+  # window.location.origin, which works for both intranet and public IPs when
+  # the bundle is served by nginx on the same origin.
+  EXPO_PUBLIC_API_BASE_URL= npm run web:export
+)
 
-log "uploading compose files and image"
+log "creating remote deploy directories on ${DEPLOY_HOST}:${REMOTE_DIR}"
+ssh "$DEPLOY_HOST" "mkdir -p ${REMOTE_DIR}/nginx ${REMOTE_DIR}/certs ${REMOTE_DIR}/web"
+
+log "uploading compose files, web bundle, and image"
 scp deploy/compose.yaml "$DEPLOY_HOST:${REMOTE_DIR}/compose.yaml"
 scp deploy/.env.example "$DEPLOY_HOST:${REMOTE_DIR}/.env.example"
 scp deploy/nginx/nginx.conf "$DEPLOY_HOST:${REMOTE_DIR}/nginx/nginx.conf"
+scp -r frontend/dist/. "$DEPLOY_HOST:${REMOTE_DIR}/web/"
 scp "$TARBALL" "$DEPLOY_HOST:${REMOTE_TARBALL}"
 
 log "loading image on remote server"
@@ -170,6 +182,14 @@ if ! ssh "$DEPLOY_HOST" "test -f ${REMOTE_DIR}/.env"; then
     fi
   fi
 
+  ALL_REMOTE_IPS="$(ssh "$DEPLOY_HOST" "hostname -I 2>/dev/null || true")"
+  LAN_ORIGINS=""
+  for ip in ${ALL_REMOTE_IPS:-}; do
+    if [[ -n "$ip" ]]; then
+      LAN_ORIGINS="${LAN_ORIGINS},http://${ip}:53412"
+    fi
+  done
+
   PUBLIC_HOST="$(url_host "$DEPLOY_PUBLIC_URL")"
   if [[ "$DEPLOY_ACCESS_SCOPE" == "private" ]] && is_private_or_local_host "$PUBLIC_HOST"; then
     log "DEPLOY_PUBLIC_URL=${DEPLOY_PUBLIC_URL} is private/local; it will not work outside the intranet"
@@ -185,7 +205,7 @@ BACKEND_IMAGE=project-pn-backend:latest
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 DATABASE_URL=postgres://project_pn:${POSTGRES_PASSWORD}@postgres:5432/project_pn?sslmode=disable
 
-ALLOWED_ORIGINS=${DEPLOY_PUBLIC_URL},http://localhost:8081
+ALLOWED_ORIGINS=${DEPLOY_PUBLIC_URL},http://localhost:8081,tauri://localhost,http://tauri.localhost${LAN_ORIGINS}
 
 ENRICH_BASE_URL=
 ENRICH_API_KEY=
@@ -224,8 +244,8 @@ if [[ -n "${EXISTING_POSTGRES_PASSWORD:-}" ]]; then
   ssh "$DEPLOY_HOST" "cd ${REMOTE_DIR} && set -a && . ./.env && set +a && docker exec -e PGPASSWORD=${OLD_DB_PASSWORD} project_pn_staging-postgres-1 psql -v ON_ERROR_STOP=1 -U project_pn -d project_pn -c \"alter user project_pn with password '\$POSTGRES_PASSWORD';\""
 fi
 
-if ! ssh "$DEPLOY_HOST" "test -f ${REMOTE_DIR}/certs/fullchain.pem && test -f ${REMOTE_DIR}/certs/privkey.pem"; then
-  die "TLS certs are required. Create ${REMOTE_DIR}/certs/fullchain.pem and ${REMOTE_DIR}/certs/privkey.pem on ${DEPLOY_HOST} before starting nginx."
+if [[ "${DEPLOY_PUBLIC_URL:-}" == https://* ]] && ! ssh "$DEPLOY_HOST" "test -f ${REMOTE_DIR}/certs/fullchain.pem && test -f ${REMOTE_DIR}/certs/privkey.pem"; then
+  die "TLS certs are required for HTTPS. Create ${REMOTE_DIR}/certs/fullchain.pem and ${REMOTE_DIR}/certs/privkey.pem on ${DEPLOY_HOST} before starting nginx."
 fi
 
 log "starting remote compose stack with BACKEND_IMAGE=${IMAGE_REF}"

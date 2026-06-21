@@ -382,6 +382,16 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		items = items[:limit]
 	}
 
+	// Load example sentences for each list item.
+	for i := range items {
+		examples, err := loadExamples(ctx, s.pool, items[i].WordSenseID, items[i].DisplayLanguageCode)
+		if err != nil {
+			return LearningItemsPage{}, err
+		}
+		items[i].Examples = examples
+	}
+
+
 	if items == nil {
 		items = []LearningItemListItem{}
 	}
@@ -1140,27 +1150,43 @@ func (s *Service) GetReviewSettings(ctx context.Context, userID string) (ReviewS
 	return settings, nil
 }
 
-// UpdateReviewSettings updates desired_retention for the user, clamped to
-// [0.80, 0.95].
-func (s *Service) UpdateReviewSettings(ctx context.Context, userID string, desiredRetention float64) (ReviewSettings, error) {
-	clamped := clampDesiredRetention(desiredRetention)
+// UpdateReviewSettings updates review settings fields for the user.
+func (s *Service) UpdateReviewSettings(ctx context.Context, userID string, params UpdateReviewSettingsParams) (ReviewSettings, error) {
+	if params.DesiredRetention == nil && params.DailyGoalXP == nil {
+		return s.GetReviewSettings(ctx, userID)
+	}
 
 	if _, err := s.ensureReviewSettingsPool(ctx, userID); err != nil {
 		return ReviewSettings{}, fmt.Errorf("words: ensure review settings: %w", err)
 	}
 
-	_, err := s.pool.Exec(ctx, `
-		update review_settings
-		set desired_retention = $1, updated_at = now()
-		where user_id = $2::uuid`,
-		clamped, userID,
-	)
-	if err != nil {
-		return ReviewSettings{}, fmt.Errorf("words: update review settings: %w", err)
+	if params.DesiredRetention != nil {
+		clamped := clampDesiredRetention(*params.DesiredRetention)
+		if _, err := s.pool.Exec(ctx, `
+			update review_settings
+			set desired_retention = $1, updated_at = now()
+			where user_id = $2::uuid`,
+			clamped, userID,
+		); err != nil {
+			return ReviewSettings{}, fmt.Errorf("words: update desired retention: %w", err)
+		}
+	}
+
+	if params.DailyGoalXP != nil {
+		clamped := clampDailyGoalXP(*params.DailyGoalXP)
+		if _, err := s.pool.Exec(ctx, `
+			update review_settings
+			set daily_goal_xp = $1, updated_at = now()
+			where user_id = $2::uuid`,
+			clamped, userID,
+		); err != nil {
+			return ReviewSettings{}, fmt.Errorf("words: update daily goal: %w", err)
+		}
 	}
 
 	return s.GetReviewSettings(ctx, userID)
 }
+
 
 // ensureReviewSettingsPool loads or creates the user's review_settings row
 // using the connection pool (non-transactional).
@@ -1177,7 +1203,7 @@ func (s *Service) ensureReviewSettingsPool(ctx context.Context, userID string) (
 		on conflict (user_id) do update set updated_at = now()
 		returning new_cards_per_day, reviews_per_day, learning_steps, relearning_steps,
 		          leech_threshold, leech_action, fuzz_enabled, desired_retention,
-		          fsrs_weights, weights_optimized_at, weights_review_count`,
+		          daily_goal_xp, fsrs_weights, weights_optimized_at, weights_review_count`,
 		userID,
 	).Scan(
 		&settings.NewCardsPerDay,
@@ -1188,6 +1214,7 @@ func (s *Service) ensureReviewSettingsPool(ctx context.Context, userID string) (
 		&settings.LeechAction,
 		&settings.FuzzEnabled,
 		&settings.DesiredRetention,
+		&settings.DailyGoalXP,
 		&weightsArr,
 		&optimizedAt,
 		&weightsReviewCount,

@@ -88,6 +88,31 @@ curl http://localhost:8080/readyz
 
 `/healthz` checks that the service is running. `/readyz` checks PostgreSQL connectivity.
 
+## Web Development (Frontend + Backend Together)
+
+Web builds need both the backend API and the Expo web dev server running. A single script starts the full stack:
+
+```sh
+scripts/start-web-dev.sh
+```
+
+This script will:
+
+1. Start PostgreSQL via `backend/docker compose up -d` (skipped with `--skip-db`).
+2. Wait for Postgres to become healthy.
+3. Run backend migrations (`go run ./cmd/migrate up`; skipped with `--skip-migrate`).
+4. Start the backend API in the background.
+5. Start the Expo web dev server in the foreground (`npm run web`).
+6. Stop the backend API when the web dev server exits.
+
+If `.env` files are missing in `backend/` or `frontend/`, the script copies them from the corresponding `.env.example` files.
+
+For faster restarts when Postgres is already running and migrations are up to date:
+
+```sh
+scripts/start-web-dev.sh --skip-db --skip-migrate
+```
+
 ## Public Docker deploy (`deploy/`)
 
 Detailed deployment steps and troubleshooting live in `backend/docs/remote-deploy-runbook.md`.
@@ -182,7 +207,7 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `MIGRATIONS_PATH` | `file://db/migrations` | golang-migrate source URL. Resolved relative to the `backend/` working directory. |
 | `ENRICH_BASE_URL` | empty | Base URL of an OpenAI-compatible `/chat/completions` endpoint. Empty disables generation. |
 | `ENRICH_API_KEY` | empty | Bearer token for the enricher. |
-| `ENRICH_MODEL` | empty | Model name passed to the enricher. |
+| `ENRICH_MODEL` | empty | Model name passed to the enricher. Use a real multilingual model for non-English target words; the staging `english-dictionary-fallback-v1` service supports English target vocabulary only. |
 | `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from the bearer session, not this env var. |
 | `DEFAULT_TARGET_LANG` | `en` | Default `target_language` on register when omitted; fallback when a request omits `language_code`. |
 | `DEFAULT_DEFINITION_LANG` | `ko` | Default `native_language` on register when omitted; fallback when a request omits `definition_language_code`. |

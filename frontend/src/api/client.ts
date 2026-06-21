@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { API_BASE_URLS } from '../config';
 import { sessionStorage } from './storage';
 
 export class ApiError extends Error {
@@ -43,10 +43,25 @@ function throwOnError(response: Response, parsed: unknown): void {
   }
 }
 
+async function fetchWithFallback(path: string, init: RequestInit): Promise<Response> {
+  const errors: string[] = [];
+  for (const baseUrl of API_BASE_URLS) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, init);
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`API fallback failed: ${baseUrl}${path} — ${message}`);
+      errors.push(`${baseUrl}: ${message}`);
+    }
+  }
+  throw new Error(`All API endpoints failed: ${errors.join('; ')}`);
+}
+
 export async function getJson<TResponse>(path: string, options?: RequestOptions): Promise<TResponse> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetchWithFallback(path, {
       method: 'GET',
       headers: await buildHeaders(options),
     });
@@ -66,10 +81,54 @@ export async function postJson<TResponse>(
 ): Promise<TResponse> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetchWithFallback(path, {
       method: 'POST',
       headers: await buildHeaders(options),
       body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  }
+
+  const parsed = await parseResponse(response);
+  throwOnError(response, parsed);
+  return parsed as TResponse;
+}
+
+export async function patchJson<TResponse>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions,
+): Promise<TResponse> {
+  let response: Response;
+  try {
+    response = await fetchWithFallback(path, {
+      method: 'PATCH',
+      headers: await buildHeaders(options),
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  }
+
+  const parsed = await parseResponse(response);
+  throwOnError(response, parsed);
+  return parsed as TResponse;
+}
+
+export async function postFormData<TResponse>(
+  path: string,
+  formData: FormData,
+  options?: RequestOptions,
+): Promise<TResponse> {
+  let response: Response;
+  try {
+    const headers = await buildHeaders(options);
+    delete headers['Content-Type'];
+    response = await fetchWithFallback(path, {
+      method: 'POST',
+      headers,
+      body: formData,
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
@@ -84,7 +143,7 @@ export async function postJson<TResponse>(
 export async function postNoContent(path: string, body?: unknown, options?: RequestOptions): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetchWithFallback(path, {
       method: 'POST',
       headers: await buildHeaders(options),
       body: body !== undefined ? JSON.stringify(body) : undefined,

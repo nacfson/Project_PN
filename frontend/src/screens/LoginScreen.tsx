@@ -114,6 +114,10 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const [nativeLang, setNativeLang] = useState<string>('');
 
   const trimmedEmail = email.trim();
+  const [emailTouched, setEmailTouched] = useState(false);
+
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const emailError = emailTouched && trimmedEmail.length > 0 && !isValidEmail(trimmedEmail);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,6 +325,9 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               placeholder={t('auth.emailPlaceholder')}
               onSubmitEditing={() => void submitPassword()}
               returnKeyType="next"
+              error={emailError}
+              helperText={emailError ? t('auth.emailInvalid') : undefined}
+              onBlur={() => setEmailTouched(true)}
             />
 
             <Text variant="label" color="muted">
@@ -330,6 +337,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              secureTextEntryToggle
               autoCapitalize="none"
               autoCorrect={false}
               placeholder={mode === 'register' ? t('auth.passwordCreatePlaceholder') : t('auth.passwordPlaceholder')}
@@ -404,13 +412,20 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                 onAuthenticated={onAuthenticated}
               />
             ) : (
-              <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
-                {Platform.OS === 'ios'
-                  ? t('auth.googleIosMissing')
-                  : Platform.OS === 'android'
-                    ? t('auth.googleAndroidMissing')
-                    : t('auth.googleWebMissing')}
-              </Text>
+              <View style={{ gap: spacing.xs }}>
+                <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+                  {t('auth.googleUnavailable')}
+                </Text>
+                {__DEV__ && (
+                  <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+                    {Platform.OS === 'ios'
+                      ? t('auth.googleIosMissing')
+                      : Platform.OS === 'android'
+                        ? t('auth.googleAndroidMissing')
+                        : t('auth.googleWebMissing')}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
         </Card>

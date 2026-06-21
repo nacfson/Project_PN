@@ -123,6 +123,13 @@ Toggled by environment variables:
 
 When `ENRICH_BASE_URL` is empty, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
 
+For full support across the app's listed target languages (`en`, `ko`, `ja`,
+`zh`, `es`, `fr`, `de`), configure a real multilingual OpenAI-compatible
+model. The local `english-dictionary-fallback-v1` service is a no-key staging
+fallback for English target vocabulary only; it can translate English canonical
+content into display languages, but it must not be treated as multilingual
+dictionary generation.
+
 ## CORS
 
 The API allows browser callers from a configured list of origins. The default list covers the Expo Web dev server and the Tauri desktop WebView:

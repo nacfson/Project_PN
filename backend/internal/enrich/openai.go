@@ -16,12 +16,28 @@ import (
 // Callers treat this as "generation unavailable" and fall back to manual entry.
 var ErrNotConfigured = errors.New("enrich: endpoint not configured")
 
+// ErrInvalidOutput is returned when the configured enrichment endpoint returns
+// structurally valid JSON that does not describe the requested word.
+var ErrInvalidOutput = errors.New("enrich: invalid model output")
+
+// ErrUnsupportedLanguage is returned when the configured staging fallback does
+// not support the requested target word language.
+var ErrUnsupportedLanguage = errors.New("enrich: unsupported target language")
+
+const englishDictionaryFallbackModel = "english-dictionary-fallback-v1"
+
 var validCEFR = map[string]bool{
 	"A1": true, "A2": true, "B1": true, "B2": true, "C1": true, "C2": true,
 }
 
 var validDifficulty = map[string]bool{
 	"easy": true, "medium": true, "hard": true,
+}
+
+var validPartOfSpeech = map[string]bool{
+	"noun": true, "verb": true, "adjective": true, "adverb": true,
+	"pronoun": true, "preposition": true, "conjunction": true,
+	"interjection": true, "determiner": true,
 }
 
 // OpenAIEnricher calls any OpenAI-compatible /chat/completions endpoint
@@ -101,6 +117,9 @@ func (e *OpenAIEnricher) Enrich(ctx context.Context, req Request) (Result, error
 	if e.BaseURL == "" || e.APIKey == "" {
 		return Result{}, ErrNotConfigured
 	}
+	if e.isEnglishDictionaryFallback() && normalizeLang(req.LanguageCode) != "en" {
+		return Result{}, fmt.Errorf("%w: target language %q requires a multilingual AI provider", ErrUnsupportedLanguage, req.LanguageCode)
+	}
 
 	body, err := json.Marshal(chatRequest{
 		Model:       e.Model,
@@ -126,6 +145,9 @@ func (e *OpenAIEnricher) Translate(ctx context.Context, req TranslateRequest) (T
 	if e.BaseURL == "" || e.APIKey == "" {
 		return TranslateResult{}, ErrNotConfigured
 	}
+	if e.isEnglishDictionaryFallback() && normalizeLang(req.LanguageCode) != "en" {
+		return TranslateResult{}, fmt.Errorf("%w: target language %q requires a multilingual AI provider", ErrUnsupportedLanguage, req.LanguageCode)
+	}
 
 	body, err := json.Marshal(chatRequest{
 		Model:       e.Model,
@@ -145,6 +167,23 @@ func (e *OpenAIEnricher) Translate(ctx context.Context, req TranslateRequest) (T
 		return TranslateResult{}, err
 	}
 	return parseTranslateOutput(req, content)
+}
+
+func (e *OpenAIEnricher) isEnglishDictionaryFallback() bool {
+	switch strings.ToLower(strings.TrimSpace(e.Model)) {
+	case englishDictionaryFallbackModel, "dictionary-ko-v1":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeLang(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if idx := strings.IndexAny(value, "-_"); idx >= 0 {
+		return value[:idx]
+	}
+	return value
 }
 
 func (e *OpenAIEnricher) complete(ctx context.Context, body []byte) (string, error) {
@@ -190,18 +229,30 @@ func parseModelOutput(req Request, content string) (Result, error) {
 		return Result{}, fmt.Errorf("enrich: decode model JSON: %w", err)
 	}
 
+	expectedText := normalizeModelWord(req.Text)
+	if expectedText == "" {
+		return Result{}, fmt.Errorf("%w: empty request text", ErrInvalidOutput)
+	}
+
 	result := Result{NormalizedText: strings.TrimSpace(out.NormalizedText)}
 	if result.NormalizedText == "" {
-		result.NormalizedText = strings.ToLower(strings.TrimSpace(req.Text))
+		result.NormalizedText = expectedText
+	}
+	if normalizeModelWord(result.NormalizedText) != expectedText {
+		return Result{}, fmt.Errorf("%w: normalized_text mismatch: got %q, want %q", ErrInvalidOutput, result.NormalizedText, expectedText)
 	}
 
 	for _, entry := range out.Entries {
 		pos := strings.TrimSpace(strings.ToLower(entry.PartOfSpeech))
-		if pos == "" {
+		if !validPartOfSpeech[pos] {
 			continue
 		}
+		lemma := firstNonEmpty(strings.TrimSpace(entry.Lemma), req.Text)
+		if normalizeModelWord(lemma) != expectedText {
+			return Result{}, fmt.Errorf("%w: lemma mismatch: got %q, want %q", ErrInvalidOutput, lemma, expectedText)
+		}
 		e := Entry{
-			Lemma:        firstNonEmpty(strings.TrimSpace(entry.Lemma), req.Text),
+			Lemma:        lemma,
 			PartOfSpeech: pos,
 		}
 		for _, s := range entry.Senses {
@@ -256,6 +307,10 @@ func parseModelOutput(req Request, content string) (Result, error) {
 		return Result{}, errors.New("enrich: model returned no usable senses")
 	}
 	return result, nil
+}
+
+func normalizeModelWord(value string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
 }
 
 func parseTranslateOutput(req TranslateRequest, content string) (TranslateResult, error) {
@@ -369,6 +424,8 @@ const translateSystemPrompt = `You are a precise bilingual lexicographer. ` +
 func buildUserPrompt(req Request) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Word: %q\n", req.Text)
+	fmt.Fprintf(&b, "Return normalized_text exactly as %q.\n", req.Text)
+	fmt.Fprintf(&b, "Every entry lemma must be exactly %q; do not substitute a different example word.\n", req.Text)
 	fmt.Fprintf(&b, "Word language code: %s\n", req.LanguageCode)
 	fmt.Fprintf(&b, "Write definition and short_definition in %s (the word's language).\n", req.LanguageCode)
 	fmt.Fprintf(&b, "Write native_definition and native_short_definition in language code: %s\n", req.DefinitionLanguageCode)

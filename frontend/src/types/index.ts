@@ -143,7 +143,79 @@ export interface ReviewSettings {
   leech_action: string;
   fuzz_enabled: boolean;
   desired_retention: number;
+  daily_goal_xp: number;
   fsrs_weights: number[];
   weights_optimized_at: string | null;
   weights_review_count: number;
+}
+
+export interface StatsForecastDay {
+  date: string;
+  count: number;
+}
+
+export interface StatsSummary {
+  review_streak_days: number;
+  longest_streak_days: number;
+  streak_freeze_tokens: number;
+  vacation_mode_active: boolean;
+  streak_at_risk: boolean;
+  daily_goal_xp: number;
+  reviews_today: number;
+  correct_today: number;
+  due_today: number;
+  stage_counts: Record<string, number>;
+  forecast: StatsForecastDay[];
+}
+
+export interface StreakSettings {
+  current_streak_days: number;
+  longest_streak_days: number;
+  streak_freeze_tokens: number;
+  vacation_mode_until: string | null;
+  vacation_mode_active: boolean;
+  streak_at_risk: boolean;
+}
+
+export interface AnkiCard {
+  front: string;
+  back: string;
+  tags?: string;
+  action?: ImportAction;
+}
+
+export type ImportAction = 'add' | 'overwrite_meaning' | 'create_new_meaning' | 'skip';
+
+export interface ImportPreviewItem {
+  index: number;
+  front: string;
+  back: string;
+  status: 'new_word' | 'existing_word_match' | 'conflict';
+  matched_senses: SenseOption[];
+  suggested_action: ImportAction;
+}
+
+export interface ImportPreviewResponse {
+  cards: AnkiCard[];
+  items: ImportPreviewItem[];
+}
+
+export interface AnkiImportRequest {
+  cards: AnkiCard[];
+  language_code: string;
+  definition_language_code: string;
+}
+
+export interface ImportError {
+  index: number;
+  front: string;
+  error: string;
+}
+
+export interface AnkiImportResult {
+  total: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: ImportError[];
 }

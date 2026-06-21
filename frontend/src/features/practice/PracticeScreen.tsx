@@ -4,6 +4,7 @@ import {
   Animated,
   PanResponder,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -16,18 +17,21 @@ import type { MainTabParamList } from '../../navigation/MainTabs';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, Screen, Text } from '../../ui';
+import { isTauri } from '../../utils/platform';
 import {
   getDueLearningItems,
   listLearningItems,
   recordBatchReviewAttempts,
 } from '../../api/learningItems';
-import type { DueItem, ReviewAttemptParams, Example } from '../../types';
+import type { DueItem, LearningItemListItem, ReviewAttemptParams } from '../../types';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Practice'>;
+type SessionMode = 'normal' | 'repeat';
+type CardMode = 'typing' | 'flashcard';
 type SessionStatus =
   | 'idle'
   | 'loading_due'
-  | 'loading_preview'
+  | 'loading_repeat'
   | 'active'
   | 'submitting'
   | 'success'
@@ -115,7 +119,8 @@ interface SlidebarProps {
   onChange: (score: number) => void;
 }
 
-const handleWidth = 44;
+const baseHandleSize = 44;
+const desktopScale = 1.25;
 const sliderColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6'];
 const sliderBgColors = [
   'rgba(239, 68, 68, 0.15)',
@@ -134,6 +139,10 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
   const { colors } = useTheme();
   const { t } = useAppLanguage();
   const [trackWidth, setTrackWidth] = useState(0);
+  const isDesktop = Platform.OS === 'web' || isTauri();
+  const handleSize = baseHandleSize * (isDesktop ? desktopScale : 1);
+  const trackHeight = isDesktop ? 12 : 8;
+  const wrapperHeight = Math.max(handleSize, trackHeight + 16);
   const startRatingScore = useRef(ratingScore);
   const handleScale = useRef(new Animated.Value(1)).current;
   const lastStateVal = useRef(
@@ -159,7 +168,7 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
         }).start();
       },
       onPanResponderMove: (evt, gestureState) => {
-        const maxLeft = trackWidth - handleWidth;
+        const maxLeft = trackWidth - handleSize;
         if (maxLeft <= 0) return;
 
         const startPercent = startRatingScore.current / 3.0;
@@ -196,42 +205,57 @@ function Slidebar({ ratingScore, onChange }: SlidebarProps) {
     })
   ).current;
 
-  const maxLeft = trackWidth - handleWidth;
+  const maxLeft = trackWidth - handleSize;
   const currentPercent = ratingScore / 3.0;
   const leftPos = maxLeft > 0 ? currentPercent * maxLeft : 0;
 
+  const handleTrackPress = (locationX: number) => {
+    if (trackWidth <= 0) return;
+    const percent = Math.max(0, Math.min(1, locationX / trackWidth));
+    onChange(percent * 3.0);
+  };
+
   return (
     <View style={sliderStyles.container}>
-      <View
-        style={sliderStyles.trackWrapper}
-        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      <Pressable
+        onPress={(e) => handleTrackPress(e.nativeEvent.locationX)}
+        style={{ width: '90%' }}
       >
-        <View style={[sliderStyles.track, { backgroundColor: colors.border }]} />
         <View
-          style={[
-            sliderStyles.fill,
-            {
-              width: `${currentPercent * 100}%`,
-              backgroundColor: color,
-            },
-          ]}
-        />
-        <Animated.View
-          {...panResponder.panHandlers}
-          style={[
-            sliderStyles.handle,
-            {
-              left: leftPos,
-              borderColor: color,
-              backgroundColor: bgColor,
-              shadowColor: color,
-              transform: [{ scale: handleScale }],
-            },
-          ]}
+          style={[sliderStyles.trackWrapper, { height: wrapperHeight }]}
+          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
         >
-          <Face stateVal={stateVal} color={color} />
-        </Animated.View>
-      </View>
+          <View style={[sliderStyles.track, { backgroundColor: colors.border, height: trackHeight }]} />
+          <View
+            style={[
+              sliderStyles.fill,
+              {
+                width: `${currentPercent * 100}%`,
+                backgroundColor: color,
+                height: trackHeight,
+              },
+            ]}
+          />
+          <Animated.View
+            {...panResponder.panHandlers}
+            style={[
+              sliderStyles.handle,
+              {
+                left: leftPos,
+                width: handleSize,
+                height: handleSize,
+                borderRadius: handleSize / 2,
+                borderColor: color,
+                backgroundColor: bgColor,
+                shadowColor: color,
+                transform: [{ scale: handleScale }],
+              },
+            ]}
+          >
+            <Face stateVal={stateVal} color={color} />
+          </Animated.View>
+        </View>
+      </Pressable>
       <Text style={[sliderStyles.label, { color }]}>{label}</Text>
     </View>
   );
@@ -248,6 +272,41 @@ function getBlankedSentence(sentence: string, word: string) {
   return blanked;
 }
 
+function learningItemToDueItem(item: LearningItemListItem): DueItem {
+  return {
+    user_word_sense_id: item.id,
+    word_sense_id: item.word_sense_id,
+    word_id: item.word_id,
+    language_code: item.language_code,
+    lemma: item.lemma,
+    normalized_text: item.normalized_text,
+    part_of_speech: item.part_of_speech,
+    display_language_code: item.display_language_code,
+    definition: item.definition,
+    short_definition: item.short_definition,
+    localized_definition: item.localized_definition,
+    localized_short_definition: item.localized_short_definition,
+    cefr_level: item.cefr_level,
+    meaning_order: item.meaning_order,
+    learning_stage: item.learning_stage,
+    due_at: item.due_at,
+    examples: item.examples ?? [],
+  };
+}
+
+function decideCardMode(item: DueItem): CardMode {
+  const stage = item.learning_stage.trim().toLowerCase();
+  const flashcardProb: Record<string, number> = {
+    new: 0,
+    learning: 0,
+    recognized: 0.15,
+    recalled: 0.1,
+    usable: 0.05,
+    mastered: 0,
+  };
+  return Math.random() < (flashcardProb[stage] ?? 0) ? 'flashcard' : 'typing';
+}
+
 export function PracticeScreen() {
   const { colors, spacing, radii, shadows } = useTheme();
   const { t } = useAppLanguage();
@@ -255,6 +314,8 @@ export function PracticeScreen() {
   const navigation = useNavigation<NavigationProp>();
 
   const [status, setStatus] = useState<SessionStatus>('idle');
+  const [sessionMode, setSessionMode] = useState<SessionMode>('normal');
+  const [cardMode, setCardMode] = useState<CardMode>('typing');
   const [dueItems, setDueItems] = useState<DueItem[]>([]);
   const [queue, setQueue] = useState<DueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -269,6 +330,43 @@ export function PracticeScreen() {
 
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
+  const answerInputRef = useRef<TextInput>(null);
+  const statusRef = useRef(status);
+  const flipAnim = useRef(new Animated.Value(0)).current;
+
+  const frontInterpolate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+  const backInterpolate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['180deg', '360deg'],
+  });
+  const frontAnimatedStyle = {
+    transform: [{ perspective: 1000 }, { rotateY: frontInterpolate }],
+  };
+  const backAnimatedStyle = {
+    transform: [{ perspective: 1000 }, { rotateY: backInterpolate }],
+  };
+
+  const toggleFlip = () => {
+    const nextFlipped = !isFlipped;
+    setIsFlipped(nextFlipped);
+    Animated.spring(flipAnim, {
+      toValue: nextFlipped ? 1 : 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  useEffect(() => {
+    if (status === 'active' && !isFlipped && cardMode === 'typing') {
+      answerInputRef.current?.focus();
+    }
+  }, [isFlipped, status, currentIndex, cardMode]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const resetCardInteraction = useCallback(() => {
     cardStartedAtRef.current = Date.now();
@@ -276,11 +374,13 @@ export function PracticeScreen() {
     setUserAnswer('');
     setResponseTimeMs(null);
     setRatingScore(2.0);
-  }, []);
+    flipAnim.setValue(0);
+  }, [flipAnim]);
 
   const loadDueItems = useCallback(() => {
     setStatus('loading_due');
     setErrorMsg(null);
+    setSessionMode('normal');
     getDueLearningItems()
       .then((items) => {
         setDueItems(items);
@@ -290,6 +390,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setFailedMap({});
           setExampleIndexMap({});
+          setCardMode(decideCardMode(items[0]));
           resetCardInteraction();
           setStatus('active');
         } else {
@@ -305,72 +406,62 @@ export function PracticeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (status !== 'active' && status !== 'success' && status !== 'submitting') {
+      const currentStatus = statusRef.current;
+      if (currentStatus !== 'active' && currentStatus !== 'success' && currentStatus !== 'submitting') {
         loadDueItems();
       }
-    }, [loadDueItems, status])
+    }, [loadDueItems])
   );
 
-  const startPreviewSession = () => {
-    setStatus('loading_preview');
+  const startRepeatSession = () => {
+    setStatus('loading_repeat');
     setErrorMsg(null);
-    listLearningItems({ limit: 15 })
+    listLearningItems({ limit: 100 })
       .then((res) => {
-        if (res.items.length > 0) {
-          const previewItems: DueItem[] = res.items.map((item) => ({
-            user_word_sense_id: item.id,
-            word_sense_id: item.word_sense_id,
-            word_id: item.word_id,
-            language_code: item.language_code,
-            lemma: item.lemma,
-            normalized_text: item.normalized_text,
-            part_of_speech: item.part_of_speech,
-            display_language_code: item.display_language_code,
-            definition: item.definition,
-            short_definition: item.short_definition,
-            localized_definition: item.localized_definition,
-            localized_short_definition: item.localized_short_definition,
-            cefr_level: item.cefr_level,
-            meaning_order: item.meaning_order,
-            learning_stage: item.learning_stage,
-            due_at: item.due_at,
-            examples: [],
-          }));
-          setDueItems(previewItems);
-          setQueue(previewItems);
+        const repeatItems = res.items.map(learningItemToDueItem);
+
+        if (repeatItems.length > 0) {
+          setSessionMode('repeat');
+          setDueItems(repeatItems);
+          setQueue(repeatItems);
           setCurrentIndex(0);
           setAttempts([]);
           setFailedMap({});
           setExampleIndexMap({});
+          setCardMode(decideCardMode(repeatItems[0]));
           resetCardInteraction();
           setStatus('active');
         } else {
           setStatus('idle');
-          setErrorMsg(t('practice.noWordsPreview'));
+          setErrorMsg(t('practice.noReviewedWordsRepeat'));
         }
       })
       .catch((err) => {
-        console.error('Error starting preview session:', err);
-        setErrorMsg(err.message || t('practice.previewFailed'));
+        console.error('Error starting repeat review:', err);
+        setErrorMsg(err.message || t('practice.repeatFailed'));
         setStatus('idle');
       });
   };
 
+  const submitAttempts = useCallback(() => {
+    setStatus('submitting');
+    recordBatchReviewAttempts(attempts)
+      .then((res) => {
+        setXpEarned(res.xp_earned);
+        setStatus('success');
+      })
+      .catch((err) => {
+        console.error('Error submitting batch reviews:', err);
+        setErrorMsg(err.message || t('practice.submitFailed'));
+        setStatus('error');
+      });
+  }, [attempts, t]);
+
   useEffect(() => {
-    if (status === 'active' && queue.length > 0 && currentIndex === queue.length) {
-      setStatus('submitting');
-      recordBatchReviewAttempts(attempts)
-        .then((res) => {
-          setXpEarned(res.xp_earned);
-          setStatus('success');
-        })
-        .catch((err) => {
-          console.error('Error submitting batch reviews:', err);
-          setErrorMsg(err.message || t('practice.submitFailed'));
-          setStatus('error');
-        });
+    if (sessionMode === 'normal' && status === 'active' && queue.length > 0 && currentIndex === queue.length) {
+      submitAttempts();
     }
-  }, [currentIndex, queue.length, status, attempts]);
+  }, [currentIndex, queue.length, sessionMode, status, submitAttempts]);
 
   const confirmGrade = () => {
     const currentItem = queue[currentIndex];
@@ -379,26 +470,42 @@ export function PracticeScreen() {
     const examplesList = currentItem.examples || [];
     const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
     const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
-    const activityType: ReviewAttemptParams['activity_type'] = example ? 'cloze' : 'meaning_to_word';
     const prompt = example
       ? getBlankedSentence(example.sentence, currentItem.normalized_text)
       : 'Definition: ' + currentItem.definition;
+
+    let activityType: ReviewAttemptParams['activity_type'];
+    let userAnswerValue: string | null;
+    let responseTimeValue: number | null;
+
+    if (cardMode === 'flashcard') {
+      activityType = 'word_to_meaning';
+      userAnswerValue = null;
+      responseTimeValue = null;
+    } else {
+      activityType = example ? 'cloze' : 'meaning_to_word';
+      userAnswerValue = userAnswer.trim().length > 0 ? userAnswer.trim() : null;
+      responseTimeValue = responseTimeMs ?? Date.now() - cardStartedAtRef.current;
+    }
 
     const attempt: ReviewAttemptParams = {
       user_word_sense_id: currentItem.user_word_sense_id,
       activity_type: activityType,
       prompt,
-      user_answer: userAnswer.trim().length > 0 ? userAnswer.trim() : null,
+      user_answer: userAnswerValue,
       correct_answer: currentItem.normalized_text,
       is_correct: ratingScore >= 0.75,
       rating_score: ratingScore,
-      response_time_ms: responseTimeMs ?? Date.now() - cardStartedAtRef.current,
+      response_time_ms: responseTimeValue,
       confidence_rating: null,
     };
 
     setAttempts((prev) => [...prev, attempt]);
 
-    if (ratingScore < 0.75) {
+    const shouldRetry = ratingScore < 0.75;
+    const nextIndex = currentIndex + 1;
+
+    if (shouldRetry) {
       setFailedMap((prev) => ({ ...prev, [currentItem.user_word_sense_id]: true }));
       if (examplesList.length > 1) {
         setExampleIndexMap((prev) => {
@@ -406,11 +513,33 @@ export function PracticeScreen() {
           return { ...prev, [currentItem.user_word_sense_id]: nextIdx };
         });
       }
-      setQueue((prev) => [...prev, currentItem]);
+    }
+
+    const nextQueue = (() => {
+      let q = shouldRetry ? [...queue, currentItem] : [...queue];
+      if (sessionMode === 'repeat' && dueItems.length > 0 && nextIndex >= q.length) {
+        q = [...q, ...dueItems];
+      }
+      return q;
+    })();
+    setQueue(nextQueue);
+
+    const nextItem = nextQueue[nextIndex];
+    if (nextItem) {
+      setCardMode(decideCardMode(nextItem));
     }
 
     setCurrentIndex((prev) => prev + 1);
     resetCardInteraction();
+  };
+
+  const finishRepeatSession = () => {
+    if (attempts.length === 0) {
+      setXpEarned(0);
+      setStatus('success');
+      return;
+    }
+    submitAttempts();
   };
 
   const revealAnswer = (forgot = false) => {
@@ -428,7 +557,7 @@ export function PracticeScreen() {
     setIsFlipped(true);
   };
 
-  if (status === 'loading_due' || status === 'loading_preview') {
+  if (status === 'loading_due' || status === 'loading_repeat') {
     return (
       <Screen padded>
         <LoadingState message={t('practice.preparing')} />
@@ -542,11 +671,11 @@ export function PracticeScreen() {
           />
 
           <Button
-            label={t('practice.previewSession')}
+            label={t('practice.studyAgain')}
             variant="secondary"
             iconLeft="play"
             style={{ width: '100%' }}
-            onPress={startPreviewSession}
+            onPress={startRepeatSession}
           />
         </View>
       </Screen>
@@ -561,10 +690,18 @@ export function PracticeScreen() {
   const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
   const isPreviouslyFailed = failedMap[currentItem.user_word_sense_id] ?? false;
   const trimmedAnswer = userAnswer.trim();
+  const currentPoolIndex = Math.max(
+    0,
+    dueItems.findIndex((item) => item.user_word_sense_id === currentItem.user_word_sense_id)
+  );
+  const displayCurrent = sessionMode === 'repeat' ? currentPoolIndex + 1 : currentIndex + 1;
+  const displayTotal = sessionMode === 'repeat' ? dueItems.length : queue.length;
 
-  const dueItemsReviewedCount = attempts.filter((att) =>
-    dueItems.some((di) => di.user_word_sense_id === att.user_word_sense_id)
-  ).length;
+  const dueItemIDs = new Set(dueItems.map((item) => item.user_word_sense_id));
+  const dueItemsReviewedCount =
+    sessionMode === 'repeat'
+      ? new Set(attempts.filter((att) => dueItemIDs.has(att.user_word_sense_id)).map((att) => att.user_word_sense_id)).size
+      : attempts.filter((att) => dueItemIDs.has(att.user_word_sense_id)).length;
   const progressPercent =
     dueItems.length > 0
       ? Math.min(100, Math.floor((dueItemsReviewedCount / dueItems.length) * 100))
@@ -575,8 +712,43 @@ export function PracticeScreen() {
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    backfaceVisibility: 'hidden' as const,
     ...shadows.md,
   };
+
+  const sharedCardBack = (
+    <View style={styles.cardContent}>
+      <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+      <Text variant="heading" style={styles.wordText}>
+        {currentItem.lemma}
+      </Text>
+      {cardMode === 'typing' && (
+        <View style={[styles.answerResult, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
+          <Text variant="caption" color="muted">
+            {t('practice.yourAnswer')}
+          </Text>
+          <Text variant="body" style={styles.answerResultText}>
+            {trimmedAnswer.length > 0 ? trimmedAnswer : t('practice.noAnswerGiven')}
+          </Text>
+        </View>
+      )}
+      <Text variant="body" color="muted" style={styles.backDefinitionText}>
+        {currentItem.definition}
+      </Text>
+      {example && (
+        <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
+          <Text variant="body" style={styles.exampleSentence}>
+            &ldquo;{example.sentence}&rdquo;
+          </Text>
+          {example.localized_translation && (
+            <Text variant="caption" color="muted" style={styles.exampleTranslation}>
+              {example.localized_translation}
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <Screen padded>
@@ -584,8 +756,10 @@ export function PracticeScreen() {
         <View style={[styles.progressHeader, { gap: spacing.sm }]}>
           <View style={styles.progressTextRow}>
             <Text variant="caption" color="muted">
-              {t('practice.cardProgress', { current: currentIndex + 1, total: queue.length })}
+              {t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}
             </Text>
+            {sessionMode === 'repeat' && <Badge label={t('practice.repeatMode')} variant="primary" />}
+            {cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant="info" />}
             {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
           </View>
           <View style={[styles.progressBarContainer, { backgroundColor: colors.border }]}>
@@ -603,7 +777,41 @@ export function PracticeScreen() {
 
         <View style={styles.cardPressable}>
           <View style={styles.cardContainer}>
-            {!isFlipped ? (
+            {cardMode === 'flashcard' ? (
+              <>
+                <Animated.View style={[styles.flashcard, cardSurface, frontAnimatedStyle]}>
+                  <Pressable onPress={toggleFlip} style={StyleSheet.absoluteFill}>
+                    <View style={styles.cardContent}>
+                      <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+                      <Text variant="caption" color="muted" style={styles.promptLabel}>
+                        {t('practice.recallPrompt')}
+                      </Text>
+                      <Text variant="title" bold style={styles.definitionText}>
+                        {currentItem.definition}
+                      </Text>
+                      {example ? (
+                        <Text variant="body" style={styles.clozeText}>
+                          &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+                        </Text>
+                      ) : (
+                        <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                          {t('practice.noExample')}
+                        </Text>
+                      )}
+                      <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+                        <Icon name="finger-print" size="md" color={colors.primary} />
+                        <Text variant="caption" color="primary" bold>
+                          {t('practice.tapReveal')}
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+                <Animated.View style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}>
+                  {sharedCardBack}
+                </Animated.View>
+              </>
+            ) : !isFlipped ? (
               <View style={[styles.flashcard, cardSurface]}>
                 <View style={styles.cardContent}>
                   <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
@@ -628,12 +836,14 @@ export function PracticeScreen() {
                       {t('practice.yourAnswer')}
                     </Text>
                     <TextInput
+                      ref={answerInputRef}
                       value={userAnswer}
                       onChangeText={setUserAnswer}
                       placeholder={t('practice.answerPlaceholder')}
                       placeholderTextColor={colors.textMuted}
                       autoCapitalize="none"
                       autoCorrect={false}
+                      autoFocus
                       returnKeyType="done"
                       onSubmitEditing={() => revealAnswer(false)}
                       style={[
@@ -666,35 +876,7 @@ export function PracticeScreen() {
               </View>
             ) : (
               <View style={[styles.flashcard, cardSurface]}>
-                <View style={styles.cardContent}>
-                  <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                  <Text variant="heading" style={styles.wordText}>
-                    {currentItem.lemma}
-                  </Text>
-                  <View style={[styles.answerResult, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
-                    <Text variant="caption" color="muted">
-                      {t('practice.yourAnswer')}
-                    </Text>
-                    <Text variant="body" style={styles.answerResultText}>
-                      {trimmedAnswer.length > 0 ? trimmedAnswer : t('practice.noAnswerGiven')}
-                    </Text>
-                  </View>
-                  <Text variant="body" color="muted" style={styles.backDefinitionText}>
-                    {currentItem.definition}
-                  </Text>
-                  {example && (
-                    <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
-                      <Text variant="body" style={styles.exampleSentence}>
-                        &ldquo;{example.sentence}&rdquo;
-                      </Text>
-                      {example.localized_translation && (
-                        <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-                          {example.localized_translation}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
+                {sharedCardBack}
               </View>
             )}
           </View>
@@ -713,7 +895,23 @@ export function PracticeScreen() {
               style={{ width: '100%', marginTop: spacing.xs }}
               onPress={confirmGrade}
             />
+            {sessionMode === 'repeat' && (
+              <Button
+                label={t('practice.finishRepeat')}
+                variant="secondary"
+                style={{ width: '100%' }}
+                onPress={finishRepeatSession}
+              />
+            )}
           </View>
+        )}
+        {sessionMode === 'repeat' && !isFlipped && (
+          <Button
+            label={t('practice.finishRepeat')}
+            variant="ghost"
+            style={{ width: '100%', marginTop: spacing.md }}
+            onPress={finishRepeatSession}
+          />
         )}
       </ScrollView>
     </Screen>
@@ -772,6 +970,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
+  flashcardBack: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   cardContent: {
     flex: 1,
     alignItems: 'center',
@@ -795,6 +1000,11 @@ const styles = StyleSheet.create({
   clozePlaceholder: {
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  tapPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   answerBlock: {
     width: '100%',
@@ -944,9 +1154,9 @@ const sliderStyles = StyleSheet.create({
   },
   handle: {
     position: 'absolute',
-    width: handleWidth,
-    height: handleWidth,
-    borderRadius: handleWidth / 2,
+    width: baseHandleSize,
+    height: baseHandleSize,
+    borderRadius: baseHandleSize / 2,
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',

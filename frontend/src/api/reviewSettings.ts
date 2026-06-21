@@ -1,14 +1,13 @@
 import type { ReviewSettings } from '../types';
-import { getJson, postJson } from './client';
-
-export interface UpdateReviewSettingsParams {
-  desired_retention: number;
-}
+import { getJson, patchJson } from './client';
 
 export function getReviewSettings(): Promise<ReviewSettings> {
   return getJson<ReviewSettings>('/api/reviews/settings');
 }
 
-export function updateReviewSettings(params: UpdateReviewSettingsParams): Promise<ReviewSettings> {
-  return postJson<ReviewSettings>('/api/reviews/settings', params);
+export function patchReviewSettings(body: {
+  desired_retention?: number;
+  daily_goal_xp?: number;
+}): Promise<ReviewSettings> {
+  return patchJson<ReviewSettings>('/api/reviews/settings', body);
 }

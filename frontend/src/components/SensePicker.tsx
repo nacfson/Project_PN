@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Text } from '../ui';
@@ -43,6 +44,7 @@ export function SensePicker({
 }: SensePickerProps) {
   const { colors, radii, spacing } = useTheme();
   const { t } = useAppLanguage();
+  const insets = useSafeAreaInsets();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [posPrompt, setPosPrompt] = useState(false);
 
@@ -84,7 +86,17 @@ export function SensePicker({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={[styles.backdrop, { backgroundColor: 'rgba(15, 23, 42, 0.5)' }]}>
-        <View style={[styles.sheet, { backgroundColor: colors.surface, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg }]}>
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.surface,
+              borderTopLeftRadius: radii.lg,
+              borderTopRightRadius: radii.lg,
+              paddingBottom: Math.max(24, insets.bottom),
+            },
+          ]}
+        >
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
             <Text variant="title">{t('sense.chooseMeaning', { query })}</Text>
             <Pressable onPress={handleClose} hitSlop={8} accessibilityRole="button">

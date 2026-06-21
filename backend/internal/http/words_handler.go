@@ -173,7 +173,9 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "localized translation unavailable for this word sense")
 	case errors.Is(err, words.ErrForceAmbiguous):
 		writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
-	case errors.Is(err, enrich.ErrNotConfigured), errors.Is(err, words.ErrNoSenses):
+	case errors.Is(err, enrich.ErrUnsupportedLanguage):
+		writeError(w, http.StatusServiceUnavailable, "multilingual enrichment provider required for this target language")
+	case errors.Is(err, enrich.ErrNotConfigured), errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
 		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal error")
@@ -267,32 +269,3 @@ func (h *wordsHandler) optimizationStatus(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, status)
 }
 
-func (h *wordsHandler) getReviewSettings(w http.ResponseWriter, r *http.Request) {
-	settings, err := h.svc.GetReviewSettings(r.Context(), userIDFromRequest(r))
-	if err != nil {
-		h.writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, settings)
-}
-
-func (h *wordsHandler) updateReviewSettings(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DesiredRetention float64 `json:"desired_retention"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
-		return
-	}
-	if req.DesiredRetention <= 0 || req.DesiredRetention > 1 {
-		writeError(w, http.StatusBadRequest, "desired_retention must be between 0 and 1")
-		return
-	}
-
-	settings, err := h.svc.UpdateReviewSettings(r.Context(), userIDFromRequest(r), req.DesiredRetention)
-	if err != nil {
-		h.writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, settings)
-}

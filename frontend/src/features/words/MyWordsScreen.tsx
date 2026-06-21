@@ -94,6 +94,7 @@ export function MyWordsScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           onClear={() => setQ('')}
+          loading={status === 'loading'}
         />
       </View>
 

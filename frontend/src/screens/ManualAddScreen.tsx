@@ -29,7 +29,7 @@ export function ManualAddScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md }]}>
+      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
         <View style={{ gap: spacing.sm }}>
           <Text variant="label" color="muted">
             {t('add.word')}

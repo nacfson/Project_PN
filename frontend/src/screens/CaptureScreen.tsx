@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
 import { WordChip } from '../components/WordChip';
@@ -9,13 +9,34 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
 import type { PosFilter } from '../types';
 
+const UNDO_DURATION_MS = 3000;
+
 export function CaptureScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [passage, setPassage] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [clearedAt, setClearedAt] = useState<number | null>(null);
+  const previousPassageRef = useRef('');
   const { enqueueMany, statusOf } = useAddQueue();
+
+  useEffect(() => {
+    if (!clearedAt) return;
+    const timeout = setTimeout(() => setClearedAt(null), UNDO_DURATION_MS);
+    return () => clearTimeout(timeout);
+  }, [clearedAt]);
+
+  const clearPassage = () => {
+    previousPassageRef.current = passage;
+    setPassage('');
+    setClearedAt(Date.now());
+  };
+
+  const undoClear = () => {
+    setPassage(previousPassageRef.current);
+    setClearedAt(null);
+  };
 
   const toggle = useCallback((word: string) => {
     setSelected((prev) => {
@@ -44,14 +65,17 @@ export function CaptureScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md }]}>
+      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
         <View style={{ gap: spacing.sm }}>
           <Text variant="label" color="muted">
             {t('add.passage')}
           </Text>
           <TextInput
             value={passage}
-            onChangeText={setPassage}
+            onChangeText={(text) => {
+              setPassage(text);
+              setClearedAt(null);
+            }}
             placeholder={t('add.passagePlaceholder')}
             multiline
             style={[
@@ -74,12 +98,20 @@ export function CaptureScreen() {
             <Text variant="label" color="muted">
               {t('add.tapWords')}
             </Text>
-            {passage.length > 0 && (
-              <TouchableOpacity onPress={() => setPassage('')} hitSlop={8}>
+            {clearedAt ? (
+              <TouchableOpacity onPress={undoClear} hitSlop={8}>
                 <Text variant="caption" color="primary">
-                  {t('add.clearPassage')}
+                  {t('add.undoClear')}
                 </Text>
               </TouchableOpacity>
+            ) : (
+              passage.length > 0 && (
+                <TouchableOpacity onPress={clearPassage} hitSlop={8}>
+                  <Text variant="caption" color="primary">
+                    {t('add.clearPassage')}
+                  </Text>
+                </TouchableOpacity>
+              )
             )}
           </View>
           <Card>

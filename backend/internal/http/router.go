@@ -33,7 +33,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	if len(deps.AllowedOrigins) > 0 {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
-			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodOptions},
 			AllowedHeaders:   []string{"Content-Type", "Authorization"},
 			AllowCredentials: false,
 			MaxAge:           300,
@@ -76,10 +76,23 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Post("/learning-items", wh.addLearningItem)
 				protected.Get("/reviews/due", wh.getDueReviewItems)
 				protected.Post("/reviews/batch", wh.recordBatchReviewAttempts)
-				protected.Get("/reviews/settings", wh.getReviewSettings)
-				protected.Post("/reviews/settings", wh.updateReviewSettings)
 				protected.Post("/reviews/optimize-weights", wh.optimizeWeights)
 				protected.Get("/reviews/optimization-status", wh.optimizationStatus)
+
+				rsh := &reviewSettingsHandler{svc: deps.Words}
+				protected.Get("/reviews/settings", rsh.getReviewSettings)
+				protected.Patch("/reviews/settings", rsh.patchReviewSettings)
+
+				sth := &streakSettingsHandler{svc: deps.Words}
+				protected.Get("/streaks/settings", sth.getStreakSettings)
+				protected.Patch("/streaks/settings", sth.patchStreakSettings)
+
+				sh := &statsHandler{svc: deps.Words}
+				protected.Get("/stats/summary", sh.getStatsSummary)
+
+				ih := &importHandler{svc: deps.Words}
+				protected.Post("/import/anki/preview", ih.previewAnkiImport)
+				protected.Post("/import/anki", ih.importAnki)
 			})
 		})
 	}
