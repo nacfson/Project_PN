@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text } from '../../ui';
 import type { ImportAction, ImportPreviewItem, SenseOption } from '../../types';
@@ -11,6 +12,7 @@ interface ImportConflictPickerProps {
 
 export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportConflictPickerProps) {
   const { colors, spacing, radii } = useTheme();
+  const { t } = useAppLanguage();
 
   return (
     <View
@@ -25,7 +27,7 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
       ]}
     >
       <View>
-        <Text variant="body" weight="semibold">
+        <Text variant="body" bold>
           {item.front}
         </Text>
         <Text variant="caption" color="muted">
@@ -36,7 +38,7 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
       {item.matched_senses.length > 0 && (
         <View style={{ gap: spacing.xs }}>
           <Text variant="caption" color="muted">
-            Existing meanings:
+            {t('import.existingMeanings')}
           </Text>
           {item.matched_senses.map((sense: SenseOption) => (
             <Text key={sense.word_sense_id} variant="caption">
@@ -49,7 +51,7 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
       <View style={styles.actions}>
         {item.status === 'conflict' && item.matched_senses.length > 0 && (
           <ActionButton
-            label="Overwrite meaning"
+            label={t('import.overwriteMeaning')}
             action="overwrite_meaning"
             selectedAction={selectedAction}
             onSelect={onSelect}
@@ -57,16 +59,26 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
         )}
         {(item.status === 'conflict' || item.status === 'existing_word_match') && (
           <ActionButton
-            label="Create new meaning"
+            label={t('import.createNewMeaning')}
             action="create_new_meaning"
             selectedAction={selectedAction}
             onSelect={onSelect}
           />
         )}
         {item.status === 'new_word' && (
-          <ActionButton label="Add" action="add" selectedAction={selectedAction} onSelect={onSelect} />
+          <ActionButton
+            label={t('import.add')}
+            action="add"
+            selectedAction={selectedAction}
+            onSelect={onSelect}
+          />
         )}
-        <ActionButton label="Skip" action="skip" selectedAction={selectedAction} onSelect={onSelect} />
+        <ActionButton
+          label={t('import.skip')}
+          action="skip"
+          selectedAction={selectedAction}
+          onSelect={onSelect}
+        />
       </View>
     </View>
   );

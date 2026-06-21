@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
-import { previewAnkiImport, importAnkiCards } from '../api/import';
+import { previewAnkiImport, importAnkiCards } from '../../api/import';
 import type {
   AnkiCard,
   AnkiImportResult,
   ImportAction,
   ImportPreviewItem,
   ImportPreviewResponse,
-} from '../types';
+} from '../../types';
 
 interface UseAnkiImportOptions {
   languageCode: string;

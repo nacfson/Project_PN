@@ -3,11 +3,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CaptureScreen } from '../screens/CaptureScreen';
 import { ManualAddScreen } from '../screens/ManualAddScreen';
+import { AnkiImportScreen } from '../features/import/AnkiImportScreen';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from '../ui';
 
-type AddMode = 'capture' | 'manual';
+type AddMode = 'capture' | 'manual' | 'import';
 
 export function AddScreen() {
   const { colors, spacing, radii } = useTheme();
@@ -56,9 +57,26 @@ export function AddScreen() {
             {t('add.manual')}
           </Text>
         </Pressable>
+        <Pressable
+          onPress={() => setMode('import')}
+          style={[
+            styles.tab,
+            {
+              borderRadius: radii.md,
+              backgroundColor: mode === 'import' ? colors.primary : colors.surface,
+              borderColor: mode === 'import' ? colors.primary : colors.border,
+            },
+          ]}
+        >
+          <Text variant="label" color={mode === 'import' ? 'inverse' : 'muted'}>
+            {t('add.import')}
+          </Text>
+        </Pressable>
       </View>
 
-      <View style={styles.body}>{mode === 'capture' ? <CaptureScreen /> : <ManualAddScreen />}</View>
+      <View style={styles.body}>
+        {mode === 'capture' ? <CaptureScreen /> : mode === 'manual' ? <ManualAddScreen /> : <AnkiImportScreen />}
+      </View>
     </SafeAreaView>
   );
 }

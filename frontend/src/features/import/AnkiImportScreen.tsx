@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +12,7 @@ import { ImportConflictPicker } from './ImportConflictPicker';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Text } from '../../ui';
-import type { ImportAction, ImportPreviewItem } from '../../types';
+import type { ImportAction, ImportError, ImportPreviewItem } from '../../types';
 
 interface AnkiImportScreenProps {
   languageCode?: string;
@@ -44,7 +43,7 @@ export function AnkiImportScreen({
     reset,
   } = useAnkiImport({ languageCode, definitionLanguageCode });
 
-  const hasConflicts = preview?.items.some((item) => item.status === 'conflict');
+  const hasConflicts = preview?.items.some((item: ImportPreviewItem) => item.status === 'conflict');
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surfaceAlt }]}>
@@ -119,29 +118,6 @@ export function AnkiImportScreen({
                   autoCorrect={false}
                 />
               </View>
-
-              {Platform.OS === 'web' && (
-                <View>
-                  <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
-                    — {t('import.or')} —
-                  </Text>
-                  <input
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                          setCsvText(String(ev.target?.result ?? ''));
-                        };
-                        reader.readAsText(file);
-                      }
-                    }}
-                    style={{ marginTop: spacing.sm }}
-                  />
-                </View>
-              )}
 
               <Button
                 label={t('import.preview')}
@@ -220,7 +196,7 @@ export function AnkiImportScreen({
                 },
               ]}
             >
-              <Text variant="title" weight="bold">
+              <Text variant="title" bold>
                 {t('import.complete')}
               </Text>
               <Text variant="body">
@@ -232,7 +208,7 @@ export function AnkiImportScreen({
               </Text>
               {result.errors.length > 0 && (
                 <View style={{ gap: spacing.xs }}>
-                  {result.errors.slice(0, 5).map((err) => (
+                  {result.errors.slice(0, 5).map((err: ImportError) => (
                     <Text key={err.index} variant="caption" color="danger">
                       {err.front}: {err.error}
                     </Text>
