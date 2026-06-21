@@ -124,7 +124,7 @@ func SchedulerConfigFromSettings(s ReviewSettings) SchedulerConfig {
 //   - Review + again    → Relearning, advance through relearning_steps (minutes)
 //   - Relearning        → advance or reset steps; graduate to Review when exhausted
 //   - Review + hard/good/easy → day-level FSRS scheduling (unchanged)
-func CalculateNextFSRSState(curr FSRSState, score float64, now time.Time, cfg SchedulerConfig) (FSRSState, string, time.Time) {
+func CalculateNextFSRSState(curr FSRSState, score float64, responseTimeMs *int, now time.Time, cfg SchedulerConfig) (FSRSState, string, time.Time) {
 	rating := ClassifyScoreToRating(score)
 	grade := ratingGrade(rating)
 	state := curr.normalizedState()
@@ -247,7 +247,7 @@ func CalculateNextFSRSState(curr FSRSState, score float64, now time.Time, cfg Sc
 		elapsedDays := elapsedDays(curr.LastReviewedAt, now)
 		retrievability := forgettingCurve(w, float64(elapsedDays), curr.Stability)
 		next.Difficulty = nextDifficulty(w, curr.Difficulty, grade)
-		next.Stability = nextRecallStability(w, next.Difficulty, curr.Stability, retrievability, rating)
+		next.Stability = nextRecallStability(w, next.Difficulty, curr.Stability, retrievability, rating, score, responseTimeMs)
 		next.Stability = clampStability(next.Stability)
 		next.ScheduledDays = scheduledDays(w, next.Stability, rating, cfg.DesiredRetention, cfg.FuzzEnabled)
 		dueAt := now.AddDate(0, 0, next.ScheduledDays)
@@ -276,7 +276,7 @@ func nextDifficulty(w []float64, current float64, grade int) float64 {
 	return clamp(next, fsrsMinDifficulty, fsrsMaxDifficulty)
 }
 
-func nextRecallStability(w []float64, difficulty, stability, retrievability float64, rating string) float64 {
+func nextRecallStability(w []float64, difficulty, stability, retrievability float64, rating string, score float64, responseTimeMs *int) float64 {
 	hardPenalty := 1.0
 	if rating == "hard" {
 		hardPenalty = w[15]
@@ -292,7 +292,59 @@ func nextRecallStability(w []float64, difficulty, stability, retrievability floa
 		(math.Exp((1-retrievability)*w[10]) - 1) *
 		hardPenalty *
 		easyBonus
+
+	growth *= recallStabilityModifier(score, rating, responseTimeMs)
 	return stability * (1 + growth)
+}
+
+const (
+	recallModifierMin       = 0.94
+	recallModifierMax       = 1.06
+	recallLatencyFastMs     = 1000.0
+	recallLatencySlowMs     = 8000.0
+	recallScoreModifierLow  = 0.97
+	recallScoreModifierHigh = 1.03
+)
+
+func ratingBucketBounds(rating string) (low, high float64) {
+	switch rating {
+	case "again":
+		return 0, 0.75
+	case "hard":
+		return 0.75, 1.5
+	case "good":
+		return 1.5, 2.25
+	default:
+		return 2.25, 3.0
+	}
+}
+
+// recallStabilityModifier applies a small bounded adjustment from the
+// within-bucket slider position and optional response latency.
+func recallStabilityModifier(score float64, rating string, responseTimeMs *int) float64 {
+	low, high := ratingBucketBounds(rating)
+	pos := 0.5
+	if high > low {
+		pos = (score - low) / (high - low)
+		pos = clamp(pos, 0, 1)
+	}
+	scoreMod := recallScoreModifierLow + (recallScoreModifierHigh-recallScoreModifierLow)*pos
+
+	latencyMod := 1.0
+	if responseTimeMs != nil && *responseTimeMs > 0 {
+		ms := float64(*responseTimeMs)
+		switch {
+		case ms <= recallLatencyFastMs:
+			latencyMod = recallScoreModifierHigh
+		case ms >= recallLatencySlowMs:
+			latencyMod = recallScoreModifierLow
+		default:
+			ratio := (ms - recallLatencyFastMs) / (recallLatencySlowMs - recallLatencyFastMs)
+			latencyMod = recallScoreModifierHigh - (recallScoreModifierHigh-recallScoreModifierLow)*ratio
+		}
+	}
+
+	return clamp(scoreMod*latencyMod, recallModifierMin, recallModifierMax)
 }
 
 func nextForgetStability(w []float64, difficulty, stability, retrievability float64) float64 {

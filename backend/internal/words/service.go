@@ -381,6 +381,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		nextCursor = &cursor
 		items = items[:limit]
 	}
+
 	if items == nil {
 		items = []LearningItemListItem{}
 	}
@@ -987,19 +988,13 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		newQuota = 0
 	}
 
-	// Cap by the requested limit.
-	totalQuota := reviewQuota + newQuota
-	if totalQuota > limit {
-		// Reduce proportionally but prioritize reviews.
-		if reviewQuota > limit {
-			reviewQuota = limit
-			newQuota = 0
-		} else {
-			newQuota = limit - reviewQuota
-		}
+	// Reviews are fetched first up to the request limit; any unused slots go to new cards.
+	reviewFetchLimit := reviewQuota
+	if reviewFetchLimit > limit {
+		reviewFetchLimit = limit
 	}
 
-	if reviewQuota == 0 && newQuota == 0 {
+	if reviewFetchLimit == 0 && newQuota == 0 {
 		return []DueItem{}, nil
 	}
 
@@ -1029,13 +1024,13 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 	var items []DueItem
 
 	// Fetch review items (Review and Relearning states) first.
-	if reviewQuota > 0 {
+	if reviewFetchLimit > 0 {
 		reviewQuery := baseQuery + `
 		  and rs.fsrs_state in ('Review', 'Relearning')
 		order by rs.due_at asc
 		limit $2`
 
-		rows, err := s.pool.Query(ctx, reviewQuery, userID, reviewQuota)
+		rows, err := s.pool.Query(ctx, reviewQuery, userID, reviewFetchLimit)
 		if err != nil {
 			return nil, fmt.Errorf("words: get due review items: %w", err)
 		}
@@ -1061,14 +1056,22 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		}
 	}
 
-	// Fetch new cards (New state) up to the new quota.
-	if newQuota > 0 {
+	reviewCount := len(items)
+
+	// Fetch new cards (New state) in any remaining slots after due reviews.
+	newFetchLimit := newQuota
+	remainingLimit := limit - len(items)
+	if newFetchLimit > remainingLimit {
+		newFetchLimit = remainingLimit
+	}
+
+	if newFetchLimit > 0 {
 		newQuery := baseQuery + `
 		  and rs.fsrs_state = 'New'
 		order by uws.added_at asc
 		limit $2`
 
-		rows, err := s.pool.Query(ctx, newQuery, userID, newQuota)
+		rows, err := s.pool.Query(ctx, newQuery, userID, newFetchLimit)
 		if err != nil {
 			return nil, fmt.Errorf("words: get due new cards: %w", err)
 		}
@@ -1094,6 +1097,14 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		}
 	}
 
+	// Interleave within due reviews and new cards separately; keep reviews first.
+	if reviewCount > 1 {
+		items = append(interleaveDueItems(items[:reviewCount]), items[reviewCount:]...)
+	}
+	if len(items) > reviewCount+1 {
+		items = append(items[:reviewCount], interleaveDueItems(items[reviewCount:])...)
+	}
+
 	// Load example sentences for each due item.
 	for i := range items {
 		examples, err := loadExamples(ctx, s.pool, items[i].WordSenseID, items[i].DisplayLanguageCode)
@@ -1107,6 +1118,48 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		items = []DueItem{}
 	}
 	return items, nil
+}
+
+const (
+	minDesiredRetention = 0.80
+	maxDesiredRetention = 0.95
+)
+
+func clampDesiredRetention(value float64) float64 {
+	return clamp(value, minDesiredRetention, maxDesiredRetention)
+}
+
+// GetReviewSettings returns the user's review scheduling settings, creating
+// defaults when the row does not yet exist.
+func (s *Service) GetReviewSettings(ctx context.Context, userID string) (ReviewSettings, error) {
+	settings, err := s.ensureReviewSettingsPool(ctx, userID)
+	if err != nil {
+		return ReviewSettings{}, fmt.Errorf("words: get review settings: %w", err)
+	}
+	settings.UserID = userID
+	return settings, nil
+}
+
+// UpdateReviewSettings updates desired_retention for the user, clamped to
+// [0.80, 0.95].
+func (s *Service) UpdateReviewSettings(ctx context.Context, userID string, desiredRetention float64) (ReviewSettings, error) {
+	clamped := clampDesiredRetention(desiredRetention)
+
+	if _, err := s.ensureReviewSettingsPool(ctx, userID); err != nil {
+		return ReviewSettings{}, fmt.Errorf("words: ensure review settings: %w", err)
+	}
+
+	_, err := s.pool.Exec(ctx, `
+		update review_settings
+		set desired_retention = $1, updated_at = now()
+		where user_id = $2::uuid`,
+		clamped, userID,
+	)
+	if err != nil {
+		return ReviewSettings{}, fmt.Errorf("words: update review settings: %w", err)
+	}
+
+	return s.GetReviewSettings(ctx, userID)
 }
 
 // ensureReviewSettingsPool loads or creates the user's review_settings row

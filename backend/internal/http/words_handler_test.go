@@ -621,3 +621,136 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 		t.Fatalf("expected invalid activity_type to leave 2 review attempts, got %d", attemptCount)
 	}
 }
+
+func TestReviewSettingsGetAndUpdate(t *testing.T) {
+	router, token := validationRouter(t)
+
+	getReq := authRequest(t, http.MethodGet, "/api/reviews/settings", "", token)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("GET settings: expected 200, got %d body=%s", getRec.Code, getRec.Body.String())
+	}
+
+	var initial words.ReviewSettings
+	if err := json.NewDecoder(getRec.Body).Decode(&initial); err != nil {
+		t.Fatalf("decode GET settings: %v", err)
+	}
+	if initial.DesiredRetention != 0.90 {
+		t.Fatalf("expected default desired_retention 0.90, got %f", initial.DesiredRetention)
+	}
+
+	postReq := authRequest(t, http.MethodPost, "/api/reviews/settings", `{"desired_retention":0.85}`, token)
+	postRec := httptest.NewRecorder()
+	router.ServeHTTP(postRec, postReq)
+	if postRec.Code != http.StatusOK {
+		t.Fatalf("POST settings: expected 200, got %d body=%s", postRec.Code, postRec.Body.String())
+	}
+
+	var updated words.ReviewSettings
+	if err := json.NewDecoder(postRec.Body).Decode(&updated); err != nil {
+		t.Fatalf("decode POST settings: %v", err)
+	}
+	if updated.DesiredRetention != 0.85 {
+		t.Fatalf("expected desired_retention 0.85, got %f", updated.DesiredRetention)
+	}
+
+	clampReq := authRequest(t, http.MethodPost, "/api/reviews/settings", `{"desired_retention":0.99}`, token)
+	clampRec := httptest.NewRecorder()
+	router.ServeHTTP(clampRec, clampReq)
+	if clampRec.Code != http.StatusOK {
+		t.Fatalf("POST clamp settings: expected 200, got %d body=%s", clampRec.Code, clampRec.Body.String())
+	}
+	var clamped words.ReviewSettings
+	if err := json.NewDecoder(clampRec.Body).Decode(&clamped); err != nil {
+		t.Fatalf("decode clamped settings: %v", err)
+	}
+	if clamped.DesiredRetention != 0.95 {
+		t.Fatalf("expected clamped desired_retention 0.95, got %f", clamped.DesiredRetention)
+	}
+
+	invalidReq := authRequest(t, http.MethodPost, "/api/reviews/settings", `{"desired_retention":1.5}`, token)
+	invalidRec := httptest.NewRecorder()
+	router.ServeHTTP(invalidRec, invalidReq)
+	if invalidRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for out-of-range desired_retention, got %d", invalidRec.Code)
+	}
+}
+
+func TestGetStatsSummary(t *testing.T) {
+	router, token, pool, authSvc := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	user, err := authSvc.Authenticate(ctx, token)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+
+	suffix := time.Now().Format("150405.000000")
+	dueLemma := "stats-due-" + suffix
+	futureLemma := "stats-future-" + suffix
+
+	past := time.Now().Add(-1 * time.Hour)
+	insertLearningItemFixture(t, pool, user.ID, dueLemma, "due definitions", past, false)
+
+	future := time.Now().Add(48 * time.Hour)
+	insertLearningItemFixture(t, pool, user.ID, futureLemma, "future definitions", future, false)
+
+	var uwsID string
+	err = pool.QueryRow(ctx, `
+		select uws.id::text
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		join words w on w.id = ws.word_id
+		where uws.user_id = $1::uuid and w.lemma = $2`,
+		user.ID, dueLemma,
+	).Scan(&uwsID)
+	if err != nil {
+		t.Fatalf("fetch inserted uws: %v", err)
+	}
+
+	today := time.Now().UTC()
+	yesterday := today.AddDate(0, 0, -1)
+	_, err = pool.Exec(ctx, `
+		insert into review_attempts (user_word_sense_id, activity_type, is_correct, reviewed_at)
+		values
+		  ($1::uuid, 'word_to_meaning', true, $2),
+		  ($1::uuid, 'word_to_meaning', false, $3)`,
+		uwsID, today, yesterday,
+	)
+	if err != nil {
+		t.Fatalf("insert review attempts: %v", err)
+	}
+
+	req := authRequest(t, http.MethodGet, "/api/stats/summary", "", token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d for GET /api/stats/summary, got %d body=%s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	var summary words.StatsSummary
+	if err := json.NewDecoder(rec.Body).Decode(&summary); err != nil {
+		t.Fatalf("decode stats summary: %v", err)
+	}
+
+	if summary.ReviewStreakDays != 2 {
+		t.Fatalf("expected review_streak_days 2, got %d", summary.ReviewStreakDays)
+	}
+	if summary.ReviewsToday != 1 {
+		t.Fatalf("expected reviews_today 1, got %d", summary.ReviewsToday)
+	}
+	if summary.CorrectToday != 1 {
+		t.Fatalf("expected correct_today 1, got %d", summary.CorrectToday)
+	}
+	if summary.DueToday < 1 {
+		t.Fatalf("expected due_today >= 1, got %d", summary.DueToday)
+	}
+	if len(summary.Forecast) != 14 {
+		t.Fatalf("expected 14 forecast days, got %d", len(summary.Forecast))
+	}
+	if summary.StageCounts["new"] < 2 {
+		t.Fatalf("expected at least 2 new stage items, got %d", summary.StageCounts["new"])
+	}
+}
