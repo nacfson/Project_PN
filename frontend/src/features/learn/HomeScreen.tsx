@@ -300,7 +300,7 @@ export function HomeScreen() {
                   {challenge.description}
                 </Text>
                 {challenge.status === 'coming_soon' ? (
-                  <Badge label={t('home.challengesComingSoon')} variant="secondary" />
+                  <Badge label={t('home.challengesComingSoon')} variant="default" />
                 ) : null}
               </View>
             ))}
