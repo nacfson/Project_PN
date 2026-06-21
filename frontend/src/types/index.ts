@@ -78,6 +78,7 @@ export interface LearningItemListItem {
   learning_stage: string;
   due_at: string;
   added_at: string;
+  examples: Example[];
 }
 
 export interface LearningItemsPage {
@@ -130,4 +131,19 @@ export interface DueItem {
 export interface BatchReviewResult {
   xp_earned: number;
   success: boolean;
+}
+
+export interface ReviewSettings {
+  user_id: string;
+  new_cards_per_day: number;
+  reviews_per_day: number;
+  learning_steps: number[];
+  relearning_steps: number[];
+  leech_threshold: number;
+  leech_action: string;
+  fuzz_enabled: boolean;
+  desired_retention: number;
+  fsrs_weights: number[];
+  weights_optimized_at: string | null;
+  weights_review_count: number;
 }

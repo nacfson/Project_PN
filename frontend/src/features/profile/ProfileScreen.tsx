@@ -1,10 +1,157 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { logout, me } from '../../api/auth';
+import { getReviewSettings, updateReviewSettings } from '../../api/reviewSettings';
 import { type AppLanguage, useAppLanguage } from '../../i18n';
 import type { MeResponse } from '../../types/auth';
+import { isTauri } from '../../utils/platform';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Card, Icon, LoadingState, Screen, Text } from '../../ui';
+
+const RETENTION_MIN = 0.8;
+const RETENTION_MAX = 0.95;
+const RETENTION_DEFAULT = 0.9;
+const RETENTION_RANGE = RETENTION_MAX - RETENTION_MIN;
+
+function clampRetention(value: number): number {
+  return Math.max(RETENTION_MIN, Math.min(RETENTION_MAX, value));
+}
+
+function retentionToPercent(value: number): number {
+  return (clampRetention(value) - RETENTION_MIN) / RETENTION_RANGE;
+}
+
+function percentToRetention(percent: number): number {
+  const raw = RETENTION_MIN + Math.max(0, Math.min(1, percent)) * RETENTION_RANGE;
+  return Math.round(raw * 100) / 100;
+}
+
+function formatRetentionPercent(value: number): string {
+  return `${Math.round(clampRetention(value) * 100)}%`;
+}
+
+interface RetentionSliderProps {
+  value: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+  onCommit: (value: number) => void;
+}
+
+function RetentionSlider({ value, disabled, onChange, onCommit }: RetentionSliderProps) {
+  const { colors, spacing } = useTheme();
+  const [trackWidth, setTrackWidth] = useState(0);
+  const isDesktop = Platform.OS === 'web' || isTauri();
+  const handleSize = 36 * (isDesktop ? 1.25 : 1);
+  const trackHeight = isDesktop ? 10 : 8;
+  const wrapperHeight = Math.max(handleSize, trackHeight + 12);
+  const startPercent = useRef(retentionToPercent(value));
+  const handleScale = useRef(new Animated.Value(1)).current;
+  const latestValue = useRef(value);
+
+  latestValue.current = value;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !disabled,
+      onMoveShouldSetPanResponder: () => !disabled,
+      onPanResponderGrant: () => {
+        startPercent.current = retentionToPercent(latestValue.current);
+        Animated.spring(handleScale, {
+          toValue: 1.15,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        const maxLeft = trackWidth - handleSize;
+        if (maxLeft <= 0) return;
+
+        const startX = startPercent.current * maxLeft;
+        let targetX = startX + gestureState.dx;
+        targetX = Math.max(0, Math.min(maxLeft, targetX));
+
+        onChange(percentToRetention(targetX / maxLeft));
+      },
+      onPanResponderRelease: () => {
+        Animated.spring(handleScale, {
+          toValue: 1,
+          useNativeDriver: true,
+        }).start();
+        onCommit(latestValue.current);
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(handleScale, {
+          toValue: 1,
+          useNativeDriver: true,
+        }).start();
+      },
+    }),
+  ).current;
+
+  const currentPercent = retentionToPercent(value);
+  const maxLeft = trackWidth - handleSize;
+  const leftPos = maxLeft > 0 ? currentPercent * maxLeft : 0;
+
+  const handleTrackPress = (locationX: number) => {
+    if (disabled || trackWidth <= 0) return;
+    const next = percentToRetention(locationX / trackWidth);
+    onChange(next);
+    onCommit(next);
+  };
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <View style={retentionSliderStyles.labels}>
+        <Text variant="caption" color="muted">
+          {formatRetentionPercent(RETENTION_MIN)}
+        </Text>
+        <Text variant="body" style={{ color: colors.primary, fontWeight: '700' }}>
+          {formatRetentionPercent(value)}
+        </Text>
+        <Text variant="caption" color="muted">
+          {formatRetentionPercent(RETENTION_MAX)}
+        </Text>
+      </View>
+      <Pressable
+        onPress={(e) => handleTrackPress(e.nativeEvent.locationX)}
+        disabled={disabled}
+        style={{ opacity: disabled ? 0.6 : 1 }}
+      >
+        <View
+          style={[retentionSliderStyles.trackWrapper, { height: wrapperHeight }]}
+          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+        >
+          <View style={[retentionSliderStyles.track, { backgroundColor: colors.border, height: trackHeight }]} />
+          <View
+            style={[
+              retentionSliderStyles.fill,
+              {
+                width: `${currentPercent * 100}%`,
+                backgroundColor: colors.primary,
+                height: trackHeight,
+              },
+            ]}
+          />
+          <Animated.View
+            {...panResponder.panHandlers}
+            style={[
+              retentionSliderStyles.handle,
+              {
+                left: leftPos,
+                width: handleSize,
+                height: handleSize,
+                borderRadius: handleSize / 2,
+                borderColor: colors.primary,
+                backgroundColor: colors.surface,
+                marginTop: -handleSize / 2,
+                transform: [{ scale: handleScale }],
+              },
+            ]}
+          />
+        </View>
+      </Pressable>
+    </View>
+  );
+}
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -62,19 +209,55 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+  const [desiredRetention, setDesiredRetention] = useState(RETENTION_DEFAULT);
+  const [savingRetention, setSavingRetention] = useState(false);
+  const [retentionError, setRetentionError] = useState<string | null>(null);
+  const savedRetentionRef = useRef(RETENTION_DEFAULT);
 
   useEffect(() => {
     void (async () => {
-      try {
-        const profile = await me();
-        setUser(profile);
-      } catch {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
+      await Promise.all([
+        me()
+          .then((profile) => setUser(profile))
+          .catch(() => setUser(null)),
+        getReviewSettings()
+          .then((settings) => {
+            const next = clampRetention(settings.desired_retention);
+            savedRetentionRef.current = next;
+            setDesiredRetention(next);
+          })
+          .catch(() => {
+            // Keep default; backend route may not be deployed yet.
+          }),
+      ]);
+      setLoading(false);
     })();
   }, []);
+
+  const commitRetention = useCallback(
+    async (nextValue: number) => {
+      const clamped = clampRetention(nextValue);
+      if (clamped === savedRetentionRef.current) {
+        setRetentionError(null);
+        return;
+      }
+
+      setSavingRetention(true);
+      setRetentionError(null);
+      try {
+        const updated = await updateReviewSettings({ desired_retention: clamped });
+        const saved = clampRetention(updated.desired_retention);
+        savedRetentionRef.current = saved;
+        setDesiredRetention(saved);
+      } catch {
+        setDesiredRetention(savedRetentionRef.current);
+        setRetentionError(t('settings.desiredRetentionSaveFailed'));
+      } finally {
+        setSavingRetention(false);
+      }
+    },
+    [t],
+  );
 
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
@@ -128,7 +311,10 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
   return (
     <Screen padded>
-      <View style={[styles.content, { paddingVertical: spacing.lg, gap: spacing.lg }]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingVertical: spacing.lg, gap: spacing.lg }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text variant="heading">{t('settings.title')}</Text>
 
         <Card>
@@ -140,6 +326,29 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           <SettingRow icon="person-outline" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow icon="language-outline" label={t('settings.learningLanguage')} value={languageLabel(user?.target_language)} />
+        </Card>
+
+        <Card>
+          <View style={{ gap: spacing.xs, marginBottom: spacing.md }}>
+            <Text variant="label" color="muted">
+              {t('settings.review')}
+            </Text>
+            <Text variant="body">{t('settings.desiredRetention')}</Text>
+            <Text variant="caption" color="muted">
+              {t('settings.desiredRetentionHelp')}
+            </Text>
+          </View>
+          <RetentionSlider
+            value={desiredRetention}
+            disabled={savingRetention}
+            onChange={setDesiredRetention}
+            onCommit={(next) => void commitRetention(next)}
+          />
+          {retentionError ? (
+            <Text variant="caption" style={{ color: colors.danger, marginTop: spacing.sm }}>
+              {retentionError}
+            </Text>
+          ) : null}
         </Card>
 
         <Card>
@@ -181,7 +390,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           onPress={() => void handleLogout()}
           style={{ marginTop: spacing.md }}
         />
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -217,5 +426,30 @@ const styles = StyleSheet.create({
   languageOptions: {
     marginLeft: 48,
     marginVertical: 8,
+  },
+});
+
+const retentionSliderStyles = StyleSheet.create({
+  labels: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  trackWrapper: {
+    justifyContent: 'center',
+  },
+  track: {
+    borderRadius: 999,
+    width: '100%',
+  },
+  fill: {
+    position: 'absolute',
+    left: 0,
+    borderRadius: 999,
+  },
+  handle: {
+    position: 'absolute',
+    borderWidth: 2,
+    top: '50%',
   },
 });
