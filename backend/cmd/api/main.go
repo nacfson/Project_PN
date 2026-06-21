@@ -10,12 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
-	"project-pn/internal/enrich"
-	"project-pn/internal/auth"
 	"project-pn/internal/email"
+	"project-pn/internal/enrich"
 	httpapi "project-pn/internal/http"
+	"project-pn/internal/notify"
 	"project-pn/internal/oauth"
 	"project-pn/internal/words"
 )
@@ -66,6 +67,18 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	defer stopWorker()
+	if cfg.NotificationWorkerEnabled {
+		worker := &notify.Worker{
+			Words:    wordsService,
+			Sender:   &notify.ExpoSender{AccessToken: cfg.ExpoAccessToken},
+			Interval: cfg.NotificationWorkerInterval,
+		}
+		go worker.Run(workerCtx)
+		slog.Info("notification worker started", "interval", cfg.NotificationWorkerInterval)
+	}
+
 	errs := make(chan error, 1)
 	go func() {
 		slog.Info("api server listening", "addr", cfg.AppAddr)
@@ -82,6 +95,7 @@ func main() {
 			os.Exit(1)
 		}
 	case <-shutdown:
+		stopWorker()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {

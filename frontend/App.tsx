@@ -6,6 +6,7 @@ import { me } from './src/api/auth';
 import { sessionStorage } from './src/api/storage';
 import { AuthCallbackHandler } from './src/components/AuthCallbackHandler';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { AppLanguageProvider } from './src/i18n';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -22,6 +23,15 @@ function LoadingScreen() {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     </SafeAreaView>
+  );
+}
+
+function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  usePushNotifications(true);
+  return (
+    <AddQueueProvider>
+      <RootNavigator onLogout={onLogout} />
+    </AddQueueProvider>
   );
 }
 
@@ -62,9 +72,7 @@ function AppContent() {
     <>
       <AuthCallbackHandler onAuthenticated={onAuthenticated} onError={setCallbackError} />
       {authState === 'authenticated' ? (
-        <AddQueueProvider>
-          <RootNavigator onLogout={() => setAuthState('unauthenticated')} />
-        </AddQueueProvider>
+        <AuthenticatedApp onLogout={() => setAuthState('unauthenticated')} />
       ) : (
         <SafeAreaView
           edges={['top', 'right', 'bottom', 'left']}

@@ -90,6 +90,13 @@ func NewRouter(deps Dependencies) http.Handler {
 				sh := &statsHandler{svc: deps.Words}
 				protected.Get("/stats/summary", sh.getStatsSummary)
 
+				nh := &notificationsHandler{svc: deps.Words}
+				protected.Post("/notifications/register", nh.registerPushToken)
+
+				ch := &contentHandler{svc: deps.Words}
+				protected.Get("/content/word-of-the-day", ch.getWordOfTheDay)
+				protected.Get("/content/challenges", ch.listChallenges)
+
 				ih := &importHandler{svc: deps.Words}
 				protected.Post("/import/anki/preview", ih.previewAnkiImport)
 				protected.Post("/import/anki", ih.importAnki)

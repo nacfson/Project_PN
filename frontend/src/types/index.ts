@@ -219,3 +219,16 @@ export interface AnkiImportResult {
   failed: number;
   errors: ImportError[];
 }
+
+export interface WordOfTheDay {
+  date: string;
+  sense_options: SenseOption[];
+}
+
+export interface ContentChallenge {
+  id: string;
+  title: string;
+  description: string;
+  word_count: number;
+  status: string;
+}

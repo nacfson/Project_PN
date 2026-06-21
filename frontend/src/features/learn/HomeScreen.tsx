@@ -4,10 +4,13 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { me } from '../../api/auth';
+import { getContentChallenges, getWordOfTheDay } from '../../api/content';
 import { getStatsSummary } from '../../api/stats';
+import { useAddQueue } from '../../hooks/useAddQueue';
 import { useAppLanguage } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
-import type { StatsSummary } from '../../types';
+import type { ContentChallenge, SenseOption, StatsSummary } from '../../types';
+import { recentCaptureWords } from '../../storage/captureHistory';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Screen, Text } from '../../ui';
 
@@ -138,22 +141,29 @@ export function HomeScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const navigation = useNavigation<NavigationProp>();
+  const { enqueue, enqueueMany } = useAddQueue();
   const [displayName, setDisplayName] = useState('Learner');
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [statsError, setStatsError] = useState(false);
+  const [wordOfTheDay, setWordOfTheDay] = useState<SenseOption | null>(null);
+  const [captureWords, setCaptureWords] = useState<string[]>([]);
+  const [challenges, setChallenges] = useState<ContentChallenge[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      Promise.all([getStatsSummary(), me()])
-        .then(([summary, user]) => {
+      Promise.all([getStatsSummary(), me(), getWordOfTheDay(), getContentChallenges(), recentCaptureWords()])
+        .then(([summary, user, wotd, challengeResponse, recentCaptures]) => {
           if (!active) {
             return;
           }
           setStats(summary);
           setStatsError(false);
           setDisplayName(displayNameFromEmail(user.email));
+          setWordOfTheDay(wotd.sense_options[0] ?? null);
+          setChallenges(challengeResponse.challenges);
+          setCaptureWords(recentCaptures);
         })
         .catch((err) => {
           console.error('Error fetching home stats:', err);
@@ -242,6 +252,60 @@ export function HomeScreen() {
             )}
           </Card>
         </Pressable>
+
+        {wordOfTheDay ? (
+          <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
+            <Text variant="title">{t('home.wordOfTheDayTitle')}</Text>
+            <Text variant="title">{wordOfTheDay.lemma}</Text>
+            <Text color="muted">{wordOfTheDay.localized_definition || wordOfTheDay.definition}</Text>
+            <Button
+              label={t('home.wordOfTheDayAdd')}
+              variant="secondary"
+              onPress={() => enqueue(wordOfTheDay.lemma, 'Any')}
+            />
+          </Card>
+        ) : (
+          <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
+            <Text variant="title">{t('home.wordOfTheDayTitle')}</Text>
+            <Text color="muted">{t('home.wordOfTheDayEmpty')}</Text>
+          </Card>
+        )}
+
+        <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
+          <Text variant="title">{t('home.captureReentryTitle')}</Text>
+          <Text variant="caption" color="muted">
+            {t('home.captureReentrySubtitle')}
+          </Text>
+          {captureWords.length > 0 ? (
+            <>
+              <Text>{captureWords.join(', ')}</Text>
+              <Button
+                label={t('home.captureReentryAdd')}
+                variant="secondary"
+                onPress={() => enqueueMany(captureWords, 'Any')}
+              />
+            </>
+          ) : (
+            <Text color="muted">{t('home.captureReentryEmpty')}</Text>
+          )}
+        </Card>
+
+        {challenges.length > 0 ? (
+          <Card style={{ gap: spacing.md, padding: spacing.lg }}>
+            <Text variant="title">{t('home.challengesTitle')}</Text>
+            {challenges.map((challenge) => (
+              <View key={challenge.id} style={{ gap: spacing.xs }}>
+                <Text>{challenge.title}</Text>
+                <Text variant="caption" color="muted">
+                  {challenge.description}
+                </Text>
+                {challenge.status === 'coming_soon' ? (
+                  <Badge label={t('home.challengesComingSoon')} variant="secondary" />
+                ) : null}
+              </View>
+            ))}
+          </Card>
+        ) : null}
 
         <View style={[styles.statsGrid, { gap: spacing.md }]}>
           <Card style={styles.statCard}>

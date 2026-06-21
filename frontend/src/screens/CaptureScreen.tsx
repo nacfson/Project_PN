@@ -4,6 +4,7 @@ import { PosSelector } from '../components/PosSelector';
 import { WordChip } from '../components/WordChip';
 import { TappablePassage } from '../components/TappablePassage';
 import { useAddQueue } from '../hooks/useAddQueue';
+import { recordCapturedWords } from '../storage/captureHistory';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
@@ -45,6 +46,7 @@ export function CaptureScreen() {
         next.delete(word);
       } else {
         next.add(word);
+        void recordCapturedWords([word]);
       }
       return next;
     });
@@ -58,6 +60,7 @@ export function CaptureScreen() {
     if (words.length === 0) {
       return;
     }
+    void recordCapturedWords(words);
     enqueueMany(words, pos);
   };
 

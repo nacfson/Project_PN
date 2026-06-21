@@ -61,6 +61,10 @@ type Config struct {
 	MagicLinkTTL          time.Duration
 	ExchangeCodeTTL       time.Duration
 	GoogleClientIDs       []string
+
+	NotificationWorkerEnabled  bool
+	NotificationWorkerInterval time.Duration
+	ExpoAccessToken            string
 }
 
 func Load() Config {
@@ -91,7 +95,10 @@ func Load() Config {
 		AppPublicURL:         envOrDefault("APP_PUBLIC_URL", defaultAppPublicURL),
 		MagicLinkTTL:         durationOrDefault("MAGIC_LINK_TTL", defaultMagicLinkTTL),
 		ExchangeCodeTTL:      durationOrDefault("EXCHANGE_CODE_TTL", defaultExchangeCodeTTL),
-		GoogleClientIDs:      splitAndTrim(os.Getenv("GOOGLE_CLIENT_IDS")),
+		GoogleClientIDs:            splitAndTrim(os.Getenv("GOOGLE_CLIENT_IDS")),
+		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
+		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
+		ExpoAccessToken:            os.Getenv("EXPO_ACCESS_TOKEN"),
 	}
 }
 
