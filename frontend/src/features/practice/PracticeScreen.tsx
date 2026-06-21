@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
   PanResponder,
   Platform,
   Pressable,
@@ -750,170 +751,197 @@ export function PracticeScreen() {
     </View>
   );
 
+  const showAnswerBar = cardMode === 'typing' && !isFlipped;
+  const answerBarHeight = 144;
+
+  const answerBar = showAnswerBar ? (
+    <View
+      style={[
+        styles.answerBar,
+        {
+          borderTopColor: colors.border,
+          backgroundColor: colors.surface,
+          paddingBottom: spacing.lg,
+        },
+      ]}
+    >
+      <Text variant="label" color="muted">
+        {t('practice.yourAnswer')}
+      </Text>
+      <TextInput
+        ref={answerInputRef}
+        value={userAnswer}
+        onChangeText={setUserAnswer}
+        placeholder={t('practice.answerPlaceholder')}
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoFocus
+        returnKeyType="done"
+        onSubmitEditing={() => revealAnswer(false)}
+        style={[
+          styles.answerInput,
+          {
+            borderColor: colors.primary,
+            backgroundColor: colors.surfaceAlt,
+            color: colors.text,
+          },
+        ]}
+      />
+      <View style={[styles.revealActions, { gap: spacing.sm }]}>
+        <Button
+          label={t('practice.revealAnswer')}
+          variant="primary"
+          iconRight="eye"
+          disabled={trimmedAnswer.length === 0}
+          style={styles.revealButton}
+          onPress={() => revealAnswer(false)}
+        />
+        <Button
+          label={t('practice.dontKnow')}
+          variant="secondary"
+          style={styles.revealButton}
+          onPress={() => revealAnswer(true)}
+        />
+      </View>
+    </View>
+  ) : null;
+
   return (
     <Screen padded>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={[styles.progressHeader, { gap: spacing.sm }]}>
-          <View style={styles.progressTextRow}>
-            <Text variant="caption" color="muted">
-              {t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}
-            </Text>
-            {sessionMode === 'repeat' && <Badge label={t('practice.repeatMode')} variant="primary" />}
-            {cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant="info" />}
-            {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            showAnswerBar && { paddingBottom: answerBarHeight + spacing.md },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[styles.progressHeader, { gap: spacing.sm }]}>
+            <View style={styles.progressTextRow}>
+              <Text variant="caption" color="muted">
+                {t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}
+              </Text>
+              {sessionMode === 'repeat' && <Badge label={t('practice.repeatMode')} variant="primary" />}
+              {cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant="info" />}
+              {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+            </View>
+            <View style={[styles.progressBarContainer, { backgroundColor: colors.border }]}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${progressPercent}%`,
+                    backgroundColor: colors.success,
+                  },
+                ]}
+              />
+            </View>
           </View>
-          <View style={[styles.progressBarContainer, { backgroundColor: colors.border }]}>
-            <View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: `${progressPercent}%`,
-                  backgroundColor: colors.success,
-                },
-              ]}
-            />
-          </View>
-        </View>
 
-        <View style={styles.cardPressable}>
-          <View style={styles.cardContainer}>
-            {cardMode === 'flashcard' ? (
-              <>
-                <Animated.View style={[styles.flashcard, cardSurface, frontAnimatedStyle]}>
-                  <Pressable onPress={toggleFlip} style={StyleSheet.absoluteFill}>
-                    <View style={styles.cardContent}>
-                      <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                      <Text variant="caption" color="muted" style={styles.promptLabel}>
-                        {t('practice.recallPrompt')}
-                      </Text>
-                      <Text variant="title" bold style={styles.definitionText}>
-                        {currentItem.definition}
-                      </Text>
-                      {example ? (
-                        <Text variant="body" style={styles.clozeText}>
-                          &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+          <View style={styles.cardPressable}>
+            <View style={styles.cardContainer}>
+              {cardMode === 'flashcard' ? (
+                <>
+                  <Animated.View style={[styles.flashcard, cardSurface, frontAnimatedStyle]}>
+                    <Pressable onPress={toggleFlip} style={StyleSheet.absoluteFill}>
+                      <View style={styles.cardContent}>
+                        <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+                        <Text variant="caption" color="muted" style={styles.promptLabel}>
+                          {t('practice.recallPrompt')}
                         </Text>
-                      ) : (
-                        <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                          {t('practice.noExample')}
+                        <Text variant="title" bold style={styles.definitionText}>
+                          {currentItem.definition}
                         </Text>
-                      )}
-                      <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-                        <Icon name="finger-print" size="md" color={colors.primary} />
-                        <Text variant="caption" color="primary" bold>
-                          {t('practice.tapReveal')}
-                        </Text>
+                        {example ? (
+                          <Text variant="body" style={styles.clozeText}>
+                            &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+                          </Text>
+                        ) : (
+                          <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                            {t('practice.noExample')}
+                          </Text>
+                        )}
+                        <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+                          <Icon name="finger-print" size="md" color={colors.primary} />
+                          <Text variant="caption" color="primary" bold>
+                            {t('practice.tapReveal')}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  </Pressable>
-                </Animated.View>
-                <Animated.View style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}>
-                  {sharedCardBack}
-                </Animated.View>
-              </>
-            ) : !isFlipped ? (
-              <View style={[styles.flashcard, cardSurface]}>
-                <View style={styles.cardContent}>
-                  <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                  <Text variant="caption" color="muted" style={styles.promptLabel}>
-                    {t('practice.recallPrompt')}
-                  </Text>
-                  <Text variant="title" bold style={styles.definitionText}>
-                    {currentItem.definition}
-                  </Text>
-                  {example ? (
-                    <Text variant="body" style={styles.clozeText}>
-                      &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+                    </Pressable>
+                  </Animated.View>
+                  <Animated.View style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}>
+                    {sharedCardBack}
+                  </Animated.View>
+                </>
+              ) : !isFlipped ? (
+                <View style={[styles.flashcard, cardSurface]}>
+                  <View style={styles.cardContent}>
+                    <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+                    <Text variant="caption" color="muted" style={styles.promptLabel}>
+                      {t('practice.recallPrompt')}
                     </Text>
-                  ) : (
-                    <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                      {t('practice.noExample')}
+                    <Text variant="title" bold style={styles.definitionText}>
+                      {currentItem.definition}
                     </Text>
-                  )}
-
-                  <View style={[styles.answerBlock, { gap: spacing.sm, marginTop: spacing.md }]}>
-                    <Text variant="label" color="muted">
-                      {t('practice.yourAnswer')}
-                    </Text>
-                    <TextInput
-                      ref={answerInputRef}
-                      value={userAnswer}
-                      onChangeText={setUserAnswer}
-                      placeholder={t('practice.answerPlaceholder')}
-                      placeholderTextColor={colors.textMuted}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={() => revealAnswer(false)}
-                      style={[
-                        styles.answerInput,
-                        {
-                          borderColor: colors.primary,
-                          backgroundColor: colors.surfaceAlt,
-                          color: colors.text,
-                        },
-                      ]}
-                    />
-                    <View style={[styles.revealActions, { gap: spacing.sm }]}>
-                      <Button
-                        label={t('practice.revealAnswer')}
-                        variant="primary"
-                        iconRight="eye"
-                        disabled={trimmedAnswer.length === 0}
-                        style={styles.revealButton}
-                        onPress={() => revealAnswer(false)}
-                      />
-                      <Button
-                        label={t('practice.dontKnow')}
-                        variant="secondary"
-                        style={styles.revealButton}
-                        onPress={() => revealAnswer(true)}
-                      />
-                    </View>
+                    {example ? (
+                      <Text variant="body" style={styles.clozeText}>
+                        &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
+                      </Text>
+                    ) : (
+                      <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                        {t('practice.noExample')}
+                      </Text>
+                    )}
                   </View>
                 </View>
-              </View>
-            ) : (
-              <View style={[styles.flashcard, cardSurface]}>
-                {sharedCardBack}
-              </View>
-            )}
+              ) : (
+                <View style={[styles.flashcard, cardSurface]}>
+                  {sharedCardBack}
+                </View>
+              )}
+            </View>
           </View>
-        </View>
 
-        {isFlipped && (
-          <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.border }]}>
-            <Text style={{ textAlign: 'center' }} bold>
-              {t('practice.rateRecall')}
-            </Text>
-            <Slidebar ratingScore={ratingScore} onChange={setRatingScore} />
-            <Button
-              label={t('practice.confirmGrade')}
-              variant="primary"
-              iconRight="arrow-forward"
-              style={{ width: '100%', marginTop: spacing.xs }}
-              onPress={confirmGrade}
-            />
-            {sessionMode === 'repeat' && (
+          {isFlipped && (
+            <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.border }]}>
+              <Text style={{ textAlign: 'center' }} bold>
+                {t('practice.rateRecall')}
+              </Text>
+              <Slidebar ratingScore={ratingScore} onChange={setRatingScore} />
               <Button
-                label={t('practice.finishRepeat')}
-                variant="secondary"
-                style={{ width: '100%' }}
-                onPress={finishRepeatSession}
+                label={t('practice.confirmGrade')}
+                variant="primary"
+                iconRight="arrow-forward"
+                style={{ width: '100%', marginTop: spacing.xs }}
+                onPress={confirmGrade}
               />
-            )}
-          </View>
-        )}
-        {sessionMode === 'repeat' && !isFlipped && (
-          <Button
-            label={t('practice.finishRepeat')}
-            variant="ghost"
-            style={{ width: '100%', marginTop: spacing.md }}
-            onPress={finishRepeatSession}
-          />
-        )}
-      </ScrollView>
+              {sessionMode === 'repeat' && (
+                <Button
+                  label={t('practice.finishRepeat')}
+                  variant="secondary"
+                  style={{ width: '100%' }}
+                  onPress={finishRepeatSession}
+                />
+              )}
+            </View>
+          )}
+          {sessionMode === 'repeat' && !isFlipped && (
+            <Button
+              label={t('practice.finishRepeat')}
+              variant="ghost"
+              style={{ width: '100%', marginTop: spacing.md }}
+              onPress={finishRepeatSession}
+            />
+          )}
+        </ScrollView>
+
+        {answerBar}
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
@@ -1006,8 +1034,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  answerBlock: {
+  flex: {
+    flex: 1,
+  },
+  answerBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     width: '100%',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    gap: 10,
   },
   answerInput: {
     width: '100%',
