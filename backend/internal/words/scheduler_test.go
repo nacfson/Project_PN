@@ -32,7 +32,7 @@ func TestNewCardAgainEntersLearning(t *testing.T) {
 	cfg := DefaultSchedulerConfig()
 	cfg.FuzzEnabled = false
 
-	next, rating, dueAt := CalculateNextFSRSState(FSRSState{State: "New"}, 0.1, now, cfg)
+	next, rating, dueAt := CalculateNextFSRSState(FSRSState{State: "New"}, 0.1, nil, now, cfg)
 
 	if rating != "again" {
 		t.Fatalf("rating = %q, want again", rating)
@@ -55,7 +55,7 @@ func TestNewCardGoodGraduatesToReview(t *testing.T) {
 	cfg := DefaultSchedulerConfig()
 	cfg.FuzzEnabled = false
 
-	next, rating, _ := CalculateNextFSRSState(FSRSState{State: "New"}, 2.0, now, cfg)
+	next, rating, _ := CalculateNextFSRSState(FSRSState{State: "New"}, 2.0, nil, now, cfg)
 
 	if rating != "good" {
 		t.Fatalf("rating = %q, want good", rating)
@@ -88,7 +88,7 @@ func TestLearningCardAdvancesStep(t *testing.T) {
 		ReviewCount:    1,
 	}
 
-	next, rating, dueAt := CalculateNextFSRSState(curr, 2.0, now, cfg)
+	next, rating, dueAt := CalculateNextFSRSState(curr, 2.0, nil, now, cfg)
 
 	if rating != "good" {
 		t.Fatalf("rating = %q, want good", rating)
@@ -119,7 +119,7 @@ func TestLearningCardAgainResetsToFirstStep(t *testing.T) {
 		ReviewCount:    1,
 	}
 
-	next, rating, dueAt := CalculateNextFSRSState(curr, 0.1, now, cfg)
+	next, rating, dueAt := CalculateNextFSRSState(curr, 0.1, nil, now, cfg)
 
 	if rating != "again" {
 		t.Fatalf("rating = %q, want again", rating)
@@ -153,7 +153,7 @@ func TestReviewCardAgainEntersRelearning(t *testing.T) {
 		LastReviewedAt: &lastReviewedAt,
 	}
 
-	next, rating, dueAt := CalculateNextFSRSState(curr, 0.1, now, cfg)
+	next, rating, dueAt := CalculateNextFSRSState(curr, 0.1, nil, now, cfg)
 
 	if rating != "again" {
 		t.Fatalf("rating = %q, want again", rating)
@@ -189,7 +189,7 @@ func TestRelearningCardGraduatesToReview(t *testing.T) {
 		LastReviewedAt: &now,
 	}
 
-	next, rating, dueAt := CalculateNextFSRSState(curr, 2.0, now, cfg)
+	next, rating, dueAt := CalculateNextFSRSState(curr, 2.0, nil, now, cfg)
 
 	if rating != "good" {
 		t.Fatalf("rating = %q, want good", rating)
@@ -218,7 +218,7 @@ func TestReviewCardGoodDayLevel(t *testing.T) {
 		LastReviewedAt: &lastReviewedAt,
 	}
 
-	next, rating, dueAt := CalculateNextFSRSState(curr, 2.0, now, cfg)
+	next, rating, dueAt := CalculateNextFSRSState(curr, 2.0, nil, now, cfg)
 
 	if rating != "good" {
 		t.Fatalf("rating = %q, want good", rating)
@@ -247,8 +247,8 @@ func TestFuzzDisabledProducesExactIntervals(t *testing.T) {
 	}
 
 	// Run twice and verify identical results (no randomness).
-	_, _, dueAt1 := CalculateNextFSRSState(curr, 2.0, now, cfg)
-	_, _, dueAt2 := CalculateNextFSRSState(curr, 2.0, now, cfg)
+	_, _, dueAt1 := CalculateNextFSRSState(curr, 2.0, nil, now, cfg)
+	_, _, dueAt2 := CalculateNextFSRSState(curr, 2.0, nil, now, cfg)
 
 	if !dueAt1.Equal(dueAt2) {
 		t.Fatalf("fuzz disabled should produce identical intervals: %s vs %s", dueAt1, dueAt2)
@@ -298,8 +298,8 @@ func TestDesiredRetentionAffectsScheduledDays(t *testing.T) {
 	cfgHigh.FuzzEnabled = false
 	cfgHigh.DesiredRetention = 0.95
 
-	_, _, dueAtLow := CalculateNextFSRSState(curr, 2.0, now, cfgLow)
-	_, _, dueAtHigh := CalculateNextFSRSState(curr, 2.0, now, cfgHigh)
+	_, _, dueAtLow := CalculateNextFSRSState(curr, 2.0, nil, now, cfgLow)
+	_, _, dueAtHigh := CalculateNextFSRSState(curr, 2.0, nil, now, cfgHigh)
 
 	// Higher desired retention → shorter interval (review more frequently
 	// to maintain higher retention). Lower desired retention → longer interval.
@@ -350,5 +350,80 @@ func TestSchedulerConfigFromSettingsFallsBackOnInvalid(t *testing.T) {
 	}
 	if len(cfg.Weights) != 19 {
 		t.Fatalf("weights should fall back to 19 defaults, got %d", len(cfg.Weights))
+	}
+}
+
+func TestRecallStabilityModifierScorePosition(t *testing.T) {
+	lowGood := recallStabilityModifier(1.5, "good", nil)
+	highGood := recallStabilityModifier(2.2, "good", nil)
+
+	if highGood <= lowGood {
+		t.Fatalf("higher good score should increase modifier: low=%f high=%f", lowGood, highGood)
+	}
+	if lowGood < recallModifierMin || highGood > recallModifierMax {
+		t.Fatalf("modifier out of bounds: low=%f high=%f", lowGood, highGood)
+	}
+}
+
+func TestRecallStabilityModifierLatency(t *testing.T) {
+	fastMs := 500
+	slowMs := 12000
+	fast := recallStabilityModifier(2.0, "good", &fastMs)
+	slow := recallStabilityModifier(2.0, "good", &slowMs)
+	none := recallStabilityModifier(2.0, "good", nil)
+
+	if fast <= slow {
+		t.Fatalf("fast response should increase modifier: fast=%f slow=%f", fast, slow)
+	}
+	if none < recallModifierMin || none > recallModifierMax {
+		t.Fatalf("nil latency modifier out of bounds: %f", none)
+	}
+}
+
+func TestReviewStabilityAffectedByLatency(t *testing.T) {
+	lastReviewedAt := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	cfg := DefaultSchedulerConfig()
+	cfg.FuzzEnabled = false
+
+	curr := FSRSState{
+		State:          "Review",
+		Stability:      4,
+		Difficulty:     5,
+		ReviewCount:    3,
+		LapseCount:     0,
+		LastReviewedAt: &lastReviewedAt,
+	}
+
+	fastMs := 500
+	slowMs := 12000
+	nextFast, _, _ := CalculateNextFSRSState(curr, 2.0, &fastMs, now, cfg)
+	nextSlow, _, _ := CalculateNextFSRSState(curr, 2.0, &slowMs, now, cfg)
+
+	if nextFast.Stability <= nextSlow.Stability {
+		t.Fatalf("fast response should yield higher stability: fast=%f slow=%f", nextFast.Stability, nextSlow.Stability)
+	}
+}
+
+func TestReviewStabilityAffectedBySubBucketScore(t *testing.T) {
+	lastReviewedAt := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	cfg := DefaultSchedulerConfig()
+	cfg.FuzzEnabled = false
+
+	curr := FSRSState{
+		State:          "Review",
+		Stability:      4,
+		Difficulty:     5,
+		ReviewCount:    3,
+		LapseCount:     0,
+		LastReviewedAt: &lastReviewedAt,
+	}
+
+	nextLow, _, _ := CalculateNextFSRSState(curr, 1.55, nil, now, cfg)
+	nextHigh, _, _ := CalculateNextFSRSState(curr, 2.2, nil, now, cfg)
+
+	if nextHigh.Stability <= nextLow.Stability {
+		t.Fatalf("higher good score should yield higher stability: low=%f high=%f", nextLow.Stability, nextHigh.Stability)
 	}
 }

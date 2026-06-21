@@ -107,7 +107,7 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 			RemainingSteps: remainingSteps,
 		}
 
-		nextState, reviewRating, dueAt := CalculateNextFSRSState(currState, attempt.RatingScore, now, cfg)
+		nextState, reviewRating, dueAt := CalculateNextFSRSState(currState, attempt.RatingScore, attempt.ResponseTimeMs, now, cfg)
 		nextStage := MapToLearningStage(nextState.ReviewCount, reviewRating)
 
 		// Check for leech condition.
