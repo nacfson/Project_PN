@@ -13,11 +13,11 @@ export function Badge({ label, variant = 'default', style, ...rest }: BadgeProps
   const { colors, spacing, radii } = useTheme();
 
   const palette = {
-    default: { bg: colors.surfaceAlt, text: colors.text },
-    primary: { bg: colors.primary, text: colors.onPrimary },
+    default: { bg: colors.surfaceContainerHighest, text: colors.onSurface },
+    primary: { bg: colors.primaryContainer, text: colors.onPrimaryContainer },
     success: { bg: colors.successSurface, text: colors.success },
     warning: { bg: colors.warningSurface, text: colors.warning },
-    danger: { bg: colors.dangerSurface, text: colors.danger },
+    danger: { bg: colors.errorContainer, text: colors.error },
     info: { bg: colors.infoSurface, text: colors.info },
   };
 
@@ -37,7 +37,7 @@ export function Badge({ label, variant = 'default', style, ...rest }: BadgeProps
       ]}
       {...rest}
     >
-      <Text variant="caption" color={variant === 'primary' ? 'inverse' : 'default'} style={{ fontWeight: '600' }}>
+      <Text variant="caption" style={{ color: text, fontWeight: '600' }}>
         {label}
       </Text>
     </View>

@@ -32,11 +32,21 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 ## Practice UX
 
-- The answer input should auto-focus at the start of each card.
-- Grading controls must work on both touch and pointer devices:
-  - Scale the slider handle/track for desktop/web/Tauri.
-  - Allow clicking the track to jump to a rating.
-  - (Planned) keyboard shortcuts for web/desktop.
+- The practice session supports two card modes:
+  - **Flashcard mode**: the user taps the card to flip it and self-grades with the Anki-style answer buttons (Again/Hard/Good/Easy). This is the default mode for mature words.
+  - **Typing mode**: the user types the target word before revealing the answer. This is used for brand-new words and selected younger stages.
+- Mode selection is per-card and weighted by `learning_stage`:
+  - `new` / `learning` → always typing
+  - `recognized` → 50% flashcard
+  - `recalled` → 70% flashcard
+  - `usable` → 85% flashcard
+  - `mastered` → 95% flashcard
+- The answer input should auto-focus at the start of each **typing** card. Flashcard cards do not auto-focus because they require a tap.
+- Grading controls use four large answer buttons that mirror Anki (Again/Hard/Good/Easy). Each button displays the predicted next-review interval.
+- Grade controls must work on both touch and pointer devices:
+  - Scale buttons for desktop/web/Tauri.
+  - (Planned) keyboard shortcuts 1/2/3/4 for web/desktop.
+- Repeat review mode loads every non-archived learning item and includes example sentences so cloze prompts work the same as normal due reviews.
 
 ## OAuth / third-party sign-in
 

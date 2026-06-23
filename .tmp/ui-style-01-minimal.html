@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project PN — Minimal Calm</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>body{font-family:'Inter',sans-serif;background:#fafafa;}.phone{max-width:390px;margin:0 auto;min-height:100vh;background:#fafafa;box-shadow:0 0 60px rgba(0,0,0,0.08);}</style>
+</head>
+<body>
+  <div class="phone px-6 pt-14 pb-24">
+    <header class="mb-10">
+      <p class="text-xs text-stone-400 uppercase tracking-widest font-medium">Monday, Jun 23</p>
+      <h1 class="text-3xl font-light text-stone-800 mt-1">Hello, Alex</h1>
+    </header>
+
+    <section class="mb-8">
+      <div class="flex items-baseline justify-between mb-3">
+        <span class="text-sm text-stone-500">Words due today</span>
+        <span class="text-4xl font-light text-stone-800">12</span>
+      </div>
+      <button class="w-full bg-stone-900 text-white py-4 rounded-full text-sm font-medium tracking-wide hover:bg-stone-700 transition">Start review</button>
+    </section>
+
+    <section class="space-y-4">
+      <div class="bg-white rounded-2xl p-5">
+        <p class="text-xs text-stone-400 uppercase tracking-widest mb-2">Daily goal</p>
+        <div class="flex items-center justify-between">
+          <span class="text-2xl font-light text-stone-800">130<span class="text-stone-400 text-lg">/200 XP</span></span>
+          <div class="w-24 h-1 bg-stone-100 rounded-full overflow-hidden">
+            <div class="h-full bg-stone-800" style="width:65%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5">
+        <p class="text-xs text-stone-400 uppercase tracking-widest mb-3">Word of the day</p>
+        <p class="text-2xl font-light text-stone-800">serendipity</p>
+        <p class="text-sm text-stone-500 mt-1">finding something good without looking for it</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5">
+        <p class="text-xs text-stone-400 uppercase tracking-widest mb-3">Mastery</p>
+        <div class="flex gap-1 h-2 rounded-full overflow-hidden">
+          <div class="bg-stone-200" style="width:12%"></div>
+          <div class="bg-stone-300" style="width:18%"></div>
+          <div class="bg-stone-400" style="width:22%"></div>
+          <div class="bg-stone-500" style="width:20%"></div>
+          <div class="bg-stone-600" style="width:18%"></div>
+          <div class="bg-stone-800" style="width:10%"></div>
+        </div>
+        <p class="text-xs text-stone-400 mt-3">248 words total</p>
+      </div>
+    </section>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-stone-100 px-8 py-4 flex justify-between text-xs text-stone-400" style="max-width:390px;margin:0 auto;">
+      <span class="text-stone-900 font-medium">Learn</span>
+      <span>Words</span>
+      <span>Add</span>
+      <span>Practice</span>
+      <span>Settings</span>
+    </nav>
+  </div>
+</body>
+</html>

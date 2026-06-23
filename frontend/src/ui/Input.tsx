@@ -32,6 +32,7 @@ export function Input({
   const showClear = onClear && value && value.length > 0;
   const showLoading = loading;
   const effectiveSecureTextEntry = secureTextEntryToggle ? isHidden : secureTextEntry;
+  const isMultiline = rest.multiline === true;
   const trailingCount = (showLoading ? 1 : 0) + (secureTextEntryToggle ? 1 : 0) + (showClear ? 1 : 0);
   const inputPaddingRight = trailingCount > 0 ? spacing.xxxl + trailingCount * spacing.xl : spacing.lg;
 
@@ -41,9 +42,10 @@ export function Input({
         style={[
           styles.wrapper,
           {
-            backgroundColor: colors.surface,
-            borderColor: error ? colors.danger : focused ? colors.primary : colors.border,
+            backgroundColor: colors.surfaceContainerHighest,
+            borderColor: error ? colors.error : focused ? colors.primary : colors.outline,
             borderRadius: radii.md,
+            alignItems: isMultiline ? 'stretch' : 'center',
           },
         ]}
       >
@@ -58,11 +60,11 @@ export function Input({
               paddingRight: inputPaddingRight,
               paddingVertical: spacing.md,
               fontSize: typography.sizes.md,
-              color: colors.text,
+              color: colors.onSurface,
             },
             style,
           ]}
-          placeholderTextColor={placeholderTextColor ?? colors.textMuted}
+          placeholderTextColor={placeholderTextColor ?? colors.onSurfaceVariant}
           onFocus={(e) => {
             setFocused(true);
             rest.onFocus?.(e);

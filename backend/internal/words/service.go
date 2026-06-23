@@ -2,6 +2,7 @@ package words
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -1016,7 +1017,12 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		       coalesce(st.definition, ws.definition),
 		       coalesce(st.short_definition, ws.short_definition),
 		       ws.cefr_level, ws.meaning_order,
-		       uws.learning_stage, rs.due_at
+		       uws.learning_stage, rs.due_at,
+		       rs.interval_days, rs.ease_factor,
+		       rs.review_count, rs.lapse_count,
+		       rs.fsrs_state, rs.stability, rs.difficulty,
+		       rs.scheduled_days, rs.remaining_steps,
+		       rs.last_reviewed_at
 		from user_word_senses uws
 		join users u on u.id = uws.user_id
 		join word_senses ws on ws.id = uws.word_sense_id
@@ -1031,7 +1037,64 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		  and rs.is_suspended = false
 		  and (rs.buried_until is null or rs.buried_until <= now())`
 
+	cfg := SchedulerConfigFromSettings(settings)
 	var items []DueItem
+
+	scanDueItem := func(rows pgx.Rows, item *DueItem) error {
+		var intervalDays int
+		var easeFactor float64
+		var reviewCount int
+		var lapseCount int
+		var fsrsState string
+		var stability float64
+		var difficulty float64
+		var scheduledDays int
+		var remainingSteps int
+		var lastReviewedAt sql.NullTime
+
+		err := rows.Scan(
+			&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
+			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+			&item.DisplayLanguageCode,
+			&item.Definition, &item.ShortDefinition,
+			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
+			&item.CEFRLevel, &item.MeaningOrder,
+			&item.LearningStage, &item.DueAt,
+			&intervalDays, &easeFactor,
+			&reviewCount, &lapseCount,
+			&fsrsState, &stability, &difficulty,
+			&scheduledDays, &remainingSteps,
+			&lastReviewedAt,
+		)
+		if err != nil {
+			return err
+		}
+
+		var reviewedAt *time.Time
+		if lastReviewedAt.Valid {
+			reviewedAt = &lastReviewedAt.Time
+		}
+
+		if reviewCount > 0 && (stability <= 0 || difficulty <= 0) {
+			stability, difficulty = MemoryStateFromSM2(easeFactor, intervalDays)
+			if fsrsState == "New" {
+				fsrsState = "Review"
+			}
+		}
+
+		state := FSRSState{
+			State:          fsrsState,
+			Stability:      stability,
+			Difficulty:     difficulty,
+			ScheduledDays:  scheduledDays,
+			ReviewCount:    reviewCount,
+			LapseCount:     lapseCount,
+			LastReviewedAt: reviewedAt,
+			RemainingSteps: remainingSteps,
+		}
+		item.PreviewIntervals = ptr(PreviewIntervals(state, now, cfg))
+		return nil
+	}
 
 	// Fetch review items (Review and Relearning states) first.
 	if reviewFetchLimit > 0 {
@@ -1046,15 +1109,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		}
 		for rows.Next() {
 			var item DueItem
-			if err := rows.Scan(
-				&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
-				&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
-				&item.DisplayLanguageCode,
-				&item.Definition, &item.ShortDefinition,
-				&item.LocalizedDefinition, &item.LocalizedShortDefinition,
-				&item.CEFRLevel, &item.MeaningOrder,
-				&item.LearningStage, &item.DueAt,
-			); err != nil {
+			if err := scanDueItem(rows, &item); err != nil {
 				rows.Close()
 				return nil, err
 			}
@@ -1087,15 +1142,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		}
 		for rows.Next() {
 			var item DueItem
-			if err := rows.Scan(
-				&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
-				&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
-				&item.DisplayLanguageCode,
-				&item.Definition, &item.ShortDefinition,
-				&item.LocalizedDefinition, &item.LocalizedShortDefinition,
-				&item.CEFRLevel, &item.MeaningOrder,
-				&item.LearningStage, &item.DueAt,
-			); err != nil {
+			if err := scanDueItem(rows, &item); err != nil {
 				rows.Close()
 				return nil, err
 			}
@@ -1137,6 +1184,10 @@ const (
 
 func clampDesiredRetention(value float64) float64 {
 	return clamp(value, minDesiredRetention, maxDesiredRetention)
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
 
 // GetReviewSettings returns the user's review scheduling settings, creating

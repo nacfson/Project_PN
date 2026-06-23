@@ -56,7 +56,7 @@ function MasteryBreakdown({
   }
 
   const stageColors: Record<MasteryStage, string> = {
-    new: colors.borderStrong,
+    new: colors.surfaceContainerHighest,
     learning: colors.info,
     recognized: colors.primary,
     recalled: colors.warning,
@@ -66,7 +66,7 @@ function MasteryBreakdown({
 
   return (
     <View style={{ gap: spacing.md }}>
-      <View style={[styles.masteryBar, { borderRadius: radii.full, backgroundColor: colors.surfaceAlt }]}>
+      <View style={[styles.masteryBar, { borderRadius: radii.full, backgroundColor: colors.surfaceContainerHighest }]}>
         {segments.map((segment) => {
           if (segment.count === 0) {
             return null;
@@ -118,7 +118,7 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
                   {
                     height,
                     borderRadius: radii.sm,
-                    backgroundColor: isToday ? colors.primary : colors.info,
+                    backgroundColor: isToday ? colors.primary : colors.secondary,
                     opacity: day.count === 0 ? 0.25 : 1,
                   },
                 ]}
@@ -188,17 +188,18 @@ export function HomeScreen() {
   const vacationModeActive = stats?.vacation_mode_active ?? false;
   const streakFreezeTokens = stats?.streak_freeze_tokens ?? 0;
   const longestStreak = stats?.longest_streak_days ?? 0;
+  const totalWords = stats
+    ? Object.values(stats.stage_counts).reduce((sum, count) => sum + count, 0)
+    : null;
 
   return (
     <Screen padded>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingVertical: spacing.lg, gap: spacing.lg }]}>
         <View style={{ gap: spacing.xs }}>
-          <Text variant="heading">{t('home.greeting', { name: displayName })}</Text>
-          <Text color="muted">
-            {streakAtRisk && hasDue
-              ? t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })
-              : t('home.subtitle')}
+          <Text variant="caption" color="muted">
+            {t('home.greeting', { name: displayName })}
           </Text>
+          <Text variant="headline">{t('home.subtitle')}</Text>
         </View>
 
         {stats && streakAtRisk && hasDue ? (
@@ -209,58 +210,132 @@ export function HomeScreen() {
           </Card>
         ) : null}
 
-        <Pressable
-          onPress={() => navigation.navigate('Practice')}
-          style={({ pressed }) => ({ opacity: pressed ? 0.95 : 1 })}
-        >
-          <Card elevated style={[styles.heroCard, { borderColor: hasDue ? colors.primary : colors.border }]}>
-            <View style={styles.row}>
-              <View style={styles.heroTitleRow}>
-                <View style={[styles.heroIconCircle, { backgroundColor: hasDue ? colors.primary : colors.successSurface }]}>
-                  <Icon name={hasDue ? 'layers' : 'checkmark-circle'} size="lg" color={hasDue ? colors.onPrimary : colors.success} />
-                </View>
-                <View>
-                  <Text variant="title">{t('home.wordsDue')}</Text>
-                  <Text variant="caption" color="muted">
-                    {hasDue ? t('home.tapToStart') : t('home.allCaughtUp')}
-                  </Text>
-                </View>
+        <Card elevated style={[styles.heroCard, { backgroundColor: colors.primaryContainer, borderColor: 'transparent' }]}>
+          <View style={styles.row}>
+            <View style={styles.heroTitleRow}>
+              <View style={[styles.heroIconCircle, { backgroundColor: colors.primary }]}>
+                <Icon name={hasDue ? 'school' : 'checkmark-circle'} size="lg" color={colors.onPrimary} />
               </View>
-              <Badge
-                label={dueCount === null ? '...' : String(dueCount)}
-                variant={hasDue ? 'primary' : 'success'}
-              />
+              <View>
+                <Text variant="caption" color="onPrimaryContainer">
+                  {t('home.wordsDue')}
+                </Text>
+                <Text variant="title" color="onPrimaryContainer" bold>
+                  {dueCount === null ? '...' : t('home.startReview', { count: dueCount })}
+                </Text>
+              </View>
             </View>
+            <Badge
+              label={dueCount === null ? '...' : String(dueCount)}
+              variant={hasDue ? 'primary' : 'success'}
+            />
+          </View>
 
-            {dueCount === null ? (
-              <Text color="muted">{t('home.checkingDue')}</Text>
-            ) : hasDue ? (
-              <Button
-                label={t('home.startReview', { count: dueCount })}
-                iconRight="arrow-forward"
-                onPress={() => navigation.navigate('Practice')}
-                style={{ marginTop: spacing.md }}
-              />
-            ) : (
-              <Button
-                label={t('home.previewPractice')}
-                variant="secondary"
-                iconRight="arrow-forward"
-                onPress={() => navigation.navigate('Practice')}
-                style={{ marginTop: spacing.md }}
-              />
-            )}
+          {dueCount === null ? (
+            <Text color="onPrimaryContainer">{t('home.checkingDue')}</Text>
+          ) : hasDue ? (
+            <Button
+              label={t('home.startReview', { count: dueCount })}
+              iconRight="arrow-forward"
+              onPress={() => navigation.navigate('Practice')}
+              style={{ marginTop: spacing.md }}
+            />
+          ) : (
+            <Button
+              label={t('home.previewPractice')}
+              variant="outline"
+              iconRight="arrow-forward"
+              onPress={() => navigation.navigate('Practice')}
+              style={{ marginTop: spacing.md }}
+            />
+          )}
+        </Card>
+
+        <View style={[styles.statsGrid, { gap: spacing.md }]}>
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
+              <Icon name="flame" size="md" color={colors.tertiary} />
+            </View>
+            <View style={{ gap: spacing.xs }}>
+              <Text variant="title" bold>
+                {stats ? streakDays : '...'}
+              </Text>
+              <Text variant="caption" color="muted">
+                {t('home.dayStreak')}
+              </Text>
+              {stats && vacationModeActive ? (
+                <Text variant="caption" color="muted">
+                  {t('home.streakVacation')}
+                </Text>
+              ) : null}
+              {stats && !vacationModeActive && streakFreezeTokens > 0 ? (
+                <Text variant="caption" color="muted">
+                  {t('home.streakFreezeAvailable', { count: streakFreezeTokens })}
+                </Text>
+              ) : null}
+              {stats && longestStreak > streakDays ? (
+                <Text variant="caption" color="muted">
+                  {t('home.longestStreak', { days: longestStreak })}
+                </Text>
+              ) : null}
+            </View>
           </Card>
-        </Pressable>
+
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryContainer }]}>
+              <Icon name="book" size="md" color={colors.secondary} />
+            </View>
+            <View style={{ gap: spacing.xs }}>
+              <Text variant="title" bold>
+                {totalWords ?? '...'}
+              </Text>
+              <Text variant="caption" color="muted">
+                {t('tabs.words')}
+              </Text>
+            </View>
+          </Card>
+        </View>
+
+        <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
+          <View style={styles.row}>
+            <Text variant="title">{t('home.xpToday')}</Text>
+            <Text variant="caption" color="primary" bold>
+              {Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))}%
+            </Text>
+          </View>
+          <View style={[styles.goalTrack, { backgroundColor: colors.surfaceContainerHighest, borderRadius: 999 }]}>
+            <View
+              style={[
+                styles.goalFill,
+                {
+                  width: `${Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))}%`,
+                  backgroundColor: colors.primary,
+                },
+              ]}
+            />
+          </View>
+          <Text variant="caption" color="muted">
+            {xpToday} / {dailyGoalXP} XP
+          </Text>
+        </Card>
 
         {wordOfTheDay ? (
           <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
-            <Text variant="title">{t('home.wordOfTheDayTitle')}</Text>
-            <Text variant="title">{wordOfTheDay.lemma}</Text>
+            <View style={styles.row}>
+              <View style={[styles.smallIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
+                <Icon name="bulb" size="md" color={colors.tertiary} />
+              </View>
+              <Text variant="label" color="muted">
+                {t('home.wordOfTheDayTitle')}
+              </Text>
+            </View>
+            <Text variant="title" bold>
+              {wordOfTheDay.lemma}
+            </Text>
             <Text color="muted">{wordOfTheDay.localized_definition || wordOfTheDay.definition}</Text>
             <Button
               label={t('home.wordOfTheDayAdd')}
-              variant="secondary"
+              variant="tonal"
               onPress={() => enqueue(wordOfTheDay.lemma, 'Any')}
             />
           </Card>
@@ -281,7 +356,7 @@ export function HomeScreen() {
               <Text>{captureWords.join(', ')}</Text>
               <Button
                 label={t('home.captureReentryAdd')}
-                variant="secondary"
+                variant="tonal"
                 onPress={() => enqueueMany(captureWords, 'Any')}
               />
             </>
@@ -306,49 +381,6 @@ export function HomeScreen() {
             ))}
           </Card>
         ) : null}
-
-        <View style={[styles.statsGrid, { gap: spacing.md }]}>
-          <Card style={styles.statCard}>
-            <View style={[styles.statIconCircle, { backgroundColor: colors.warningSurface }]}>
-              <Icon name="flame" size="md" color={colors.warning} />
-            </View>
-            <View style={{ gap: spacing.xs }}>
-              <Text variant="title">{stats ? streakDays : '...'}</Text>
-              <Text variant="caption" color="muted">
-                {t('home.dayStreak')}
-              </Text>
-              {stats && vacationModeActive ? (
-                <Text variant="caption" color="muted">
-                  {t('home.streakVacation')}
-                </Text>
-              ) : null}
-              {stats && !vacationModeActive && streakFreezeTokens > 0 ? (
-                <Text variant="caption" color="muted">
-                  {t('home.streakFreezeAvailable', { count: streakFreezeTokens })}
-                </Text>
-              ) : null}
-              {stats && longestStreak > streakDays ? (
-                <Text variant="caption" color="muted">
-                  {t('home.longestStreak', { days: longestStreak })}
-                </Text>
-              ) : null}
-            </View>
-          </Card>
-
-          <Card style={styles.statCard}>
-            <View style={[styles.statIconCircle, { backgroundColor: colors.infoSurface }]}>
-              <Icon name="trophy" size="md" color={colors.info} />
-            </View>
-            <View style={{ gap: spacing.xs }}>
-              <Text variant="title">
-                {stats ? `${xpToday} / ${dailyGoalXP}` : '...'}
-              </Text>
-              <Text variant="caption" color="muted">
-                {t('home.xpToday')}
-              </Text>
-            </View>
-          </Card>
-        </View>
 
         <Card style={{ gap: spacing.md, padding: spacing.lg }}>
           <Text variant="title">{t('home.progressTitle')}</Text>
@@ -390,7 +422,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   heroCard: {
-    borderWidth: 2,
     padding: 20,
   },
   heroTitleRow: {
@@ -400,9 +431,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -422,6 +460,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  goalTrack: {
+    height: 12,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  goalFill: {
+    height: '100%',
   },
   masteryBar: {
     flexDirection: 'row',

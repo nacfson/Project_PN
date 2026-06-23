@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   KeyboardAvoidingView,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -17,7 +15,8 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, Screen, Text } from '../../ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, Text } from '../../ui';
+import type { Rating } from '../../ui';
 import { isTauri } from '../../utils/platform';
 import {
   getDueLearningItems,
@@ -38,228 +37,18 @@ type SessionStatus =
   | 'success'
   | 'error';
 
+const ratingScores: Record<Rating, number> = {
+  again: 0,
+  hard: 1,
+  good: 2,
+  easy: 3,
+};
+
 export function mapScoreToQuality(score: number): number {
   if (score < 1.0) {
     return score * 3.0;
   }
   return 3.0 + (score - 1.0) * 1.0;
-}
-
-interface FaceProps {
-  stateVal: number;
-  color: string;
-}
-
-function Face({ stateVal, color }: FaceProps) {
-  return (
-    <View style={faceStyles.faceContainer}>
-      <View style={faceStyles.eyesRow}>
-        <Eye stateVal={stateVal} color={color} />
-        <Eye stateVal={stateVal} color={color} />
-      </View>
-      <Mouth stateVal={stateVal} color={color} />
-    </View>
-  );
-}
-
-function Eye({ stateVal, color }: { stateVal: number; color: string }) {
-  if (stateVal === 0) {
-    return (
-      <View style={faceStyles.eyeXContainer}>
-        <View style={[faceStyles.eyeXLine, { backgroundColor: color, transform: [{ rotate: '45deg' }] }]} />
-        <View style={[faceStyles.eyeXLine, { backgroundColor: color, transform: [{ rotate: '-45deg' }] }]} />
-      </View>
-    );
-  }
-  if (stateVal === 1) {
-    return <View style={[faceStyles.eyeFlat, { backgroundColor: color }]} />;
-  }
-  const isExcited = stateVal === 3;
-  return (
-    <View
-      style={[
-        faceStyles.eyeArch,
-        {
-          borderColor: color,
-          height: isExcited ? 6 : 4,
-          borderTopWidth: isExcited ? 2.5 : 2,
-        },
-      ]}
-    />
-  );
-}
-
-function Mouth({ stateVal, color }: { stateVal: number; color: string }) {
-  if (stateVal === 0) {
-    return <View style={[faceStyles.mouthFrown, { borderColor: color }]} />;
-  }
-  if (stateVal === 1) {
-    return <View style={[faceStyles.mouthFlat, { backgroundColor: color }]} />;
-  }
-  const isBig = stateVal === 3;
-  return (
-    <View
-      style={[
-        faceStyles.mouthSmile,
-        {
-          borderColor: color,
-          height: isBig ? 10 : 6,
-          width: isBig ? 18 : 14,
-          borderBottomWidth: isBig ? 3.5 : 2.5,
-          borderBottomLeftRadius: isBig ? 9 : 7,
-          borderBottomRightRadius: isBig ? 9 : 7,
-          marginTop: isBig ? 0 : 2,
-        },
-      ]}
-    />
-  );
-}
-
-interface SlidebarProps {
-  ratingScore: number;
-  onChange: (score: number) => void;
-}
-
-const baseHandleSize = 44;
-const desktopScale = 1.25;
-const sliderColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6'];
-const sliderBgColors = [
-  'rgba(239, 68, 68, 0.15)',
-  'rgba(245, 158, 11, 0.15)',
-  'rgba(16, 185, 129, 0.15)',
-  'rgba(59, 130, 246, 0.15)',
-];
-const sliderLabelKeys = [
-  'practice.ratingForgot',
-  'practice.ratingHard',
-  'practice.ratingGood',
-  'practice.ratingEasy',
-] as const;
-
-function Slidebar({ ratingScore, onChange }: SlidebarProps) {
-  const { colors } = useTheme();
-  const { t } = useAppLanguage();
-  const [trackWidth, setTrackWidth] = useState(0);
-  const isDesktop = Platform.OS === 'web' || isTauri();
-  const handleSize = baseHandleSize * (isDesktop ? desktopScale : 1);
-  const trackHeight = isDesktop ? 12 : 8;
-  const wrapperHeight = Math.max(handleSize, trackHeight + 16);
-  const startRatingScore = useRef(ratingScore);
-  const handleScale = useRef(new Animated.Value(1)).current;
-  const lastStateVal = useRef(
-    ratingScore < 0.75 ? 0 : ratingScore < 1.5 ? 1 : ratingScore < 2.25 ? 2 : 3
-  );
-
-  const stateVal =
-    ratingScore < 0.75 ? 0 : ratingScore < 1.5 ? 1 : ratingScore < 2.25 ? 2 : 3;
-
-  const color = sliderColors[stateVal];
-  const label = t(sliderLabelKeys[stateVal]);
-  const bgColor = sliderBgColors[stateVal];
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        startRatingScore.current = ratingScore;
-        Animated.spring(handleScale, {
-          toValue: 1.2,
-          useNativeDriver: true,
-        }).start();
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        const maxLeft = trackWidth - handleSize;
-        if (maxLeft <= 0) return;
-
-        const startPercent = startRatingScore.current / 3.0;
-        const startX = startPercent * maxLeft;
-        let targetX = startX + gestureState.dx;
-
-        if (targetX < 0) targetX = 0;
-        if (targetX > maxLeft) targetX = maxLeft;
-
-        const newPercent = targetX / maxLeft;
-        const score = Math.max(0, Math.min(3.0, newPercent * 3.0));
-        const newStateVal =
-          score < 0.75 ? 0 : score < 1.5 ? 1 : score < 2.25 ? 2 : 3;
-        if (newStateVal !== lastStateVal.current) {
-          lastStateVal.current = newStateVal;
-          if (Platform.OS !== 'web') {
-            Haptics.selectionAsync().catch(() => {});
-          }
-        }
-        onChange(score);
-      },
-      onPanResponderRelease: () => {
-        Animated.spring(handleScale, {
-          toValue: 1.0,
-          useNativeDriver: true,
-        }).start();
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(handleScale, {
-          toValue: 1.0,
-          useNativeDriver: true,
-        }).start();
-      },
-    })
-  ).current;
-
-  const maxLeft = trackWidth - handleSize;
-  const currentPercent = ratingScore / 3.0;
-  const leftPos = maxLeft > 0 ? currentPercent * maxLeft : 0;
-
-  const handleTrackPress = (locationX: number) => {
-    if (trackWidth <= 0) return;
-    const percent = Math.max(0, Math.min(1, locationX / trackWidth));
-    onChange(percent * 3.0);
-  };
-
-  return (
-    <View style={sliderStyles.container}>
-      <Pressable
-        onPress={(e) => handleTrackPress(e.nativeEvent.locationX)}
-        style={{ width: '90%' }}
-      >
-        <View
-          style={[sliderStyles.trackWrapper, { height: wrapperHeight }]}
-          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
-        >
-          <View style={[sliderStyles.track, { backgroundColor: colors.border, height: trackHeight }]} />
-          <View
-            style={[
-              sliderStyles.fill,
-              {
-                width: `${currentPercent * 100}%`,
-                backgroundColor: color,
-                height: trackHeight,
-              },
-            ]}
-          />
-          <Animated.View
-            {...panResponder.panHandlers}
-            style={[
-              sliderStyles.handle,
-              {
-                left: leftPos,
-                width: handleSize,
-                height: handleSize,
-                borderRadius: handleSize / 2,
-                borderColor: color,
-                backgroundColor: bgColor,
-                shadowColor: color,
-                transform: [{ scale: handleScale }],
-              },
-            ]}
-          >
-            <Face stateVal={stateVal} color={color} />
-          </Animated.View>
-        </View>
-      </Pressable>
-      <Text style={[sliderStyles.label, { color }]}>{label}</Text>
-    </View>
-  );
 }
 
 function getBlankedSentence(sentence: string, word: string) {
@@ -295,17 +84,8 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
   };
 }
 
-function decideCardMode(item: DueItem): CardMode {
-  const stage = item.learning_stage.trim().toLowerCase();
-  const flashcardProb: Record<string, number> = {
-    new: 0,
-    learning: 0,
-    recognized: 0.15,
-    recalled: 0.1,
-    usable: 0.05,
-    mastered: 0,
-  };
-  return Math.random() < (flashcardProb[stage] ?? 0) ? 'flashcard' : 'typing';
+function decideCardMode(_item: DueItem): CardMode {
+  return Math.random() < 0.9 ? 'flashcard' : 'typing';
 }
 
 export function PracticeScreen() {
@@ -328,35 +108,19 @@ export function PracticeScreen() {
   const [attempts, setAttempts] = useState<ReviewAttemptParams[]>([]);
   const [xpEarned, setXpEarned] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const pendingRef = useRef<ReviewAttemptParams[]>([]);
+  const flushingRef = useRef(false);
 
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
   const answerInputRef = useRef<TextInput>(null);
   const statusRef = useRef(status);
-  const flipAnim = useRef(new Animated.Value(0)).current;
-
-  const frontInterpolate = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-  const backInterpolate = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['180deg', '360deg'],
-  });
-  const frontAnimatedStyle = {
-    transform: [{ perspective: 1000 }, { rotateY: frontInterpolate }],
-  };
-  const backAnimatedStyle = {
-    transform: [{ perspective: 1000 }, { rotateY: backInterpolate }],
-  };
 
   const toggleFlip = () => {
-    const nextFlipped = !isFlipped;
-    setIsFlipped(nextFlipped);
-    Animated.spring(flipAnim, {
-      toValue: nextFlipped ? 1 : 0,
-      useNativeDriver: true,
-    }).start();
+    setIsFlipped(true);
   };
 
   useEffect(() => {
@@ -375,8 +139,7 @@ export function PracticeScreen() {
     setUserAnswer('');
     setResponseTimeMs(null);
     setRatingScore(2.0);
-    flipAnim.setValue(0);
-  }, [flipAnim]);
+  }, []);
 
   const loadDueItems = useCallback(() => {
     setStatus('loading_due');
@@ -444,29 +207,71 @@ export function PracticeScreen() {
       });
   };
 
-  const submitAttempts = useCallback(() => {
-    setStatus('submitting');
-    recordBatchReviewAttempts(attempts)
-      .then((res) => {
-        setXpEarned(res.xp_earned);
-        setStatus('success');
-      })
-      .catch((err) => {
-        console.error('Error submitting batch reviews:', err);
-        setErrorMsg(err.message || t('practice.submitFailed'));
-        setStatus('error');
-      });
-  }, [attempts, t]);
+  const flushPending = useCallback(async () => {
+    if (flushingRef.current || pendingRef.current.length === 0) {
+      return;
+    }
+
+    flushingRef.current = true;
+    setIsSaving(true);
+    setSaveError(null);
+
+    const toFlush = pendingRef.current;
+    pendingRef.current = [];
+
+    try {
+      const res = await recordBatchReviewAttempts(toFlush);
+      setXpEarned((prev) => prev + res.xp_earned);
+    } catch (err) {
+      console.error('Error flushing review attempts:', err);
+      pendingRef.current = [...toFlush, ...pendingRef.current];
+      setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+    } finally {
+      flushingRef.current = false;
+      setIsSaving(false);
+      if (pendingRef.current.length > 0) {
+        setTimeout(flushPending, 1500);
+      }
+    }
+  }, [t]);
+
+  const waitForPendingFlushes = useCallback(async () => {
+    // eslint-disable-next-line no-unmodified-loop-condition
+    while (pendingRef.current.length > 0 || flushingRef.current) {
+      await flushPending();
+      if (pendingRef.current.length > 0 || flushingRef.current) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }, [flushPending]);
 
   useEffect(() => {
     if (sessionMode === 'normal' && status === 'active' && queue.length > 0 && currentIndex === queue.length) {
-      submitAttempts();
+      waitForPendingFlushes()
+        .then(() => setStatus('success'))
+        .catch((err) => {
+          console.error('Error finishing session:', err);
+          setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
+          setStatus('error');
+        });
     }
-  }, [currentIndex, queue.length, sessionMode, status, submitAttempts]);
+  }, [currentIndex, queue.length, sessionMode, status, waitForPendingFlushes, t]);
 
-  const confirmGrade = () => {
+  const selectGrade = (rating: Rating) => {
+    const score = ratingScores[rating];
+    setRatingScore(score);
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    // Defer confirmGrade so the state update is committed.
+    setTimeout(() => confirmGrade(score), 0);
+  };
+
+  const confirmGrade = (overrideScore?: number) => {
     const currentItem = queue[currentIndex];
     if (!currentItem) return;
+
+    const finalScore = overrideScore ?? ratingScore;
 
     const examplesList = currentItem.examples || [];
     const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
@@ -495,15 +300,17 @@ export function PracticeScreen() {
       prompt,
       user_answer: userAnswerValue,
       correct_answer: currentItem.normalized_text,
-      is_correct: ratingScore >= 0.75,
-      rating_score: ratingScore,
+      is_correct: finalScore >= 0.75,
+      rating_score: finalScore,
       response_time_ms: responseTimeValue,
       confidence_rating: null,
     };
 
     setAttempts((prev) => [...prev, attempt]);
+    pendingRef.current.push(attempt);
+    flushPending();
 
-    const shouldRetry = ratingScore < 0.75;
+    const shouldRetry = finalScore < 0.75;
     const nextIndex = currentIndex + 1;
 
     if (shouldRetry) {
@@ -540,7 +347,14 @@ export function PracticeScreen() {
       setStatus('success');
       return;
     }
-    submitAttempts();
+    setStatus('submitting');
+    waitForPendingFlushes()
+      .then(() => setStatus('success'))
+      .catch((err) => {
+        console.error('Error finishing repeat session:', err);
+        setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
+        setStatus('error');
+      });
   };
 
   const revealAnswer = (forgot = false) => {
@@ -578,24 +392,23 @@ export function PracticeScreen() {
     return (
       <Screen padded>
         <View style={[styles.center, { gap: spacing.lg }]}>
-          <View style={[styles.successIconCircle, { backgroundColor: colors.successSurface }]}>
-            <Icon name="checkmark-circle" size="xl" color={colors.success} />
+          <View style={[styles.successIconCircle, { backgroundColor: colors.primaryContainer }]}>
+            <Icon name="checkmark-circle" size="xl" color={colors.primary} />
           </View>
-          <Text variant="heading" color="success" style={{ textAlign: 'center' }}>
+          <Text variant="heading" color="primary" style={{ textAlign: 'center' }}>
             {t('practice.complete')}
           </Text>
           <Card elevated style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
             <Text variant="title" bold>
               {t('practice.xpEarned')}
             </Text>
-            <Badge label={`+${xpEarned} XP`} variant="success" />
+            <Badge label={`+${xpEarned} XP`} variant="primary" />
             <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
               {t('practice.progressSaved')}
             </Text>
           </Card>
           <Button
             label={t('practice.backHome')}
-            variant="primary"
             style={{ width: '100%' }}
             onPress={() => {
               setStatus('idle');
@@ -617,18 +430,14 @@ export function PracticeScreen() {
           />
           <Button
             label={t('practice.retrySync')}
-            variant="primary"
             style={{ width: '100%' }}
             onPress={() => {
               setStatus('submitting');
-              recordBatchReviewAttempts(attempts)
-                .then((res) => {
-                  setXpEarned(res.xp_earned);
-                  setStatus('success');
-                })
+              waitForPendingFlushes()
+                .then(() => setStatus('success'))
                 .catch((err) => {
                   console.error('Retry submission error:', err);
-                  setErrorMsg(err.message || t('practice.submitFailed'));
+                  setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
                   setStatus('error');
                 });
             }}
@@ -665,7 +474,6 @@ export function PracticeScreen() {
 
           <Button
             label={t('practice.refreshDue')}
-            variant="primary"
             iconLeft="refresh"
             style={{ width: '100%' }}
             onPress={loadDueItems}
@@ -673,7 +481,7 @@ export function PracticeScreen() {
 
           <Button
             label={t('practice.studyAgain')}
-            variant="secondary"
+            variant="outline"
             iconLeft="play"
             style={{ width: '100%' }}
             onPress={startRepeatSession}
@@ -709,10 +517,10 @@ export function PracticeScreen() {
       : 0;
 
   const cardSurface = {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radii.xxl,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.outlineVariant,
     backfaceVisibility: 'hidden' as const,
     ...shadows.md,
   };
@@ -720,11 +528,11 @@ export function PracticeScreen() {
   const sharedCardBack = (
     <View style={styles.cardContent}>
       <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-      <Text variant="heading" style={styles.wordText}>
+      <Text variant="headline" style={styles.wordText}>
         {currentItem.lemma}
       </Text>
       {cardMode === 'typing' && (
-        <View style={[styles.answerResult, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
+        <View style={[styles.answerResult, { borderColor: colors.outlineVariant, backgroundColor: colors.surfaceContainerHighest }]}>
           <Text variant="caption" color="muted">
             {t('practice.yourAnswer')}
           </Text>
@@ -759,7 +567,7 @@ export function PracticeScreen() {
       style={[
         styles.answerBar,
         {
-          borderTopColor: colors.border,
+          borderTopColor: colors.outlineVariant,
           backgroundColor: colors.surface,
           paddingBottom: spacing.lg,
         },
@@ -773,7 +581,7 @@ export function PracticeScreen() {
         value={userAnswer}
         onChangeText={setUserAnswer}
         placeholder={t('practice.answerPlaceholder')}
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={colors.onSurfaceVariant}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus
@@ -783,23 +591,21 @@ export function PracticeScreen() {
           styles.answerInput,
           {
             borderColor: colors.primary,
-            backgroundColor: colors.surfaceAlt,
-            color: colors.text,
+            backgroundColor: colors.surfaceContainerHighest,
+            color: colors.onSurface,
           },
         ]}
       />
       <View style={[styles.revealActions, { gap: spacing.sm }]}>
         <Button
           label={t('practice.revealAnswer')}
-          variant="primary"
-          iconRight="eye"
           disabled={trimmedAnswer.length === 0}
           style={styles.revealButton}
           onPress={() => revealAnswer(false)}
         />
         <Button
           label={t('practice.dontKnow')}
-          variant="secondary"
+          variant="outline"
           style={styles.revealButton}
           onPress={() => revealAnswer(true)}
         />
@@ -825,17 +631,35 @@ export function PracticeScreen() {
               <Text variant="caption" color="muted">
                 {t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}
               </Text>
+              <View style={styles.saveIndicator}>
+                {isSaving && (
+                  <>
+                    <ActivityIndicator size="small" color={colors.onSurfaceVariant} />
+                    <Text variant="caption" color="muted">
+                      {t('practice.syncing')}
+                    </Text>
+                  </>
+                )}
+                {!isSaving && saveError && (
+                  <>
+                    <Icon name="warning-outline" size="sm" color={colors.error} />
+                    <Text variant="caption" color="danger">
+                      {t('practice.saveError')}
+                    </Text>
+                  </>
+                )}
+              </View>
               {sessionMode === 'repeat' && <Badge label={t('practice.repeatMode')} variant="primary" />}
               {cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant="info" />}
               {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
             </View>
-            <View style={[styles.progressBarContainer, { backgroundColor: colors.border }]}>
+            <View style={[styles.progressBarContainer, { backgroundColor: colors.surfaceContainerHighest }]}>
               <View
                 style={[
                   styles.progressBarFill,
                   {
                     width: `${progressPercent}%`,
-                    backgroundColor: colors.success,
+                    backgroundColor: colors.primary,
                   },
                 ]}
               />
@@ -845,39 +669,38 @@ export function PracticeScreen() {
           <View style={styles.cardPressable}>
             <View style={styles.cardContainer}>
               {cardMode === 'flashcard' ? (
-                <>
-                  <Animated.View style={[styles.flashcard, cardSurface, frontAnimatedStyle]}>
-                    <Pressable onPress={toggleFlip} style={StyleSheet.absoluteFill}>
-                      <View style={styles.cardContent}>
-                        <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                        <Text variant="caption" color="muted" style={styles.promptLabel}>
-                          {t('practice.recallPrompt')}
+                !isFlipped ? (
+                  <Pressable onPress={toggleFlip} style={[styles.flashcard, cardSurface]}>
+                    <View style={styles.cardContent}>
+                      <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
+                      <Text variant="caption" color="muted" style={styles.promptLabel}>
+                        {t('practice.recallPrompt')}
+                      </Text>
+                      <Text variant="title" bold style={styles.definitionText}>
+                        {currentItem.definition}
+                      </Text>
+                      {example ? (
+                        <Text variant="body" style={styles.clozeText}>
+                          &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
                         </Text>
-                        <Text variant="title" bold style={styles.definitionText}>
-                          {currentItem.definition}
+                      ) : (
+                        <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                          {t('practice.noExample')}
                         </Text>
-                        {example ? (
-                          <Text variant="body" style={styles.clozeText}>
-                            &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
-                          </Text>
-                        ) : (
-                          <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                            {t('practice.noExample')}
-                          </Text>
-                        )}
-                        <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-                          <Icon name="finger-print" size="md" color={colors.primary} />
-                          <Text variant="caption" color="primary" bold>
-                            {t('practice.tapReveal')}
-                          </Text>
-                        </View>
+                      )}
+                      <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+                        <Icon name="finger-print" size="md" color={colors.primary} />
+                        <Text variant="caption" color="primary" bold>
+                          {t('practice.tapReveal')}
+                        </Text>
                       </View>
-                    </Pressable>
-                  </Animated.View>
-                  <Animated.View style={[styles.flashcard, styles.flashcardBack, cardSurface, backAnimatedStyle]}>
+                    </View>
+                  </Pressable>
+                ) : (
+                  <View style={[styles.flashcard, cardSurface]}>
                     {sharedCardBack}
-                  </Animated.View>
-                </>
+                  </View>
+                )
               ) : !isFlipped ? (
                 <View style={[styles.flashcard, cardSurface]}>
                   <View style={styles.cardContent}>
@@ -908,22 +731,18 @@ export function PracticeScreen() {
           </View>
 
           {isFlipped && (
-            <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.border }]}>
+            <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.outlineVariant }]}>
               <Text style={{ textAlign: 'center' }} bold>
                 {t('practice.rateRecall')}
               </Text>
-              <Slidebar ratingScore={ratingScore} onChange={setRatingScore} />
-              <Button
-                label={t('practice.confirmGrade')}
-                variant="primary"
-                iconRight="arrow-forward"
-                style={{ width: '100%', marginTop: spacing.xs }}
-                onPress={confirmGrade}
+              <RatingBar
+                intervals={currentItem.preview_intervals}
+                onSelect={selectGrade}
               />
               {sessionMode === 'repeat' && (
                 <Button
                   label={t('practice.finishRepeat')}
-                  variant="secondary"
+                  variant="outline"
                   style={{ width: '100%' }}
                   onPress={finishRepeatSession}
                 />
@@ -997,13 +816,6 @@ const styles = StyleSheet.create({
     minHeight: 280,
     justifyContent: 'center',
     padding: 24,
-  },
-  flashcardBack: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   cardContent: {
     flex: 1,
@@ -1104,109 +916,11 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
   },
-});
-
-const faceStyles = StyleSheet.create({
-  faceContainer: {
-    width: 38,
-    height: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eyesRow: {
+  saveIndicator: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: 22,
-    marginBottom: 4,
-  },
-  eyeXContainer: {
-    width: 8,
-    height: 8,
-    justifyContent: 'center',
     alignItems: 'center',
-  },
-  eyeXLine: {
-    position: 'absolute',
-    width: 8,
-    height: 1.8,
-    borderRadius: 0.9,
-  },
-  eyeFlat: {
-    width: 8,
-    height: 1.8,
-    borderRadius: 0.9,
-  },
-  eyeArch: {
-    width: 8,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-  },
-  mouthFrown: {
-    width: 14,
-    height: 6,
-    borderTopWidth: 2.5,
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    marginTop: 3,
-  },
-  mouthFlat: {
-    width: 10,
-    height: 1.8,
-    borderRadius: 0.9,
-    marginTop: 4,
-  },
-  mouthSmile: {
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-  },
-});
-
-const sliderStyles = StyleSheet.create({
-  container: {
-    width: '100%',
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  trackWrapper: {
-    width: '90%',
-    height: 44,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  track: {
-    height: 8,
-    borderRadius: 4,
-    width: '100%',
-  },
-  fill: {
-    position: 'absolute',
-    height: 8,
-    borderRadius: 4,
-    left: 0,
-  },
-  handle: {
-    position: 'absolute',
-    width: baseHandleSize,
-    height: baseHandleSize,
-    borderRadius: baseHandleSize / 2,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  label: {
-    marginTop: 10,
-    fontSize: 16,
-    fontWeight: '700',
+    gap: 6,
+    marginRight: 'auto',
+    marginLeft: 8,
   },
 });

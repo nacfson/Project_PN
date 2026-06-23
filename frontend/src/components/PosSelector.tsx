@@ -38,14 +38,14 @@ export function PosSelector({ value, onChange }: PosSelectorProps) {
               styles.chip,
               {
                 borderRadius: radii.full,
-                borderColor: active ? colors.primary : colors.border,
-                backgroundColor: active ? colors.primary : colors.surface,
+                borderColor: active ? 'transparent' : colors.outline,
+                backgroundColor: active ? colors.secondaryContainer : 'transparent',
               },
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <Text variant="label" color={active ? 'inverse' : 'muted'}>
+            <Text variant="label" color={active ? 'onSecondaryContainer' : 'muted'}>
               {t(`pos.${option}`)}
             </Text>
           </Pressable>

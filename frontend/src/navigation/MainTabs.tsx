@@ -26,7 +26,7 @@ interface MainTabsProps {
 
 function TabIcon({ name, focused }: { name: React.ComponentProps<typeof Icon>['name']; focused: boolean }) {
   const { colors } = useTheme();
-  return <Icon name={name} size="md" color={focused ? colors.primary : colors.textMuted} />;
+  return <Icon name={name} size="md" color={focused ? colors.onPrimaryContainer : colors.onSurfaceVariant} />;
 }
 
 export function MainTabs({ onLogout }: MainTabsProps) {
@@ -39,11 +39,11 @@ export function MainTabs({ onLogout }: MainTabsProps) {
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textMuted,
+          tabBarActiveTintColor: colors.onPrimaryContainer,
+          tabBarInactiveTintColor: colors.onSurfaceVariant,
           tabBarStyle: {
-            backgroundColor: colors.surface,
-            borderTopColor: colors.border,
+            backgroundColor: colors.surfaceContainer,
+            borderTopColor: colors.outlineVariant,
           },
           tabBarLabelStyle: {
             fontSize: 11,

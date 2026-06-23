@@ -1,8 +1,8 @@
 import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 
-type TextVariant = 'body' | 'caption' | 'title' | 'heading' | 'label';
-type TextColor = 'default' | 'muted' | 'inverse' | 'primary' | 'danger' | 'success';
+type TextVariant = 'body' | 'caption' | 'title' | 'heading' | 'headline' | 'label';
+type TextColor = 'default' | 'muted' | 'inverse' | 'primary' | 'danger' | 'success' | 'onPrimaryContainer' | 'onSecondaryContainer';
 
 interface TextProps extends RNTextProps {
   variant?: TextVariant;
@@ -14,12 +14,14 @@ export function Text({ variant = 'body', color = 'default', bold, style, ...rest
   const { colors, typography } = useTheme();
 
   const colorMap = {
-    default: colors.text,
-    muted: colors.textMuted,
-    inverse: colors.textInverse,
+    default: colors.onSurface,
+    muted: colors.onSurfaceVariant,
+    inverse: colors.inverseOnSurface,
     primary: colors.primary,
-    danger: colors.danger,
+    danger: colors.error,
     success: colors.success,
+    onPrimaryContainer: colors.onPrimaryContainer,
+    onSecondaryContainer: colors.onSecondaryContainer,
   };
 
   return (
@@ -47,5 +49,6 @@ const variantStyles = StyleSheet.create({
   caption: { fontSize: 13, lineHeight: 18 },
   title: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
   heading: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
+  headline: { fontSize: 28, fontWeight: '400', lineHeight: 36 },
   label: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
 });

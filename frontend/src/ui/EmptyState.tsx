@@ -19,7 +19,7 @@ export function EmptyState({ icon, title, message, actionLabel, onAction }: Empt
 
   return (
     <View style={[styles.container, { gap: spacing.md }]}>
-      <View style={[styles.iconCircle, { backgroundColor: colors.surface }]}>
+      <View style={[styles.iconCircle, { backgroundColor: colors.primaryContainer }]}>
         <Icon name={icon} size="xl" color={colors.primary} />
       </View>
       <Text variant="title" style={{ textAlign: 'center' }}>

@@ -1,10 +1,15 @@
 export { Badge } from './Badge';
 export { Button } from './Button';
 export { Card } from './Card';
+export { Chip } from './Chip';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
+export { SegmentedControl } from './SegmentedControl';
 export { Icon } from './Icon';
 export { Input } from './Input';
 export { LoadingState } from './LoadingState';
+export { RatingBar } from './RatingBar';
+export { RatingButton, type Rating, type RatingButtonProps } from './RatingButton';
 export { Screen } from './Screen';
+export { Switch } from './Switch';
 export { Text } from './Text';

@@ -73,7 +73,8 @@ Steps 6 and 7 must be idempotent: re-adding the same `(user_id, word_sense_id)` 
 4. API excludes rows where `user_word_senses.archived_at is not null`.
 5. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
 6. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
-7. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
+7. API loads example sentences and their translations for each returned item.
+8. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
 
 Rules:
 

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project PN — Material Dynamic</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>body{font-family:'Roboto',sans-serif;background:#f0f4f8;}.phone{max-width:390px;margin:0 auto;min-height:100vh;background:#f0f4f8;box-shadow:0 0 60px rgba(0,0,0,0.1);}.m3-elev{box-shadow:0 1px 2px rgba(0,0,0,0.3),0 1px 3px 1px rgba(0,0,0,0.15);}</style>
+</head>
+<body>
+  <div class="phone pb-24">
+    <div class="bg-[#1c1b1f] text-white px-6 pt-14 pb-6 rounded-b-[28px]">
+      <p class="text-sm text-[#eaddff]">Hello, Alex</p>
+      <h1 class="text-3xl font-medium mt-1">12 words due</h1>
+      <p class="text-[#eaddff] text-sm mt-1">Keep your streak going</p>
+      <button class="mt-5 bg-[#d0bcff] text-[#381e72] font-medium px-6 py-3 rounded-full">Start review</button>
+    </div>
+
+    <div class="px-5 -mt-4">
+      <div class="bg-white rounded-[28px] p-5 m3-elev mb-5">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-sm font-medium text-[#49454f]">Daily goal</p>
+          <p class="text-xl font-medium text-[#1c1b1f]">130/200 XP</p>
+        </div>
+        <div class="h-2 bg-[#eaddff] rounded-full overflow-hidden">
+          <div class="h-full bg-[#6750a4] rounded-full" style="width:65%"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-5">
+        <div class="bg-white rounded-[24px] p-4 m3-elev">
+          <p class="text-sm text-[#49454f]">Streak</p>
+          <p class="text-2xl font-medium text-[#1c1b1f] mt-1">24 🔥</p>
+        </div>
+        <div class="bg-white rounded-[24px] p-4 m3-elev">
+          <p class="text-sm text-[#49454f]">Words</p>
+          <p class="text-2xl font-medium text-[#1c1b1f] mt-1">248</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-[28px] p-5 m3-elev mb-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-full bg-[#eaddff] flex items-center justify-center text-[#6750a4] font-medium">W</div>
+          <p class="text-sm font-medium text-[#49454f]">Word of the day</p>
+        </div>
+        <p class="text-2xl font-medium text-[#1c1b1f]">serendipity</p>
+        <p class="text-sm text-[#49454f] mt-1">finding something good without looking for it</p>
+        <div class="flex gap-3 mt-4">
+          <button class="flex-1 border border-[#79747e] text-[#6750a4] font-medium py-2.5 rounded-full">Skip</button>
+          <button class="flex-1 bg-[#6750a4] text-white font-medium py-2.5 rounded-full">Add</button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-[28px] p-5 m3-elev">
+        <p class="text-sm font-medium text-[#49454f] mb-3">Mastery</p>
+        <div class="h-3 rounded-full overflow-hidden flex">
+          <div class="bg-[#eaddff]" style="width:12%"></div>
+          <div class="bg-[#d0bcff]" style="width:18%"></div>
+          <div class="bg-[#b69df8]" style="width:22%"></div>
+          <div class="bg-[#9a82db]" style="width:20%"></div>
+          <div class="bg-[#7f67be]" style="width:18%"></div>
+          <div class="bg-[#6750a4]" style="width:10%"></div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-[#f3edf7] px-6 py-4 flex justify-between text-xs font-medium" style="max-width:390px;margin:0 auto;border-radius:16px 16px 0 0;">
+      <span class="text-[#1c1b1f]">Learn</span>
+      <span class="text-[#49454f]">Words</span>
+      <span class="text-[#49454f]">Add</span>
+      <span class="text-[#49454f]">Practice</span>
+      <span class="text-[#49454f]">Settings</span>
+    </nav>
+  </div>
+</body>
+</html>

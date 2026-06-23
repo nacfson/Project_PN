@@ -18,8 +18,8 @@ export function ErrorState({ title, message, onRetry }: ErrorStateProps) {
 
   return (
     <View style={[styles.container, { gap: spacing.md }]}>
-      <View style={[styles.iconCircle, { backgroundColor: colors.dangerSurface }]}>
-        <Icon name="alert-circle" size="xl" color={colors.danger} />
+      <View style={[styles.iconCircle, { backgroundColor: colors.errorContainer }]}>
+        <Icon name="alert-circle" size="xl" color={colors.error} />
       </View>
       <Text variant="title" style={{ textAlign: 'center' }}>
         {resolvedTitle}

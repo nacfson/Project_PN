@@ -185,6 +185,34 @@ review_rating: again
 metadata: {"leech": true}
 ```
 
+## Practice Activity Types
+
+`review_attempts.activity_type` records the kind of exercise the user performed. The frontend currently uses three types:
+
+- `meaning_to_word`: the user sees a definition and recalls the target word.
+- `cloze`: the user sees an example sentence with the target word blanked out and recalls the word.
+- `word_to_meaning`: the user taps to reveal a flashcard and self-grades recognition.
+
+The scheduler treats all three the same way: it uses the user's self-rated `rating_score` (0.0–3.0) to compute the next FSRS state. The activity type is kept for analytics and future per-mode difficulty tuning.
+
+### Mixed Mode Policy
+
+Normal and repeat sessions mix typing (productive recall) with flashcard (recognition) based on the item's `learning_stage`:
+
+| Stage | Flashcard probability |
+|-------|----------------------|
+| `new`, `learning` | 0% |
+| `recognized` | 50% |
+| `recalled` | 70% |
+| `usable` | 85% |
+| `mastered` | 95% |
+
+Flashcards become the dominant mode as a word matures, while typing remains the default for brand-new cards to strengthen productive recall.
+
+### Repeat Review Mode
+
+Repeat mode loads every non-archived `user_word_senses` row via `GET /api/learning-items` and presents them for extra practice. Because the list endpoint now includes example sentences, repeat-mode cards can use the same `cloze` prompts as normal due reviews.
+
 ## Evidence-Based Data Model
 
 The schema supports evidence-based learning because it stores:

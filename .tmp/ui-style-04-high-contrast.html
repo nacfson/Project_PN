@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project PN — High Contrast</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>body{font-family:'Inter',sans-serif;background:#ffffff;}.phone{max-width:390px;margin:0 auto;min-height:100vh;background:#ffffff;box-shadow:0 0 60px rgba(0,0,0,0.12);}</style>
+</head>
+<body>
+  <div class="phone px-5 pt-12 pb-24">
+    <header class="mb-8">
+      <p class="text-sm font-semibold text-black/60">Monday, June 23</p>
+      <h1 class="text-3xl font-extrabold text-black mt-1">Hello, Alex</h1>
+    </header>
+
+    <section class="border-4 border-black rounded-none p-6 mb-6 bg-white">
+      <p class="text-sm font-bold uppercase tracking-wider text-black/70">Words due today</p>
+      <p class="text-6xl font-extrabold text-black mt-2">12</p>
+      <button class="w-full mt-5 bg-black text-white text-lg font-extrabold py-4 uppercase tracking-wide hover:bg-black/80">Start review</button>
+    </section>
+
+    <section class="grid grid-cols-2 gap-4 mb-6">
+      <div class="border-2 border-black p-4">
+        <p class="text-xs font-bold uppercase text-black/60">Streak</p>
+        <p class="text-3xl font-extrabold text-black mt-1">24</p>
+      </div>
+      <div class="border-2 border-black p-4">
+        <p class="text-xs font-bold uppercase text-black/60">XP today</p>
+        <p class="text-3xl font-extrabold text-black mt-1">130</p>
+      </div>
+    </section>
+
+    <section class="border-2 border-black p-5 mb-6">
+      <p class="text-xs font-bold uppercase text-black/60 mb-2">Daily goal</p>
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-4 bg-slate-200">
+          <div class="h-full bg-black" style="width:65%"></div>
+        </div>
+        <span class="font-extrabold text-black">65%</span>
+      </div>
+    </section>
+
+    <section class="border-2 border-black p-5 mb-6">
+      <p class="text-xs font-bold uppercase text-black/60 mb-2">Word of the day</p>
+      <p class="text-2xl font-extrabold text-black">serendipity</p>
+      <p class="text-base text-black/80 mt-1">finding something good without looking for it</p>
+    </section>
+
+    <section class="border-2 border-black p-5">
+      <p class="text-xs font-bold uppercase text-black/60 mb-3">Mastery</p>
+      <div class="h-5 flex gap-0.5">
+        <div class="bg-black/20 flex-1"></div>
+        <div class="bg-black/30 flex-1"></div>
+        <div class="bg-black/40 flex-1"></div>
+        <div class="bg-black/50 flex-1"></div>
+        <div class="bg-black/70 flex-1"></div>
+        <div class="bg-black flex-1"></div>
+      </div>
+      <div class="flex justify-between text-xs font-bold mt-2 text-black/60">
+        <span>New</span>
+        <span>Mastered</span>
+      </div>
+    </section>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black px-4 py-3 flex justify-between text-xs font-extrabold uppercase" style="max-width:390px;margin:0 auto;">
+      <span class="underline decoration-4 decoration-black underline-offset-4">Learn</span>
+      <span>Words</span>
+      <span>Add</span>
+      <span>Practice</span>
+      <span>Settings</span>
+    </nav>
+  </div>
+</body>
+</html>

@@ -1,77 +1,31 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CaptureScreen } from '../screens/CaptureScreen';
 import { ManualAddScreen } from '../screens/ManualAddScreen';
 import { AnkiImportScreen } from '../features/import/AnkiImportScreen';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
-import { Text } from '../ui';
+import { SegmentedControl, Text } from '../ui';
 
 type AddMode = 'capture' | 'manual' | 'import';
 
 export function AddScreen() {
-  const { colors, spacing, radii } = useTheme();
+  const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [mode, setMode] = useState<AddMode>('capture');
 
+  const options: { value: AddMode; label: string }[] = [
+    { value: 'capture', label: t('add.capture') },
+    { value: 'manual', label: t('add.manual') },
+    { value: 'import', label: t('add.import') },
+  ];
+
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: colors.surfaceAlt }]}>
-      <View
-        style={[
-          styles.tabs,
-          {
-            paddingHorizontal: spacing.xl,
-            gap: spacing.sm,
-            marginBottom: spacing.sm,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={() => setMode('capture')}
-          style={[
-            styles.tab,
-            {
-              borderRadius: radii.md,
-              backgroundColor: mode === 'capture' ? colors.primary : colors.surface,
-              borderColor: mode === 'capture' ? colors.primary : colors.border,
-            },
-          ]}
-        >
-          <Text variant="label" color={mode === 'capture' ? 'inverse' : 'muted'}>
-            {t('add.capture')}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode('manual')}
-          style={[
-            styles.tab,
-            {
-              borderRadius: radii.md,
-              backgroundColor: mode === 'manual' ? colors.primary : colors.surface,
-              borderColor: mode === 'manual' ? colors.primary : colors.border,
-            },
-          ]}
-        >
-          <Text variant="label" color={mode === 'manual' ? 'inverse' : 'muted'}>
-            {t('add.manual')}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode('import')}
-          style={[
-            styles.tab,
-            {
-              borderRadius: radii.md,
-              backgroundColor: mode === 'import' ? colors.primary : colors.surface,
-              borderColor: mode === 'import' ? colors.primary : colors.border,
-            },
-          ]}
-        >
-          <Text variant="label" color={mode === 'import' ? 'inverse' : 'muted'}>
-            {t('add.import')}
-          </Text>
-        </Pressable>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.md }]}>
+        <Text variant="heading">{t('add.manual')}</Text>
+        <SegmentedControl options={options} value={mode} onChange={setMode} />
       </View>
 
       <View style={styles.body}>
@@ -85,15 +39,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  tabs: {
-    flexDirection: 'row',
-    paddingTop: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 1,
+  header: {
+    marginBottom: 8,
   },
   body: {
     flex: 1,

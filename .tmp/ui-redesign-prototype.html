@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Project PN — UI Redesign Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+            },
+            ink: {
+              DEFAULT: '#0f172a',
+              muted: '#64748b',
+              subtle: '#94a3b8',
+            },
+            surface: '#ffffff',
+            canvas: '#f8fafc',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            soft: '0 2px 16px rgba(15, 23, 42, 0.06)',
+            card: '0 4px 24px rgba(15, 23, 42, 0.08)',
+          },
+        },
+      },
+    };
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; }
+    .phone { max-width: 414px; margin: 0 auto; min-height: 100vh; background: #f8fafc; position: relative; box-shadow: 0 0 60px rgba(0,0,0,0.12); }
+    .tab-active { color: #0284c7; }
+    .tab-inactive { color: #94a3b8; }
+    .card-flip { transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d; }
+    .card-flip.flipped { transform: rotateY(180deg); }
+    .card-face { backface-visibility: hidden; }
+    .card-back { transform: rotateY(180deg); }
+    .progress-ring circle { transition: stroke-dashoffset 0.4s ease; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes pop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .animate-pop { animation: pop 0.2s ease-out; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .sheet-enter { animation: slideUp 0.25s ease-out; }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <!-- ========== HOME ========== -->
+    <div id="screen-home" class="screen pb-24">
+      <div class="px-5 pt-12 pb-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-ink-muted font-medium">Monday, June 23</p>
+            <h1 class="text-2xl font-bold text-ink mt-0.5">Good morning, Alex</h1>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold">A</div>
+        </div>
+      </div>
+
+      <div class="px-5">
+        <!-- Hero: due today -->
+        <div class="bg-gradient-to-br from-brand-600 to-brand-700 rounded-3xl p-6 text-white shadow-card relative overflow-hidden">
+          <div class="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
+          <div class="relative">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-brand-100 text-sm font-medium">12 words due today</p>
+                <p class="text-3xl font-extrabold mt-1">Keep your streak 🔥</p>
+              </div>
+              <div class="w-14 h-14 rounded-full border-4 border-white/30 flex items-center justify-center">
+                <span class="text-lg font-bold">8</span>
+              </div>
+            </div>
+            <div class="mt-6 flex items-center gap-3">
+              <button onclick="goPractice()" class="flex-1 bg-white text-brand-700 font-semibold py-3.5 rounded-xl shadow-soft hover:bg-brand-50 transition">Start review</button>
+              <button class="px-4 py-3.5 rounded-xl bg-white/15 text-white font-medium hover:bg-white/20 transition">Preview</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily goal ring -->
+        <div class="mt-5 bg-white rounded-2xl p-5 shadow-soft flex items-center gap-5">
+          <div class="relative w-16 h-16 shrink-0">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" stroke-width="3"></circle>
+              <circle class="progress-ring" cx="18" cy="18" r="15.9" fill="none" stroke="#0ea5e9" stroke-width="3" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="35"></circle>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center text-xs font-bold text-ink">65%</div>
+          </div>
+          <div class="flex-1">
+            <p class="font-semibold text-ink">130 / 200 XP today</p>
+            <p class="text-sm text-ink-muted mt-0.5">70 XP to reach your daily goal</p>
+          </div>
+        </div>
+
+        <!-- Mastery breakdown -->
+        <div class="mt-5 bg-white rounded-2xl p-5 shadow-soft">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-ink">Mastery</h2>
+            <span class="text-sm text-ink-muted">248 words</span>
+          </div>
+          <div class="h-3 w-full rounded-full overflow-hidden flex">
+            <div class="bg-slate-300 h-full" style="width: 12%"></div>
+            <div class="bg-brand-500 h-full" style="width: 18%"></div>
+            <div class="bg-sky-400 h-full" style="width: 22%"></div>
+            <div class="bg-amber-400 h-full" style="width: 20%"></div>
+            <div class="bg-emerald-400 h-full" style="width: 18%"></div>
+            <div class="bg-violet-500 h-full" style="width: 10%"></div>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-3 text-xs">
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-300"></span>New 12%</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-brand-500"></span>Learning 18%</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-400"></span>Recognized 22%</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>Recalled 20%</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Usable 18%</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-violet-500"></span>Mastered 10%</span>
+          </div>
+        </div>
+
+        <!-- Word of the day -->
+        <div class="mt-5 bg-white rounded-2xl p-5 shadow-soft">
+          <p class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Word of the day</p>
+          <div class="flex items-end justify-between mt-2">
+            <div>
+              <p class="text-2xl font-extrabold text-ink">serendipity</p>
+              <p class="text-sm text-ink-muted mt-1">finding something good without looking for it</p>
+            </div>
+            <button class="bg-canvas text-brand-700 font-semibold px-4 py-2 rounded-xl hover:bg-brand-50 transition">Add</button>
+          </div>
+        </div>
+
+        <!-- Forecast -->
+        <div class="mt-5 bg-white rounded-2xl p-5 shadow-soft">
+          <h2 class="font-bold text-ink mb-4">Next 7 days</h2>
+          <div class="flex items-end justify-between h-24 gap-2">
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-500 rounded-t-lg" style="height: 80%"></div>
+              <span class="text-xs text-ink-muted">Today</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-200 rounded-t-lg" style="height: 55%"></div>
+              <span class="text-xs text-ink-muted">Tue</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-200 rounded-t-lg" style="height: 40%"></div>
+              <span class="text-xs text-ink-muted">Wed</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-200 rounded-t-lg" style="height: 70%"></div>
+              <span class="text-xs text-ink-muted">Thu</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-200 rounded-t-lg" style="height: 30%"></div>
+              <span class="text-xs text-ink-muted">Fri</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-200 rounded-t-lg" style="height: 25%"></div>
+              <span class="text-xs text-ink-muted">Sat</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-full bg-brand-200 rounded-t-lg" style="height: 35%"></div>
+              <span class="text-xs text-ink-muted">Sun</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== PRACTICE ========== -->
+    <div id="screen-practice" class="screen hidden fixed inset-0 bg-canvas z-20 flex flex-col">
+      <div class="px-5 pt-12 pb-3 flex items-center justify-between">
+        <button onclick="goHome()" class="p-2 -ml-2 rounded-full hover:bg-slate-200/50">
+          <svg class="w-6 h-6 text-ink" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <div class="flex-1 mx-4">
+          <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div id="practice-progress" class="h-full bg-brand-600 rounded-full transition-all" style="width: 8%"></div>
+          </div>
+        </div>
+        <span class="text-sm font-semibold text-ink-muted">1 / 12</span>
+      </div>
+
+      <div class="flex-1 px-5 flex flex-col justify-center">
+        <div class="text-center mb-4">
+          <span class="inline-block bg-brand-100 text-brand-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">verb</span>
+        </div>
+
+        <!-- Card -->
+        <div class="relative h-80 w-full" style="perspective: 1000px;">
+          <div id="practice-card" class="card-flip absolute inset-0 cursor-pointer" onclick="flipCard()">
+            <!-- Front -->
+            <div class="card-face absolute inset-0 bg-white rounded-3xl shadow-card p-8 flex flex-col items-center justify-center text-center">
+              <p class="text-sm font-medium text-ink-muted mb-4">Recall the English word</p>
+              <p class="text-2xl font-bold text-ink leading-relaxed">to make someone pay for something</p>
+              <p class="mt-6 text-ink-subtle italic">“The restaurant _____ed us $40 for the wine.”</p>
+              <div class="mt-10 flex items-center gap-2 text-brand-600 text-sm font-semibold">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg>
+                <span>Tap to reveal</span>
+              </div>
+            </div>
+            <!-- Back -->
+            <div class="card-back card-face absolute inset-0 bg-white rounded-3xl shadow-card p-8 flex flex-col items-center justify-center text-center">
+              <p class="text-4xl font-extrabold text-ink">charge</p>
+              <p class="mt-3 text-ink-muted">/tʃɑːrdʒ/ <button class="ml-1 align-middle text-brand-600" onclick="event.stopPropagation(); alert('🔊 charge')">🔊</button></p>
+              <p class="mt-5 text-ink font-medium">to ask someone to pay an amount of money</p>
+              <div class="mt-6 w-full bg-canvas rounded-xl p-4 text-left">
+                <p class="text-sm text-ink">“The restaurant <span class="font-bold text-brand-700">charged</span> us $40 for the wine.”</p>
+                <p class="text-xs text-ink-muted mt-2">레스토랑은 와인값으로 우리에게 40달러를 청구했다</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Typing reveal (only shown before flip) -->
+        <div id="typing-area" class="mt-6">
+          <input type="text" placeholder="Type the word you remember" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-center text-lg font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <div class="flex gap-3 mt-3">
+            <button onclick="flipCard()" class="flex-1 bg-brand-600 text-white font-semibold py-3.5 rounded-xl shadow-soft">Reveal</button>
+            <button onclick="flipCard()" class="flex-1 bg-white text-ink-muted font-semibold py-3.5 rounded-xl border border-slate-200">Don't know</button>
+          </div>
+        </div>
+
+        <!-- Grading (only shown after flip) -->
+        <div id="grading-area" class="mt-6 hidden">
+          <p class="text-center text-sm font-medium text-ink-muted mb-3">How well did you remember?</p>
+          <div class="grid grid-cols-4 gap-2">
+            <button onclick="nextCard('again')" class="flex flex-col items-center gap-1 bg-rose-50 text-rose-700 border border-rose-100 rounded-2xl py-3 hover:bg-rose-100 transition">
+              <span class="text-xs font-semibold opacity-80">Again</span>
+              <span class="text-xs font-bold">1m</span>
+            </button>
+            <button onclick="nextCard('hard')" class="flex flex-col items-center gap-1 bg-orange-50 text-orange-700 border border-orange-100 rounded-2xl py-3 hover:bg-orange-100 transition">
+              <span class="text-xs font-semibold opacity-80">Hard</span>
+              <span class="text-xs font-bold">6m</span>
+            </button>
+            <button onclick="nextCard('good')" class="flex flex-col items-center gap-1 bg-brand-50 text-brand-700 border border-brand-100 rounded-2xl py-3 hover:bg-brand-100 transition">
+              <span class="text-xs font-semibold opacity-80">Good</span>
+              <span class="text-xs font-bold">3d</span>
+            </button>
+            <button onclick="nextCard('easy')" class="flex flex-col items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-2xl py-3 hover:bg-emerald-100 transition">
+              <span class="text-xs font-semibold opacity-80">Easy</span>
+              <span class="text-xs font-bold">8d</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== ADD WORD ========== -->
+    <div id="screen-add" class="screen hidden pb-24">
+      <div class="px-5 pt-12 pb-4">
+        <h1 class="text-2xl font-bold text-ink">Add words</h1>
+        <p class="text-sm text-ink-muted mt-1">Choose how you want to capture vocabulary</p>
+      </div>
+
+      <div class="px-5">
+        <!-- Tabs -->
+        <div class="bg-white p-1 rounded-xl shadow-soft flex mb-5">
+          <button class="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-brand-600 text-white">Manual</button>
+          <button class="flex-1 py-2.5 text-sm font-semibold rounded-lg text-ink-muted hover:bg-slate-50">Capture</button>
+          <button class="flex-1 py-2.5 text-sm font-semibold rounded-lg text-ink-muted hover:bg-slate-50">Import</button>
+        </div>
+
+        <!-- Input -->
+        <div class="bg-white rounded-2xl p-4 shadow-soft flex items-center gap-3">
+          <svg class="w-5 h-5 text-ink-subtle" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="add-input" type="text" value="charge" placeholder="Type a word" class="flex-1 text-lg font-semibold text-ink bg-transparent outline-none" />
+          <button onclick="openSensePicker()" class="bg-brand-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">Look up</button>
+        </div>
+
+        <!-- Recent captures -->
+        <div class="mt-6">
+          <h2 class="font-bold text-ink mb-3">From your captures</h2>
+          <div class="bg-white rounded-2xl p-4 shadow-soft flex flex-wrap gap-2">
+            <span class="px-3 py-1.5 bg-canvas rounded-full text-sm font-medium text-ink">running</span>
+            <span class="px-3 py-1.5 bg-canvas rounded-full text-sm font-medium text-ink">embark</span>
+            <span class="px-3 py-1.5 bg-canvas rounded-full text-sm font-medium text-ink">threshold</span>
+            <span class="px-3 py-1.5 bg-canvas rounded-full text-sm font-medium text-ink">nuance</span>
+          </div>
+          <button class="mt-3 w-full py-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-ink hover:bg-slate-50">Add all 4 captured words</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sense picker sheet -->
+    <div id="sense-sheet" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end" onclick="closeSensePicker(event)">
+      <div class="bg-white w-full rounded-t-3xl p-6 sheet-enter max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-5"></div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-ink">Choose a meaning</h2>
+          <button onclick="closeSensePicker()" class="p-2 -mr-2 text-ink-muted">✕</button>
+        </div>
+        <p class="text-sm text-ink-muted mb-5">The word <span class="font-semibold text-ink">charge</span> has several meanings. Pick the one you want to learn.</p>
+
+        <div class="space-y-3">
+          <label class="block relative">
+            <input type="radio" name="sense" class="peer sr-only" checked />
+            <div class="border-2 border-brand-500 bg-brand-50 rounded-2xl p-4 cursor-pointer transition">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs font-bold uppercase tracking-wide text-brand-700 bg-white px-2 py-0.5 rounded">verb</span>
+                <span class="text-xs font-bold uppercase tracking-wide text-slate-600 bg-slate-100 px-2 py-0.5 rounded">B1</span>
+              </div>
+              <p class="font-semibold text-ink">to ask someone to pay an amount of money</p>
+              <p class="text-sm text-ink-muted mt-1 italic">“The restaurant charged us $40 for the wine.”</p>
+            </div>
+          </label>
+          <label class="block relative">
+            <input type="radio" name="sense" class="peer sr-only" />
+            <div class="border-2 border-slate-100 bg-white rounded-2xl p-4 cursor-pointer hover:border-slate-200 transition peer-checked:border-brand-500 peer-checked:bg-brand-50">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs font-bold uppercase tracking-wide text-brand-700 bg-slate-100 px-2 py-0.5 rounded">verb</span>
+              </div>
+              <p class="font-semibold text-ink">to accuse someone officially of a crime</p>
+              <p class="text-sm text-ink-muted mt-1 italic">“He was charged with theft.”</p>
+            </div>
+          </label>
+          <label class="block relative">
+            <input type="radio" name="sense" class="peer sr-only" />
+            <div class="border-2 border-slate-100 bg-white rounded-2xl p-4 cursor-pointer hover:border-slate-200 transition peer-checked:border-brand-500 peer-checked:bg-brand-50">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs font-bold uppercase tracking-wide text-brand-700 bg-slate-100 px-2 py-0.5 rounded">noun</span>
+              </div>
+              <p class="font-semibold text-ink">the amount of electricity stored in a device</p>
+              <p class="text-sm text-ink-muted mt-1 italic">“The battery is low on charge.”</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="mt-6 flex gap-3">
+          <button onclick="closeSensePicker()" class="flex-1 py-3.5 rounded-xl border border-slate-200 font-semibold text-ink-muted">None match</button>
+          <button onclick="addSense()" class="flex-1 py-3.5 rounded-xl bg-brand-600 text-white font-semibold shadow-soft">Add selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== MY WORDS ========== -->
+    <div id="screen-words" class="screen hidden pb-24">
+      <div class="px-5 pt-12 pb-4">
+        <h1 class="text-2xl font-bold text-ink">My words</h1>
+      </div>
+      <div class="px-5 mb-4">
+        <div class="bg-white rounded-xl px-4 py-3 shadow-soft flex items-center gap-3">
+          <svg class="w-5 h-5 text-ink-subtle" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" placeholder="Search 248 words" class="flex-1 bg-transparent outline-none text-ink" />
+        </div>
+        <div class="flex gap-2 mt-3 overflow-x-auto hide-scrollbar pb-1">
+          <button class="px-3 py-1.5 bg-ink text-white rounded-full text-xs font-semibold whitespace-nowrap">All</button>
+          <button class="px-3 py-1.5 bg-white border border-slate-200 text-ink-muted rounded-full text-xs font-semibold whitespace-nowrap">Due</button>
+          <button class="px-3 py-1.5 bg-white border border-slate-200 text-ink-muted rounded-full text-xs font-semibold whitespace-nowrap">Learning</button>
+          <button class="px-3 py-1.5 bg-white border border-slate-200 text-ink-muted rounded-full text-xs font-semibold whitespace-nowrap">Mastered</button>
+        </div>
+      </div>
+
+      <div class="px-5 space-y-3">
+        <div class="bg-white rounded-2xl p-4 shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-lg font-bold text-ink">charge</p>
+            <p class="text-sm text-ink-muted">to ask someone to pay</p>
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-[10px] font-bold uppercase tracking-wide text-brand-700 bg-brand-50 px-2 py-0.5 rounded">verb</span>
+              <span class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">usable</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-ink-muted">Next review</p>
+            <p class="text-sm font-semibold text-ink">in 3 days</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-lg font-bold text-ink">serendipity</p>
+            <p class="text-sm text-ink-muted">finding something good by chance</p>
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-[10px] font-bold uppercase tracking-wide text-brand-700 bg-brand-50 px-2 py-0.5 rounded">noun</span>
+              <span class="text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded">recalled</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-ink-muted">Next review</p>
+            <p class="text-sm font-semibold text-ink">tomorrow</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-soft flex items-center justify-between">
+          <div>
+            <p class="text-lg font-bold text-ink">threshold</p>
+            <p class="text-sm text-ink-muted">the level at which something begins</p>
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-[10px] font-bold uppercase tracking-wide text-brand-700 bg-brand-50 px-2 py-0.5 rounded">noun</span>
+              <span class="text-[10px] font-bold uppercase tracking-wide text-slate-600 bg-slate-100 px-2 py-0.5 rounded">new</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-ink-muted">Next review</p>
+            <p class="text-sm font-semibold text-ink">now</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== SETTINGS ========== -->
+    <div id="screen-settings" class="screen hidden pb-24">
+      <div class="px-5 pt-12 pb-4">
+        <h1 class="text-2xl font-bold text-ink">Settings</h1>
+      </div>
+      <div class="px-5 space-y-4">
+        <div class="bg-white rounded-2xl p-5 shadow-soft">
+          <p class="text-xs font-bold uppercase tracking-wide text-ink-muted mb-4">Account</p>
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-lg">A</div>
+            <div>
+              <p class="font-semibold text-ink">alex@example.com</p>
+              <p class="text-sm text-ink-muted">Learning English from Korean</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-soft">
+          <p class="text-xs font-bold uppercase tracking-wide text-ink-muted mb-4">Review</p>
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <label class="font-semibold text-ink">Daily XP goal</label>
+              <span class="text-brand-600 font-bold">200 XP</span>
+            </div>
+            <input type="range" min="50" max="500" step="10" value="200" class="w-full accent-brand-600" />
+            <p class="text-xs text-ink-muted mt-1.5">Earn XP by completing reviews.</p>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="font-semibold text-ink">Desired retention</label>
+              <span class="text-brand-600 font-bold">90%</span>
+            </div>
+            <input type="range" min="70" max="99" value="90" class="w-full accent-brand-600" />
+            <div class="flex justify-between text-xs text-ink-muted mt-1.5">
+              <span>Fewer reviews</span>
+              <span>More reviews</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-soft">
+          <p class="text-xs font-bold uppercase tracking-wide text-ink-muted mb-4">App</p>
+          <div class="flex items-center justify-between py-2">
+            <span class="font-medium text-ink">App language</span>
+            <span class="text-ink-muted">English</span>
+          </div>
+          <div class="flex items-center justify-between py-2">
+            <span class="font-medium text-ink">Vacation mode</span>
+            <span class="text-ink-muted">Off</span>
+          </div>
+        </div>
+
+        <button class="w-full py-4 bg-rose-50 text-rose-600 font-semibold rounded-2xl hover:bg-rose-100 transition">Log out</button>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed top-14 left-1/2 -translate-x-1/2 bg-ink text-white px-4 py-2.5 rounded-full text-sm font-medium shadow-lg z-50 animate-pop whitespace-nowrap"></div>
+
+    <!-- Bottom nav -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-between items-center z-10" style="max-width: 414px; margin: 0 auto;">
+      <button onclick="switchTab('home')" class="nav-btn flex flex-col items-center gap-1 tab-active" data-tab="home">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span class="text-[10px] font-semibold">Learn</span>
+      </button>
+      <button onclick="switchTab('words')" class="nav-btn flex flex-col items-center gap-1 tab-inactive" data-tab="words">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        <span class="text-[10px] font-semibold">Words</span>
+      </button>
+      <button onclick="switchTab('add')" class="nav-btn flex flex-col items-center gap-1 tab-inactive" data-tab="add">
+        <div class="w-10 h-10 -mt-5 bg-brand-600 rounded-full flex items-center justify-center text-white shadow-lg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        </div>
+        <span class="text-[10px] font-semibold">Add</span>
+      </button>
+      <button onclick="switchTab('practice')" class="nav-btn flex flex-col items-center gap-1 tab-inactive" data-tab="practice">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span class="text-[10px] font-semibold">Practice</span>
+      </button>
+      <button onclick="switchTab('settings')" class="nav-btn flex flex-col items-center gap-1 tab-inactive" data-tab="settings">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span class="text-[10px] font-semibold">Settings</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'home';
+    let practiceIndex = 1;
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+      document.getElementById('screen-' + tab).classList.remove('hidden');
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('tab-active');
+        btn.classList.add('tab-inactive');
+      });
+      const active = document.querySelector('.nav-btn[data-tab="' + tab + '"]');
+      if (active) {
+        active.classList.remove('tab-inactive');
+        active.classList.add('tab-active');
+      }
+      window.scrollTo(0, 0);
+    }
+
+    function goPractice() {
+      switchTab('practice');
+      resetPracticeCard();
+    }
+
+    function goHome() {
+      switchTab('home');
+    }
+
+    function flipCard() {
+      const card = document.getElementById('practice-card');
+      card.classList.add('flipped');
+      document.getElementById('typing-area').classList.add('hidden');
+      document.getElementById('grading-area').classList.remove('hidden');
+    }
+
+    function resetPracticeCard() {
+      const card = document.getElementById('practice-card');
+      card.classList.remove('flipped');
+      document.getElementById('typing-area').classList.remove('hidden');
+      document.getElementById('grading-area').classList.add('hidden');
+    }
+
+    function nextCard(rating) {
+      practiceIndex++;
+      if (practiceIndex > 12) {
+        showToast('Session complete! +120 XP');
+        goHome();
+        practiceIndex = 1;
+      } else {
+        document.getElementById('practice-progress').style.width = (practiceIndex / 12 * 100) + '%';
+        resetPracticeCard();
+        showToast(rating === 'again' ? 'Card rescheduled in 1 min' : 'Saved');
+      }
+    }
+
+    function openSensePicker() {
+      document.getElementById('sense-sheet').classList.remove('hidden');
+    }
+
+    function closeSensePicker(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('sense-sheet').classList.add('hidden');
+    }
+
+    function addSense() {
+      closeSensePicker();
+      showToast('“charge” added to your words');
+      document.getElementById('add-input').value = '';
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2500);
+    }
+  </script>
+</body>
+</html>

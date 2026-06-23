@@ -7,7 +7,7 @@ import { type AppLanguage, useAppLanguage } from '../../i18n';
 import type { MeResponse } from '../../types/auth';
 import type { ReviewSettings, StreakSettings } from '../../types';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Card, Icon, Input, LoadingState, Screen, Text } from '../../ui';
+import { Button, Card, Icon, Input, LoadingState, Screen, Switch, Text } from '../../ui';
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -19,12 +19,14 @@ function SettingRow({
   value,
   onPress,
   danger,
+  trailing,
 }: {
   icon: React.ComponentProps<typeof Icon>['name'];
   label: string;
   value?: string;
   onPress?: () => void;
   danger?: boolean;
+  trailing?: React.ReactNode;
 }) {
   const { colors, spacing } = useTheme();
 
@@ -40,11 +42,11 @@ function SettingRow({
         },
       ]}
     >
-      <View style={[styles.iconCircle, { backgroundColor: danger ? colors.dangerSurface : colors.surfaceAlt }]}>
-        <Icon name={icon} size="md" color={danger ? colors.danger : colors.primary} />
+      <View style={[styles.iconCircle, { backgroundColor: danger ? colors.errorContainer : colors.primaryContainer }]}>
+        <Icon name={icon} size="md" color={danger ? colors.error : colors.primary} />
       </View>
       <View style={styles.rowContent}>
-        <Text variant="body" style={{ color: danger ? colors.danger : colors.text }}>
+        <Text variant="body" style={{ color: danger ? colors.error : colors.onSurface }}>
           {label}
         </Text>
         {value ? (
@@ -53,13 +55,13 @@ function SettingRow({
           </Text>
         ) : null}
       </View>
-      {onPress && <Icon name="chevron-forward" size="sm" />}
+      {trailing || (onPress && <Icon name="chevron-forward" size="sm" />)}
     </Pressable>
   );
 }
 
 export function ProfileScreen({ onLogout }: ProfileScreenProps) {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, mode, toggleMode } = useTheme();
   const { language, setLanguage, t } = useAppLanguage();
   const [user, setUser] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -254,7 +256,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             </Text>
           </View>
           <SettingRow icon="person-outline" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow icon="language-outline" label={t('settings.learningLanguage')} value={languageLabel(user?.target_language)} />
         </Card>
 
@@ -279,12 +281,12 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
               />
               <Button
                 label={t('settings.save')}
-                variant="secondary"
+                variant="tonal"
                 loading={savingDailyGoal}
                 onPress={() => void saveDailyGoal()}
               />
 
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
 
               <Text variant="label">{t('settings.desiredRetention')}</Text>
               <Input
@@ -297,12 +299,12 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
               />
               <Button
                 label={t('settings.save')}
-                variant="secondary"
+                variant="tonal"
                 loading={savingRetention}
                 onPress={() => void saveRetention()}
               />
 
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
 
               <Text variant="label">{t('settings.streak')}</Text>
               <Text variant="caption" color="muted">
@@ -314,21 +316,21 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
                 {streakSettings?.vacation_mode_active ? (
                   <Button
                     label={t('settings.vacationModeDisable')}
-                    variant="secondary"
+                    variant="tonal"
                     loading={savingStreak}
                     onPress={() => void disableVacationMode()}
                   />
                 ) : (
                   <Button
                     label={t('settings.vacationModeEnable')}
-                    variant="secondary"
+                    variant="tonal"
                     loading={savingStreak}
                     onPress={() => void enableVacationMode()}
                   />
                 )}
                 <Button
                   label={t('settings.streakFreeze')}
-                  variant="secondary"
+                  variant="tonal"
                   loading={savingStreak}
                   disabled={!streakSettings || streakSettings.streak_freeze_tokens <= 0}
                   onPress={() => void useStreakFreeze()}
@@ -353,6 +355,12 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             </Text>
           </View>
           <SettingRow
+            icon={mode === 'dark' ? 'moon-outline' : 'sunny-outline'}
+            label={t('settings.darkTheme')}
+            trailing={<Switch value={mode === 'dark'} onValueChange={() => toggleMode()} />}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+          <SettingRow
             icon="language-outline"
             label={t('settings.appLanguage')}
             value={language === 'ko' ? t('language.ko') : t('language.en')}
@@ -362,19 +370,19 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             <View style={[styles.languageOptions, { gap: spacing.sm }]}>
               <Button
                 label={t('language.en')}
-                variant={language === 'en' ? 'primary' : 'secondary'}
+                variant={language === 'en' ? 'primary' : 'tonal'}
                 onPress={() => chooseLanguage('en')}
               />
               <Button
                 label={t('language.ko')}
-                variant={language === 'ko' ? 'primary' : 'secondary'}
+                variant={language === 'ko' ? 'primary' : 'tonal'}
                 onPress={() => chooseLanguage('ko')}
               />
             </View>
           ) : null}
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow icon="help-circle-outline" label={t('settings.help')} />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow icon="information-circle-outline" label={t('settings.about')} />
         </Card>
 

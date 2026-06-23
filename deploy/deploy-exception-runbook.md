@@ -38,12 +38,17 @@ ssh zlUbuntu 'curl http://localhost:53412/healthz'
 
 ## Connection refused on public IP
 
-**Cause:** The router is not forwarding WAN port `53412` to `zlUbuntu`.
+**Cause 1:** The router is not forwarding WAN port `53412` to `zlUbuntu`.
 If the router UI shows an internal/private port range, it must also be
 `53412-53412`; do not leave it as `22-22`, which forwards the public request to
 SSH instead of Project PN.
 
-**Fix:** Add or verify the router port-forward rule:
+**Cause 2:** You are testing from inside the same LAN. Some home routers
+(including LG U+ CHGW units) do not support NAT hairpin/loopback, so a request
+to the WAN IP from an internal host is dropped by the router even though the
+port-forward rule is correct and works for real external users.
+
+**Fix for Cause 1:** Add or verify the router port-forward rule:
 
 ```text
 Protocol:              TCP
@@ -53,11 +58,16 @@ Internal/private port: 53412-53412
 Status:                ON / enabled
 ```
 
-Then test from outside the LAN:
+**Fix for Cause 2:** Test from a genuinely external network (mobile hotspot,
+another location, or an external service):
 
 ```sh
 curl http://124.59.225.59:53412/healthz
 ```
+
+If it works from outside but fails from inside the LAN, the rule is correct and
+the router simply lacks NAT hairpin support. Continue using the public IP for
+external access and use the LAN IP or the Cloudflare tunnel for local testing.
 
 If `http://124.59.225.59/` shows a router admin page such as
 `/etc/intro.asp`, public port `80` is still terminating at the router. Use the

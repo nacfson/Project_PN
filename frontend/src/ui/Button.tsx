@@ -11,7 +11,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Icon } from './Icon';
 import { Text } from './Text';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'tonal' | 'outline' | 'ghost' | 'danger';
 
 interface ButtonProps extends Omit<PressableProps, 'children'> {
   label: string;
@@ -20,6 +20,7 @@ interface ButtonProps extends Omit<PressableProps, 'children'> {
   iconLeft?: React.ComponentProps<typeof Icon>['name'];
   iconRight?: React.ComponentProps<typeof Icon>['name'];
   style?: StyleProp<ViewStyle>;
+  fullWidth?: boolean;
 }
 
 export function Button({
@@ -30,6 +31,7 @@ export function Button({
   iconLeft,
   iconRight,
   style,
+  fullWidth,
   ...rest
 }: ButtonProps) {
   const { colors, spacing, radii } = useTheme();
@@ -39,17 +41,25 @@ export function Button({
     variant === 'primary'
       ? { backgroundColor: colors.primary }
       : variant === 'secondary'
-        ? { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }
-        : variant === 'danger'
-          ? { backgroundColor: colors.danger }
-          : { backgroundColor: 'transparent' };
+        ? { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.outlineVariant }
+        : variant === 'tonal'
+          ? { backgroundColor: colors.secondaryContainer }
+          : variant === 'outline'
+            ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.outline }
+            : variant === 'danger'
+              ? { backgroundColor: colors.error }
+              : { backgroundColor: 'transparent' };
 
-  const labelColor: 'inverse' | 'default' | 'danger' | 'primary' =
-    variant === 'primary' || variant === 'danger'
+  const labelColor: React.ComponentProps<typeof Text>['color'] =
+    variant === 'primary'
       ? 'inverse'
-      : variant === 'ghost'
-        ? 'primary'
-        : 'default';
+      : variant === 'danger'
+        ? 'inverse'
+        : variant === 'tonal'
+          ? 'onSecondaryContainer'
+          : variant === 'outline' || variant === 'ghost'
+            ? 'primary'
+            : 'default';
 
   return (
     <Pressable
@@ -59,10 +69,11 @@ export function Button({
         {
           paddingVertical: spacing.md,
           paddingHorizontal: spacing.lg,
-          borderRadius: radii.md,
+          borderRadius: radii.full,
           opacity: isDisabled ? 0.5 : pressed ? 0.9 : 1,
         },
         variantStyle,
+        fullWidth && styles.fullWidth,
         style,
       ]}
       {...rest}
@@ -72,11 +83,23 @@ export function Button({
           <ActivityIndicator color={labelColor === 'inverse' ? colors.onPrimary : colors.primary} />
         ) : (
           <>
-            {iconLeft && <Icon name={iconLeft} size="sm" color={labelColor === 'inverse' ? colors.onPrimary : colors.primary} />}
+            {iconLeft && (
+              <Icon
+                name={iconLeft}
+                size="sm"
+                color={labelColor === 'inverse' ? colors.onPrimary : colors.primary}
+              />
+            )}
             <Text variant="label" color={labelColor} style={{ textAlign: 'center' }}>
               {label}
             </Text>
-            {iconRight && <Icon name={iconRight} size="sm" color={labelColor === 'inverse' ? colors.onPrimary : colors.primary} />}
+            {iconRight && (
+              <Icon
+                name={iconRight}
+                size="sm"
+                color={labelColor === 'inverse' ? colors.onPrimary : colors.primary}
+              />
+            )}
           </>
         )}
       </View>
@@ -94,5 +117,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  fullWidth: {
+    width: '100%',
   },
 });

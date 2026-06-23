@@ -85,18 +85,22 @@ export function SensePicker({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={[styles.backdrop, { backgroundColor: 'rgba(15, 23, 42, 0.5)' }]}>
+      <View style={[styles.backdrop, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
         <View
           style={[
             styles.sheet,
             {
-              backgroundColor: colors.surface,
-              borderTopLeftRadius: radii.lg,
-              borderTopRightRadius: radii.lg,
+              backgroundColor: colors.surfaceContainerLow,
+              borderTopLeftRadius: radii.xxl,
+              borderTopRightRadius: radii.xxl,
               paddingBottom: Math.max(24, insets.bottom),
             },
           ]}
         >
+          <View style={styles.dragHandle}>
+            <View style={[styles.dragIndicator, { backgroundColor: colors.outlineVariant }]} />
+          </View>
+
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
             <Text variant="title">{t('sense.chooseMeaning', { query })}</Text>
             <Pressable onPress={handleClose} hitSlop={8} accessibilityRole="button">
@@ -105,8 +109,8 @@ export function SensePicker({
           </View>
 
           {errorMessage && (
-            <View style={[styles.errorRow, { backgroundColor: colors.dangerSurface, marginBottom: spacing.sm }]}>
-              <Icon name="alert-circle" size="sm" color={colors.danger} />
+            <View style={[styles.errorRow, { backgroundColor: colors.errorContainer, marginBottom: spacing.sm }]}>
+              <Icon name="alert-circle" size="sm" color={colors.error} />
               <Text variant="body" color="danger">
                 {errorMessage}
               </Text>
@@ -130,9 +134,10 @@ export function SensePicker({
                   accessibilityState={{ selected: active }}
                 >
                   <Card
+                    variant="outlined"
                     style={{
-                      borderColor: active ? colors.primary : colors.border,
-                      backgroundColor: active ? colors.infoSurface : colors.surface,
+                      borderColor: active ? colors.primary : colors.outlineVariant,
+                      backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
                       marginBottom: 0,
                     }}
                   >
@@ -161,7 +166,7 @@ export function SensePicker({
             )}
 
             {posPrompt && !selected && (
-              <View style={[styles.posPrompt, { borderTopColor: colors.border, paddingTop: spacing.md, gap: spacing.md }]}>
+              <View style={[styles.posPrompt, { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.md }]}>
                 <Text variant="label" color="muted">
                   {t('sense.pickPartOfSpeech')}
                 </Text>
@@ -170,7 +175,7 @@ export function SensePicker({
                     <Button
                       key={pos}
                       label={t(`pos.${pos}`)}
-                      variant="secondary"
+                      variant="tonal"
                       onPress={() => {
                         onForceWithPos(pos);
                         setPosPrompt(false);
@@ -185,7 +190,7 @@ export function SensePicker({
 
           <View style={[styles.actions, { marginTop: spacing.md, gap: spacing.md }]}>
             <Button label={t('sense.noneMatch')} variant="ghost" onPress={handleNoneMatch} disabled={generating} />
-            <Button label={t('sense.addBest')} variant="secondary" onPress={handleAddBestMatch} disabled={!top || generating} />
+            <Button label={t('sense.addBest')} variant="tonal" onPress={handleAddBestMatch} disabled={!top || generating} />
             <Button label={t('sense.add')} onPress={handleAddSelected} disabled={!selectedId || generating} />
           </View>
         </View>
@@ -201,9 +206,18 @@ const styles = StyleSheet.create({
   },
   sheet: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 24,
     maxHeight: '85%',
+  },
+  dragHandle: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dragIndicator: {
+    width: 32,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',

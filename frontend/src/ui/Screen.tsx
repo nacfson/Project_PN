@@ -12,7 +12,7 @@ export function Screen({ padded, style, children, ...rest }: ScreenProps) {
   return (
     <SafeAreaView
       edges={['top', 'right', 'bottom', 'left']}
-      style={[styles.safe, { backgroundColor: colors.surfaceAlt }]}
+      style={[styles.safe, { backgroundColor: colors.background }]}
     >
       <View
         style={[

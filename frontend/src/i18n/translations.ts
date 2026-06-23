@@ -87,6 +87,7 @@ export const en = {
   'words.noMatchesMessage': 'Try a different spelling or search term.',
   'words.emptyTitle': 'No words yet',
   'words.emptyMessage': 'Add words from a passage or type them in manually to start building your library.',
+  'words.filterAll': 'All',
 
   'add.capture': 'Capture',
   'add.manual': 'Manual Add',
@@ -149,7 +150,6 @@ export const en = {
   'practice.dontKnow': "I don't know",
   'practice.noAnswerGiven': 'No answer given',
   'practice.rateRecall': 'Rate your memory recall',
-  'practice.confirmGrade': 'Confirm Grade',
   'practice.ratingForgot': 'Forgot',
   'practice.ratingHard': 'Hard',
   'practice.ratingGood': 'Good',
@@ -180,6 +180,7 @@ export const en = {
   'settings.save': 'Save',
   'settings.app': 'App',
   'settings.appLanguage': 'App language',
+  'settings.darkTheme': 'Dark theme',
   'settings.help': 'Help & Feedback',
   'settings.about': 'About Project PN',
   'settings.logout': 'Log out',
@@ -227,6 +228,16 @@ export const en = {
   'import.add': 'Add',
   'import.skip': 'Skip',
   'import.existingMeanings': 'Existing meanings:',
+
+  'onboarding.slide1.title': 'Build your vocabulary',
+  'onboarding.slide1.description': 'Add words from anywhere. We handle the spaced repetition schedule.',
+  'onboarding.slide2.title': 'Practice daily',
+  'onboarding.slide2.description': 'Flip cards, type answers, and quiz yourself with adaptive prompts.',
+  'onboarding.slide3.title': 'Stay motivated',
+  'onboarding.slide3.description': 'Track streaks, XP, and mastery with clear progress cards.',
+  'onboarding.next': 'Next',
+  'onboarding.getStarted': 'Get started',
+  'onboarding.skip': 'Skip',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -320,6 +331,7 @@ export const ko: Record<TranslationKey, string> = {
   'words.noMatchesMessage': '다른 철자나 검색어를 입력해 보세요.',
   'words.emptyTitle': '아직 단어가 없습니다',
   'words.emptyMessage': '지문에서 단어를 추가하거나 직접 입력해서 단어장을 만들어 보세요.',
+  'words.filterAll': '전체',
 
   'add.capture': '캡처',
   'add.manual': '직접 추가',
@@ -382,7 +394,6 @@ export const ko: Record<TranslationKey, string> = {
   'practice.dontKnow': '모르겠어요',
   'practice.noAnswerGiven': '입력한 답 없음',
   'practice.rateRecall': '기억 정도를 평가하세요',
-  'practice.confirmGrade': '평가 확정',
   'practice.ratingForgot': '잊음',
   'practice.ratingHard': '어려움',
   'practice.ratingGood': '좋음',
@@ -413,6 +424,7 @@ export const ko: Record<TranslationKey, string> = {
   'settings.save': '저장',
   'settings.app': '앱',
   'settings.appLanguage': '앱 언어',
+  'settings.darkTheme': '어두운 테마',
   'settings.help': '도움말 및 피드백',
   'settings.about': 'Project PN 정보',
   'settings.logout': '로그아웃',
@@ -460,4 +472,14 @@ export const ko: Record<TranslationKey, string> = {
   'import.add': '추가',
   'import.skip': '걸러뛰기',
   'import.existingMeanings': '기존 의미:',
+
+  'onboarding.slide1.title': '단어장을 만들어 보세요',
+  'onboarding.slide1.description': '어디서든 단어를 추가하세요. 간격 반복 일정은 저희가 관리합니다.',
+  'onboarding.slide2.title': '매일 복습하세요',
+  'onboarding.slide2.description': '카드를 뒤집고, 답을 입력하며, 적응형 퀴즈로 스스로를 테스트하세요.',
+  'onboarding.slide3.title': '동기를 유지하세요',
+  'onboarding.slide3.description': '연속 기록, XP, 숙련도를 깔끔한 진행 카드로 추적하세요.',
+  'onboarding.next': '다음',
+  'onboarding.getStarted': '시작하기',
+  'onboarding.skip': '걸러뛰기',
 };

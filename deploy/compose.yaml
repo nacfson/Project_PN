@@ -63,8 +63,8 @@ services:
     image: nginx:1.27-alpine
     ports:
       - "80:80"
-      - "53412:80"
       - "443:443"
+      - "53412:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro

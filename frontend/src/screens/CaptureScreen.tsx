@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
-import { WordChip } from '../components/WordChip';
 import { TappablePassage } from '../components/TappablePassage';
+import { WordChip } from '../components/WordChip';
 import { useAddQueue } from '../hooks/useAddQueue';
 import { recordCapturedWords } from '../storage/captureHistory';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
-import { Button, Card, Icon, Text } from '../ui';
+import { Button, Card, Input, Text } from '../ui';
 import type { PosFilter } from '../types';
 
 const UNDO_DURATION_MS = 3000;
@@ -70,36 +70,9 @@ export function CaptureScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
         <View style={{ gap: spacing.sm }}>
-          <Text variant="label" color="muted">
-            {t('add.passage')}
-          </Text>
-          <TextInput
-            value={passage}
-            onChangeText={(text) => {
-              setPassage(text);
-              setClearedAt(null);
-            }}
-            placeholder={t('add.passagePlaceholder')}
-            multiline
-            style={[
-              styles.input,
-              {
-                borderColor: colors.border,
-                borderRadius: 10,
-                backgroundColor: colors.surface,
-                color: colors.text,
-                paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.md,
-              },
-            ]}
-            textAlignVertical="top"
-          />
-        </View>
-
-        <View style={{ gap: spacing.sm }}>
           <View style={styles.labelRow}>
             <Text variant="label" color="muted">
-              {t('add.tapWords')}
+              {t('add.passage')}
             </Text>
             {clearedAt ? (
               <TouchableOpacity onPress={undoClear} hitSlop={8}>
@@ -117,6 +90,23 @@ export function CaptureScreen() {
               )
             )}
           </View>
+          <Input
+            value={passage}
+            onChangeText={(text) => {
+              setPassage(text);
+              setClearedAt(null);
+            }}
+            placeholder={t('add.passagePlaceholder')}
+            multiline
+            style={styles.passageInput}
+            textAlignVertical="top"
+          />
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="label" color="muted">
+            {t('add.tapWords')}
+          </Text>
           <Card>
             <TappablePassage text={passage} selected={selected} onToggle={toggle} />
           </Card>
@@ -167,10 +157,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  input: {
-    borderWidth: 1,
+  passageInput: {
     minHeight: 110,
-    fontSize: 16,
   },
   chipRow: {
     flexDirection: 'row',

@@ -49,7 +49,7 @@ export function TappablePassage({ text, selected, onToggle }: TappablePassagePro
       {tokens.map((token) => {
         if (token.word === null) {
           return (
-            <Text key={token.key} style={[styles.separator, { color: colors.text }]}>
+            <Text key={token.key} style={[styles.separator, { color: colors.onSurface }]}>
               {token.raw}
             </Text>
           );
@@ -63,13 +63,13 @@ export function TappablePassage({ text, selected, onToggle }: TappablePassagePro
               styles.wordChip,
               {
                 borderRadius: radii.sm,
-                backgroundColor: isSelected ? colors.primary : 'transparent',
+                backgroundColor: isSelected ? colors.primaryContainer : 'transparent',
               },
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected: isSelected }}
           >
-            <Text style={[styles.word, { color: isSelected ? colors.onPrimary : colors.text }, isSelected && { fontWeight: '600' }]}>
+            <Text style={[styles.word, { color: isSelected ? colors.onPrimaryContainer : colors.onSurface }, isSelected && { fontWeight: '600' }]}>
               {token.raw}
             </Text>
           </Pressable>

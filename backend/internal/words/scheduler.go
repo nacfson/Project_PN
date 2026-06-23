@@ -1,6 +1,7 @@
 package words
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"strings"
@@ -274,6 +275,64 @@ func nextDifficulty(w []float64, current float64, grade int) float64 {
 	delta := -w[6] * (float64(grade) - 3)
 	next := w[7]*initialDifficulty(w, 4) + (1-w[7])*(current+delta)
 	return clamp(next, fsrsMinDifficulty, fsrsMaxDifficulty)
+}
+
+func PreviewIntervals(curr FSRSState, now time.Time, cfg SchedulerConfig) IntervalPreview {
+	scores := map[string]float64{
+		"again": 0.0,
+		"hard":  1.0,
+		"good":  2.0,
+		"easy":  3.0,
+	}
+	preview := IntervalPreview{}
+	for rating, score := range scores {
+		_, _, dueAt := CalculateNextFSRSState(curr, score, nil, now, cfg)
+		duration := dueAt.Sub(now)
+		switch rating {
+		case "again":
+			preview.Again = formatInterval(duration)
+		case "hard":
+			preview.Hard = formatInterval(duration)
+		case "good":
+			preview.Good = formatInterval(duration)
+		case "easy":
+			preview.Easy = formatInterval(duration)
+		}
+	}
+	return preview
+}
+
+func formatInterval(d time.Duration) string {
+	if d < time.Minute {
+		return "<1m"
+	}
+	if d < time.Hour {
+		minutes := int(d.Round(time.Minute).Minutes())
+		if minutes < 1 {
+			minutes = 1
+		}
+		return fmt.Sprintf("%dm", minutes)
+	}
+	if d < 24*time.Hour {
+		hours := int(d.Round(time.Hour).Hours())
+		if hours < 1 {
+			hours = 1
+		}
+		return fmt.Sprintf("%dh", hours)
+	}
+	days := int(d.Round(24 * time.Hour).Hours() / 24)
+	if days < 1 {
+		days = 1
+	}
+	if days >= 365 {
+		years := days / 365
+		return fmt.Sprintf("%dy", years)
+	}
+	if days >= 30 {
+		months := days / 30
+		return fmt.Sprintf("%dmo", months)
+	}
+	return fmt.Sprintf("%dd", days)
 }
 
 func nextRecallStability(w []float64, difficulty, stability, retrievability float64, rating string, score float64, responseTimeMs *int) float64 {

@@ -97,25 +97,34 @@ type ReviewAttemptParams struct {
 	ConfidenceRating *int     `json:"confidence_rating"`
 }
 
+// IntervalPreview shows the next review interval for one answer button.
+type IntervalPreview struct {
+	Again string `json:"again"`
+	Hard  string `json:"hard"`
+	Good  string `json:"good"`
+	Easy  string `json:"easy"`
+}
+
 // DueItem represents a vocabulary item ready for spaced repetition practice.
 type DueItem struct {
-	UserWordSenseID          string    `json:"user_word_sense_id"`
-	WordSenseID              string    `json:"word_sense_id"`
-	WordID                   string    `json:"word_id"`
-	LanguageCode             string    `json:"language_code"`
-	Lemma                    string    `json:"lemma"`
-	NormalizedText           string    `json:"normalized_text"`
-	PartOfSpeech             string    `json:"part_of_speech"`
-	DisplayLanguageCode      string    `json:"display_language_code"`
-	Definition               string    `json:"definition"`
-	ShortDefinition          *string   `json:"short_definition"`
-	LocalizedDefinition      string    `json:"localized_definition"`
-	LocalizedShortDefinition *string   `json:"localized_short_definition"`
-	CEFRLevel                *string   `json:"cefr_level"`
-	MeaningOrder             int       `json:"meaning_order"`
-	LearningStage            string    `json:"learning_stage"`
-	DueAt                    time.Time `json:"due_at"`
-	Examples                 []Example `json:"examples"`
+	UserWordSenseID          string           `json:"user_word_sense_id"`
+	WordSenseID              string           `json:"word_sense_id"`
+	WordID                   string           `json:"word_id"`
+	LanguageCode             string           `json:"language_code"`
+	Lemma                    string           `json:"lemma"`
+	NormalizedText           string           `json:"normalized_text"`
+	PartOfSpeech             string           `json:"part_of_speech"`
+	DisplayLanguageCode      string           `json:"display_language_code"`
+	Definition               string           `json:"definition"`
+	ShortDefinition          *string          `json:"short_definition"`
+	LocalizedDefinition      string           `json:"localized_definition"`
+	LocalizedShortDefinition *string          `json:"localized_short_definition"`
+	CEFRLevel                *string          `json:"cefr_level"`
+	MeaningOrder             int              `json:"meaning_order"`
+	LearningStage            string           `json:"learning_stage"`
+	DueAt                    time.Time        `json:"due_at"`
+	PreviewIntervals         *IntervalPreview `json:"preview_intervals,omitempty"`
+	Examples                 []Example        `json:"examples"`
 }
 
 // BatchReviewResult returns the result of the session batch processing.

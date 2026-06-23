@@ -1,0 +1,48 @@
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+› Using --device 781C3913-5AFA-46B3-9F6E-BD99C94E9FE7
+› Planning build
+› Executing react-native Pods/hermes-engine » [CP-User] [Hermes] Replace Hermes for the right configuration, if needed
+› Executing react-native Pods/hermes-engine » [CP] Copy XCFrameworks
+› Executing react-native Pods/ReactNativeDependencies » [CP-User] [RNDeps] Replace React Native Dependencies for the right configuration, if needed
+› Executing react-native Pods/ReactNativeDependencies » [CP] Copy XCFrameworks
+› Executing react-native Pods/React-Core-prebuilt » [CP-User] [RNCore] Replace React Native Core for the right configuration, if needed
+› Executing react-native Pods/React-Core-prebuilt » [CP] Copy XCFrameworks
+› Executing expo-modules-jsi Pods/ExpoModulesJSI » [CP-User] Build ExpoModulesJSI xcframework
+› Executing react-native Pods/React-RCTFBReactNativeSpec » [CP-User] [RN]Check FBReactNativeSpec
+› Executing expo-modules-core Pods/ExpoModulesCore » [CP-User] [Expo] Switch ExpoModulesCore XCFramework for build configuration
+› Executing expo-modules-core Pods/ExpoModulesCore » [CP] Copy XCFrameworks
+› Executing expo-constants Pods/EXConstants » [CP-User] Generate app.config for prebuilt Constants.manifest
+› Executing expo-file-system Pods/ExpoFileSystem » [CP-User] [Expo] Switch ExpoFileSystem XCFramework for build configuration
+› Executing expo-file-system Pods/ExpoFileSystem » [CP] Copy XCFrameworks
+› Executing expo-font Pods/ExpoFont » [CP-User] [Expo] Switch ExpoFont XCFramework for build configuration
+› Executing expo-font Pods/ExpoFont » [CP] Copy XCFrameworks
+› Executing expo-modules-core Pods/ExpoModulesWorklets » [CP-User] [Expo] Switch ExpoModulesWorklets XCFramework for build configuration
+› Executing expo-modules-core Pods/ExpoModulesWorklets » [CP] Copy XCFrameworks
+› Executing ProjectPN » [Expo] Configure project
+› Linking   ProjectPN » ProjectPN.debug.dylib
+› Linking   ProjectPN » ProjectPN
+› Executing ProjectPN » Bundle React Native code and images
+› Executing ProjectPN » [CP] Copy Pods Resources
+› Executing ProjectPN » [CP] Embed Pods Frameworks
+› Generating debug ProjectPN » ProjectPN.app.dSYM
+› Generating debug ProjectPN » ProjectPN.app.dSYM
+› Signing   ProjectPN » ProjectPN.debug.dylib
+› Signing   ProjectPN » __preview.dylib
+› Signing   ProjectPN » ProjectPN.app
+› Build Succeeded
+
+› 0 error(s), and 0 warning(s)
+
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+› Installing /Users/hyungjuyu/Library/Developer/Xcode/DerivedData/ProjectPN-ggmneetyfmlyrkdyirultfwnvkqf/Build/Products/Debug-iphonesimulator/ProjectPN.app
+› Installing on iPhone 17
+› Opening on iPhone 17 (com.projectpn.app)
+› Opening com.projectpn.app://expo-development-client/?url=http%3A%2F%2F192.168.219.103%3A8081 on iPhone 17
+
+› Logs for your project will appear below.
+iOS Bundled 539ms index.ts (945 modules)
+[UIKitCore] RCTScrollViewComponentView implements focusItemsInRect: - caching
+for linear focus movement is limited as long as this view is on screen.

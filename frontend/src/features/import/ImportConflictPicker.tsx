@@ -19,8 +19,8 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
       style={[
         styles.container,
         {
-          backgroundColor: colors.surface,
-          borderRadius: radii.md,
+          backgroundColor: colors.surfaceContainerLow,
+          borderRadius: radii.xxl,
           padding: spacing.md,
           gap: spacing.md,
         },
@@ -104,13 +104,13 @@ function ActionButton({ label, action, selectedAction, onSelect }: ActionButtonP
           borderRadius: radii.sm,
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
-          backgroundColor: selected ? colors.primary : colors.surfaceAlt,
-          borderColor: selected ? colors.primary : colors.border,
+          backgroundColor: selected ? colors.secondaryContainer : 'transparent',
+          borderColor: selected ? 'transparent' : colors.outline,
           borderWidth: 1,
         },
       ]}
     >
-      <Text variant="caption" color={selected ? 'inverse' : 'default'}>
+      <Text variant="caption" color={selected ? 'onSecondaryContainer' : 'muted'}>
         {label}
       </Text>
     </Pressable>

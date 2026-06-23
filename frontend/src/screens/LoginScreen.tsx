@@ -88,7 +88,7 @@ function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: Go
   return (
     <Button
       label={t('auth.google')}
-      variant="secondary"
+      variant="outline"
       iconLeft="logo-google"
       onPress={() => {
         onError('');
@@ -226,11 +226,11 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           <Text variant="label" color="muted">
             {label}
           </Text>
-          <View style={[styles.lockedRow, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
+          <View style={[styles.lockedRow, { borderColor: colors.outlineVariant, backgroundColor: colors.surfaceContainerLow }]}>
             <Text variant="body" bold>
               {selected ? `${selected.name} (${selected.code})` : value}
             </Text>
-            <View style={[styles.lockedBadge, { backgroundColor: colors.border }]}>
+            <View style={[styles.lockedBadge, { backgroundColor: colors.surfaceContainerHighest }]}>
               <Text variant="caption">{t('auth.lockedByAdmin')}</Text>
             </View>
           </View>
@@ -247,7 +247,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             <Button
               key={lang.code}
               label={lang.name}
-              variant={value === lang.code ? 'primary' : 'secondary'}
+              variant={value === lang.code ? 'primary' : 'tonal'}
               onPress={() => onChange(lang.code)}
               style={styles.pickerChip}
             />
@@ -259,7 +259,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
 
   if (magicSent) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.surfaceAlt }]}>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <View style={[styles.iconCircle, { backgroundColor: colors.successSurface }]}>
           <Icon name="mail" size="xl" color={colors.success} />
         </View>
@@ -291,7 +291,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             <Text color="muted">{t('auth.subtitle')}</Text>
           </View>
 
-          <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceAlt, borderRadius: 999 }]}>
+          <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceContainerHighest, borderRadius: 999 }]}>
             <Button
               label={t('auth.signIn')}
               variant={mode === 'login' ? 'primary' : 'ghost'}
@@ -371,8 +371,8 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           )}
 
           {error ? (
-            <View style={[styles.errorRow, { backgroundColor: colors.dangerSurface }]}>
-              <Icon name="alert-circle" size="sm" color={colors.danger} />
+            <View style={[styles.errorRow, { backgroundColor: colors.errorContainer }]}>
+              <Icon name="alert-circle" size="sm" color={colors.error} />
               <Text variant="body" color="danger">
                 {error}
               </Text>
@@ -388,17 +388,17 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           />
 
           <View style={[styles.dividerRow, { marginVertical: spacing.xl }]}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <View style={[styles.dividerLine, { backgroundColor: colors.outlineVariant }]} />
             <Text variant="caption" color="muted">
               {t('auth.or')}
             </Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <View style={[styles.dividerLine, { backgroundColor: colors.outlineVariant }]} />
           </View>
 
           <View style={{ gap: spacing.md }}>
             <Button
               label={t('auth.magicLink')}
-              variant="secondary"
+              variant="tonal"
               iconLeft="mail"
               onPress={() => void sendMagicLink()}
               disabled={busy || trimmedEmail.length === 0}

@@ -12,7 +12,7 @@ import { ImportConflictPicker } from './ImportConflictPicker';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Text } from '../../ui';
-import type { ImportAction, ImportError, ImportPreviewItem } from '../../types';
+import type { ImportError, ImportPreviewItem } from '../../types';
 
 interface AnkiImportScreenProps {
   languageCode?: string;
@@ -46,7 +46,7 @@ export function AnkiImportScreen({
   const hasConflicts = preview?.items.some((item: ImportPreviewItem) => item.status === 'conflict');
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surfaceAlt }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -70,7 +70,7 @@ export function AnkiImportScreen({
               style={[
                 styles.helpBox,
                 {
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.surfaceContainerLow,
                   borderRadius: radii.md,
                   padding: spacing.md,
                 },
@@ -92,8 +92,8 @@ export function AnkiImportScreen({
                 style={[
                   styles.textAreaWrapper,
                   {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
+                    backgroundColor: colors.surfaceContainerHighest,
+                    borderColor: colors.outlineVariant,
                     borderRadius: radii.md,
                   },
                 ]}
@@ -102,7 +102,7 @@ export function AnkiImportScreen({
                   value={csvText}
                   onChangeText={setCsvText}
                   placeholder={t('import.csvPlaceholder')}
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={colors.onSurfaceVariant}
                   multiline
                   numberOfLines={10}
                   textAlignVertical="top"
@@ -110,7 +110,7 @@ export function AnkiImportScreen({
                     styles.textArea,
                     {
                       padding: spacing.md,
-                      color: colors.text,
+                      color: colors.onSurface,
                       fontSize: 14,
                     },
                   ]}
@@ -133,7 +133,7 @@ export function AnkiImportScreen({
               style={[
                 styles.errorBox,
                 {
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.errorContainer,
                   borderRadius: radii.md,
                   padding: spacing.md,
                 },
@@ -170,7 +170,7 @@ export function AnkiImportScreen({
                     key={item.index}
                     item={item}
                     selectedAction={actions[item.index] ?? item.suggested_action}
-                    onSelect={(action: ImportAction) => setCardAction(item.index, action)}
+                    onSelect={(action) => setCardAction(item.index, action)}
                   />
                 ))}
               </View>
@@ -189,7 +189,7 @@ export function AnkiImportScreen({
               style={[
                 styles.resultBox,
                 {
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.surfaceContainerLow,
                   borderRadius: radii.md,
                   padding: spacing.lg,
                   gap: spacing.md,
@@ -215,7 +215,7 @@ export function AnkiImportScreen({
                   ))}
                 </View>
               )}
-              <Button label={t('import.importMore')} onPress={reset} variant="secondary" />
+              <Button label={t('import.importMore')} onPress={reset} variant="tonal" />
             </View>
           )}
         </View>

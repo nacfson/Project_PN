@@ -21,6 +21,13 @@ export interface Example {
   localized_translation: string | null;
 }
 
+export interface IntervalPreview {
+  again: string;
+  hard: string;
+  good: string;
+  easy: string;
+}
+
 export interface SenseOption {
   word_id: string;
   word_sense_id: string;
@@ -125,6 +132,7 @@ export interface DueItem {
   meaning_order: number;
   learning_stage: string;
   due_at: string;
+  preview_intervals?: IntervalPreview;
   examples: Example[];
 }
 

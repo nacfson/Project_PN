@@ -8,7 +8,12 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.projectpn.app"
+      "bundleIdentifier": "com.projectpn.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,14 +31,7 @@
     "plugins": [
       "expo-localization",
       "expo-secure-store",
-      "expo-web-browser",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#ffffff"
-        }
-      ]
+      "expo-web-browser"
     ]
   }
 }

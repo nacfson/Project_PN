@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project PN — Desktop Tauri</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>body{font-family:'Inter',sans-serif;background:#f1f5f9;}.app{max-width:1000px;margin:20px auto;min-height:680px;background:#f1f5f9;display:flex;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.12);}</style>
+</head>
+<body class="p-5">
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="w-56 bg-white border-r border-slate-200 p-5 flex flex-col">
+      <div class="flex items-center gap-2 mb-10">
+        <div class="w-8 h-8 bg-sky-600 rounded-lg flex items-center justify-center text-white font-bold">P</div>
+        <span class="font-bold text-slate-800">Project PN</span>
+      </div>
+      <nav class="space-y-1">
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 bg-sky-50 text-sky-700 rounded-lg font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Learn
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-lg font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          My Words
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-lg font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Add
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-lg font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          Practice
+        </a>
+      </nav>
+      <div class="mt-auto pt-5 border-t border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-slate-200 rounded-full flex items-center justify-center text-sm font-bold">A</div>
+          <div>
+            <p class="text-sm font-semibold text-slate-800">Alex Kim</p>
+            <p class="text-xs text-slate-500">Free plan</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <header class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Good morning, Alex</h1>
+          <p class="text-slate-500 mt-1">You have 12 words due today.</p>
+        </div>
+        <button class="bg-sky-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-sky-700 transition">Start review</button>
+      </header>
+
+      <div class="grid grid-cols-3 gap-5 mb-8">
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
+          <p class="text-sm text-slate-500">Due today</p>
+          <p class="text-3xl font-bold text-slate-900 mt-1">12</p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
+          <p class="text-sm text-slate-500">Streak</p>
+          <p class="text-3xl font-bold text-slate-900 mt-1">24 🔥</p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
+          <p class="text-sm text-slate-500">XP today</p>
+          <p class="text-3xl font-bold text-slate-900 mt-1">130</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-5">
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+          <h2 class="font-bold text-slate-900 mb-4">Daily progress</h2>
+          <div class="flex items-center gap-5">
+            <div class="relative w-24 h-24">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" stroke-width="3"></circle>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#0ea5e9" stroke-width="3" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="35"></circle>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center text-sm font-bold">65%</div>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-900">130 / 200 XP</p>
+              <p class="text-sm text-slate-500">70 XP to goal</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+          <h2 class="font-bold text-slate-900 mb-4">Word of the day</h2>
+          <p class="text-2xl font-bold text-slate-900">serendipity</p>
+          <p class="text-slate-600 mt-1">finding something good without looking for it</p>
+          <button class="mt-4 text-sky-600 font-semibold text-sm">Add to my words →</button>
+        </div>
+
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-100 col-span-2">
+          <h2 class="font-bold text-slate-900 mb-4">Mastery breakdown</h2>
+          <div class="h-4 rounded-full overflow-hidden flex mb-4">
+            <div class="bg-slate-300" style="width:12%"></div>
+            <div class="bg-sky-400" style="width:18%"></div>
+            <div class="bg-blue-500" style="width:22%"></div>
+            <div class="bg-amber-400" style="width:20%"></div>
+            <div class="bg-emerald-400" style="width:18%"></div>
+            <div class="bg-violet-500" style="width:10%"></div>
+          </div>
+          <div class="flex flex-wrap gap-4 text-sm">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-300"></span>New 12%</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-sky-400"></span>Learning 18%</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500"></span>Recognized 22%</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-400"></span>Recalled 20%</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-400"></span>Usable 18%</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-violet-500"></span>Mastered 10%</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
