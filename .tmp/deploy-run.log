@@ -1,5 +1,5 @@
 [deploy] loading deploy/.deploy.env
-[deploy] building project-pn-backend:22bfaf7 for linux/amd64
+[deploy] building project-pn-backend:cfdb6ed for linux/amd64
 #0 building with "desktop-linux" instance using docker driver
 
 #1 [internal] load build definition from Dockerfile
@@ -7,10 +7,13 @@
 #1 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/debian:bookworm-slim
-#2 DONE 1.3s
+#2 ...
 
 #3 [internal] load metadata for docker.io/library/golang:1.26
 #3 DONE 1.6s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 1.7s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 132B done
@@ -25,53 +28,50 @@
 #6 DONE 0.0s
 
 #7 [internal] load build context
-#7 transferring context: 506.01kB 0.4s done
-#7 DONE 0.4s
+#7 transferring context: 443.83kB 0.2s done
+#7 DONE 0.3s
 
-#8 [builder 2/7] WORKDIR /src
+#8 [runtime 3/5] WORKDIR /app
 #8 CACHED
 
-#9 [builder 3/7] COPY go.mod go.sum ./
+#9 [builder 4/7] RUN go mod download
 #9 CACHED
 
-#10 [builder 4/7] RUN go mod download
+#10 [builder 5/7] COPY . .
 #10 CACHED
 
-#11 [builder 5/7] COPY . .
-#11 DONE 7.7s
+#11 [builder 6/7] RUN go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
+#11 CACHED
 
-#12 [builder 6/7] RUN go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
-#12 DONE 70.2s
+#12 [runtime 4/5] COPY --from=builder /out/api /out/migrate ./
+#12 CACHED
 
-#13 [builder 7/7] RUN go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
-#13 DONE 5.0s
+#13 [builder 2/7] WORKDIR /src
+#13 CACHED
 
-#14 [runtime 2/5] RUN apt-get update     && apt-get install -y --no-install-recommends ca-certificates     && rm -rf /var/lib/apt/lists/*
+#14 [builder 7/7] RUN go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
 #14 CACHED
 
-#15 [runtime 3/5] WORKDIR /app
+#15 [runtime 2/5] RUN apt-get update     && apt-get install -y --no-install-recommends ca-certificates     && rm -rf /var/lib/apt/lists/*
 #15 CACHED
 
-#16 [runtime 4/5] COPY --from=builder /out/api /out/migrate ./
-#16 DONE 0.1s
+#16 [builder 3/7] COPY go.mod go.sum ./
+#16 CACHED
 
 #17 [runtime 5/5] COPY db/migrations ./db/migrations
-#17 DONE 0.0s
+#17 CACHED
 
 #18 exporting to image
-#18 exporting layers
-#18 exporting layers 0.8s done
-#18 exporting manifest sha256:4f441a413440753ab0e1670f0480f9de3a96a8f7a641e395b9fffd78e804255f
+#18 exporting layers done
 #18 exporting manifest sha256:4f441a413440753ab0e1670f0480f9de3a96a8f7a641e395b9fffd78e804255f done
 #18 exporting config sha256:9a5c9a3828e0476e67e1022f81013db13114703b29c64a401aad0205f946c7d1 done
-#18 exporting attestation manifest sha256:8f826922161829b19aa8a28503ae54690fe5553ec3090555a96699a35c2c3ab8 done
-#18 exporting manifest list sha256:aa4c44a20e4f4b46ea33c33c9b09fc3f1e91b8a138b4f3ea61338e61b8b2da15 done
-#18 naming to docker.io/library/project-pn-backend:22bfaf7 done
-#18 DONE 0.8s
+#18 exporting attestation manifest sha256:25076caa933a95dfddbd4c43db02f9304fe33ff8713456bcb70f18f0c9c1d024 done
+#18 exporting manifest list sha256:d6e4d8d9f2608237ce00e089327a50e9bc11b888404c92a8e741aaacf021eb96 done
+#18 naming to docker.io/library/project-pn-backend:cfdb6ed done
+#18 DONE 0.0s
 [deploy] tagging project-pn-backend:latest
-[deploy] saving image to /var/folders/dq/b2skypsx5kx2lmrfbmfrj0bw0000gn/T//project-pn-backend-22bfaf7.tar.gz
+[deploy] saving image to /var/folders/dq/b2skypsx5kx2lmrfbmfrj0bw0000gn/T//project-pn-backend-cfdb6ed.tar.gz
 [deploy] building frontend web bundle
-npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
 
 up to date, audited 526 packages in 2s
 
@@ -87,7 +87,6 @@ To address all issues (including breaking changes), run:
   npm audit fix --force
 
 Run `npm audit` for details.
-npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
 
 > frontend@1.0.2 web:export
 > expo export --platform web
@@ -96,23 +95,7 @@ env: load .env.production .env
 env: export EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_API_FALLBACK_URLS
 Starting Metro Bundler
 
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-| (node:55305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-Web Bundled 5420ms index.ts (648 modules)
+Web Bundled 191ms index.ts (429 modules)
 
 › Assets (12):
 node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf (390KB)
@@ -123,8 +106,8 @@ node_modules/@react-navigation/elements/lib/module/assets/close-icon.808e1b1b9b5
 node_modules/@react-navigation/elements/lib/module/assets/search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png (928B)
 
 › web bundles (2):
-_expo/static/js/web/index-6f622090bdd60fb03ba24dcf57c3edd0.js (1MB)
-_expo/static/js/web/index-831104a9f6ba31a90bae43b7e42147f4.js (7.3KB)
+_expo/static/js/web/index-5b06d8c5e5cfb8df737760fbcdf634fd.js (1.1MB)
+_expo/static/js/web/index-7ade492c975dac30e25dc1d8d027b176.js (7.3KB)
 
 › Files (3):
 favicon.ico (15KB)
@@ -135,13 +118,13 @@ Exported: dist
 [deploy] creating remote deploy directories on zlUbuntu:~/project-pn/deploy
 [deploy] uploading compose files, web bundle, and image
 [deploy] loading image on remote server
-Loaded image: project-pn-backend:22bfaf7
+Loaded image: project-pn-backend:cfdb6ed
 Loaded image: project-pn-backend:latest
 [deploy] checking remote .env
 [deploy] syncing existing Postgres user password with remote .env
  Container project_pn_staging-postgres-1  Running
 ALTER ROLE
-[deploy] starting remote compose stack with BACKEND_IMAGE=project-pn-backend:22bfaf7
+[deploy] starting remote compose stack with BACKEND_IMAGE=project-pn-backend:cfdb6ed
  Container project_pn_staging-postgres-1  Running
  Container project_pn_staging-migrate-1  Recreate
  Container project_pn_staging-migrate-1  Recreated
@@ -158,4 +141,4 @@ ALTER ROLE
  Container project_pn_staging-api-1  Started
 [deploy] checking remote /readyz
 {"status":"ready"}
-[deploy] deployed project-pn-backend:22bfaf7
+[deploy] deployed project-pn-backend:cfdb6ed

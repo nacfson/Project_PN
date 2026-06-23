@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { Animated, ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
@@ -210,7 +210,11 @@ export function HomeScreen() {
           </Card>
         ) : null}
 
-        <Card elevated style={[styles.heroCard, { backgroundColor: colors.primaryContainer, borderColor: 'transparent' }]}>
+        <Card
+          elevated
+          onPress={() => navigation.navigate('Practice')}
+          style={[styles.heroCard, { backgroundColor: colors.primaryContainer, borderColor: 'transparent' }]}
+        >
           <View style={styles.row}>
             <View style={styles.heroTitleRow}>
               <View style={[styles.heroIconCircle, { backgroundColor: colors.primary }]}>
@@ -252,7 +256,7 @@ export function HomeScreen() {
         </Card>
 
         <View style={[styles.statsGrid, { gap: spacing.md }]}>
-          <Card style={styles.statCard}>
+          <Card style={styles.statCard} onPress={() => navigation.navigate('Settings')}>
             <View style={[styles.statIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
               <Icon name="flame" size="md" color={colors.tertiary} />
             </View>
@@ -281,7 +285,7 @@ export function HomeScreen() {
             </View>
           </Card>
 
-          <Card style={styles.statCard}>
+          <Card style={styles.statCard} onPress={() => navigation.navigate('Words')}>
             <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryContainer }]}>
               <Icon name="book" size="md" color={colors.secondary} />
             </View>
@@ -304,7 +308,7 @@ export function HomeScreen() {
             </Text>
           </View>
           <View style={[styles.goalTrack, { backgroundColor: colors.surfaceContainerHighest, borderRadius: 999 }]}>
-            <View
+            <Animated.View
               style={[
                 styles.goalFill,
                 {

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -24,6 +23,7 @@ import {
   recordBatchReviewAttempts,
 } from '../../api/learningItems';
 import type { DueItem, LearningItemListItem, ReviewAttemptParams } from '../../types';
+import { Flashcard } from './Flashcard';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Practice'>;
 type SessionMode = 'normal' | 'repeat';
@@ -516,48 +516,7 @@ export function PracticeScreen() {
       ? Math.min(100, Math.floor((dueItemsReviewedCount / dueItems.length) * 100))
       : 0;
 
-  const cardSurface = {
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radii.xxl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    backfaceVisibility: 'hidden' as const,
-    ...shadows.md,
-  };
-
-  const sharedCardBack = (
-    <View style={styles.cardContent}>
-      <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-      <Text variant="headline" style={styles.wordText}>
-        {currentItem.lemma}
-      </Text>
-      {cardMode === 'typing' && (
-        <View style={[styles.answerResult, { borderColor: colors.outlineVariant, backgroundColor: colors.surfaceContainerHighest }]}>
-          <Text variant="caption" color="muted">
-            {t('practice.yourAnswer')}
-          </Text>
-          <Text variant="body" style={styles.answerResultText}>
-            {trimmedAnswer.length > 0 ? trimmedAnswer : t('practice.noAnswerGiven')}
-          </Text>
-        </View>
-      )}
-      <Text variant="body" color="muted" style={styles.backDefinitionText}>
-        {currentItem.definition}
-      </Text>
-      {example && (
-        <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
-          <Text variant="body" style={styles.exampleSentence}>
-            &ldquo;{example.sentence}&rdquo;
-          </Text>
-          {example.localized_translation && (
-            <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-              {example.localized_translation}
-            </Text>
-          )}
-        </View>
-      )}
-    </View>
-  );
+  const blankedSentence = example ? getBlankedSentence(example.sentence, currentItem.normalized_text) : '';
 
   const showAnswerBar = cardMode === 'typing' && !isFlipped;
   const answerBarHeight = 144;
@@ -666,69 +625,17 @@ export function PracticeScreen() {
             </View>
           </View>
 
-          <View style={styles.cardPressable}>
-            <View style={styles.cardContainer}>
-              {cardMode === 'flashcard' ? (
-                !isFlipped ? (
-                  <Pressable onPress={toggleFlip} style={[styles.flashcard, cardSurface]}>
-                    <View style={styles.cardContent}>
-                      <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                      <Text variant="caption" color="muted" style={styles.promptLabel}>
-                        {t('practice.recallPrompt')}
-                      </Text>
-                      <Text variant="title" bold style={styles.definitionText}>
-                        {currentItem.definition}
-                      </Text>
-                      {example ? (
-                        <Text variant="body" style={styles.clozeText}>
-                          &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
-                        </Text>
-                      ) : (
-                        <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                          {t('practice.noExample')}
-                        </Text>
-                      )}
-                      <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-                        <Icon name="finger-print" size="md" color={colors.primary} />
-                        <Text variant="caption" color="primary" bold>
-                          {t('practice.tapReveal')}
-                        </Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                ) : (
-                  <View style={[styles.flashcard, cardSurface]}>
-                    {sharedCardBack}
-                  </View>
-                )
-              ) : !isFlipped ? (
-                <View style={[styles.flashcard, cardSurface]}>
-                  <View style={styles.cardContent}>
-                    <Badge label={currentItem.part_of_speech.toUpperCase()} variant="primary" />
-                    <Text variant="caption" color="muted" style={styles.promptLabel}>
-                      {t('practice.recallPrompt')}
-                    </Text>
-                    <Text variant="title" bold style={styles.definitionText}>
-                      {currentItem.definition}
-                    </Text>
-                    {example ? (
-                      <Text variant="body" style={styles.clozeText}>
-                        &ldquo;{getBlankedSentence(example.sentence, currentItem.normalized_text)}&rdquo;
-                      </Text>
-                    ) : (
-                      <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                        {t('practice.noExample')}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              ) : (
-                <View style={[styles.flashcard, cardSurface]}>
-                  {sharedCardBack}
-                </View>
-              )}
-            </View>
-          </View>
+          <Flashcard
+            item={currentItem}
+            example={example}
+            blankedSentence={blankedSentence}
+            isFlipped={isFlipped}
+            cardMode={cardMode}
+            userAnswer={userAnswer}
+            isPreviouslyFailed={isPreviouslyFailed}
+            onFlip={toggleFlip}
+            onRate={selectGrade}
+          />
 
           {isFlipped && (
             <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.outlineVariant }]}>
@@ -802,50 +709,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
-  cardPressable: {
-    width: '100%',
-    minHeight: 280,
-  },
-  cardContainer: {
-    flex: 1,
-    position: 'relative',
-    minHeight: 280,
-  },
-  flashcard: {
-    flex: 1,
-    minHeight: 280,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  cardContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  promptLabel: {
-    textAlign: 'center',
-  },
-  definitionText: {
-    textAlign: 'center',
-    lineHeight: 26,
-    marginVertical: 10,
-  },
-  clozeText: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-    lineHeight: 24,
-    color: '#475569',
-  },
-  clozePlaceholder: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  tapPrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   flex: {
     flex: 1,
   },
@@ -876,39 +739,6 @@ const styles = StyleSheet.create({
   },
   revealButton: {
     flex: 1,
-  },
-  wordText: {
-    fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: -0.5,
-  },
-  backDefinitionText: {
-    textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  answerResult: {
-    width: '100%',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 4,
-  },
-  answerResultText: {
-    fontWeight: '700',
-  },
-  exampleContainer: {
-    alignItems: 'center',
-  },
-  exampleSentence: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  exampleTranslation: {
-    textAlign: 'center',
   },
   gradingPanel: {
     width: '100%',
