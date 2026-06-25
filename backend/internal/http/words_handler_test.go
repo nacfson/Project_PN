@@ -298,11 +298,11 @@ func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 
 	svc := words.New(nil, nil, "00000000-0000-0000-0000-000000000001", "en", "ko")
 	authSvc := auth.New(nil, email.NewLog(), auth.Options{
-		SessionTTL:           time.Hour,
-		EmailVerificationTTL: 24 * time.Hour,
+		SessionTTL:            time.Hour,
+		EmailVerificationTTL:  24 * time.Hour,
 		DefaultDefinitionLang: "ko",
-		DefaultTargetLang:    "en",
-		AppPublicURL:         "http://localhost:8080",
+		DefaultTargetLang:     "en",
+		AppPublicURL:          "http://localhost:8080",
 	})
 	router := NewRouter(Dependencies{
 		Words:          svc,
@@ -356,6 +356,13 @@ func insertLearningItemFixture(t *testing.T, pool *pgxpool.Pool, userID, lemma, 
 		t.Fatalf("insert sense translation fixture %q: %v", lemma, err)
 	}
 
+	var deckID string
+	if err := pool.QueryRow(ctx, `
+		select id::text from decks where user_id = $1::uuid and is_default = true
+	`, userID).Scan(&deckID); err != nil {
+		t.Fatalf("load default deck for fixture %q: %v", lemma, err)
+	}
+
 	var userWordSenseID string
 	var archivedAt *time.Time
 	if archived {
@@ -363,10 +370,10 @@ func insertLearningItemFixture(t *testing.T, pool *pgxpool.Pool, userID, lemma, 
 		archivedAt = &value
 	}
 	if err := pool.QueryRow(ctx, `
-		insert into user_word_senses (user_id, word_sense_id, added_at, archived_at)
-		values ($1::uuid, $2::uuid, $3, $4)
+		insert into user_word_senses (user_id, word_sense_id, deck_id, added_at, archived_at)
+		values ($1::uuid, $2::uuid, $3::uuid, $4, $5)
 		returning id::text
-	`, userID, senseID, addedAt, archivedAt).Scan(&userWordSenseID); err != nil {
+	`, userID, senseID, deckID, addedAt, archivedAt).Scan(&userWordSenseID); err != nil {
 		t.Fatalf("insert user word sense fixture %q: %v", lemma, err)
 	}
 
@@ -382,11 +389,11 @@ func TestApiRoutesAbsentWithoutWordsService(t *testing.T) {
 	t.Parallel()
 
 	authSvc := auth.New(nil, email.NewLog(), auth.Options{
-		SessionTTL:           time.Hour,
-		EmailVerificationTTL: 24 * time.Hour,
+		SessionTTL:            time.Hour,
+		EmailVerificationTTL:  24 * time.Hour,
 		DefaultDefinitionLang: "ko",
-		DefaultTargetLang:    "en",
-		AppPublicURL:         "http://localhost:8080",
+		DefaultTargetLang:     "en",
+		AppPublicURL:          "http://localhost:8080",
 	})
 	router := NewRouter(Dependencies{Auth: authSvc})
 
@@ -628,7 +635,6 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 		t.Fatalf("expected invalid activity_type to leave 2 review attempts, got %d", attemptCount)
 	}
 }
-
 
 func TestGetStatsSummary(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)

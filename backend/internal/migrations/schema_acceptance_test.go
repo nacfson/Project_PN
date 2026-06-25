@@ -405,6 +405,105 @@ func TestUserLanguagesSchemaAcceptance(t *testing.T) {
 	}
 }
 
+func TestDeckSchemaAcceptance(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for schema acceptance tests")
+	}
+
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+
+	if err := Down(migrationsPath, databaseURL, 1); err != nil {
+		t.Fatalf("down migration before test: %v", err)
+	}
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration: %v", err)
+	}
+
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer pool.Close()
+
+	assertRejects := func(name, query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err == nil {
+			t.Fatalf("%s: expected query to fail", name)
+		}
+	}
+
+	var userID, deckID, wordID, senseID string
+	if err := pool.QueryRow(ctx, `
+		insert into users (email, native_language, target_language, ui_language)
+		values ('deck-a@example.com', 'ko', 'en', 'ko')
+		returning id
+	`).Scan(&userID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	if err := pool.QueryRow(ctx, `
+		select id from decks where user_id = $1 and is_default = true
+	`, userID).Scan(&deckID); err != nil {
+		t.Fatalf("load default deck: %v", err)
+	}
+
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', 'deckword', 'deckword', 'noun')
+		returning id
+	`).Scan(&wordID); err != nil {
+		t.Fatalf("insert word: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1, 'a deck test word', 1)
+		returning id
+	`, wordID).Scan(&senseID); err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+
+	// user_word_senses.deck_id is non-nullable after migration.
+	assertRejects("missing deck_id", `
+		insert into user_word_senses (user_id, word_sense_id)
+		values ($1, $2)
+	`, userID, senseID)
+
+	var itemID string
+	if err := pool.QueryRow(ctx, `
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1, $2, $3)
+		returning id
+	`, userID, senseID, deckID).Scan(&itemID); err != nil {
+		t.Fatalf("insert user word sense: %v", err)
+	}
+
+	// Duplicate default deck per user/target.
+	assertRejects("duplicate default deck", `
+		insert into decks (user_id, target_language, name, is_default)
+		values ($1::uuid, 'en', 'another default', true)
+	`, userID)
+
+	// Duplicate deck name (case-insensitive) per user/target.
+	assertRejects("duplicate deck name", `
+		insert into decks (user_id, target_language, name, is_default)
+		values ($1::uuid, 'en', 'EN (Default)', false)
+	`, userID)
+
+	// Delete user cascades to decks.
+	if _, err := pool.Exec(ctx, `delete from users where id = $1`, userID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	var deckCount int
+	if err := pool.QueryRow(ctx, `select count(*) from decks where user_id = $1`, userID).Scan(&deckCount); err != nil {
+		t.Fatalf("count decks after delete: %v", err)
+	}
+	if deckCount != 0 {
+		t.Fatalf("expected decks to cascade on user delete, got %d", deckCount)
+	}
+}
+
 func repoPath(t *testing.T, parts ...string) string {
 	t.Helper()
 
