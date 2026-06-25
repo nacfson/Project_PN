@@ -49,6 +49,15 @@ The backend schema should satisfy these scenarios:
 - `GET /api/reviews/optimization-status` returns the current weights, optimization timestamp, and review count.
 - The scheduler uses `review_settings.fsrs_weights` instead of the global default when computing state transitions.
 
+### Deck schema (migration `000015`)
+
+- Each `(user_id, target_language)` has at most one default deck (`decks_user_target_default_unique`).
+- Deck names are unique per `(user_id, target_language)` when compared case-insensitively.
+- `user_word_senses.deck_id` is non-null after migration.
+- Deleting a user cascades to their decks.
+- Deleting a custom deck moves its items to the default deck for the same target language.
+- The default deck cannot be deleted.
+
 ### Auth schema (migration `000003`)
 
 - Duplicate emails differing only by case are rejected (`users_email_lower_idx`).

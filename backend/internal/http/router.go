@@ -98,6 +98,13 @@ func NewRouter(deps Dependencies) http.Handler {
 				sh := &statsHandler{svc: deps.Words}
 				protected.Get("/stats/summary", sh.getStatsSummary)
 
+				dh := &deckHandler{svc: deps.Words}
+				protected.Get("/decks", dh.listDecks)
+				protected.Post("/decks", dh.createDeck)
+				protected.Patch("/decks/{deck_id}", dh.renameDeck)
+				protected.Delete("/decks/{deck_id}", dh.deleteDeck)
+				protected.Post("/decks/{deck_id}/move-items", dh.moveItems)
+
 				nh := &notificationsHandler{svc: deps.Words}
 				protected.Post("/notifications/register", nh.registerPushToken)
 

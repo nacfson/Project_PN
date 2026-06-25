@@ -59,23 +59,25 @@ Rules:
 3. App creates or reuses a row in `words`.
 4. App creates or selects the intended row in `word_senses`.
 5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language. If translation is unavailable after an on-demand attempt, the add is rejected with HTTP 422.
-6. App upserts a row in `user_word_senses`.
-7. App creates one `review_states` row if missing.
-8. App may attach sense-specific examples.
+6. App resolves the target deck. If the request includes `deck_id`, it validates ownership and that the deck's `target_language` matches the word's `language_code`. Otherwise it uses the active target language's default deck, creating the default deck if necessary.
+7. App upserts a row in `user_word_senses` with the chosen `deck_id`.
+8. App creates one `review_states` row if missing.
+9. App may attach sense-specific examples.
 
-Steps 6 and 7 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
+Steps 6-8 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
 
 ## Learning Items List Flow
 
-1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...`.
+1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...&deck_id=...`.
 2. API derives the acting user from the bearer session.
 3. API resolves the target language. If `language_code` is omitted, the active `user_languages` row is used.
-4. API queries `user_word_senses` joined to `word_senses`, `words`, and `review_states`, filtering to the resolved target language.
-5. API excludes rows where `user_word_senses.archived_at is not null`.
-6. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
-7. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
-8. API loads example sentences and their translations for each returned item.
-9. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
+4. If `deck_id` is provided, API validates deck ownership and resolves the target language from the deck.
+5. API queries `user_word_senses` joined to `word_senses`, `words`, and `review_states`, filtering to the resolved target language and deck.
+6. API excludes rows where `user_word_senses.archived_at is not null`.
+7. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
+8. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
+9. API loads example sentences and their translations for each returned item.
+10. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
 
 Rules:
 
@@ -113,7 +115,7 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 
 ## Review Flow
 
-1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). It queries due items by joining `review_states` to `user_word_senses` and `words`, filtering to the active target language.
+1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. It queries due items by joining `review_states` to `user_word_senses` and `words`, filtering to the resolved target language and deck.
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.

@@ -40,7 +40,7 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 		}
 	}
 
-	var userA, userB, wordID, sensePayment, senseLegal, userSenseA, userSenseB string
+	var userA, userB, deckA, deckB, wordID, sensePayment, senseLegal, userSenseA, userSenseB string
 
 	if err := pool.QueryRow(ctx, `
 		insert into users (email, native_language, target_language)
@@ -55,6 +55,17 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 		returning id
 	`).Scan(&userB); err != nil {
 		t.Fatalf("insert user B: %v", err)
+	}
+
+	if err := pool.QueryRow(ctx, `
+		select id from decks where user_id = $1 and is_default = true
+	`, userA).Scan(&deckA); err != nil {
+		t.Fatalf("load default deck for A: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		select id from decks where user_id = $1 and is_default = true
+	`, userB).Scan(&deckB); err != nil {
+		t.Fatalf("load default deck for B: %v", err)
 	}
 
 	if err := pool.QueryRow(ctx, `
@@ -89,36 +100,36 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 	`, wordID)
 
 	if err := pool.QueryRow(ctx, `
-		insert into user_word_senses (user_id, word_sense_id)
-		values ($1, $2)
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1, $2, $3)
 		returning id
-	`, userA, sensePayment).Scan(&userSenseA); err != nil {
+	`, userA, sensePayment, deckA).Scan(&userSenseA); err != nil {
 		t.Fatalf("insert user A payment sense: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		insert into user_word_senses (user_id, word_sense_id)
-		values ($1, $2)
-	`, userA, senseLegal); err != nil {
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1, $2, $3)
+	`, userA, senseLegal, deckA); err != nil {
 		t.Fatalf("same user can learn a second sense: %v", err)
 	}
 	assertRejects("duplicate user word sense", `
-		insert into user_word_senses (user_id, word_sense_id)
-		values ($1, $2)
-	`, userA, sensePayment)
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1, $2, $3)
+	`, userA, sensePayment, deckA)
 	assertRejects("invalid learning stage", `
-		insert into user_word_senses (user_id, word_sense_id, learning_stage)
-		values ($1, $2, 'done')
-	`, userB, senseLegal)
+		insert into user_word_senses (user_id, word_sense_id, deck_id, learning_stage)
+		values ($1, $2, $3, 'done')
+	`, userB, senseLegal, deckB)
 	assertRejects("invalid difficulty rating", `
-		insert into user_word_senses (user_id, word_sense_id, difficulty_rating)
-		values ($1, $2, 6)
-	`, userB, senseLegal)
+		insert into user_word_senses (user_id, word_sense_id, deck_id, difficulty_rating)
+		values ($1, $2, $3, 6)
+	`, userB, senseLegal, deckB)
 
 	if err := pool.QueryRow(ctx, `
-		insert into user_word_senses (user_id, word_sense_id)
-		values ($1, $2)
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1, $2, $3)
 		returning id
-	`, userB, sensePayment).Scan(&userSenseB); err != nil {
+	`, userB, sensePayment, deckB).Scan(&userSenseB); err != nil {
 		t.Fatalf("insert user B same sense: %v", err)
 	}
 

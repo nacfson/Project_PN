@@ -46,6 +46,7 @@ func (req lookupRequest) displayLang() string {
 type addLearningItemRequest struct {
 	WordSenseID         string `json:"word_sense_id"`
 	DisplayLanguageCode string `json:"display_language_code"`
+	DeckID              string `json:"deck_id"`
 }
 
 func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +108,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode)
+	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -163,6 +164,7 @@ func parseListLearningItemsParams(r *http.Request) (words.ListLearningItemsParam
 
 	params.Search = strings.TrimSpace(query.Get("q"))
 	params.LanguageCode = strings.TrimSpace(query.Get("language_code"))
+	params.DeckID = strings.TrimSpace(query.Get("deck_id"))
 
 	return params, nil
 }
@@ -175,6 +177,16 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "localized translation unavailable for this word sense")
 	case errors.Is(err, words.ErrForceAmbiguous):
 		writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
+	case errors.Is(err, words.ErrDeckNotFound):
+		writeError(w, http.StatusNotFound, "deck not found")
+	case errors.Is(err, words.ErrDeckNotOwned), errors.Is(err, words.ErrDeckLanguageMismatch):
+		writeError(w, http.StatusForbidden, "deck not available for this user or language")
+	case errors.Is(err, words.ErrInvalidDeckName):
+		writeError(w, http.StatusBadRequest, "invalid deck name")
+	case errors.Is(err, words.ErrDeckNameExists):
+		writeError(w, http.StatusConflict, "deck name already exists")
+	case errors.Is(err, words.ErrInvalidTargetLanguagePair), errors.Is(err, words.ErrInvalidTargetLang):
+		writeError(w, http.StatusBadRequest, "invalid target language")
 	case errors.Is(err, enrich.ErrUnsupportedLanguage):
 		writeError(w, http.StatusServiceUnavailable, "multilingual enrichment provider required for this target language")
 	case errors.Is(err, enrich.ErrNotConfigured), errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
@@ -204,7 +216,8 @@ func (h *wordsHandler) getDueReviewItems(w http.ResponseWriter, r *http.Request)
 	}
 
 	langCode := strings.TrimSpace(r.URL.Query().Get("language_code"))
-	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), langCode, limit)
+	deckID := strings.TrimSpace(r.URL.Query().Get("deck_id"))
+	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), langCode, deckID, limit)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return

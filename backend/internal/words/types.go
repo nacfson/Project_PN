@@ -45,6 +45,18 @@ type LearningItem struct {
 	DueAt         time.Time `json:"due_at"`
 }
 
+// Deck is a user-owned grouping of vocabulary items for one target language.
+type Deck struct {
+	ID             string    `json:"id"`
+	UserID         string    `json:"user_id"`
+	TargetLanguage string    `json:"target_language"`
+	Name           string    `json:"name"`
+	IsDefault      bool      `json:"is_default"`
+	ItemCount      int       `json:"item_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 // LearningItemsPage is the paginated response for a user's active learning set.
 type LearningItemsPage struct {
 	Items      []LearningItemListItem `json:"items"`
@@ -80,6 +92,7 @@ type ListLearningItemsParams struct {
 	Cursor       *LearningItemsCursor
 	Search       string
 	LanguageCode string
+	DeckID       string
 }
 
 type LearningItemsCursor struct {

@@ -20,11 +20,19 @@ import (
 
 // Sentinel errors mapped to HTTP statuses by the handler layer.
 var (
-	ErrSenseNotFound            = errors.New("words: word sense not found")
-	ErrForceAmbiguous           = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
-	ErrNoSenses                 = errors.New("words: no senses available and generation is disabled")
-	ErrInvalidCursor            = errors.New("words: invalid learning items cursor")
-	ErrTranslationUnavailable   = errors.New("words: localized translation unavailable")
+	ErrSenseNotFound             = errors.New("words: word sense not found")
+	ErrForceAmbiguous            = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
+	ErrNoSenses                  = errors.New("words: no senses available and generation is disabled")
+	ErrInvalidCursor             = errors.New("words: invalid learning items cursor")
+	ErrTranslationUnavailable    = errors.New("words: localized translation unavailable")
+	ErrDeckNotFound              = errors.New("words: deck not found")
+	ErrDeckNotOwned              = errors.New("words: deck does not belong to user")
+	ErrDeckLanguageMismatch      = errors.New("words: deck target language does not match word language")
+	ErrCannotDeleteDefaultDeck   = errors.New("words: cannot delete default deck")
+	ErrInvalidDeckName           = errors.New("words: invalid deck name")
+	ErrDeckNameExists            = errors.New("words: deck name already exists")
+	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
+	ErrInvalidTargetLang         = errors.New("words: invalid target language")
 )
 
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -215,8 +223,9 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 }
 
 // AddLearningItem creates the personal user_word_senses + review_states rows
-// for the given concrete word sense (idempotent).
-func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode string) (LearningItem, error) {
+// for the given concrete word sense (idempotent). If deckID is empty, the item
+// is placed in the default deck for the word's language.
+func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID string) (LearningItem, error) {
 	wordSenseID = strings.TrimSpace(wordSenseID)
 	if wordSenseID == "" {
 		return LearningItem{}, ErrSenseNotFound
@@ -265,6 +274,11 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 		}
 	}
 
+	deckID, err = s.resolveDeckForAdd(ctx, userID, deckID, wordLang)
+	if err != nil {
+		return LearningItem{}, err
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return LearningItem{}, err
@@ -273,11 +287,11 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 	var item LearningItem
 	err = tx.QueryRow(ctx,
-		`insert into user_word_senses (user_id, word_sense_id)
-		 values ($1::uuid, $2::uuid)
+		`insert into user_word_senses (user_id, word_sense_id, deck_id)
+		 values ($1::uuid, $2::uuid, $3::uuid)
 		 on conflict (user_id, word_sense_id) do update set updated_at = now()
 		 returning id::text, word_sense_id::text, learning_stage`,
-		userID, wordSenseID,
+		userID, wordSenseID, deckID,
 	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage)
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
@@ -314,7 +328,24 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		return LearningItemsPage{}, err
 	}
 
-	args := []any{userID, params.LanguageCode, queryLimit}
+	if strings.TrimSpace(params.DeckID) != "" {
+		deck, err := s.loadDeck(ctx, userID, params.DeckID)
+		if err != nil {
+			return LearningItemsPage{}, err
+		}
+		if params.LanguageCode != "" && params.LanguageCode != deck.TargetLanguage {
+			return LearningItemsPage{}, ErrDeckLanguageMismatch
+		}
+		params.LanguageCode = deck.TargetLanguage
+	}
+
+	args := []any{userID, params.LanguageCode}
+	deckPredicate := ""
+	if params.DeckID != "" {
+		args = append(args, params.DeckID)
+		deckPredicate = fmt.Sprintf("and uws.deck_id = $%d::uuid", len(args))
+	}
+
 	searchPredicate := ""
 	if search := normalize(params.Search); search != "" {
 		args = append(args, search+"%")
@@ -332,6 +363,9 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 			cursorPredicate = fmt.Sprintf("and (uws.added_at, uws.id) > ($%d::timestamptz, $%d::uuid)", addedAtPlaceholder, idPlaceholder)
 		}
 	}
+
+	args = append(args, queryLimit)
+	limitPlaceholder := len(args)
 
 	orderDirection := "asc"
 	if params.Descending {
@@ -358,9 +392,10 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		   and uws.archived_at is null
 		   %s
 		   %s
+		   %s
 		 order by uws.added_at %s, uws.id %s
-		 limit $3`,
-		searchPredicate, cursorPredicate, orderDirection, orderDirection,
+		 limit $%d`,
+		deckPredicate, searchPredicate, cursorPredicate, orderDirection, orderDirection, limitPlaceholder,
 	)
 
 	rows, err := s.pool.Query(ctx, query, args...)
@@ -1026,7 +1061,8 @@ func firstNonEmpty(values ...string) string {
 // GetDueReviewItems returns due review items, respecting daily limits and
 // excluding buried/suspended cards. Reviews (Review/Relearning state) are
 // returned first, then new cards, up to their respective daily quotas.
-func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string, limit int) ([]DueItem, error) {
+// If deckID is provided, items are limited to that deck.
+func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckID string, limit int) ([]DueItem, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -1035,6 +1071,17 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string
 	langCode, _, err = s.fillLangs(ctx, userID, langCode, "")
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(deckID) != "" {
+		deck, err := s.loadDeck(ctx, userID, deckID)
+		if err != nil {
+			return nil, err
+		}
+		if langCode != "" && langCode != deck.TargetLanguage {
+			return nil, ErrDeckLanguageMismatch
+		}
+		langCode = deck.TargetLanguage
 	}
 
 	// Load or create review settings for the user.
@@ -1076,6 +1123,13 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string
 		return []DueItem{}, nil
 	}
 
+	deckPredicate := ""
+	argsBase := []any{userID, langCode}
+	if deckID != "" {
+		argsBase = append(argsBase, deckID)
+		deckPredicate = fmt.Sprintf("and uws.deck_id = $%d::uuid", len(argsBase))
+	}
+
 	baseQuery := `
 		select uws.id::text, uws.word_sense_id::text, w.id::text,
 		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
@@ -1098,6 +1152,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string
 		  on st.word_sense_id = ws.id and st.language_code = $2
 		where uws.user_id = $1::uuid
 		  and w.language_code = $2
+		  %s
 		  and uws.archived_at is null
 		  and uws.learning_stage != 'archived'
 		  and rs.due_at <= now()
@@ -1165,12 +1220,14 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string
 
 	// Fetch review items (Review and Relearning states) first.
 	if reviewFetchLimit > 0 {
-		reviewQuery := baseQuery + `
+		reviewArgs := append(argsBase, reviewFetchLimit)
+		reviewLimitPlaceholder := len(reviewArgs)
+		reviewQuery := fmt.Sprintf(baseQuery+`
 		  and rs.fsrs_state in ('Review', 'Relearning')
 		order by rs.due_at asc
-		limit $3`
+		limit $%d`, deckPredicate, reviewLimitPlaceholder)
 
-		rows, err := s.pool.Query(ctx, reviewQuery, userID, langCode, reviewFetchLimit)
+		rows, err := s.pool.Query(ctx, reviewQuery, reviewArgs...)
 		if err != nil {
 			return nil, fmt.Errorf("words: get due review items: %w", err)
 		}
@@ -1198,12 +1255,14 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string
 	}
 
 	if newFetchLimit > 0 {
-		newQuery := baseQuery + `
+		newArgs := append(argsBase, newFetchLimit)
+		newLimitPlaceholder := len(newArgs)
+		newQuery := fmt.Sprintf(baseQuery+`
 		  and rs.fsrs_state = 'New'
 		order by uws.added_at asc
-		limit $3`
+		limit $%d`, deckPredicate, newLimitPlaceholder)
 
-		rows, err := s.pool.Query(ctx, newQuery, userID, langCode, newFetchLimit)
+		rows, err := s.pool.Query(ctx, newQuery, newArgs...)
 		if err != nil {
 			return nil, fmt.Errorf("words: get due new cards: %w", err)
 		}

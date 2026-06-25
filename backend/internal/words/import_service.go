@@ -132,7 +132,7 @@ func (s *Service) importAdd(ctx context.Context, userID, langCode, defLangCode s
 	// If the preview found a matching sense, add it directly.
 	matched := findBestMatchingSense(item.MatchedSenses, item.Back)
 	if matched != nil {
-		_, err := s.AddLearningItem(ctx, userID, matched.WordSenseID, defLangCode)
+		_, err := s.AddLearningItem(ctx, userID, matched.WordSenseID, defLangCode, "")
 		if err != nil {
 			return false, err
 		}
@@ -144,7 +144,7 @@ func (s *Service) importAdd(ctx context.Context, userID, langCode, defLangCode s
 	if err != nil {
 		return false, err
 	}
-	_, err = s.AddLearningItem(ctx, userID, wordSenseID, defLangCode)
+	_, err = s.AddLearningItem(ctx, userID, wordSenseID, defLangCode, "")
 	if err != nil {
 		return false, err
 	}
@@ -175,7 +175,7 @@ func (s *Service) importOverwriteMeaning(ctx context.Context, userID, langCode, 
 		return false, err
 	}
 	if !exists {
-		_, err = s.AddLearningItem(ctx, userID, matched.WordSenseID, defLangCode)
+		_, err = s.AddLearningItem(ctx, userID, matched.WordSenseID, defLangCode, "")
 		if err != nil {
 			return false, err
 		}
@@ -199,7 +199,7 @@ func (s *Service) importCreateNewMeaning(ctx context.Context, userID, langCode, 
 		return false, err
 	}
 
-	_, err = s.AddLearningItem(ctx, userID, wordSenseID, defLangCode)
+	_, err = s.AddLearningItem(ctx, userID, wordSenseID, defLangCode, "")
 	if err != nil {
 		return false, err
 	}
