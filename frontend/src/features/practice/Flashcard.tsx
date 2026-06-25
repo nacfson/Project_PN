@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAppLanguage } from '../../i18n';
+import type { TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Icon, Text } from '../../ui';
 import type { Rating } from '../../ui';
 import type { DueItem } from '../../types';
+import { SpeakButton } from '../../components/SpeakButton';
 
 interface FlashcardProps {
   item: DueItem;
@@ -31,6 +33,30 @@ interface FlashcardProps {
 
 const SWIPE_THRESHOLD = 96;
 const DIRECTION_THRESHOLD = 24;
+
+function highlightWordInSentence(sentence: string, word: string): ReactNode[] {
+  if (!sentence || !word) return [sentence];
+  const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const regex = new RegExp(`\\b${escaped}[a-zA-Z]*\\b`, 'gi');
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  sentence.replace(regex, (match, offset) => {
+    if (offset > lastIndex) {
+      parts.push(sentence.slice(lastIndex, offset));
+    }
+    parts.push(
+      <Text key={`match-${offset}`} bold>
+        {match}
+      </Text>
+    );
+    lastIndex = offset + match.length;
+    return match;
+  });
+  if (lastIndex < sentence.length) {
+    parts.push(sentence.slice(lastIndex));
+  }
+  return parts;
+}
 
 export function Flashcard({
   item,
@@ -200,7 +226,7 @@ export function Flashcard({
 
   const renderFront = () => (
     <View style={styles.cardContent}>
-      <Badge label={item.part_of_speech.toUpperCase()} variant="primary" />
+      <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
       {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
       <Text variant="caption" color="muted" style={styles.promptLabel}>
         {t('practice.recallPrompt')}
@@ -230,10 +256,18 @@ export function Flashcard({
 
   const renderBack = () => (
     <View style={styles.cardContent}>
-      <Badge label={item.part_of_speech.toUpperCase()} variant="primary" />
-      <Text variant="headline" style={styles.wordText}>
-        {item.lemma}
-      </Text>
+      <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
+      <View style={[styles.wordRow, { gap: spacing.sm }]}>
+        <Text variant="headline" style={styles.wordText}>
+          {item.lemma}
+        </Text>
+        <SpeakButton language={item.language_code} text={item.lemma} />
+      </View>
+      {item.pronunciation && (
+        <Text variant="caption" color="muted">
+          {item.pronunciation}
+        </Text>
+      )}
       {cardMode === 'typing' && (
         <View
           style={[
@@ -252,13 +286,26 @@ export function Flashcard({
           </Text>
         </View>
       )}
-      <Text variant="body" color="muted" style={styles.backDefinitionText}>
-        {item.definition}
-      </Text>
+      <View style={[styles.section, { gap: spacing.xs }]}>
+        <Text variant="caption" color="muted">
+          {t('practice.definitionLabel')}
+        </Text>
+        <Text variant="body" style={styles.backDefinitionText}>
+          {item.definition}
+        </Text>
+        {item.localized_definition && (
+          <Text variant="body" color="muted" style={styles.backDefinitionText}>
+            {item.localized_definition}
+          </Text>
+        )}
+      </View>
       {example && (
-        <View style={[styles.exampleContainer, { gap: spacing.xs, marginTop: spacing.sm }]}>
+        <View style={[styles.section, { gap: spacing.xs, marginTop: spacing.sm }]}>
+          <Text variant="caption" color="muted">
+            {t('practice.exampleLabel')}
+          </Text>
           <Text variant="body" style={styles.exampleSentence}>
-            &ldquo;{example.sentence}&rdquo;
+            &ldquo;{highlightWordInSentence(example.sentence, item.normalized_text)}&rdquo;
           </Text>
           {example.localized_translation && (
             <Text variant="caption" color="muted" style={styles.exampleTranslation}>
@@ -415,6 +462,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: -0.5,
   },
+  wordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   answerResult: {
     width: '100%',
     borderWidth: 1,
@@ -431,7 +483,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  exampleContainer: {
+  section: {
+    width: '100%',
     alignItems: 'center',
   },
   exampleSentence: {

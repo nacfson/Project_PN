@@ -62,8 +62,12 @@ func New(pool *pgxpool.Pool, enricher enrich.Enricher, defaultUserID, targetLang
 // Lookup returns sense options for a word. POS may be nil ("Any" -> all parts
 // of speech) or a concrete value. On a full cache miss it enriches once and
 // persists the result before returning.
-func (s *Service) Lookup(ctx context.Context, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
-	langCode, defLangCode = s.fillLangs(langCode, defLangCode)
+func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
+	var err error
+	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
+	if err != nil {
+		return LookupResult{}, err
+	}
 	normalized := normalize(text)
 	if normalized == "" {
 		return LookupResult{}, fmt.Errorf("words: empty lookup text")
@@ -108,8 +112,12 @@ func (s *Service) Lookup(ctx context.Context, text, langCode, defLangCode string
 
 // ForceGenerate is the "none of these match" path. It appends a new sense and
 // returns the refreshed options for the affected word(s).
-func (s *Service) ForceGenerate(ctx context.Context, wordID *string, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
-	langCode, defLangCode = s.fillLangs(langCode, defLangCode)
+func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *string, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
+	var err error
+	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
+	if err != nil {
+		return LookupResult{}, err
+	}
 	normalized := normalize(text)
 
 	if wordID == nil && (pos == nil || normalize(*pos) == "" || strings.EqualFold(*pos, "any")) {
@@ -300,7 +308,13 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	}
 	queryLimit := limit + 1
 
-	args := []any{userID, queryLimit}
+	var err error
+	params.LanguageCode, _, err = s.fillLangs(ctx, userID, params.LanguageCode, "")
+	if err != nil {
+		return LearningItemsPage{}, err
+	}
+
+	args := []any{userID, params.LanguageCode, queryLimit}
 	searchPredicate := ""
 	if search := normalize(params.Search); search != "" {
 		args = append(args, search+"%")
@@ -326,26 +340,26 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 
 	query := fmt.Sprintf(
 		`select uws.id::text, uws.word_sense_id::text, w.id::text,
-		        w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
-		        u.native_language,
+		        w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
+		        $2::text as display_language,
 		        ws.definition, ws.short_definition,
 		        coalesce(st.definition, ws.definition),
 		        coalesce(st.short_definition, ws.short_definition),
 		        ws.cefr_level, ws.meaning_order,
 		        uws.learning_stage, rs.due_at, uws.added_at
 		 from user_word_senses uws
-		 join users u on u.id = uws.user_id
 		 join word_senses ws on ws.id = uws.word_sense_id
 		 join words w on w.id = ws.word_id
 		 join review_states rs on rs.user_word_sense_id = uws.id
 		 left join sense_translations st
-		   on st.word_sense_id = ws.id and st.language_code = u.native_language
+		   on st.word_sense_id = ws.id and st.language_code = $2
 		 where uws.user_id = $1::uuid
+		   and w.language_code = $2
 		   and uws.archived_at is null
 		   %s
 		   %s
 		 order by uws.added_at %s, uws.id %s
-		 limit $2`,
+		 limit $3`,
 		searchPredicate, cursorPredicate, orderDirection, orderDirection,
 	)
 
@@ -360,7 +374,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		var item LearningItemListItem
 		if err := rows.Scan(
 			&item.ID, &item.WordSenseID, &item.WordID,
-			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech, &item.Pronunciation,
 			&item.DisplayLanguageCode,
 			&item.Definition, &item.ShortDefinition,
 			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
@@ -426,14 +440,52 @@ func encodeLearningItemsCursor(cursor LearningItemsCursor) string {
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-func (s *Service) fillLangs(langCode, defLangCode string) (string, string) {
+func (s *Service) fillLangs(ctx context.Context, userID, langCode, defLangCode string) (string, string, error) {
 	if strings.TrimSpace(langCode) == "" {
-		langCode = s.TargetLang
+		langCode = s.resolveTargetLang(ctx, userID)
 	}
 	if strings.TrimSpace(defLangCode) == "" {
-		defLangCode = s.DefinitionLang
+		defLangCode = s.resolveDefinitionLang(ctx, userID)
 	}
-	return langCode, defLangCode
+	return langCode, defLangCode, nil
+}
+
+func (s *Service) resolveTargetLang(ctx context.Context, userID string) string {
+	if strings.TrimSpace(userID) != "" {
+		var target string
+		if err := s.pool.QueryRow(ctx,
+			`select target_language from user_languages where user_id = $1::uuid and is_active = true`,
+			userID,
+		).Scan(&target); err == nil && strings.TrimSpace(target) != "" {
+			return target
+		}
+		// Legacy fallback for users without an active user_languages row.
+		if err := s.pool.QueryRow(ctx,
+			`select target_language from users where id = $1::uuid`, userID,
+		).Scan(&target); err == nil && strings.TrimSpace(target) != "" {
+			return target
+		}
+	}
+	return s.TargetLang
+}
+
+func (s *Service) resolveDefinitionLang(ctx context.Context, userID string) string {
+	if strings.TrimSpace(userID) != "" {
+		var display string
+		if err := s.pool.QueryRow(ctx,
+			`select display_language from user_languages where user_id = $1::uuid and is_active = true`,
+			userID,
+		).Scan(&display); err == nil && strings.TrimSpace(display) != "" {
+			return display
+		}
+		// Legacy fallback for users without an active user_languages row.
+		if err := s.pool.QueryRow(ctx,
+			`select native_language from users where id = $1::uuid`, userID,
+		).Scan(&display); err == nil && strings.TrimSpace(display) != "" {
+			return display
+		}
+	}
+	return s.DefinitionLang
 }
 
 func (s *Service) resolveDisplayLang(ctx context.Context, userID, displayLangCode string) (string, error) {
@@ -441,12 +493,20 @@ func (s *Service) resolveDisplayLang(ctx context.Context, userID, displayLangCod
 		return lang, nil
 	}
 	if strings.TrimSpace(userID) != "" {
-		var native string
+		var display string
 		err := s.pool.QueryRow(ctx,
+			`select display_language from user_languages where user_id = $1::uuid and is_active = true`,
+			userID,
+		).Scan(&display)
+		if err == nil && strings.TrimSpace(display) != "" {
+			return display, nil
+		}
+		// Legacy fallback.
+		err = s.pool.QueryRow(ctx,
 			`select native_language from users where id = $1::uuid`, userID,
-		).Scan(&native)
-		if err == nil && strings.TrimSpace(native) != "" {
-			return native, nil
+		).Scan(&display)
+		if err == nil && strings.TrimSpace(display) != "" {
+			return display, nil
 		}
 	}
 	return s.DefinitionLang, nil
@@ -747,12 +807,13 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 
 		var wordID string
 		err := tx.QueryRow(ctx,
-			`insert into words (language_code, lemma, normalized_text, part_of_speech)
-			 values ($1, $2, $3, $4)
+			`insert into words (language_code, lemma, normalized_text, part_of_speech, pronunciation)
+			 values ($1, $2, $3, $4, $5)
 			 on conflict (language_code, normalized_text, part_of_speech)
-			 do update set updated_at = now()
+			 do update set pronunciation = coalesce(nullif(excluded.pronunciation, ''), words.pronunciation),
+			               updated_at = now()
 			 returning id::text`,
-			langCode, firstNonEmpty(entry.Lemma, normalized), normalized, pos,
+			langCode, firstNonEmpty(entry.Lemma, normalized), normalized, pos, nullString(entry.Pronunciation),
 		).Scan(&wordID)
 		if err != nil {
 			return nil, fmt.Errorf("words: upsert word: %w", err)
@@ -850,7 +911,7 @@ func appendSenses(ctx context.Context, tx pgx.Tx, wordID, defLangCode string, se
 
 func loadSenseOptions(ctx context.Context, q querier, wordIDs []string, displayLang string) ([]SenseOption, error) {
 	rows, err := q.Query(ctx,
-		`select w.id::text, ws.id::text, w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
+		`select w.id::text, ws.id::text, w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
 		        ws.definition, ws.short_definition, ws.cefr_level, ws.meaning_order,
 		        st.definition, st.short_definition
 		 from words w
@@ -871,7 +932,7 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string, displayL
 		var o SenseOption
 		var translatedDef, translatedShort *string
 		if err := rows.Scan(
-			&o.WordID, &o.WordSenseID, &o.LanguageCode, &o.Lemma, &o.NormalizedText, &o.PartOfSpeech,
+			&o.WordID, &o.WordSenseID, &o.LanguageCode, &o.Lemma, &o.NormalizedText, &o.PartOfSpeech, &o.Pronunciation,
 			&o.Definition, &o.ShortDefinition, &o.CEFRLevel, &o.MeaningOrder,
 			&translatedDef, &translatedShort,
 		); err != nil {
@@ -965,9 +1026,15 @@ func firstNonEmpty(values ...string) string {
 // GetDueReviewItems returns due review items, respecting daily limits and
 // excluding buried/suspended cards. Reviews (Review/Relearning state) are
 // returned first, then new cards, up to their respective daily quotas.
-func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit int) ([]DueItem, error) {
+func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode string, limit int) ([]DueItem, error) {
 	if limit <= 0 {
 		limit = 50
+	}
+
+	var err error
+	langCode, _, err = s.fillLangs(ctx, userID, langCode, "")
+	if err != nil {
+		return nil, err
 	}
 
 	// Load or create review settings for the user.
@@ -1011,8 +1078,8 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 
 	baseQuery := `
 		select uws.id::text, uws.word_sense_id::text, w.id::text,
-		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech,
-		       u.native_language,
+		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
+		       $2::text as display_language,
 		       ws.definition, ws.short_definition,
 		       coalesce(st.definition, ws.definition),
 		       coalesce(st.short_definition, ws.short_definition),
@@ -1024,13 +1091,13 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		       rs.scheduled_days, rs.remaining_steps,
 		       rs.last_reviewed_at
 		from user_word_senses uws
-		join users u on u.id = uws.user_id
 		join word_senses ws on ws.id = uws.word_sense_id
 		join words w on w.id = ws.word_id
 		join review_states rs on rs.user_word_sense_id = uws.id
 		left join sense_translations st
-		  on st.word_sense_id = ws.id and st.language_code = u.native_language
+		  on st.word_sense_id = ws.id and st.language_code = $2
 		where uws.user_id = $1::uuid
+		  and w.language_code = $2
 		  and uws.archived_at is null
 		  and uws.learning_stage != 'archived'
 		  and rs.due_at <= now()
@@ -1054,7 +1121,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 
 		err := rows.Scan(
 			&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
-			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech,
+			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech, &item.Pronunciation,
 			&item.DisplayLanguageCode,
 			&item.Definition, &item.ShortDefinition,
 			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
@@ -1101,9 +1168,9 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		reviewQuery := baseQuery + `
 		  and rs.fsrs_state in ('Review', 'Relearning')
 		order by rs.due_at asc
-		limit $2`
+		limit $3`
 
-		rows, err := s.pool.Query(ctx, reviewQuery, userID, reviewFetchLimit)
+		rows, err := s.pool.Query(ctx, reviewQuery, userID, langCode, reviewFetchLimit)
 		if err != nil {
 			return nil, fmt.Errorf("words: get due review items: %w", err)
 		}
@@ -1134,9 +1201,9 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID string, limit in
 		newQuery := baseQuery + `
 		  and rs.fsrs_state = 'New'
 		order by uws.added_at asc
-		limit $2`
+		limit $3`
 
-		rows, err := s.pool.Query(ctx, newQuery, userID, newFetchLimit)
+		rows, err := s.pool.Query(ctx, newQuery, userID, langCode, newFetchLimit)
 		if err != nil {
 			return nil, fmt.Errorf("words: get due new cards: %w", err)
 		}

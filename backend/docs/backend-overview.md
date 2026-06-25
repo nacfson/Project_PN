@@ -79,7 +79,7 @@ The backend is exposed as an HTTP API. Routes are defined in `backend/internal/h
 
 ### Learning (protected)
 
-Requires `Authorization: Bearer <token>`. When `REQUIRE_EMAIL_VERIFIED=true`, mutating routes also require a verified email (403 otherwise).
+Requires `Authorization: Bearer <token>`. All protected routes require a verified email (403 otherwise).
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -93,19 +93,15 @@ Requires `Authorization: Bearer <token>`. When `REQUIRE_EMAIL_VERIFIED=true`, mu
 
 ## Authentication
 
-The MVP implements application-layer authentication against the local PostgreSQL `users` table (migration `000003_auth`). Sessions are opaque bearer tokens stored as hashes in `sessions`. Login paths:
-
-- email/password (`register`, `login`)
-- Google OAuth (`POST /api/auth/oauth/google`)
-- magic link (`magic-link` → email → `magic/consume` → fragment callback → `magic/exchange`)
+The MVP implements application-layer authentication against the local PostgreSQL `users` table. Sessions are opaque bearer tokens stored as hashes in `sessions`. The only login path is email/password (`register` → verify email via link → `login`).
 
 The acting user is derived from the `Authorization: Bearer` header, not from the request body. Migration `000002_seed_dev_user.up.sql` still seeds a dev user for local fixtures; production-style flows create real users via auth endpoints.
 
-Auth configuration (`SESSION_TTL`, `REQUIRE_EMAIL_VERIFIED`, `EMAIL_PROVIDER`, `APP_PUBLIC_URL`, etc.) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
+Auth configuration (`SESSION_TTL`, `EMAIL_VERIFICATION_TTL`, `EMAIL_PROVIDER`, `APP_PUBLIC_URL`, etc.) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
 
 ## Public Docker Deployment
 
-The public deploy path uses Docker Compose on `zlUbuntu`: PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Forward router ports `80/tcp` and `443/tcp` to `zlUbuntu`, mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend, Google, and enrichment providers works from inside the container.
+The public deploy path uses Docker Compose on `zlUbuntu`: PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Forward router ports `80/tcp` and `443/tcp` to `zlUbuntu`, mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
 
 See `backend/docs/go-backend-setup.md` and `backend/docs/remote-deploy-runbook.md` for deployment steps.
 

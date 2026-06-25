@@ -13,6 +13,7 @@ import { useAppLanguage } from '../../i18n';
 import type { LearningItemListItem } from '../../types';
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import type { TranslationKey } from '../../i18n';
+import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
@@ -51,9 +52,17 @@ export function MyWordsScreen() {
       <Card style={{ marginBottom: spacing.md }}>
         <View style={styles.row}>
           <View style={{ flex: 1, gap: spacing.xs }}>
-            <Text variant="title" bold>
-              {item.lemma}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text variant="title" bold>
+                {item.lemma}
+              </Text>
+              <SpeakButton language={item.language_code} size="sm" text={item.lemma} />
+            </View>
+            {item.pronunciation && (
+              <Text variant="caption" color="muted">
+                {item.pronunciation}
+              </Text>
+            )}
             <Text variant="caption" color="muted">
               {item.short_definition ?? item.definition}
             </Text>
@@ -61,7 +70,7 @@ export function MyWordsScreen() {
           <Icon name="chevron-forward" size="md" />
         </View>
         <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm }]}>
-          <Badge label={item.part_of_speech} variant="default" />
+          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant="default" />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
         </View>
       </Card>

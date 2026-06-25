@@ -10,7 +10,10 @@ import (
 // PreviewAnkiImport inspects Anki cards and reports match/conflict state without
 // modifying any data.
 func (s *Service) PreviewAnkiImport(ctx context.Context, userID string, req AnkiImportRequest) (ImportPreviewResult, error) {
-	langCode, defLangCode := s.fillLangs(req.LanguageCode, req.DefinitionLanguageCode)
+	langCode, defLangCode, err := s.fillLangs(ctx, userID, req.LanguageCode, req.DefinitionLanguageCode)
+	if err != nil {
+		return ImportPreviewResult{}, err
+	}
 
 	result := ImportPreviewResult{Items: make([]ImportPreviewItem, 0, len(req.Cards))}
 	for i, card := range req.Cards {
@@ -26,7 +29,7 @@ func (s *Service) PreviewAnkiImport(ctx context.Context, userID string, req Anki
 			Back:  back,
 		}
 
-		lookupResult, err := s.Lookup(ctx, front, langCode, defLangCode, nil)
+		lookupResult, err := s.Lookup(ctx, userID, front, langCode, defLangCode, nil)
 		if err != nil {
 			// If lookup failed entirely, treat as a new word the user can try to add.
 			item.Status = ImportStatusNewWord
@@ -70,7 +73,10 @@ func (s *Service) PreviewAnkiImport(ctx context.Context, userID string, req Anki
 // the action field on each card when present; otherwise it falls back to the
 // suggested action from PreviewAnkiImport.
 func (s *Service) ImportAnkiCards(ctx context.Context, userID string, req AnkiImportRequest) (AnkiImportResult, error) {
-	langCode, defLangCode := s.fillLangs(req.LanguageCode, req.DefinitionLanguageCode)
+	langCode, defLangCode, err := s.fillLangs(ctx, userID, req.LanguageCode, req.DefinitionLanguageCode)
+	if err != nil {
+		return AnkiImportResult{}, err
+	}
 	preview, err := s.PreviewAnkiImport(ctx, userID, req)
 	if err != nil {
 		return AnkiImportResult{}, fmt.Errorf("anki import: preview failed: %w", err)
@@ -134,7 +140,7 @@ func (s *Service) importAdd(ctx context.Context, userID, langCode, defLangCode s
 	}
 
 	// No existing word/sense — create one from the Anki data.
-	wordSenseID, err := s.createWordAndSenseFromAnki(ctx, langCode, defLangCode, item.Front, item.Back)
+	wordSenseID, err := s.createWordAndSenseFromAnki(ctx, userID, langCode, defLangCode, item.Front, item.Back)
 	if err != nil {
 		return false, err
 	}
@@ -200,11 +206,11 @@ func (s *Service) importCreateNewMeaning(ctx context.Context, userID, langCode, 
 	return true, nil
 }
 
-func (s *Service) createWordAndSenseFromAnki(ctx context.Context, langCode, defLangCode, front, back string) (string, error) {
+func (s *Service) createWordAndSenseFromAnki(ctx context.Context, userID, langCode, defLangCode, front, back string) (string, error) {
 	normalized := normalize(front)
 
 	// First try the enricher so we get a proper POS, examples, and canonical data.
-	lookupResult, err := s.Lookup(ctx, front, langCode, defLangCode, nil)
+	lookupResult, err := s.Lookup(ctx, userID, front, langCode, defLangCode, nil)
 	if err == nil && len(lookupResult.SenseOptions) > 0 {
 		matched := findBestMatchingSense(lookupResult.SenseOptions, back)
 		if matched != nil {

@@ -2,18 +2,18 @@
 
 ## Register / Login Flow (email + password)
 
-1. Client fetches `GET /api/auth/language-options` to learn defaults, allowed languages, and forced values.
-2. Client `POST /api/auth/register` with `{ email, password, native_language?, target_language? }`.
+1. Client fetches `GET /api/auth/language-options` to learn defaults, allowed languages, and forced values (including `ui_defaults` and `ui_forced`).
+2. Client `POST /api/auth/register` with `{ email, password, native_language?, target_language?, ui_language? }`.
 3. API resolves languages using this priority for each field:
    - `FORCE_*` environment value wins if set.
    - Request value if present and allowed.
    - `DEFAULT_*` environment value as final fallback.
-4. API normalizes email, bcrypt-hashes password, inserts `users` row, mints opaque bearer token in `sessions`.
+4. API normalizes email, bcrypt-hashes password, inserts `users` row (including `ui_language`), and inserts the first `(target_language, native_language)` pair into `user_languages` with `is_active = true`.
 5. Response: `{ token, expires_at }` (201 on register, 200 on login).
 6. Client sends `Authorization: Bearer <token>` on protected routes.
 7. `POST /api/auth/logout` deletes the current session row.
 
-Default languages when omitted: `native_language` ← `DEFAULT_DEFINITION_LANG`; `target_language` ← `DEFAULT_TARGET_LANG`.
+Default languages when omitted: `native_language` ← `DEFAULT_DEFINITION_LANG`; `target_language` ← `DEFAULT_TARGET_LANG`; `ui_language` ← `DEFAULT_UI_LANGUAGE`.
 
 ## Google OAuth Flow
 
@@ -67,14 +67,15 @@ Steps 6 and 7 must be idempotent: re-adding the same `(user_id, word_sense_id)` 
 
 ## Learning Items List Flow
 
-1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app`.
+1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...`.
 2. API derives the acting user from the bearer session.
-3. API queries `user_word_senses` joined to `word_senses`, `words`, and `review_states`.
-4. API excludes rows where `user_word_senses.archived_at is not null`.
-5. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
-6. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
-7. API loads example sentences and their translations for each returned item.
-8. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
+3. API resolves the target language. If `language_code` is omitted, the active `user_languages` row is used.
+4. API queries `user_word_senses` joined to `word_senses`, `words`, and `review_states`, filtering to the resolved target language.
+5. API excludes rows where `user_word_senses.archived_at is not null`.
+6. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
+7. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
+8. API loads example sentences and their translations for each returned item.
+9. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
 
 Rules:
 
@@ -89,11 +90,12 @@ Rules:
 This is the `POST /api/words/lookup` happy path when the global cache has no row for the lookup key:
 
 1. App normalizes the lookup text.
-2. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path loads canonical `word_senses` and `examples`, left-joining `sense_translations` and `example_translations` for the requested `display_language_code` (legacy requests may still send `definition_language_code`).
-3. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading.
-4. If translations are still missing (enricher unconfigured or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
-5. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, and (optional) POS.
-6. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with canonical target-language definitions and native-language translation blocks.
+2. App resolves the target/display language pair. If the request omits `language_code` / `display_language_code`, the active `user_languages` row is used; otherwise the explicitly requested pair is used. Legacy fallback reads `users.target_language` / `users.native_language`.
+3. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path loads canonical `word_senses` and `examples`, left-joining `sense_translations` and `example_translations` for the requested `display_language_code` (legacy requests may still send `definition_language_code`).
+4. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading.
+5. If translations are still missing (enricher unconfigured or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
+6. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, and (optional) POS.
+7. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with canonical target-language definitions and display-language translation blocks.
 7. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
 8. App reloads the affected senses (joined with localized translations and examples) and returns the result.
 
@@ -111,7 +113,7 @@ This is the `POST /api/words/lookup` path with `force: true`, used when the user
 
 ## Review Flow
 
-1. App queries due items by joining `review_states` to `user_word_senses`.
+1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). It queries due items by joining `review_states` to `user_word_senses` and `words`, filtering to the active target language.
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.
@@ -157,6 +159,18 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | `POST /api/auth/magic/exchange` | Magic code → session | `auth.Service.ExchangeMagicCode` |
 | `GET /api/auth/me` | Current user | context user |
 | `POST /api/auth/logout` | Logout | `auth.Service.Logout` |
+| `GET /api/user/languages` | List user language pairs | `auth.Service.GetUserLanguages` |
+| `POST /api/user/languages` | Add user language pair | `auth.Service.AddUserLanguage` |
+| `PATCH /api/user/languages/{target_language}` | Update display language | `auth.Service.UpdateUserLanguageDisplayLang` |
+| `PATCH /api/user/languages/{target_language}/active` | Set active language | `auth.Service.SetActiveUserLanguage` |
+| `DELETE /api/user/languages/{target_language}` | Remove user language pair | `auth.Service.RemoveUserLanguage` |
+| `GET /api/user/ui-language` | Get UI language | `auth.Service.GetUILanguage` |
+| `PUT /api/user/ui-language` | Set UI language | `auth.Service.SetUILanguage` |
+| `GET /api/decks` | List decks | `words.Service.ListDecks` |
+| `POST /api/decks` | Create deck | `words.Service.CreateDeck` |
+| `PATCH /api/decks/{deck_id}` | Rename deck | `words.Service.RenameDeck` |
+| `DELETE /api/decks/{deck_id}` | Delete deck | `words.Service.DeleteDeck` |
+| `POST /api/decks/{deck_id}/move-items` | Move items to deck | `words.Service.MoveItemsToDeck` |
 | `POST /api/words/lookup` (no `force`) | Lookup | `words.Service.Lookup` |
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |

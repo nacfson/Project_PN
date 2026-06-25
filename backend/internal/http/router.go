@@ -16,12 +16,10 @@ import (
 )
 
 type Dependencies struct {
-	DB                   *pgxpool.Pool
-	Words                *words.Service
-	Auth                 *auth.Service
-	OAuthVerifiers       map[string]auth.OAuthVerifier
-	AllowedOrigins       []string
-	RequireEmailVerified bool
+	DB             *pgxpool.Pool
+	Words          *words.Service
+	Auth           *auth.Service
+	AllowedOrigins []string
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -33,7 +31,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	if len(deps.AllowedOrigins) > 0 {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
-			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodOptions},
+			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 			AllowedHeaders:   []string{"Content-Type", "Authorization"},
 			AllowCredentials: false,
 			MaxAge:           300,
@@ -44,15 +42,13 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Get("/readyz", readyz(deps.DB))
 
 	if deps.Auth != nil {
-		ah := &authHandler{svc: deps.Auth, oauthVerifiers: deps.OAuthVerifiers}
+		ah := &authHandler{svc: deps.Auth}
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
 			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/register", ah.register)
 			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/login", ah.login)
-			authRouter.With(authIPRateLimit()).Post("/oauth/{provider}", ah.oauthLogin)
-			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/magic-link", ah.magicLink)
-			authRouter.With(consumeIPRateLimit()).Get("/magic/consume", ah.magicConsume)
-			authRouter.With(consumeIPRateLimit()).Post("/magic/exchange", ah.magicExchange)
+			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/verify-email/request", ah.requestVerificationEmail)
+			authRouter.With(consumeIPRateLimit()).Get("/verify-email", ah.verifyEmail)
 			authRouter.Get("/language-options", ah.languageOptions)
 
 			authRouter.Group(func(protected chi.Router) {
@@ -60,6 +56,18 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Get("/me", ah.me)
 				protected.Post("/logout", ah.logout)
 			})
+		})
+
+		uh := &userHandler{svc: deps.Auth}
+		r.Route("/api/user", func(userRouter chi.Router) {
+			userRouter.Use(authMiddleware(deps.Auth))
+			userRouter.Get("/languages", uh.listLanguages)
+			userRouter.Post("/languages", uh.addLanguage)
+			userRouter.Patch("/languages/{target_language}", uh.updateDisplayLanguage)
+			userRouter.Patch("/languages/{target_language}/active", uh.setActiveLanguage)
+			userRouter.Delete("/languages/{target_language}", uh.removeLanguage)
+			userRouter.Get("/ui-language", uh.getUILanguage)
+			userRouter.Put("/ui-language", uh.setUILanguage)
 		})
 	}
 
@@ -69,7 +77,7 @@ func NewRouter(deps Dependencies) http.Handler {
 			api.Group(func(protected chi.Router) {
 				if deps.Auth != nil {
 					protected.Use(authMiddleware(deps.Auth))
-					protected.Use(requireVerified(deps.RequireEmailVerified))
+					protected.Use(requireVerified())
 				}
 				protected.Post("/words/lookup", wh.lookup)
 				protected.Get("/learning-items", wh.listLearningItems)

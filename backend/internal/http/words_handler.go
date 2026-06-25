@@ -71,6 +71,7 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 
 	displayLang := req.displayLang()
 
+	userID := userIDFromRequest(r)
 	var (
 		result words.LookupResult
 		err    error
@@ -80,9 +81,9 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
 			return
 		}
-		result, err = h.svc.ForceGenerate(r.Context(), wordID, req.Text, req.LanguageCode, displayLang, pos)
+		result, err = h.svc.ForceGenerate(r.Context(), userID, wordID, req.Text, req.LanguageCode, displayLang, pos)
 	} else {
-		result, err = h.svc.Lookup(r.Context(), req.Text, req.LanguageCode, displayLang, pos)
+		result, err = h.svc.Lookup(r.Context(), userID, req.Text, req.LanguageCode, displayLang, pos)
 	}
 	if err != nil {
 		h.writeServiceError(w, err)
@@ -161,6 +162,7 @@ func parseListLearningItemsParams(r *http.Request) (words.ListLearningItemsParam
 	}
 
 	params.Search = strings.TrimSpace(query.Get("q"))
+	params.LanguageCode = strings.TrimSpace(query.Get("language_code"))
 
 	return params, nil
 }
@@ -201,7 +203,8 @@ func (h *wordsHandler) getDueReviewItems(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), limit)
+	langCode := strings.TrimSpace(r.URL.Query().Get("language_code"))
+	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), langCode, limit)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return

@@ -13,20 +13,21 @@ type Example struct {
 // It is intentionally flattened (word + sense fields together) so the client
 // can render and select a single word_sense_id directly.
 type SenseOption struct {
-	WordID                  string    `json:"word_id"`
-	WordSenseID             string    `json:"word_sense_id"`
-	LanguageCode            string    `json:"language_code"`
-	Lemma                   string    `json:"lemma"`
-	NormalizedText          string    `json:"normalized_text"`
-	PartOfSpeech            string    `json:"part_of_speech"`
-	DisplayLanguageCode     string    `json:"display_language_code"`
-	Definition              string    `json:"definition"`
-	ShortDefinition         *string   `json:"short_definition"`
-	LocalizedDefinition     string    `json:"localized_definition"`
-	LocalizedShortDefinition *string  `json:"localized_short_definition"`
-	CEFRLevel               *string   `json:"cefr_level"`
-	MeaningOrder            int       `json:"meaning_order"`
-	Examples                []Example `json:"examples"`
+	WordID                   string    `json:"word_id"`
+	WordSenseID              string    `json:"word_sense_id"`
+	LanguageCode             string    `json:"language_code"`
+	Lemma                    string    `json:"lemma"`
+	NormalizedText           string    `json:"normalized_text"`
+	PartOfSpeech             string    `json:"part_of_speech"`
+	Pronunciation            *string   `json:"pronunciation"`
+	DisplayLanguageCode      string    `json:"display_language_code"`
+	Definition               string    `json:"definition"`
+	ShortDefinition          *string   `json:"short_definition"`
+	LocalizedDefinition      string    `json:"localized_definition"`
+	LocalizedShortDefinition *string   `json:"localized_short_definition"`
+	CEFRLevel                *string   `json:"cefr_level"`
+	MeaningOrder             int       `json:"meaning_order"`
+	Examples                 []Example `json:"examples"`
 }
 
 // LookupResult is the flattened response shape for /api/words/lookup.
@@ -59,6 +60,7 @@ type LearningItemListItem struct {
 	Lemma                    string    `json:"lemma"`
 	NormalizedText           string    `json:"normalized_text"`
 	PartOfSpeech             string    `json:"part_of_speech"`
+	Pronunciation            *string   `json:"pronunciation"`
 	DisplayLanguageCode      string    `json:"display_language_code"`
 	Definition               string    `json:"definition"`
 	ShortDefinition          *string   `json:"short_definition"`
@@ -73,10 +75,11 @@ type LearningItemListItem struct {
 }
 
 type ListLearningItemsParams struct {
-	Limit      int
-	Descending bool
-	Cursor     *LearningItemsCursor
-	Search     string
+	Limit        int
+	Descending   bool
+	Cursor       *LearningItemsCursor
+	Search       string
+	LanguageCode string
 }
 
 type LearningItemsCursor struct {
@@ -114,6 +117,7 @@ type DueItem struct {
 	Lemma                    string           `json:"lemma"`
 	NormalizedText           string           `json:"normalized_text"`
 	PartOfSpeech             string           `json:"part_of_speech"`
+	Pronunciation            *string          `json:"pronunciation"`
 	DisplayLanguageCode      string           `json:"display_language_code"`
 	Definition               string           `json:"definition"`
 	ShortDefinition          *string          `json:"short_definition"`

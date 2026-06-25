@@ -7,107 +7,29 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import * as AuthSession from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 import { ApiError } from '../api/client';
-import { getLanguageOptions, login, loginWithGoogle, register, requestMagicLink } from '../api/auth';
+import { getLanguageOptions, login, register, requestVerificationEmail } from '../api/auth';
 import type { LanguageOptionsResponse } from '../types/auth';
 import { SUPPORTED_LANGUAGES } from '../config';
 import { getDeviceLanguageCode } from '../utils/locale';
-import { AUTH_CALLBACK_PATH, AUTH_CALLBACK_SCHEME } from '../utils/authCallback';
-import { isTauri } from '../utils/platform';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Input, Text } from '../ui';
 
-WebBrowser.maybeCompleteAuthSession();
-
 interface LoginScreenProps {
+  verifiedEmail?: string | null;
   onAuthenticated: () => void;
 }
 
-const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
-const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
-const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
-
-const hasGoogleClient =
-  Platform.OS === 'ios'
-    ? iosClientId.length > 0
-    : Platform.OS === 'android'
-      ? androidClientId.length > 0
-      : webClientId.length > 0;
-
-interface GoogleSignInButtonProps {
-  busy: boolean;
-  onError: (message: string) => void;
-  onBusyChange: (busy: boolean) => void;
-  onAuthenticated: () => void;
-}
-
-function GoogleSignInButton({ busy, onError, onBusyChange, onAuthenticated }: GoogleSignInButtonProps) {
-  const { t } = useAppLanguage();
-  const useCustomRedirect = Platform.OS !== 'web' || isTauri();
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: AUTH_CALLBACK_SCHEME,
-    path: AUTH_CALLBACK_PATH,
-  });
-
-  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
-    webClientId: webClientId || undefined,
-    iosClientId: iosClientId || undefined,
-    androidClientId: androidClientId || undefined,
-    ...(useCustomRedirect ? { redirectUri } : {}),
-  });
-
-  useEffect(() => {
-    if (googleResponse?.type !== 'success') {
-      return;
-    }
-
-    const idToken =
-      googleResponse.params.id_token ?? googleResponse.authentication?.idToken ?? null;
-
-    if (!idToken) {
-      onError(t('auth.googleNoToken'));
-      return;
-    }
-
-    onBusyChange(true);
-    onError('');
-    loginWithGoogle(idToken)
-      .then(() => onAuthenticated())
-      .catch((err: unknown) => {
-        onError(err instanceof ApiError ? err.message : t('auth.googleFailed'));
-      })
-      .finally(() => onBusyChange(false));
-  }, [googleResponse, onAuthenticated, onBusyChange, onError]);
-
-  const googleDisabled = busy || !googleRequest;
-
-  return (
-    <Button
-      label={t('auth.google')}
-      variant="outline"
-      iconLeft="logo-google"
-      onPress={() => {
-        onError('');
-        void promptGoogleAsync();
-      }}
-      disabled={googleDisabled}
-    />
-  );
-}
-
-export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
+export function LoginScreen({ verifiedEmail, onAuthenticated }: LoginScreenProps) {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(verifiedEmail ?? '');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [magicSent, setMagicSent] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
 
   const [langOptions, setLangOptions] = useState<LanguageOptionsResponse | null>(null);
   const [targetLang, setTargetLang] = useState<string>('');
@@ -159,18 +81,23 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           targetLanguage: targetLang,
           nativeLanguage: nativeLang,
         });
+        setVerificationPending(true);
       } else {
         await login(trimmedEmail, password);
+        onAuthenticated();
       }
-      onAuthenticated();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setVerificationPending(true);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : t('auth.signInFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  const sendMagicLink = async () => {
+  const resendVerification = async () => {
     if (trimmedEmail.length === 0) {
       setError(t('auth.enterEmailFirst'));
       return;
@@ -178,10 +105,10 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     setError(null);
     setBusy(true);
     try {
-      await requestMagicLink(trimmedEmail);
-      setMagicSent(true);
+      await requestVerificationEmail(trimmedEmail);
+      setVerificationPending(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('auth.magicLinkFailed'));
+      setError(err instanceof ApiError ? err.message : t('auth.verificationFailed'));
     } finally {
       setBusy(false);
     }
@@ -257,26 +184,35 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     );
   };
 
-  if (magicSent) {
+  if (verificationPending) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <View style={[styles.iconCircle, { backgroundColor: colors.successSurface }]}>
           <Icon name="mail" size="xl" color={colors.success} />
         </View>
         <Text variant="heading" style={{ marginTop: spacing.lg }}>
-          {t('auth.checkEmailTitle')}
+          {t('auth.verifyEmailTitle')}
         </Text>
         <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
-          {t('auth.checkEmailMessage', { email: trimmedEmail })}
+          {t('auth.verifyEmailMessage', { email: trimmedEmail })}
         </Text>
+        <Button
+          label={t('auth.resendVerification')}
+          variant="tonal"
+          iconLeft="mail"
+          onPress={() => void resendVerification()}
+          disabled={busy}
+          loading={busy}
+          style={{ marginTop: spacing.lg }}
+        />
         <Button
           label={t('auth.backToSignIn')}
           variant="ghost"
           onPress={() => {
-            setMagicSent(false);
+            setVerificationPending(false);
             setError(null);
           }}
-          style={{ marginTop: spacing.lg }}
+          style={{ marginTop: spacing.md }}
         />
       </View>
     );
@@ -311,6 +247,15 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               style={styles.segmentButton}
             />
           </View>
+
+          {verifiedEmail ? (
+            <View style={[styles.successRow, { backgroundColor: colors.successSurface }]}>
+              <Icon name="checkmark-circle" size="sm" color={colors.success} />
+              <Text variant="body" color="success">
+                {t('auth.emailVerified')}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
             <Text variant="label" color="muted">
@@ -386,48 +331,6 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             onPress={() => void submitPassword()}
             style={{ marginTop: spacing.lg }}
           />
-
-          <View style={[styles.dividerRow, { marginVertical: spacing.xl }]}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.outlineVariant }]} />
-            <Text variant="caption" color="muted">
-              {t('auth.or')}
-            </Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.outlineVariant }]} />
-          </View>
-
-          <View style={{ gap: spacing.md }}>
-            <Button
-              label={t('auth.magicLink')}
-              variant="tonal"
-              iconLeft="mail"
-              onPress={() => void sendMagicLink()}
-              disabled={busy || trimmedEmail.length === 0}
-            />
-
-            {hasGoogleClient ? (
-              <GoogleSignInButton
-                busy={busy}
-                onError={setError}
-                onBusyChange={setBusy}
-                onAuthenticated={onAuthenticated}
-              />
-            ) : (
-              <View style={{ gap: spacing.xs }}>
-                <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
-                  {t('auth.googleUnavailable')}
-                </Text>
-                {__DEV__ && (
-                  <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
-                    {Platform.OS === 'ios'
-                      ? t('auth.googleIosMissing')
-                      : Platform.OS === 'android'
-                        ? t('auth.googleAndroidMissing')
-                        : t('auth.googleWebMissing')}
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
         </Card>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -482,14 +385,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  dividerRow: {
+  successRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   pickerWrapper: {
     flexDirection: 'row',

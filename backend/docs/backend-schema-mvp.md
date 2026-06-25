@@ -89,6 +89,7 @@ users
 - email text not null
 - native_language text not null
 - target_language text not null
+- ui_language text not null default 'en'
 - password_hash text
 - email_verified_at timestamptz
 - created_at timestamptz not null default now()
@@ -104,9 +105,74 @@ create unique index users_email_lower_idx on users (lower(email));
 Rules:
 
 - `email` uniqueness is case-insensitive via `users_email_lower_idx`. Application code normalizes with `strings.ToLower(strings.TrimSpace(email))` on every store/match.
+- `native_language` and `target_language` are legacy defaults kept for backward compatibility. New code should read the active pair from `user_languages`.
+- `ui_language` is the app interface language, independent from learning content.
 - `native_language` and `target_language` should use stable language codes such as `ko`, `en`, or `ja`.
 - `password_hash` is bcrypt for password accounts; null for OAuth-only users until they set a password.
 - `email_verified_at` is set when the user proves email ownership (magic-link consume, Google OAuth with verified email, etc.). Used by `REQUIRE_EMAIL_VERIFIED` gating.
+
+## user_languages
+
+Stores every target/display language pair a user is learning. One row per user is marked active and drives lookups, learning lists, reviews, and word-of-the-day.
+
+```sql
+user_languages
+- user_id uuid not null references users(id) on delete cascade
+- target_language text not null
+- display_language text not null
+- is_active boolean not null default false
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Required constraints and indexes:
+
+```sql
+constraint user_languages_pk primary key (user_id, target_language)
+create unique index user_languages_active_unique on user_languages (user_id) where is_active = true;
+create index user_languages_user_id_idx on user_languages (user_id);
+```
+
+Rules:
+
+- `target_language` is the language of the words being learned (e.g., `en`, `zh`).
+- `display_language` is the language used for definitions and example translations (e.g., `ko`, `en`). It is not required to be the user's native/first language.
+- Exactly one row per user should have `is_active = true`. The application manages this through transactions that deactivate the old active row before activating a new one; the partial unique index enforces it at the database level.
+- A user cannot add the same `target_language` twice. To support multiple display languages for the same target later, widen the primary key to `(user_id, target_language, display_language)`.
+- Deleting a `users` row cascades and deletes associated `user_languages` rows.
+
+## decks
+
+Stores user-created named groups of vocabulary items, scoped to a target language. Each `user_word_senses` row belongs to exactly one deck.
+
+```sql
+decks
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- target_language text not null
+- name text not null
+- is_default boolean not null default false
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Required constraints and indexes:
+
+```sql
+constraint decks_user_target_name_unique
+  unique (user_id, target_language, lower(name))
+create unique index decks_user_target_default_unique
+  on decks (user_id, target_language) where is_default = true;
+create index decks_user_id_idx on decks (user_id);
+create index decks_user_target_idx on decks (user_id, target_language);
+```
+
+Rules:
+
+- A deck belongs to one user and one target language.
+- Exactly one default deck exists per `(user_id, target_language)`. The application creates it lazily.
+- The default deck receives items when no other deck is specified.
+- Deleting a custom deck moves its items to the default deck for the same target language; the default deck itself cannot be deleted.
 
 ## sessions
 
@@ -340,6 +406,7 @@ user_word_senses
 - id uuid primary key default gen_random_uuid()
 - user_id uuid not null references users(id) on delete cascade
 - word_sense_id uuid not null references word_senses(id) on delete cascade
+- deck_id uuid not null references decks(id) on delete restrict
 - learning_stage text not null default 'new'
 - source_context text
 - personal_note text
@@ -355,6 +422,8 @@ Required constraints:
 ```sql
 constraint user_word_senses_user_sense_unique
   unique (user_id, word_sense_id)
+constraint user_word_senses_deck_id_fk
+  foreign key (deck_id) references decks(id) on delete restrict
 constraint user_word_senses_learning_stage_valid
   check (learning_stage in ('new', 'learning', 'recognized', 'recalled', 'usable', 'mastered', 'archived'))
 constraint user_word_senses_difficulty_valid
@@ -367,6 +436,7 @@ Rules:
 - The same user cannot add the same `word_sense` twice.
 - The same user can learn two different senses of the same word.
 - Different users can learn the same `word_sense` with independent notes, stages, and schedules.
+- Every item belongs to exactly one `decks` row. New items are placed in the active target language's default deck unless the caller specifies a custom deck.
 - `learning_stage` is a high-level capability label, not the scheduling source of truth.
 - `archived_at` should be set when the user no longer wants the item in active review.
 - Active user list queries should use a partial index on `(user_id, added_at desc, id desc) where archived_at is null`.
@@ -630,9 +700,12 @@ users 1 -> many sessions
 users 1 -> many user_identities
 users 1 -> many magic_link_tokens
 users 1 -> many magic_login_exchanges
+users 1 -> many user_languages
+users 1 -> many decks
 users 1 -> 1 review_settings
 users 1 -> many daily_review_counts
 users 1 -> many user_word_senses
+decks 1 -> many user_word_senses
 words 1 -> many word_senses
 word_senses 1 -> many user_word_senses
 word_senses 1 -> many sense_translations
@@ -674,6 +747,15 @@ create index review_settings_user_id_idx
 
 create index daily_review_counts_user_date_idx
   on daily_review_counts (user_id, review_date);
+
+create index decks_user_id_idx
+  on decks (user_id);
+
+create index decks_user_target_idx
+  on decks (user_id, target_language);
+
+create index user_word_senses_deck_id_idx
+  on user_word_senses (deck_id);
 ```
 
 - `review_states_due_at_idx` powers the due-review query that filters on `due_at <= now()`.
@@ -685,6 +767,8 @@ create index daily_review_counts_user_date_idx
 - `words_normalized_text_prefix_idx` powers prefix search for normalized vocabulary text without adding a new PostgreSQL extension.
 - `review_settings_user_id_idx` powers the per-user settings lookup used by the due query and batch review flow.
 - `daily_review_counts_user_date_idx` powers the daily quota check in the due-review query.
+- `decks_user_id_idx` and `decks_user_target_idx` power deck listing by user and target language.
+- `user_word_senses_deck_id_idx` powers deck-scoped learning list and due-review queries.
 
 ## Open / Unenforced Fields
 

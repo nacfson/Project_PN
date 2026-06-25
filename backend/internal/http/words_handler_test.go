@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -50,12 +49,18 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 
 	cfg := config.Load()
 	authSvc := auth.New(pool, email.NewLog(), auth.Options{
-		SessionTTL:            time.Hour,
-		MagicLinkTTL:          15 * time.Minute,
-		ExchangeCodeTTL:       5 * time.Minute,
-		DefaultDefinitionLang: cfg.DefaultDefinitionLang,
-		DefaultTargetLang:     cfg.DefaultTargetLang,
-		AppPublicURL:          cfg.AppPublicURL,
+		SessionTTL:             time.Hour,
+		EmailVerificationTTL:   24 * time.Hour,
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		DefaultUILang:          cfg.UILang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		AllowedUILangs:         cfg.AllowedUILangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		ForceUILang:            cfg.ForceUILang,
+		AppPublicURL:           cfg.AppPublicURL,
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	router := NewRouter(Dependencies{
@@ -66,9 +71,15 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 	})
 
 	emailAddr := uniqueEmail("words-validation")
-	session, err := authSvc.Register(ctx, emailAddr, "password123", "", "")
-	if err != nil {
+	if err := authSvc.Register(ctx, emailAddr, "password123", "", "", ""); err != nil {
 		t.Fatalf("register test user: %v", err)
+	}
+	if err := authSvc.VerifyEmailForTest(ctx, emailAddr); err != nil {
+		t.Fatalf("verify test user: %v", err)
+	}
+	session, err := authSvc.Login(ctx, emailAddr, "password123")
+	if err != nil {
+		t.Fatalf("login test user: %v", err)
 	}
 	return router, session.Token, pool, authSvc
 }
@@ -143,9 +154,16 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate primary user: %v", err)
 	}
-	otherSession, err := authSvc.Register(ctx, uniqueEmail("words-other"), "password123", "", "")
-	if err != nil {
+	otherEmail := uniqueEmail("words-other")
+	if err := authSvc.Register(ctx, otherEmail, "password123", "", "", ""); err != nil {
 		t.Fatalf("register other user: %v", err)
+	}
+	if err := authSvc.VerifyEmailForTest(ctx, otherEmail); err != nil {
+		t.Fatalf("verify other user: %v", err)
+	}
+	otherSession, err := authSvc.Login(ctx, otherEmail, "password123")
+	if err != nil {
+		t.Fatalf("login other user: %v", err)
 	}
 	otherUser, err := authSvc.Authenticate(ctx, otherSession.Token)
 	if err != nil {
@@ -280,12 +298,11 @@ func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 
 	svc := words.New(nil, nil, "00000000-0000-0000-0000-000000000001", "en", "ko")
 	authSvc := auth.New(nil, email.NewLog(), auth.Options{
-		SessionTTL:            time.Hour,
-		MagicLinkTTL:          15 * time.Minute,
-		ExchangeCodeTTL:       5 * time.Minute,
+		SessionTTL:           time.Hour,
+		EmailVerificationTTL: 24 * time.Hour,
 		DefaultDefinitionLang: "ko",
-		DefaultTargetLang:     "en",
-		AppPublicURL:          "http://localhost:8080",
+		DefaultTargetLang:    "en",
+		AppPublicURL:         "http://localhost:8080",
 	})
 	router := NewRouter(Dependencies{
 		Words:          svc,
@@ -365,12 +382,11 @@ func TestApiRoutesAbsentWithoutWordsService(t *testing.T) {
 	t.Parallel()
 
 	authSvc := auth.New(nil, email.NewLog(), auth.Options{
-		SessionTTL:            time.Hour,
-		MagicLinkTTL:          15 * time.Minute,
-		ExchangeCodeTTL:       5 * time.Minute,
+		SessionTTL:           time.Hour,
+		EmailVerificationTTL: 24 * time.Hour,
 		DefaultDefinitionLang: "ko",
-		DefaultTargetLang:     "en",
-		AppPublicURL:          "http://localhost:8080",
+		DefaultTargetLang:    "en",
+		AppPublicURL:         "http://localhost:8080",
 	})
 	router := NewRouter(Dependencies{Auth: authSvc})
 
@@ -381,28 +397,6 @@ func TestApiRoutesAbsentWithoutWordsService(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected %d when words service is absent, got %d", http.StatusNotFound, rec.Code)
-	}
-}
-
-func TestRegisterReturnsTokenJSON(t *testing.T) {
-	router, _ := testAuthRouter(t, false, nil)
-	emailAddr := uniqueEmail("json-shape")
-
-	regReq := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBufferString(
-		`{"email":"`+emailAddr+`","password":"password123"}`,
-	))
-	regRec := httptest.NewRecorder()
-	router.ServeHTTP(regRec, regReq)
-	if regRec.Code != http.StatusCreated {
-		t.Fatalf("register: %d", regRec.Code)
-	}
-
-	var payload map[string]any
-	if err := json.NewDecoder(regRec.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if payload["token"] == "" {
-		t.Fatal("expected token field")
 	}
 }
 

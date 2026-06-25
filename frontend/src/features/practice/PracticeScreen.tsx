@@ -71,6 +71,7 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
     lemma: item.lemma,
     normalized_text: item.normalized_text,
     part_of_speech: item.part_of_speech,
+    pronunciation: item.pronunciation,
     display_language_code: item.display_language_code,
     definition: item.definition,
     short_definition: item.short_definition,
@@ -626,6 +627,7 @@ export function PracticeScreen() {
           </View>
 
           <Flashcard
+            key={currentItem.user_word_sense_id}
             item={currentItem}
             example={example}
             blankedSentence={blankedSentence}

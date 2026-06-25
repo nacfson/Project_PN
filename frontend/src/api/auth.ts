@@ -1,12 +1,11 @@
 import { DEFAULT_DEFINITION_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE } from '../config';
 import type {
-  ExchangeRequest,
   LanguageOptionsResponse,
   LoginRequest,
-  MagicLinkRequest,
   MeResponse,
   RegisterRequest,
   SessionResponse,
+  VerifyEmailRequest,
 } from '../types/auth';
 import { getJson, postJson, postNoContent } from './client';
 import { sessionStorage } from './storage';
@@ -21,16 +20,14 @@ export async function register(
   email: string,
   password: string,
   langs?: { nativeLanguage?: string; targetLanguage?: string },
-): Promise<SessionResponse> {
+): Promise<void> {
   const body: RegisterRequest = {
     email,
     password,
     native_language: langs?.nativeLanguage ?? DEFAULT_DEFINITION_LANGUAGE_CODE,
     target_language: langs?.targetLanguage ?? DEFAULT_LANGUAGE_CODE,
   };
-  const session = await postJson<SessionResponse>('/api/auth/register', body, noAuth);
-  await sessionStorage.setToken(session.token);
-  return session;
+  await postJson<void>('/api/auth/register', body, noAuth);
 }
 
 export async function login(email: string, password: string): Promise<SessionResponse> {
@@ -52,24 +49,7 @@ export async function logout(): Promise<void> {
   }
 }
 
-export async function requestMagicLink(email: string): Promise<void> {
-  const body: MagicLinkRequest = { email };
-  await postNoContent('/api/auth/magic-link', body, noAuth);
-}
-
-export async function exchangeMagicCode(code: string): Promise<SessionResponse> {
-  const body: ExchangeRequest = { code };
-  const session = await postJson<SessionResponse>('/api/auth/magic/exchange', body, noAuth);
-  await sessionStorage.setToken(session.token);
-  return session;
-}
-
-export async function loginWithGoogle(idToken: string): Promise<SessionResponse> {
-  const session = await postJson<SessionResponse>(
-    '/api/auth/oauth/google',
-    { id_token: idToken },
-    noAuth,
-  );
-  await sessionStorage.setToken(session.token);
-  return session;
+export async function requestVerificationEmail(email: string): Promise<void> {
+  const body: VerifyEmailRequest = { email };
+  await postNoContent('/api/auth/verify-email/request', body, noAuth);
 }

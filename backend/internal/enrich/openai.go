@@ -86,9 +86,10 @@ type chatResponse struct {
 type modelOutput struct {
 	NormalizedText string `json:"normalized_text"`
 	Entries        []struct {
-		Lemma        string `json:"lemma"`
-		PartOfSpeech string `json:"part_of_speech"`
-		Senses       []struct {
+		Lemma         string `json:"lemma"`
+		PartOfSpeech  string `json:"part_of_speech"`
+		Pronunciation string `json:"pronunciation"`
+		Senses        []struct {
 			Definition            string `json:"definition"`
 			ShortDefinition       string `json:"short_definition"`
 			CEFRLevel             string `json:"cefr_level"`
@@ -252,8 +253,9 @@ func parseModelOutput(req Request, content string) (Result, error) {
 			return Result{}, fmt.Errorf("%w: lemma mismatch: got %q, want %q", ErrInvalidOutput, lemma, expectedText)
 		}
 		e := Entry{
-			Lemma:        lemma,
-			PartOfSpeech: pos,
+			Lemma:         lemma,
+			PartOfSpeech:  pos,
+			Pronunciation: strings.TrimSpace(entry.Pronunciation),
 		}
 		for _, s := range entry.Senses {
 			def := strings.TrimSpace(s.Definition)
@@ -386,6 +388,7 @@ const systemPrompt = `You are a precise bilingual lexicographer. ` +
     {
       "lemma": string,
       "part_of_speech": "noun"|"verb"|"adjective"|"adverb"|"pronoun"|"preposition"|"conjunction"|"interjection"|"determiner",
+      "pronunciation": string,
       "senses": [
         {
           "definition": string,
@@ -428,6 +431,7 @@ func buildUserPrompt(req Request) string {
 	fmt.Fprintf(&b, "Every entry lemma must be exactly %q; do not substitute a different example word.\n", req.Text)
 	fmt.Fprintf(&b, "Word language code: %s\n", req.LanguageCode)
 	fmt.Fprintf(&b, "Write definition and short_definition in %s (the word's language).\n", req.LanguageCode)
+	fmt.Fprintf(&b, "Provide a concise phonetic pronunciation for the lemma in %s (e.g., IPA).\n", req.LanguageCode)
 	fmt.Fprintf(&b, "Write native_definition and native_short_definition in language code: %s\n", req.DefinitionLanguageCode)
 	fmt.Fprintf(&b, "Each example sentence must be written in %s.\n", req.LanguageCode)
 	fmt.Fprintf(&b, "Each example translation must be written in %s and wrap the word's meaning with **...** markers.\n", req.DefinitionLanguageCode)

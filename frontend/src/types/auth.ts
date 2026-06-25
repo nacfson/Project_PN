@@ -42,10 +42,6 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface MagicLinkRequest {
+export interface VerifyEmailRequest {
   email: string;
-}
-
-export interface ExchangeRequest {
-  code: string;
 }

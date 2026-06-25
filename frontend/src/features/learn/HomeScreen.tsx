@@ -30,9 +30,9 @@ const STAGE_LABEL_KEYS: Record<MasteryStage, TranslationKey> = {
   mastered: 'home.stage.mastered',
 };
 
-function displayNameFromEmail(email: string): string {
+function displayNameFromEmail(email: string, fallback: string): string {
   const local = email.split('@')[0]?.trim();
-  return local || 'Learner';
+  return local || fallback;
 }
 
 function MasteryBreakdown({
@@ -160,7 +160,7 @@ export function HomeScreen() {
           }
           setStats(summary);
           setStatsError(false);
-          setDisplayName(displayNameFromEmail(user.email));
+          setDisplayName(displayNameFromEmail(user.email, t('common.learner')));
           setWordOfTheDay(wotd.sense_options[0] ?? null);
           setChallenges(challengeResponse.challenges);
           setCaptureWords(recentCaptures);

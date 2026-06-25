@@ -28,9 +28,10 @@ type Sense struct {
 
 // Entry groups senses that share one part of speech.
 type Entry struct {
-	Lemma        string
-	PartOfSpeech string
-	Senses       []Sense
+	Lemma         string
+	PartOfSpeech  string
+	Pronunciation string
+	Senses        []Sense
 }
 
 // Result is the full enrichment output for a single word lookup.

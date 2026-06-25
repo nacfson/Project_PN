@@ -283,39 +283,114 @@ func TestAuthSchemaAcceptance(t *testing.T) {
 		t.Fatalf("reinsert user: %v", err)
 	}
 
-	var magicID string
+	var verificationID string
 	if err := pool.QueryRow(ctx, `
-		insert into magic_link_tokens (user_id, token_hash, expires_at)
-		values ($1, 'magic-hash-a', now() + interval '15 minutes')
+		insert into email_verification_tokens (user_id, token_hash, expires_at)
+		values ($1, 'verification-hash-a', now() + interval '1 hour')
 		returning id
-	`, userID).Scan(&magicID); err != nil {
-		t.Fatalf("insert magic link token: %v", err)
+	`, userID).Scan(&verificationID); err != nil {
+		t.Fatalf("insert verification token: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		update magic_link_tokens set consumed_at = now() where id = $1
-	`, magicID); err != nil {
-		t.Fatalf("consume magic link token: %v", err)
+		update email_verification_tokens set consumed_at = now() where id = $1
+	`, verificationID); err != nil {
+		t.Fatalf("consume verification token: %v", err)
 	}
 	var consumedAt *time.Time
-	if err := pool.QueryRow(ctx, `select consumed_at from magic_link_tokens where id = $1`, magicID).Scan(&consumedAt); err != nil {
+	if err := pool.QueryRow(ctx, `select consumed_at from email_verification_tokens where id = $1`, verificationID).Scan(&consumedAt); err != nil {
 		t.Fatalf("read consumed_at: %v", err)
 	}
 	if consumedAt == nil {
-		t.Fatal("expected magic link consumed_at to be set")
+		t.Fatal("expected verification token consumed_at to be set")
+	}
+}
+
+func TestUserLanguagesSchemaAcceptance(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for schema acceptance tests")
 	}
 
-	var exchangeID string
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+
+	if err := Down(migrationsPath, databaseURL, 1); err != nil {
+		t.Fatalf("down migration before test: %v", err)
+	}
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration: %v", err)
+	}
+
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer pool.Close()
+
+	assertRejects := func(name, query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err == nil {
+			t.Fatalf("%s: expected query to fail", name)
+		}
+	}
+
+	var userA, userB string
 	if err := pool.QueryRow(ctx, `
-		insert into magic_login_exchanges (user_id, code_hash, expires_at)
-		values ($1, 'exchange-hash-a', now() + interval '5 minutes')
+		insert into users (email, native_language, target_language, ui_language)
+		values ('ul-a@example.com', 'ko', 'en', 'ko')
 		returning id
-	`, userID).Scan(&exchangeID); err != nil {
-		t.Fatalf("insert exchange: %v", err)
+	`).Scan(&userA); err != nil {
+		t.Fatalf("insert user A: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into users (email, native_language, target_language, ui_language)
+		values ('ul-b@example.com', 'en', 'ko', 'en')
+		returning id
+	`).Scan(&userB); err != nil {
+		t.Fatalf("insert user B: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'en', 'ko', true)
+	`, userA); err != nil {
+		t.Fatalf("insert active language for A: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		update magic_login_exchanges set consumed_at = now() where id = $1
-	`, exchangeID); err != nil {
-		t.Fatalf("consume exchange: %v", err)
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'zh', 'en', false)
+	`, userA); err != nil {
+		t.Fatalf("insert second language for A: %v", err)
+	}
+
+	assertRejects("duplicate target language for same user", `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'en', 'ja', false)
+	`, userA)
+
+	assertRejects("second active language for same user", `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'ja', 'en', true)
+	`, userA)
+
+	if _, err := pool.Exec(ctx, `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'en', 'ko', true)
+	`, userB); err != nil {
+		t.Fatalf("same target language allowed for different user: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `delete from users where id = $1::uuid`, userA); err != nil {
+		t.Fatalf("delete user A: %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `
+		select count(*) from user_languages where user_id = $1::uuid
+	`, userA).Scan(&count); err != nil {
+		t.Fatalf("count languages after delete: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected user_languages to cascade on user delete, got %d", count)
 	}
 }
 

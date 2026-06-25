@@ -217,14 +217,11 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `FORCE_DEFINITION_LANG` | empty | If set, all new users receive this `native_language` and the frontend hides the selector. |
 | `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS allow-list. Empty disables the CORS middleware. |
 | `SESSION_TTL` | `720h` | Bearer session lifetime. |
-| `REQUIRE_EMAIL_VERIFIED` | `false` | When `true`, `POST /api/words/lookup` and `POST /api/learning-items` return 403 until `users.email_verified_at` is set. |
-| `EMAIL_PROVIDER` | `log` | `log` prints magic-link URLs to API stdout; `resend` sends via Resend API. |
+| `EMAIL_VERIFICATION_TTL` | `24h` | Email verification link lifetime. |
+| `EMAIL_PROVIDER` | `log` | `log` prints verification URLs to API stdout; `resend` sends via Resend API. |
 | `RESEND_API_KEY` | empty | Required when `EMAIL_PROVIDER=resend`. |
 | `EMAIL_FROM` | empty | From address for Resend. |
-| `APP_PUBLIC_URL` | `http://localhost:8080` | Base URL for magic-link consume redirects (`…/auth/callback#code=`). |
-| `MAGIC_LINK_TTL` | `15m` | Magic-link token lifetime. |
-| `EXCHANGE_CODE_TTL` | `5m` | Post-consume exchange code lifetime. |
-| `GOOGLE_CLIENT_IDS` | empty | Comma-separated Google OAuth client IDs accepted as ID token audiences. |
+| `APP_PUBLIC_URL` | `http://localhost:8080` | Base URL for verification-link redirects (`…/?verified=true&email=`). |
 
 ## Enrichment
 

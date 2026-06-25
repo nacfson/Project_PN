@@ -35,6 +35,7 @@ export interface SenseOption {
   lemma: string;
   normalized_text: string;
   part_of_speech: string;
+  pronunciation: string | null;
   display_language_code: string;
   definition: string;
   short_definition: string | null;
@@ -75,6 +76,7 @@ export interface LearningItemListItem {
   lemma: string;
   normalized_text: string;
   part_of_speech: string;
+  pronunciation: string | null;
   display_language_code: string;
   definition: string;
   short_definition: string | null;
@@ -123,6 +125,7 @@ export interface DueItem {
   lemma: string;
   normalized_text: string;
   part_of_speech: string;
+  pronunciation: string | null;
   display_language_code: string;
   definition: string;
   short_definition: string | null;

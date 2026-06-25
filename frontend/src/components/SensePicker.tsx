@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
+import type { TranslationKey } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Text } from '../ui';
 import type { PartOfSpeech, SenseOption } from '../types';
@@ -142,7 +143,7 @@ export function SensePicker({
                     }}
                   >
                     <View style={[styles.optionHead, { gap: spacing.sm }]}>
-                      <Badge label={option.part_of_speech} variant="primary" />
+                      <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
                       {option.cefr_level && <Badge label={option.cefr_level} variant="info" />}
                     </View>
                     <Text variant="body" style={{ marginTop: spacing.xs }}>

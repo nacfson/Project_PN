@@ -18,14 +18,16 @@ func testService(t *testing.T) *Service {
 	t.Helper()
 	return testServiceWithOptions(t, Options{
 		SessionTTL:             time.Hour,
-		MagicLinkTTL:           15 * time.Minute,
-		ExchangeCodeTTL:        5 * time.Minute,
+		EmailVerificationTTL:   24 * time.Hour,
 		DefaultDefinitionLang:  "ko",
 		DefaultTargetLang:      "en",
+		DefaultUILang:          "en",
 		AllowedDefinitionLangs: nil,
 		AllowedTargetLangs:     nil,
+		AllowedUILangs:         nil,
 		ForceDefinitionLang:    "",
 		ForceTargetLang:        "",
+		ForceUILang:            "",
 		AppPublicURL:           "http://localhost:8080",
 	})
 }
@@ -60,14 +62,84 @@ func TestNormalizeEmail(t *testing.T) {
 	}
 }
 
-func TestRegisterLoginLogout(t *testing.T) {
+func TestRegisterDoesNotIssueSession(t *testing.T) {
 	svc := testService(t)
 	ctx := context.Background()
 	emailAddr := uniqueEmail("register")
 
-	session, err := svc.Register(ctx, emailAddr, "password123", "", "")
-	if err != nil {
+	if err := svc.Register(ctx, emailAddr, "password123", "", "", ""); err != nil {
 		t.Fatalf("register: %v", err)
+	}
+
+	var userID string
+	var verifiedAt *time.Time
+	if err := svc.pool.QueryRow(ctx, `
+		select id, email_verified_at from users where lower(email) = $1
+	`, emailAddr).Scan(&userID, &verifiedAt); err != nil {
+		t.Fatalf("lookup user: %v", err)
+	}
+	if verifiedAt != nil {
+		t.Fatal("expected newly registered user to be unverified")
+	}
+
+	var tokenCount int
+	if err := svc.pool.QueryRow(ctx, `
+		select count(*) from email_verification_tokens where user_id = $1
+	`, userID).Scan(&tokenCount); err != nil {
+		t.Fatalf("count verification tokens: %v", err)
+	}
+	if tokenCount != 1 {
+		t.Fatalf("expected one verification token, got %d", tokenCount)
+	}
+}
+
+func TestLoginBlocksUnverifiedEmail(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("unverified")
+
+	if err := svc.Register(ctx, emailAddr, "password123", "", "", ""); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	if _, err := svc.Login(ctx, emailAddr, "password123"); !errors.Is(err, ErrEmailNotVerified) {
+		t.Fatalf("expected ErrEmailNotVerified, got %v", err)
+	}
+}
+
+func TestVerificationTokenE2E(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("verify")
+
+	if err := svc.Register(ctx, emailAddr, "password123", "", "", ""); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	plain, err := svc.InsertVerificationTokenForTest(ctx, emailAddr)
+	if err != nil {
+		t.Fatalf("insert verification token: %v", err)
+	}
+
+	verifiedEmail, err := svc.ConsumeVerificationToken(ctx, plain)
+	if err != nil {
+		t.Fatalf("consume verification token: %v", err)
+	}
+	if verifiedEmail != emailAddr {
+		t.Fatalf("expected email %q, got %q", emailAddr, verifiedEmail)
+	}
+
+	var verifiedAt *time.Time
+	if err := svc.pool.QueryRow(ctx, `select email_verified_at from users where lower(email) = $1`, emailAddr).Scan(&verifiedAt); err != nil {
+		t.Fatalf("lookup verified at: %v", err)
+	}
+	if verifiedAt == nil {
+		t.Fatal("expected email to be verified")
+	}
+
+	session, err := svc.Login(ctx, emailAddr, "password123")
+	if err != nil {
+		t.Fatalf("login after verification: %v", err)
 	}
 	if session.Token == "" {
 		t.Fatal("expected session token")
@@ -80,34 +152,19 @@ func TestRegisterLoginLogout(t *testing.T) {
 	if user.Email != emailAddr {
 		t.Fatalf("expected email %q, got %q", emailAddr, user.Email)
 	}
-	if user.NativeLanguage != "ko" {
-		t.Fatalf("expected native language ko, got %q", user.NativeLanguage)
-	}
-	if user.TargetLanguage != "en" {
-		t.Fatalf("expected target language en, got %q", user.TargetLanguage)
+	if !user.IsEmailVerified() {
+		t.Fatal("expected verified user")
 	}
 
-	loginSession, err := svc.Login(ctx, emailAddr, "password123")
-	if err != nil {
-		t.Fatalf("login: %v", err)
-	}
-	if loginSession.Token == "" {
-		t.Fatal("expected login session token")
-	}
-
-	if err := svc.Logout(ctx, loginSession.Token); err != nil {
-		t.Fatalf("logout: %v", err)
-	}
-	if _, err := svc.Authenticate(ctx, loginSession.Token); !errors.Is(err, ErrInvalidToken) {
-		t.Fatalf("expected invalid token after logout, got %v", err)
+	if _, err := svc.ConsumeVerificationToken(ctx, plain); !errors.Is(err, ErrVerificationTokenInvalid) {
+		t.Fatalf("expected single-use verification token, got %v", err)
 	}
 }
 
 func TestRegisterRespectsForcedLanguages(t *testing.T) {
 	svc := testServiceWithOptions(t, Options{
 		SessionTTL:             time.Hour,
-		MagicLinkTTL:           15 * time.Minute,
-		ExchangeCodeTTL:        5 * time.Minute,
+		EmailVerificationTTL:   24 * time.Hour,
 		DefaultDefinitionLang:  "ko",
 		DefaultTargetLang:      "en",
 		AllowedDefinitionLangs: nil,
@@ -119,28 +176,28 @@ func TestRegisterRespectsForcedLanguages(t *testing.T) {
 	ctx := context.Background()
 	emailAddr := uniqueEmail("forced-langs")
 
-	session, err := svc.Register(ctx, emailAddr, "password123", "fr", "de")
-	if err != nil {
+	if err := svc.Register(ctx, emailAddr, "password123", "fr", "de", ""); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
-	user, err := svc.Authenticate(ctx, session.Token)
-	if err != nil {
-		t.Fatalf("authenticate: %v", err)
+	var nativeLang, targetLang string
+	if err := svc.pool.QueryRow(ctx, `
+		select native_language, target_language from users where lower(email) = $1
+	`, emailAddr).Scan(&nativeLang, &targetLang); err != nil {
+		t.Fatalf("lookup user: %v", err)
 	}
-	if user.NativeLanguage != "ja" {
-		t.Fatalf("expected forced native language ja, got %q", user.NativeLanguage)
+	if nativeLang != "ja" {
+		t.Fatalf("expected forced native language ja, got %q", nativeLang)
 	}
-	if user.TargetLanguage != "es" {
-		t.Fatalf("expected forced target language es, got %q", user.TargetLanguage)
+	if targetLang != "es" {
+		t.Fatalf("expected forced target language es, got %q", targetLang)
 	}
 }
 
 func TestRegisterRejectsDisallowedLanguages(t *testing.T) {
 	svc := testServiceWithOptions(t, Options{
 		SessionTTL:             time.Hour,
-		MagicLinkTTL:           15 * time.Minute,
-		ExchangeCodeTTL:        5 * time.Minute,
+		EmailVerificationTTL:   24 * time.Hour,
 		DefaultDefinitionLang:  "ko",
 		DefaultTargetLang:      "en",
 		AllowedDefinitionLangs: []string{"ko", "en"},
@@ -151,10 +208,10 @@ func TestRegisterRejectsDisallowedLanguages(t *testing.T) {
 	})
 	ctx := context.Background()
 
-	if _, err := svc.Register(ctx, uniqueEmail("bad-target"), "password123", "ko", "es"); !errors.Is(err, ErrInvalidTargetLang) {
+	if err := svc.Register(ctx, uniqueEmail("bad-target"), "password123", "ko", "es", ""); !errors.Is(err, ErrInvalidTargetLang) {
 		t.Fatalf("expected ErrInvalidTargetLang, got %v", err)
 	}
-	if _, err := svc.Register(ctx, uniqueEmail("bad-native"), "password123", "fr", "en"); !errors.Is(err, ErrInvalidDefinitionLang) {
+	if err := svc.Register(ctx, uniqueEmail("bad-native"), "password123", "fr", "en", ""); !errors.Is(err, ErrInvalidDefinitionLang) {
 		t.Fatalf("expected ErrInvalidDefinitionLang, got %v", err)
 	}
 }
@@ -162,8 +219,7 @@ func TestRegisterRejectsDisallowedLanguages(t *testing.T) {
 func TestLanguageOptions(t *testing.T) {
 	svc := testServiceWithOptions(t, Options{
 		SessionTTL:             time.Hour,
-		MagicLinkTTL:           15 * time.Minute,
-		ExchangeCodeTTL:        5 * time.Minute,
+		EmailVerificationTTL:   24 * time.Hour,
 		DefaultDefinitionLang:  "ko",
 		DefaultTargetLang:      "en",
 		AllowedDefinitionLangs: []string{"ko", "en", "ja"},
@@ -190,59 +246,148 @@ func TestRegisterRejectsDuplicateEmailCaseInsensitive(t *testing.T) {
 	ctx := context.Background()
 	base := uniqueEmail("dup")
 
-	if _, err := svc.Register(ctx, base, "password123", "", ""); err != nil {
+	if err := svc.Register(ctx, base, "password123", "", "", ""); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
-	if _, err := svc.Register(ctx, "  "+base+"  ", "password456", "", ""); !errors.Is(err, ErrEmailTaken) {
+	if err := svc.Register(ctx, "  "+base+"  ", "password456", "", "", ""); !errors.Is(err, ErrEmailTaken) {
 		t.Fatalf("expected ErrEmailTaken, got %v", err)
 	}
 }
 
-func TestMagicLinkE2E(t *testing.T) {
+func TestSendVerificationEmailDoesNotLeakExistence(t *testing.T) {
 	svc := testService(t)
 	ctx := context.Background()
-	emailAddr := uniqueEmail("magic")
 
-	regSession, err := svc.Register(ctx, emailAddr, "password123", "", "")
-	if err != nil {
+	if err := svc.SendVerificationEmail(ctx, uniqueEmail("does-not-exist")); err != nil {
+		t.Fatalf("expected nil for unknown email, got %v", err)
+	}
+
+	verifiedEmail := uniqueEmail("already-verified")
+	if err := svc.Register(ctx, verifiedEmail, "password123", "", "", ""); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if _, err := svc.pool.Exec(ctx, `
+		update users set email_verified_at = now() where lower(email) = $1
+	`, verifiedEmail); err != nil {
+		t.Fatalf("mark verified: %v", err)
+	}
+	if err := svc.SendVerificationEmail(ctx, verifiedEmail); err != nil {
+		t.Fatalf("expected nil for verified email, got %v", err)
+	}
+}
+
+func TestRegisterCreatesActiveUserLanguage(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("register-user-lang")
+
+	if err := svc.Register(ctx, emailAddr, "password123", "ko", "en", ""); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
-	plain, hash, err := newOpaqueToken()
-	if err != nil {
-		t.Fatalf("new token: %v", err)
-	}
-	user, err := svc.Authenticate(ctx, regSession.Token)
+	user, err := svc.Authenticate(ctx, mustLogin(t, svc, ctx, emailAddr, "password123"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
-	_, err = svc.pool.Exec(ctx, `
-		insert into magic_link_tokens (user_id, token_hash, expires_at)
-		values ($1, $2, now() + interval '15 minutes')
-	`, user.ID, hash)
-	if err != nil {
-		t.Fatalf("insert magic token: %v", err)
+	if user.ActiveLanguage.TargetLanguage != "en" {
+		t.Fatalf("expected active target en, got %q", user.ActiveLanguage.TargetLanguage)
+	}
+	if user.ActiveLanguage.DisplayLanguage != "ko" {
+		t.Fatalf("expected active display ko, got %q", user.ActiveLanguage.DisplayLanguage)
+	}
+	if !user.ActiveLanguage.IsActive {
+		t.Fatal("expected active language to be active")
 	}
 
-	code, err := svc.ConsumeMagicLink(ctx, plain)
+	langs, err := svc.GetUserLanguages(ctx, user.ID)
 	if err != nil {
-		t.Fatalf("consume: %v", err)
+		t.Fatalf("get user languages: %v", err)
 	}
-	if code == "" {
-		t.Fatal("expected exchange code")
+	if len(langs) != 1 {
+		t.Fatalf("expected 1 language, got %d", len(langs))
+	}
+}
+
+func TestAddAndSwitchUserLanguage(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("switch-lang")
+
+	if err := svc.Register(ctx, emailAddr, "password123", "ko", "en", ""); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	user, err := svc.Authenticate(ctx, mustLogin(t, svc, ctx, emailAddr, "password123"))
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
 	}
 
-	session, err := svc.ExchangeMagicCode(ctx, code)
-	if err != nil {
-		t.Fatalf("exchange: %v", err)
-	}
-	if _, err := svc.Authenticate(ctx, session.Token); err != nil {
-		t.Fatalf("authenticate exchanged session: %v", err)
+	if _, err := svc.AddUserLanguage(ctx, user.ID, "zh", "en", true); err != nil {
+		t.Fatalf("add chinese: %v", err)
 	}
 
-	if _, err := svc.ExchangeMagicCode(ctx, code); !errors.Is(err, ErrInvalidToken) {
-		t.Fatalf("expected single-use exchange code, got %v", err)
+	langs, err := svc.GetUserLanguages(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("get languages: %v", err)
 	}
+	if len(langs) != 2 {
+		t.Fatalf("expected 2 languages, got %d", len(langs))
+	}
+
+	active, err := svc.activeUserLanguage(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("active language: %v", err)
+	}
+	if active.TargetLanguage != "zh" {
+		t.Fatalf("expected active zh, got %q", active.TargetLanguage)
+	}
+
+	if err := svc.SetActiveUserLanguage(ctx, user.ID, "en"); err != nil {
+		t.Fatalf("set active en: %v", err)
+	}
+	active, err = svc.activeUserLanguage(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("active language after switch: %v", err)
+	}
+	if active.TargetLanguage != "en" {
+		t.Fatalf("expected active en after switch, got %q", active.TargetLanguage)
+	}
+}
+
+func TestUILanguage(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("ui-lang")
+
+	if err := svc.Register(ctx, emailAddr, "password123", "", "", "ko"); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	user, err := svc.Authenticate(ctx, mustLogin(t, svc, ctx, emailAddr, "password123"))
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+	if user.UILanguage != "ko" {
+		t.Fatalf("expected ui language ko, got %q", user.UILanguage)
+	}
+
+	if err := svc.SetUILanguage(ctx, user.ID, "en"); err != nil {
+		t.Fatalf("set ui language: %v", err)
+	}
+	lang, err := svc.GetUILanguage(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("get ui language: %v", err)
+	}
+	if lang != "en" {
+		t.Fatalf("expected ui language en, got %q", lang)
+	}
+}
+
+func mustLogin(t *testing.T, svc *Service, ctx context.Context, email, password string) string {
+	t.Helper()
+	session, err := svc.Login(ctx, email, password)
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	return session.Token
 }
 
 func uniqueEmail(prefix string) string {
@@ -259,3 +404,4 @@ func repoPath(t *testing.T, parts ...string) string {
 	pathParts := append([]string{root}, parts...)
 	return filepath.Join(pathParts...)
 }
+

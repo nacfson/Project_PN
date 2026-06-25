@@ -19,12 +19,14 @@ const (
 	defaultAllowedDefinitionLangs = ""
 	defaultForceTargetLang        = ""
 	defaultForceDefinitionLang    = ""
+	defaultUILang                 = "en"
+	defaultAllowedUILangs         = ""
+	defaultForceUILang            = ""
 
-	defaultSessionTTL      = 720 * time.Hour
-	defaultMagicLinkTTL    = 15 * time.Minute
-	defaultExchangeCodeTTL = 5 * time.Minute
-	defaultEmailProvider   = "log"
-	defaultAppPublicURL    = "http://localhost:8080"
+	defaultSessionTTL           = 720 * time.Hour
+	defaultEmailVerificationTTL = 24 * time.Hour
+	defaultEmailProvider        = "log"
+	defaultAppPublicURL         = "http://localhost:8080"
 
 	// Web (Expo dev) and Tauri desktop WebView origins that may call the API.
 	// Tauri serves the bundle from tauri://localhost (macOS) and
@@ -50,17 +52,18 @@ type Config struct {
 	ForceTargetLang        string
 	ForceDefinitionLang    string
 
+	UILang         string
+	AllowedUILangs []string
+	ForceUILang    string
+
 	AllowedOrigins []string
 
-	SessionTTL            time.Duration
-	RequireEmailVerified  bool
-	EmailProvider         string
-	ResendAPIKey          string
-	EmailFrom             string
-	AppPublicURL          string
-	MagicLinkTTL          time.Duration
-	ExchangeCodeTTL       time.Duration
-	GoogleClientIDs       []string
+	SessionTTL           time.Duration
+	EmailVerificationTTL time.Duration
+	EmailProvider        string
+	ResendAPIKey         string
+	EmailFrom            string
+	AppPublicURL         string
 
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
@@ -84,18 +87,19 @@ func Load() Config {
 		AllowedDefinitionLangs: splitAndTrim(envOrDefault("ALLOWED_DEFINITION_LANGS", defaultAllowedDefinitionLangs)),
 		ForceTargetLang:        envOrDefault("FORCE_TARGET_LANG", defaultForceTargetLang),
 		ForceDefinitionLang:    envOrDefault("FORCE_DEFINITION_LANG", defaultForceDefinitionLang),
+		UILang:                 envOrDefault("DEFAULT_UI_LANGUAGE", defaultUILang),
+		AllowedUILangs:         splitAndTrim(envOrDefault("ALLOWED_UI_LANGUAGES", defaultAllowedUILangs)),
+		ForceUILang:            envOrDefault("FORCE_UI_LANGUAGE", defaultForceUILang),
 
 		AllowedOrigins: splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
 
 		SessionTTL:           durationOrDefault("SESSION_TTL", defaultSessionTTL),
-		RequireEmailVerified: envBool("REQUIRE_EMAIL_VERIFIED", false),
+		EmailVerificationTTL: durationOrDefault("EMAIL_VERIFICATION_TTL", defaultEmailVerificationTTL),
 		EmailProvider:        envOrDefault("EMAIL_PROVIDER", defaultEmailProvider),
 		ResendAPIKey:         os.Getenv("RESEND_API_KEY"),
 		EmailFrom:            os.Getenv("EMAIL_FROM"),
 		AppPublicURL:         envOrDefault("APP_PUBLIC_URL", defaultAppPublicURL),
-		MagicLinkTTL:         durationOrDefault("MAGIC_LINK_TTL", defaultMagicLinkTTL),
-		ExchangeCodeTTL:      durationOrDefault("EXCHANGE_CODE_TTL", defaultExchangeCodeTTL),
-		GoogleClientIDs:            splitAndTrim(os.Getenv("GOOGLE_CLIENT_IDS")),
+
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
 		ExpoAccessToken:            os.Getenv("EXPO_ACCESS_TOKEN"),

@@ -26,11 +26,15 @@ type ContentChallenge struct {
 
 // GetWordOfTheDay returns one word the user has not added yet, stable for the UTC day.
 func (s *Service) GetWordOfTheDay(ctx context.Context, userID, langCode, defLangCode string) (WordOfTheDay, error) {
-	langCode, defLangCode = s.fillLangs(langCode, defLangCode)
+	var err error
+	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
+	if err != nil {
+		return WordOfTheDay{}, err
+	}
 	today := truncateUTC(time.Now().UTC()).Format("2006-01-02")
 
 	var wordID string
-	err := s.pool.QueryRow(ctx, `
+	err = s.pool.QueryRow(ctx, `
 		select w.id
 		from words w
 		where w.language_code = $2
