@@ -44,15 +44,20 @@ where not exists (select 1 from user_languages ul where ul.user_id = users.id)
   );
 
 -- Backfill items whose word language already matches an existing default deck.
+with mapping as (
+    select uws.id as uws_id, d.id as deck_id
+    from user_word_senses uws
+    join word_senses ws on ws.id = uws.word_sense_id
+    join words w on w.id = ws.word_id
+    join decks d on d.user_id = uws.user_id
+                and d.target_language = w.language_code
+                and d.is_default = true
+    where uws.deck_id is null
+)
 update user_word_senses uws
-set deck_id = d.id
-from word_senses ws
-join words w on w.id = ws.word_id
-join decks d on d.user_id = uws.user_id
-            and d.target_language = w.language_code
-            and d.is_default = true
-where uws.word_sense_id = ws.id
-  and uws.deck_id is null;
+set deck_id = m.deck_id
+from mapping m
+where uws.id = m.uws_id;
 
 -- Create default decks for any remaining word languages that lack one.
 insert into decks (user_id, target_language, name, is_default)
@@ -69,15 +74,20 @@ where uws.deck_id is null
   );
 
 -- Backfill remaining items.
+with mapping as (
+    select uws.id as uws_id, d.id as deck_id
+    from user_word_senses uws
+    join word_senses ws on ws.id = uws.word_sense_id
+    join words w on w.id = ws.word_id
+    join decks d on d.user_id = uws.user_id
+                and d.target_language = w.language_code
+                and d.is_default = true
+    where uws.deck_id is null
+)
 update user_word_senses uws
-set deck_id = d.id
-from word_senses ws
-join words w on w.id = ws.word_id
-join decks d on d.user_id = uws.user_id
-            and d.target_language = w.language_code
-            and d.is_default = true
-where uws.word_sense_id = ws.id
-  and uws.deck_id is null;
+set deck_id = m.deck_id
+from mapping m
+where uws.id = m.uws_id;
 
 -- Safety net: if anything is still null (should not happen), assign an 'und' default deck.
 insert into decks (user_id, target_language, name, is_default)
