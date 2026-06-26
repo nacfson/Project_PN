@@ -27,9 +27,14 @@ export async function lookupWord(text: string, options: LookupOptions = {}): Pro
 export async function addLearningItem(
   wordSenseId: string,
   displayLanguageCode: string = DEFAULT_DEFINITION_LANGUAGE_CODE,
+  deckId?: string,
 ): Promise<LearningItem> {
-  return postJson<LearningItem>('/api/learning-items', {
+  const body: Record<string, unknown> = {
     word_sense_id: wordSenseId,
     display_language_code: displayLanguageCode,
-  });
+  };
+  if (deckId) {
+    body.deck_id = deckId;
+  }
+  return postJson<LearningItem>('/api/learning-items', body);
 }
