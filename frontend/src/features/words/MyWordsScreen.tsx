@@ -8,12 +8,16 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
 import type { LearningItemListItem } from '../../types';
+import type { WordsStackParamList } from '../../navigation/WordsStack';
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import type { TranslationKey } from '../../i18n';
 import { SpeakButton } from '../../components/SpeakButton';
+import { AddWordModal } from '../../components/AddWordModal';
 import { useLearningItems } from './useLearningItems';
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
@@ -27,13 +31,25 @@ const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labe
 ];
 
 export function MyWordsScreen() {
-  const { colors, spacing } = useTheme();
+  const { colors, radii, spacing } = useTheme();
   const { t } = useAppLanguage();
+  const navigation = useNavigation<NativeStackNavigationProp<WordsStackParamList, 'WordsRoot'>>();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [toast, setToast] = useState<{ word: string; deckName: string } | null>(null);
   const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(q);
 
   const hasSearch = q.trim().length > 0;
+
+  const handleAdded = useCallback(
+    (result: { word: string; deckId: string; deckName: string }) => {
+      setToast({ word: result.word, deckName: result.deckName });
+      void refresh();
+      setTimeout(() => setToast(null), 2000);
+    },
+    [refresh],
+  );
 
   const filteredItems = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -49,7 +65,10 @@ export function MyWordsScreen() {
 
   const renderItem: ListRenderItem<LearningItemListItem> = useCallback(
     ({ item }) => (
-      <Card style={{ marginBottom: spacing.md }}>
+      <Card
+        style={{ marginBottom: spacing.md }}
+        onPress={() => navigation.navigate('WordDetail', { item })}
+      >
         <View style={styles.row}>
           <View style={{ flex: 1, gap: spacing.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -75,7 +94,7 @@ export function MyWordsScreen() {
         </View>
       </Card>
     ),
-    [spacing.sm, spacing.md, spacing.xs, t]
+    [spacing.sm, spacing.md, spacing.xs, t, navigation]
   );
 
   const listEmpty = () => {
@@ -130,6 +149,12 @@ export function MyWordsScreen() {
           onClear={() => setQ('')}
           loading={status === 'loading'}
         />
+        <Button
+          label={t('add.addWord')}
+          iconLeft="add"
+          onPress={() => setModalVisible(true)}
+          accessibilityLabel={t('add.addWord')}
+        />
       </View>
 
       <View style={{ marginBottom: spacing.md }}>
@@ -168,6 +193,31 @@ export function MyWordsScreen() {
         }
         style={styles.flex}
       />
+
+      <AddWordModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onAdded={handleAdded}
+      />
+
+      {toast && (
+        <View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: colors.successSurface,
+              borderColor: colors.successBorder,
+              borderWidth: 1,
+              borderRadius: radii.md,
+            },
+          ]}
+        >
+          <Icon name="checkmark-circle" size="md" color={colors.success} />
+          <Text variant="body" style={{ color: colors.success, flex: 1 }}>
+            {t('add.addedToDeck', { word: toast.word, deck: toast.deckName })}
+          </Text>
+        </View>
+      )}
     </Screen>
   );
 }
@@ -200,5 +250,16 @@ const styles = StyleSheet.create({
   footer: {
     paddingVertical: 16,
     alignItems: 'center',
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
 });
