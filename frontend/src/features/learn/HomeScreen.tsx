@@ -13,6 +13,7 @@ import type { ContentChallenge, SenseOption, StatsSummary } from '../../types';
 import { recentCaptureWords } from '../../storage/captureHistory';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Screen, Text } from '../../ui';
+import { AddWordModal } from '../../components/AddWordModal';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Learn'>;
 
@@ -148,6 +149,7 @@ export function HomeScreen() {
   const [wordOfTheDay, setWordOfTheDay] = useState<SenseOption | null>(null);
   const [captureWords, setCaptureWords] = useState<string[]>([]);
   const [challenges, setChallenges] = useState<ContentChallenge[]>([]);
+  const [addModalVisible, setAddModalVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -201,6 +203,14 @@ export function HomeScreen() {
           </Text>
           <Text variant="headline">{t('home.subtitle')}</Text>
         </View>
+
+        <Button
+          label={t('add.addWord')}
+          iconLeft="add"
+          variant="tonal"
+          onPress={() => setAddModalVisible(true)}
+          accessibilityLabel={t('add.addWord')}
+        />
 
         {stats && streakAtRisk && hasDue ? (
           <Card style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
@@ -411,6 +421,12 @@ export function HomeScreen() {
           )}
         </Card>
       </ScrollView>
+
+      <AddWordModal
+        visible={addModalVisible}
+        onClose={() => setAddModalVisible(false)}
+        onAdded={() => setAddModalVisible(false)}
+      />
     </Screen>
   );
 }
