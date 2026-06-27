@@ -13,6 +13,7 @@ export const en = {
   'common.somethingWrong': 'Something went wrong',
   'common.learner': 'Learner',
   'common.listen': 'Listen',
+  'common.cancel': 'Cancel',
 
   'auth.signIn': 'Sign in',
   'auth.createAccount': 'Create account',
@@ -90,6 +91,12 @@ export const en = {
   'words.detailExamples': 'Examples',
   'words.detailAdded': 'Added',
   'words.detailDue': 'Due',
+  'words.deckNamePlaceholder': 'Deck name',
+  'words.deckNameRequired': 'Please enter a deck name.',
+  'words.deckNameTooLong': 'Deck name must be at most 120 characters.',
+  'words.deleteDeck': 'Delete deck',
+  'words.deckDeleteConfirmMessage': 'Are you sure you want to delete this deck?',
+  'words.deckDeleteConfirm': 'Delete',
 
   'add.capture': 'Capture',
   'add.manual': 'Manual Add',
@@ -288,6 +295,7 @@ export const ko: Record<TranslationKey, string> = {
   'common.somethingWrong': '문제가 발생했습니다',
   'common.learner': '학습자',
   'common.listen': '듣기',
+  'common.cancel': '취소',
 
   'auth.signIn': '로그인',
   'auth.createAccount': '계정 만들기',
@@ -365,6 +373,12 @@ export const ko: Record<TranslationKey, string> = {
   'words.detailExamples': '예문',
   'words.detailAdded': '추가일',
   'words.detailDue': '복습 예정일',
+  'words.deckNamePlaceholder': '덱 이름',
+  'words.deckNameRequired': '덱 이름을 입력하세요.',
+  'words.deckNameTooLong': '덱 이름은 120자 이하여야 합니다.',
+  'words.deleteDeck': '덱 삭제',
+  'words.deckDeleteConfirmMessage': '이 덱을 삭제하시겠습니까?',
+  'words.deckDeleteConfirm': '삭제',
 
   'add.capture': '캡처',
   'add.manual': '직접 추가',
