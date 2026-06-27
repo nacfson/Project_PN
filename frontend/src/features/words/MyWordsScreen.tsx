@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,13 +12,16 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
-import type { LearningItemListItem } from '../../types';
+import type { Deck, LearningItemListItem } from '../../types';
 import type { WordsStackParamList } from '../../navigation/WordsStack';
-import { Badge, Button, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
+import { Badge, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import type { TranslationKey } from '../../i18n';
 import { SpeakButton } from '../../components/SpeakButton';
-import { AddWordModal } from '../../components/AddWordModal';
 import { useLearningItems } from './useLearningItems';
+import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
+import { createDeck, deleteDeck, listDecks, renameDeck } from '../../api/decks';
+import { DeckList } from './DeckList';
+import { DeckFormModal } from './DeckFormModal';
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
   { key: 'all', labelKey: 'words.filterAll' },
@@ -34,22 +37,106 @@ export function MyWordsScreen() {
   const { colors, radii, spacing } = useTheme();
   const { t } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<WordsStackParamList, 'WordsRoot'>>();
+
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [toast, setToast] = useState<{ word: string; deckName: string } | null>(null);
-  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(q);
+
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [decksLoading, setDecksLoading] = useState(false);
+  const [decksError, setDecksError] = useState<string | null>(null);
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+
+  const [formMode, setFormMode] = useState<'create' | 'rename' | null>(null);
+  const [formDeck, setFormDeck] = useState<Deck | undefined>(undefined);
+  const [formLoading, setFormLoading] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
+
+  const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } =
+    useActiveTargetLanguage();
+
+  const deckFilter = selectedDeckId ?? undefined;
+  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(q, deckFilter);
+
+  const loadDecks = useCallback(async () => {
+    if (!targetLanguage) return;
+    setDecksLoading(true);
+    setDecksError(null);
+    try {
+      const loaded = await listDecks(targetLanguage);
+      setDecks(loaded);
+      setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : null));
+    } catch (err) {
+      setDecksError(err instanceof Error ? err.message : t('words.deckLoadFailed'));
+    } finally {
+      setDecksLoading(false);
+    }
+  }, [targetLanguage, t]);
+
+  useEffect(() => {
+    void loadDecks();
+  }, [loadDecks]);
+
+  const handleCreate = async (name: string) => {
+    if (!targetLanguage) return;
+    setFormLoading(true);
+    setOperationError(null);
+    try {
+      await createDeck(name, targetLanguage);
+      setFormMode(null);
+      await loadDecks();
+      await refresh();
+    } catch (err) {
+      setOperationError(err instanceof Error ? err.message : t('words.deckCreateFailed'));
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleRename = async (name: string) => {
+    if (!formDeck) return;
+    setFormLoading(true);
+    setOperationError(null);
+    try {
+      await renameDeck(formDeck.id, name);
+      setFormMode(null);
+      await loadDecks();
+    } catch (err) {
+      setOperationError(err instanceof Error ? err.message : t('words.deckRenameFailed'));
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!formDeck) return;
+    setFormLoading(true);
+    setOperationError(null);
+    try {
+      await deleteDeck(formDeck.id);
+      setSelectedDeckId(null);
+      setFormMode(null);
+      await loadDecks();
+      await refresh();
+    } catch (err) {
+      setOperationError(err instanceof Error ? err.message : t('words.deckDeleteFailed'));
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const openCreate = () => {
+    setFormDeck(undefined);
+    setFormMode('create');
+    setOperationError(null);
+  };
+
+  const openEdit = (deck: Deck) => {
+    setFormDeck(deck);
+    setFormMode('rename');
+    setOperationError(null);
+  };
 
   const hasSearch = q.trim().length > 0;
-
-  const handleAdded = useCallback(
-    (result: { word: string; deckId: string; deckName: string }) => {
-      setToast({ word: result.word, deckName: result.deckName });
-      void refresh();
-      setTimeout(() => setToast(null), 2000);
-    },
-    [refresh],
-  );
 
   const filteredItems = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -94,16 +181,24 @@ export function MyWordsScreen() {
         </View>
       </Card>
     ),
-    [spacing.sm, spacing.md, spacing.xs, t, navigation]
+    [spacing.sm, spacing.md, spacing.xs, t, navigation],
   );
 
   const listEmpty = () => {
-    if (status === 'loading') {
+    if (status === 'loading' || languageLoading || decksLoading) {
       return <LoadingState />;
     }
 
     if (status === 'error') {
       return <ErrorState message={error ?? t('words.loadFailed')} onRetry={() => void refresh()} />;
+    }
+
+    if (languageError) {
+      return <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />;
+    }
+
+    if (decksError) {
+      return <ErrorState message={decksError} onRetry={() => void loadDecks()} />;
     }
 
     if (hasSearch || filter !== 'all') {
@@ -140,6 +235,25 @@ export function MyWordsScreen() {
     <Screen padded>
       <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md }]}>
         <Text variant="heading">{t('words.title')}</Text>
+
+        {operationError ? (
+          <Card style={{ borderColor: colors.error, borderWidth: 1, gap: spacing.sm }}>
+            <Text style={{ color: colors.error }}>{operationError}</Text>
+          </Card>
+        ) : null}
+
+        {languageLoading || decksLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <DeckList
+            decks={decks}
+            selectedId={selectedDeckId}
+            onSelect={setSelectedDeckId}
+            onCreate={openCreate}
+            onEdit={openEdit}
+          />
+        )}
+
         <Input
           value={q}
           onChangeText={setQ}
@@ -149,16 +263,14 @@ export function MyWordsScreen() {
           onClear={() => setQ('')}
           loading={status === 'loading'}
         />
-        <Button
-          label={t('add.addWord')}
-          iconLeft="add"
-          onPress={() => setModalVisible(true)}
-          accessibilityLabel={t('add.addWord')}
-        />
       </View>
 
       <View style={{ marginBottom: spacing.md }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}
+        >
           {FILTERS.map((f) => (
             <Chip
               key={f.key}
@@ -194,30 +306,15 @@ export function MyWordsScreen() {
         style={styles.flex}
       />
 
-      <AddWordModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onAdded={handleAdded}
+      <DeckFormModal
+        visible={formMode !== null}
+        mode={formMode ?? 'create'}
+        deck={formDeck}
+        onClose={() => setFormMode(null)}
+        onSubmit={formMode === 'create' ? handleCreate : handleRename}
+        onDelete={formMode === 'rename' && formDeck && !formDeck.is_default ? handleDelete : undefined}
+        isLoading={formLoading}
       />
-
-      {toast && (
-        <View
-          style={[
-            styles.toast,
-            {
-              backgroundColor: colors.successSurface,
-              borderColor: colors.successBorder,
-              borderWidth: 1,
-              borderRadius: radii.md,
-            },
-          ]}
-        >
-          <Icon name="checkmark-circle" size="md" color={colors.success} />
-          <Text variant="body" style={{ color: colors.success, flex: 1 }}>
-            {t('add.addedToDeck', { word: toast.word, deck: toast.deckName })}
-          </Text>
-        </View>
-      )}
     </Screen>
   );
 }
@@ -250,16 +347,5 @@ const styles = StyleSheet.create({
   footer: {
     paddingVertical: 16,
     alignItems: 'center',
-  },
-  toast: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
 });

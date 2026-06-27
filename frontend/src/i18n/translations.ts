@@ -97,6 +97,10 @@ export const en = {
   'words.deleteDeck': 'Delete deck',
   'words.deckDeleteConfirmMessage': 'Are you sure you want to delete this deck?',
   'words.deckDeleteConfirm': 'Delete',
+  'words.deckLoadFailed': 'Failed to load decks.',
+  'words.deckCreateFailed': 'Failed to create deck.',
+  'words.deckRenameFailed': 'Failed to rename deck.',
+  'words.deckDeleteFailed': 'Failed to delete deck.',
 
   'add.capture': 'Capture',
   'add.manual': 'Manual Add',
@@ -379,6 +383,10 @@ export const ko: Record<TranslationKey, string> = {
   'words.deleteDeck': '덱 삭제',
   'words.deckDeleteConfirmMessage': '이 덱을 삭제하시겠습니까?',
   'words.deckDeleteConfirm': '삭제',
+  'words.deckLoadFailed': '덱을 불러오지 못했습니다.',
+  'words.deckCreateFailed': '덱을 만들지 못했습니다.',
+  'words.deckRenameFailed': '덱 이름을 바꾸지 못했습니다.',
+  'words.deckDeleteFailed': '덱을 삭제하지 못했습니다.',
 
   'add.capture': '캡처',
   'add.manual': '직접 추가',
