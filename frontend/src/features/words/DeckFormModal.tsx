@@ -68,7 +68,7 @@ export function DeckFormModal({
     onDelete?.();
   };
 
-  const canSubmit = name.trim().length > 0 && !isLoading;
+  const canSubmit = name.trim().length > 0 && name.trim().length <= 120 && !isLoading;
   const title = mode === 'create' ? t('words.createDeck') : t('words.renameDeck');
 
   return (

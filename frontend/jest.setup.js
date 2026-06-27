@@ -1,5 +1,3 @@
-import React from 'react';
-
 // Required by @testing-library/react-native v14+ when using React 18/19.
 // See: https://callstack.github.io/react-native-testing-library/docs/getting-started
 // We set the flag both on the Jest sandbox global and on the Node real global

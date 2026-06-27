@@ -35,7 +35,7 @@ describe('deck API', () => {
     it('returns all decks when no language is given', async () => {
       const decks = [
         { id: 'deck-1', name: 'Daily', is_default: true, ...baseDeck },
-        { id: 'deck-2', name: 'Weekly', target_language: 'es', is_default: true, ...baseDeck },
+        { id: 'deck-2', name: 'Weekly', is_default: true, ...baseDeck, target_language: 'es' },
       ];
       mockedGetJson.mockResolvedValue({ decks });
 

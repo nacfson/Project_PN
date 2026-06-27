@@ -43,4 +43,12 @@ describe('useActiveTargetLanguage', () => {
     await waitFor(() => expect(result.current.error).toBe('network down'));
     expect(result.current.loading).toBe(false);
   });
+
+  it('starts in loading state while language pairs are loading', async () => {
+    mockedGetUserLanguages.mockReturnValue(new Promise(() => {}));
+
+    const { result } = await renderHook(() => useActiveTargetLanguage());
+
+    expect(result.current.loading).toBe(true);
+  });
 });

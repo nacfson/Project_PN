@@ -16,6 +16,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 describe('useLearningItems', () => {
   afterEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   it('loads items without a deck filter', async () => {
@@ -38,5 +39,15 @@ describe('useLearningItems', () => {
     expect(mockedListLearningItems).toHaveBeenCalledWith(
       expect.objectContaining({ deckId: 'deck-1' }),
     );
+  });
+
+  it('skips fetching when disabled', async () => {
+    const { result } = await renderHook(() => useLearningItems('', undefined, false), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current.status).toBe('ready');
+    expect(result.current.items).toEqual([]);
+    expect(mockedListLearningItems).not.toHaveBeenCalled();
   });
 });

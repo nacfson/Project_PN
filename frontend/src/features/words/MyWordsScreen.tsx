@@ -67,7 +67,11 @@ export function MyWordsScreen() {
     useActiveTargetLanguage();
 
   const deckFilter = selectedDeckId ?? undefined;
-  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(q, deckFilter);
+  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(
+    q,
+    deckFilter,
+    !!targetLanguage,
+  );
 
   const loadDecks = useCallback(async () => {
     if (!targetLanguage) return;
