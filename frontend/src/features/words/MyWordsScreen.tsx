@@ -150,6 +150,7 @@ export function MyWordsScreen() {
 
   const handleCloseModal = useCallback(() => {
     setFormMode(null);
+    setOperationError(null);
   }, []);
 
   const openCreate = useCallback(() => {
