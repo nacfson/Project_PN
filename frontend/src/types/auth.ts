@@ -26,6 +26,12 @@ export interface LanguagePair {
   definition_language: string;
 }
 
+export interface UserLanguage {
+  target_language: string;
+  display_language: string;
+  is_active: boolean;
+}
+
 export interface AllowedLanguages {
   target_languages: string[];
   definition_languages: string[];

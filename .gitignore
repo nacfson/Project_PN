@@ -77,3 +77,6 @@ backend/.tmp/
 
 # Cursor (optional local state; keep rules if you use them)
 # .cursor/
+
+# Git worktrees
+.worktrees/

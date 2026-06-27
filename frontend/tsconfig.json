@@ -3,5 +3,5 @@
   "compilerOptions": {
     "strict": true
   },
-  "exclude": ["src-tauri/target", "src-tauri/gen", "dist", "web-build", "node_modules"]
+  "exclude": ["src-tauri/target", "src-tauri/gen", "dist", "web-build", "node_modules", "**/*.test.ts", "**/*.test.tsx"]
 }

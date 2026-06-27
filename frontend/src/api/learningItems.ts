@@ -1,4 +1,4 @@
-import type { LearningItemsPage, DueItem, ReviewAttemptParams, BatchReviewResult } from '../types';
+import type { DueItem, LearningItemsPage, ReviewAttemptParams, BatchReviewResult } from '../types';
 import { getJson, postJson } from './client';
 
 export interface ListLearningItemsParams {
@@ -6,6 +6,8 @@ export interface ListLearningItemsParams {
   descending?: boolean;
   q?: string;
   cursor?: string | null;
+  languageCode?: string;
+  deckId?: string;
 }
 
 export function listLearningItems(params?: ListLearningItemsParams): Promise<LearningItemsPage> {
@@ -23,6 +25,14 @@ export function listLearningItems(params?: ListLearningItemsParams): Promise<Lea
     searchParams.set('cursor', params.cursor);
   }
 
+  if (params?.languageCode?.trim()) {
+    searchParams.set('language_code', params.languageCode.trim());
+  }
+
+  if (params?.deckId?.trim()) {
+    searchParams.set('deck_id', params.deckId.trim());
+  }
+
   return getJson<LearningItemsPage>(`/api/learning-items?${searchParams.toString()}`);
 }
 
@@ -37,4 +47,3 @@ export function getDueLearningItems(limit?: number): Promise<DueItem[]> {
 export function recordBatchReviewAttempts(attempts: ReviewAttemptParams[]): Promise<BatchReviewResult> {
   return postJson<BatchReviewResult>('/api/reviews/batch', { attempts });
 }
-

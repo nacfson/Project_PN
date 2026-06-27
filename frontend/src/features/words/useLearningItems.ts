@@ -16,7 +16,7 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function useLearningItems(q: string) {
+export function useLearningItems(q: string, deckId?: string, enabled: boolean = true) {
   const { t } = useAppLanguage();
   const debouncedQ = useDebouncedValue(q, 300);
   const [items, setItems] = useState<LearningItemListItem[]>([]);
@@ -36,6 +36,7 @@ export function useLearningItems(q: string) {
         descending: true,
         q: debouncedQ.trim() || undefined,
         cursor: options.cursor ?? undefined,
+        deckId,
       });
 
       if (options.requestId !== requestIdRef.current) {
@@ -47,10 +48,18 @@ export function useLearningItems(q: string) {
       setStatus('ready');
       setError(null);
     },
-    [debouncedQ],
+    [debouncedQ, deckId],
   );
 
   const reload = useCallback(async () => {
+    if (!enabled) {
+      setItems([]);
+      setNextCursor(null);
+      setStatus('ready');
+      setError(null);
+      return;
+    }
+
     const requestId = ++requestIdRef.current;
     setStatus('loading');
     setError(null);
@@ -65,7 +74,7 @@ export function useLearningItems(q: string) {
       setError(messageOf(err, t('common.somethingWrong')));
       setStatus('error');
     }
-  }, [fetchPage, t]);
+  }, [enabled, fetchPage, t]);
 
   useEffect(() => {
     void reload();

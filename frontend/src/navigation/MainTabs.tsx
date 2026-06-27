@@ -2,10 +2,10 @@ import { StyleSheet, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueueBanner } from '../components/QueueBanner';
 import { AddScreen } from './AddScreen';
+import { SettingsStack } from './SettingsStack';
+import { WordsStack } from './WordsStack';
 import { HomeScreen } from '../features/learn/HomeScreen';
-import { MyWordsScreen } from '../features/words/MyWordsScreen';
 import { PracticeScreen } from '../features/practice/PracticeScreen';
-import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon } from '../ui';
@@ -62,12 +62,13 @@ export function MainTabs({ onLogout }: MainTabsProps) {
         />
         <Tab.Screen
           name="Words"
-          component={MyWordsScreen}
           options={{
             tabBarLabel: t('tabs.words'),
             tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'book' : 'book-outline'} focused={focused} />,
           }}
-        />
+        >
+          {() => <WordsStack />}
+        </Tab.Screen>
         <Tab.Screen
           name="Add"
           component={AddScreen}
@@ -91,7 +92,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'settings' : 'settings-outline'} focused={focused} />,
           }}
         >
-          {() => <ProfileScreen onLogout={onLogout} />}
+          {() => <SettingsStack onLogout={onLogout} />}
         </Tab.Screen>
       </Tab.Navigator>
     </View>

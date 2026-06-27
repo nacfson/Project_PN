@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,13 +8,22 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
+import { useNavigation, type CompositeNavigationProp, type NavigatorScreenParams } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useAppLanguage } from '../../i18n';
-import type { LearningItemListItem } from '../../types';
-import { Badge, Button, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
-import type { TranslationKey } from '../../i18n';
+import { useAppLanguage, type TranslationKey } from '../../i18n';
+import type { Deck, LearningItemListItem } from '../../types';
+import { Badge, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
+import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
+import { createDeck, deleteDeck, listDecks, renameDeck } from '../../api/decks';
+import { DeckList } from './DeckList';
+import { DeckFormModal } from './DeckFormModal';
+import type { WordsStackParamList } from '../../navigation/WordsStack';
+import type { MainTabParamList } from '../../navigation/MainTabs';
+import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
   { key: 'all', labelKey: 'words.filterAll' },
@@ -26,12 +35,135 @@ const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labe
   { key: 'mastered', labelKey: 'home.stage.mastered' },
 ];
 
+type MyWordsScreenTabParamList = Omit<MainTabParamList, 'Settings'> & {
+  Settings: NavigatorScreenParams<SettingsStackParamList>;
+};
+
+type MyWordsScreenNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<WordsStackParamList, 'WordsRoot'>,
+  BottomTabNavigationProp<MyWordsScreenTabParamList>
+>;
+
 export function MyWordsScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
+  const navigation = useNavigation<MyWordsScreenNavigationProp>();
+
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
-  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(q);
+
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [decksLoading, setDecksLoading] = useState(false);
+  const [decksError, setDecksError] = useState<string | null>(null);
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+
+  const [formMode, setFormMode] = useState<'create' | 'rename' | null>(null);
+  const [formDeck, setFormDeck] = useState<Deck | undefined>(undefined);
+  const [formLoading, setFormLoading] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
+
+  const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } =
+    useActiveTargetLanguage();
+
+  const deckFilter = selectedDeckId ?? undefined;
+  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(
+    q,
+    deckFilter,
+    !!targetLanguage,
+  );
+
+  const loadDecks = useCallback(async () => {
+    if (!targetLanguage) return;
+    setDecksLoading(true);
+    setDecksError(null);
+    try {
+      const loaded = await listDecks(targetLanguage);
+      setDecks(loaded);
+      setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : null));
+    } catch (err) {
+      setDecksError(err instanceof Error ? err.message : t('words.deckLoadFailed'));
+    } finally {
+      setDecksLoading(false);
+    }
+  }, [targetLanguage, t]);
+
+  useEffect(() => {
+    void loadDecks();
+  }, [loadDecks]);
+
+  const handleCreate = useCallback(
+    async (name: string) => {
+      if (!targetLanguage) return;
+      setFormLoading(true);
+      setOperationError(null);
+      try {
+        await createDeck(name, targetLanguage);
+        setFormMode(null);
+        await loadDecks();
+        await refresh();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.deckCreateFailed'));
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [targetLanguage, t, loadDecks, refresh],
+  );
+
+  const handleRename = useCallback(
+    async (name: string) => {
+      if (!formDeck) return;
+      setFormLoading(true);
+      setOperationError(null);
+      try {
+        await renameDeck(formDeck.id, name);
+        setFormMode(null);
+        await loadDecks();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.deckRenameFailed'));
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [formDeck, t, loadDecks],
+  );
+
+  const handleDelete = useCallback(
+    async () => {
+      if (!formDeck) return;
+      setFormLoading(true);
+      setOperationError(null);
+      try {
+        await deleteDeck(formDeck.id);
+        setSelectedDeckId(null);
+        setFormMode(null);
+        await loadDecks();
+        await refresh();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.deckDeleteFailed'));
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [formDeck, t, loadDecks, refresh],
+  );
+
+  const handleCloseModal = useCallback(() => {
+    setFormMode(null);
+    setOperationError(null);
+  }, []);
+
+  const openCreate = useCallback(() => {
+    setFormDeck(undefined);
+    setFormMode('create');
+    setOperationError(null);
+  }, []);
+
+  const openEdit = useCallback((deck: Deck) => {
+    setFormDeck(deck);
+    setFormMode('rename');
+    setOperationError(null);
+  }, []);
 
   const hasSearch = q.trim().length > 0;
 
@@ -49,7 +181,10 @@ export function MyWordsScreen() {
 
   const renderItem: ListRenderItem<LearningItemListItem> = useCallback(
     ({ item }) => (
-      <Card style={{ marginBottom: spacing.md }}>
+      <Card
+        style={{ marginBottom: spacing.md }}
+        onPress={() => navigation.navigate('WordDetail', { item })}
+      >
         <View style={styles.row}>
           <View style={{ flex: 1, gap: spacing.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -75,16 +210,24 @@ export function MyWordsScreen() {
         </View>
       </Card>
     ),
-    [spacing.sm, spacing.md, spacing.xs, t]
+    [spacing.sm, spacing.md, spacing.xs, t, navigation],
   );
 
   const listEmpty = () => {
-    if (status === 'loading') {
+    if (status === 'loading' || languageLoading || decksLoading) {
       return <LoadingState />;
     }
 
     if (status === 'error') {
       return <ErrorState message={error ?? t('words.loadFailed')} onRetry={() => void refresh()} />;
+    }
+
+    if (languageError) {
+      return <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />;
+    }
+
+    if (decksError) {
+      return <ErrorState message={decksError} onRetry={() => void loadDecks()} />;
     }
 
     if (hasSearch || filter !== 'all') {
@@ -117,10 +260,51 @@ export function MyWordsScreen() {
     );
   };
 
+  if (!languageLoading && languageError) {
+    return (
+      <Screen padded>
+        <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md, flex: 1 }]}>
+          <Text variant="heading">{t('words.title')}</Text>
+          <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!languageLoading && !targetLanguage) {
+    return (
+      <Screen padded>
+        <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md, flex: 1 }]}>
+          <Text variant="heading">{t('words.title')}</Text>
+          <EmptyState
+            icon="language-outline"
+            title={t('words.noLanguagePairTitle')}
+            message={t('words.noLanguagePairMessage')}
+            actionLabel={t('words.noLanguagePairAction')}
+            onAction={() => navigation.navigate('Settings', { screen: 'LanguagePairs' })}
+          />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen padded>
       <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md }]}>
         <Text variant="heading">{t('words.title')}</Text>
+
+        {languageLoading || decksLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <DeckList
+            decks={decks}
+            selectedId={selectedDeckId}
+            onSelect={setSelectedDeckId}
+            onCreate={openCreate}
+            onEdit={openEdit}
+          />
+        )}
+
         <Input
           value={q}
           onChangeText={setQ}
@@ -133,7 +317,11 @@ export function MyWordsScreen() {
       </View>
 
       <View style={{ marginBottom: spacing.md }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}
+        >
           {FILTERS.map((f) => (
             <Chip
               key={f.key}
@@ -167,6 +355,17 @@ export function MyWordsScreen() {
           />
         }
         style={styles.flex}
+      />
+
+      <DeckFormModal
+        visible={formMode !== null}
+        mode={formMode ?? 'create'}
+        deck={formDeck}
+        onClose={handleCloseModal}
+        onSubmit={formMode === 'create' ? handleCreate : handleRename}
+        onDelete={formMode === 'rename' && formDeck && !formDeck.is_default ? handleDelete : undefined}
+        isLoading={formLoading}
+        error={operationError ?? undefined}
       />
     </Screen>
   );

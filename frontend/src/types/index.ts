@@ -95,6 +95,17 @@ export interface LearningItemsPage {
   next_cursor: string | null;
 }
 
+export interface Deck {
+  id: string;
+  user_id: string;
+  target_language: string;
+  name: string;
+  is_default: boolean;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ReviewActivityType =
   | 'word_to_meaning'
   | 'meaning_to_word'
