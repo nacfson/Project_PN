@@ -1,15 +1,29 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Animated, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface CardProps extends ViewProps {
   elevated?: boolean;
   variant?: 'filled' | 'outlined';
   onPress?: () => void;
+  hoverElevation?: boolean;
+  hoverScale?: boolean;
 }
 
-export function Card({ elevated, variant = 'filled', onPress, style, children, ...rest }: CardProps) {
+export function Card({
+  elevated,
+  variant = 'filled',
+  onPress,
+  hoverElevation,
+  hoverScale,
+  style,
+  children,
+  ...rest
+}: CardProps) {
   const { colors, spacing, radii, shadows } = useTheme();
+  const reduced = useReducedMotion();
+  const [hovered, setHovered] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -29,6 +43,20 @@ export function Card({ elevated, variant = 'filled', onPress, style, children, .
     }).start();
   };
 
+  const handleHoverIn = () => setHovered(true);
+  const handleHoverOut = () => setHovered(false);
+
+  const targetShadow = elevated || (hoverElevation && hovered) ? shadows.md : shadows.none;
+  const targetScale = hoverScale && hovered && !reduced ? 1.01 : 1;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: targetScale,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [targetScale, scaleAnim]);
+
   const cardBody = (
     <View
       style={[
@@ -39,7 +67,7 @@ export function Card({ elevated, variant = 'filled', onPress, style, children, .
           padding: spacing.lg,
           borderColor: variant === 'outlined' ? colors.outlineVariant : 'transparent',
         },
-        elevated ? shadows.md : shadows.none,
+        targetShadow,
         style,
       ]}
       {...rest}
@@ -58,6 +86,8 @@ export function Card({ elevated, variant = 'filled', onPress, style, children, .
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        onHoverIn={handleHoverIn}
+        onHoverOut={handleHoverOut}
       >
         {cardBody}
       </Pressable>
