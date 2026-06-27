@@ -30,6 +30,7 @@ export function WordDetailScreen({ route }: WordDetailScreenProps) {
   const definition = item.localized_definition || item.definition;
   const shortDefinition = item.localized_short_definition || item.short_definition;
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
+  const examples = item.examples ?? [];
 
   return (
     <Screen padded>
@@ -72,18 +73,18 @@ export function WordDetailScreen({ route }: WordDetailScreenProps) {
           )}
         </Card>
 
-        {item.examples.length > 0 && (
+        {examples.length > 0 && (
           <Card style={{ marginBottom: spacing.md }}>
             <Text variant="label" color="muted" style={{ marginBottom: spacing.sm }}>
               {t('words.detailExamples')}
             </Text>
             <View style={{ gap: spacing.md }}>
-              {item.examples.map((example, index) => (
+              {examples.map((example, index) => (
                 <View
                   key={index}
                   style={[
                     styles.example,
-                    index !== item.examples.length - 1 && {
+                    index !== examples.length - 1 && {
                       borderBottomWidth: 1,
                       borderBottomColor: colors.outlineVariant,
                       paddingBottom: spacing.md,

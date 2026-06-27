@@ -149,9 +149,9 @@ export function SensePicker({
                     <Text variant="body" style={{ marginTop: spacing.xs }}>
                       {option.definition}
                     </Text>
-                    {option.examples.length > 0 && (
+                    {(option.examples ?? []).length > 0 && (
                       <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
-                        &ldquo;{option.examples[0].sentence}&rdquo;
+                        &ldquo;{(option.examples ?? [])[0].sentence}&rdquo;
                       </Text>
                     )}
                   </Card>
