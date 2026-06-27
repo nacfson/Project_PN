@@ -93,7 +93,7 @@ export function TargetDeckSelector({
                   style={[styles.item, { backgroundColor: isSelected ? colors.primaryContainer : colors.surface }]}
                 >
                   <Text variant="body" color={isSelected ? 'primary' : 'default'}>{deck.name}</Text>
-                  <Text variant="caption" color="muted">{deck.item_count} cards</Text>
+                  <Text variant="caption" color="muted">{t('add.deckCardCount', { count: deck.item_count })}</Text>
                 </Pressable>
               );
             })}

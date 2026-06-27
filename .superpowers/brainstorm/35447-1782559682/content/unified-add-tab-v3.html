@@ -1,0 +1,80 @@
+<h2>Unified Add Tab — Mockup v3</h2>
+<p class="subtitle">Cleaner dropdown-style deck selector.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Add Words</div>
+  <div class="mockup-body" style="padding: 16px; background: #f2f2f7; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+
+    <!-- Dropdown selector — closed -->
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 13px; font-weight: 600; color: #6e6e73; text-transform: uppercase; margin-bottom: 8px;">Target Deck</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; background: white; border-radius: 10px; padding: 12px 14px; border: 1px solid #d1d1d6;">
+        <span style="font-size: 16px; color: #1c1c1e;">All Words</span>
+        <span style="color: #8e8e93; font-size: 18px;">⌄</span>
+      </div>
+    </div>
+
+    <!-- Dropdown menu opened below -->
+    <div style="background: white; border-radius: 12px; overflow: hidden; margin: -8px 0 20px 0; border: 1px solid #d1d1d6; box-shadow: 0 8px 24px rgba(0,0,0,0.12);">
+      <div style="padding: 10px 12px; border-bottom: 1px solid #f2f2f7;">
+        <input class="mock-input" style="width: 100%; border-radius: 8px; padding: 10px 12px; font-size: 16px; border: none; background: #f2f2f7;" placeholder="Search decks">
+      </div>
+      <div style="max-height: 200px; overflow-y: auto;">
+        <div style="padding: 12px 14px; background: #007aff14;">
+          <div style="font-size: 16px; font-weight: 500; color: #007aff;">All Words</div>
+          <div style="font-size: 12px; color: #8e8e93;">142 cards • default</div>
+        </div>
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f2f2f7;">
+          <div style="font-size: 16px; color: #1c1c1e;">Travel</div>
+          <div style="font-size: 12px; color: #8e8e93;">38 cards</div>
+        </div>
+        <div style="padding: 12px 14px; border-bottom: 1px solid #f2f2f7;">
+          <div style="font-size: 16px; color: #1c1c1e;">Business</div>
+          <div style="font-size: 12px; color: #8e8e93;">21 cards</div>
+        </div>
+        <div style="padding: 12px 14px;">
+          <div style="font-size: 16px; color: #1c1c1e;">Academic Vocabulary</div>
+          <div style="font-size: 12px; color: #8e8e93;">56 cards</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Capture card -->
+    <div style="background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+      <div style="font-size: 17px; font-weight: 600; color: #1c1c1e; margin-bottom: 12px;">From a passage</div>
+      <textarea class="mock-input" style="width: 100%; min-height: 90px; border-radius: 10px; padding: 12px; font-size: 16px; border: 1px solid #e5e5ea; resize: none;" placeholder="Paste or type text here..."></textarea>
+      <div style="margin-top: 12px; padding: 12px; background: #f2f2f7; border-radius: 10px; font-size: 16px; line-height: 1.5; color: #1c1c1e;">
+        The quick brown <span style="background: #007aff; color: white; padding: 2px 6px; border-radius: 6px;">fox</span> jumps over the lazy dog.
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+        <span style="background: #e5e5ea; padding: 6px 12px; border-radius: 14px; font-size: 15px;">fox</span>
+        <span style="background: #e5e5ea; padding: 6px 12px; border-radius: 14px; font-size: 15px;">jumps</span>
+      </div>
+      <button class="mock-button" style="margin-top: 16px; width: 100%; background: #007aff; color: white; border: none; border-radius: 12px; padding: 14px; font-size: 17px; font-weight: 600;">Add selected (2)</button>
+    </div>
+
+    <!-- Manual add card -->
+    <div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+      <div style="font-size: 17px; font-weight: 600; color: #1c1c1e; margin-bottom: 12px;">Add one word</div>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <input class="mock-input" style="flex: 1; border-radius: 10px; padding: 12px; font-size: 16px; border: 1px solid #e5e5ea;" placeholder="Type a word">
+        <button class="mock-button" style="background: #007aff; color: white; border: none; border-radius: 12px; padding: 0 18px; font-size: 16px; font-weight: 600;">Add</button>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <span style="background: #e5e5ea; padding: 6px 12px; border-radius: 14px; font-size: 15px;">serendipity</span>
+        <span style="background: #e5e5ea; padding: 6px 12px; border-radius: 14px; font-size: 15px;">ephemeral</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <p><strong>Key points:</strong></p>
+  <ul>
+    <li>Dropdown input with chevron for target deck.</li>
+    <li>Opened menu has search + scrollable deck list.</li>
+    <li>Passage capture and manual add as grouped cards below.</li>
+    <li>No bottom sheets or modals.</li>
+  </ul>
+</div>
