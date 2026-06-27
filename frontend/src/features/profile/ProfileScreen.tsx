@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { logout, me } from '../../api/auth';
 import { getReviewSettings, patchReviewSettings } from '../../api/reviewSettings';
 import { getStreakSettings, patchStreakSettings } from '../../api/streakSettings';
@@ -8,6 +10,7 @@ import type { MeResponse } from '../../types/auth';
 import type { ReviewSettings, StreakSettings } from '../../types';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Card, Icon, Input, LoadingState, Screen, Switch, Text } from '../../ui';
+import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -62,7 +65,8 @@ function SettingRow({
 
 export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   const { colors, spacing, mode, toggleMode } = useTheme();
-  const { language, setLanguage, t } = useAppLanguage();
+  const { language, setLanguage, t, languageLabel } = useAppLanguage();
+  const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
   const [user, setUser] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -118,30 +122,6 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
       setLoggingOut(false);
     }
   }, [onLogout]);
-
-  const languageLabel = useCallback(
-    (code: string | undefined) => {
-      switch (code) {
-        case 'en':
-          return t('language.enLearning');
-        case 'ko':
-          return t('language.koLearning');
-        case 'ja':
-          return t('language.jaLearning');
-        case 'es':
-          return t('language.esLearning');
-        case 'fr':
-          return t('language.frLearning');
-        case 'de':
-          return t('language.deLearning');
-        case 'zh':
-          return t('language.zhLearning');
-        default:
-          return code || t('common.unknown');
-      }
-    },
-    [t],
-  );
 
   const chooseLanguage = useCallback(
     (nextLanguage: AppLanguage) => {
@@ -257,7 +237,12 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           </View>
           <SettingRow icon="person-outline" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />
           <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-          <SettingRow icon="language-outline" label={t('settings.learningLanguage')} value={languageLabel(user?.target_language)} />
+          <SettingRow
+            icon="language-outline"
+            label={t('settings.languagePairs')}
+            value={`${languageLabel(user?.target_language)}${user?.target_language ? ' → ' : ''}${languageLabel(user?.native_language)}`}
+            onPress={() => navigation.navigate('LanguagePairs')}
+          />
         </Card>
 
         <Card>

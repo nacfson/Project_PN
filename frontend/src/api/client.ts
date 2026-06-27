@@ -116,6 +116,25 @@ export async function patchJson<TResponse>(
   return parsed as TResponse;
 }
 
+export async function deleteJson<TResponse>(
+  path: string,
+  options?: RequestOptions,
+): Promise<TResponse> {
+  let response: Response;
+  try {
+    response = await fetchWithFallback(path, {
+      method: 'DELETE',
+      headers: await buildHeaders(options),
+    });
+  } catch {
+    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  }
+
+  const parsed = await parseResponse(response);
+  throwOnError(response, parsed);
+  return parsed as TResponse;
+}
+
 export async function postFormData<TResponse>(
   path: string,
   formData: FormData,
