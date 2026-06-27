@@ -21,7 +21,7 @@ export interface AddJob {
   id: string;
   text: string;
   pos: PosFilter;
-  deckId: string;
+  deckId?: string;
   status: AddJobStatus;
   error?: string;
   wordSenseId?: string;
@@ -31,8 +31,8 @@ interface AddQueueContextValue {
   jobs: AddJob[];
   pendingCount: number;
   dismissedIds: Set<string>;
-  enqueue: (text: string, pos: PosFilter, deckId: string) => void;
-  enqueueMany: (texts: string[], pos: PosFilter, deckId: string) => void;
+  enqueue: (text: string, pos: PosFilter, deckId?: string) => void;
+  enqueueMany: (texts: string[], pos: PosFilter, deckId?: string) => void;
   statusOf: (text: string) => WordStatus;
   dismiss: (id: string) => void;
 }
@@ -113,9 +113,9 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   }, [runWorker]);
 
   const enqueue = useCallback(
-    (text: string, pos: PosFilter, deckId: string) => {
+    (text: string, pos: PosFilter, deckId?: string) => {
       const trimmed = text.trim();
-      if (trimmed.length === 0 || !deckId) {
+      if (trimmed.length === 0) {
         return;
       }
 
@@ -138,9 +138,9 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   );
 
   const enqueueMany = useCallback(
-    (texts: string[], pos: PosFilter, deckId: string) => {
+    (texts: string[], pos: PosFilter, deckId?: string) => {
       const trimmed = texts.map((text) => text.trim()).filter((text) => text.length > 0);
-      if (trimmed.length === 0 || !deckId) {
+      if (trimmed.length === 0) {
         return;
       }
 

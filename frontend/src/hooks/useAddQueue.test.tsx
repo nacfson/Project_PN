@@ -20,7 +20,10 @@ function Wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useAddQueue deck-aware', () => {
-  it('passes deckId to addLearningItem', async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  it('passes deckId to addLearningItem when provided', async () => {
     const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
 
     await act(() => {
@@ -32,6 +35,22 @@ describe('useAddQueue deck-aware', () => {
         expect.any(String),
         expect.any(String),
         'deck-123',
+      );
+    });
+  });
+
+  it('calls addLearningItem without deckId when omitted', async () => {
+    const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
+
+    await act(() => {
+      result.current.enqueue('hello', 'Any');
+    });
+
+    await waitFor(() => {
+      expect(addLearningItem).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        undefined,
       );
     });
   });
