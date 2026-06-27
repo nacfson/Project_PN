@@ -56,7 +56,9 @@ describe('DeckFormModal', () => {
       wrapper: Wrapper,
     });
 
-    pressByText('New deck');
+    const submitButtons = screen.getAllByText('New deck');
+    expect(submitButtons[submitButtons.length - 1]).toBeDisabled();
+    fireEvent(screen.getByPlaceholderText('Deck name'), 'submitEditing');
 
     await waitFor(() => expect(screen.getByText('Please enter a deck name.')).toBeTruthy());
     expect(onSubmit).not.toHaveBeenCalled();

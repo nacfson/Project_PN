@@ -66,6 +66,7 @@ export function DeckFormModal({
     onDelete?.();
   };
 
+  const canSubmit = name.trim().length > 0 && !isLoading;
   const title = mode === 'create' ? t('words.createDeck') : t('words.renameDeck');
 
   return (
@@ -115,7 +116,7 @@ export function DeckFormModal({
             <Button
               label={title}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={!canSubmit}
               loading={isLoading}
             />
 
