@@ -5,12 +5,23 @@ import { en, ko, type TranslationKey } from './translations';
 
 export type AppLanguage = 'en' | 'ko';
 
+const languageLabelKeys: Record<string, TranslationKey> = {
+  en: 'language.enLearning',
+  ko: 'language.koLearning',
+  ja: 'language.jaLearning',
+  es: 'language.esLearning',
+  fr: 'language.frLearning',
+  de: 'language.deLearning',
+  zh: 'language.zhLearning',
+};
+
 type TranslationParams = Record<string, string | number>;
 
 interface AppLanguageContextValue {
   language: AppLanguage;
   setLanguage: (language: AppLanguage) => Promise<void>;
   t: (key: TranslationKey, params?: TranslationParams) => string;
+  languageLabel: (code: string | undefined) => string;
 }
 
 const AppLanguageContext = createContext<AppLanguageContextValue | null>(null);
@@ -64,13 +75,25 @@ export function AppLanguageProvider({ children }: { children: ReactNode }) {
     [language],
   );
 
+  const languageLabel = useCallback(
+    (code: string | undefined): string => {
+      if (!code) {
+        return t('common.unknown');
+      }
+      const key = languageLabelKeys[code];
+      return key ? t(key) : code;
+    },
+    [t],
+  );
+
   const value = useMemo(
     () => ({
       language,
       setLanguage,
       t,
+      languageLabel,
     }),
-    [language, setLanguage, t],
+    [language, setLanguage, t, languageLabel],
   );
 
   return <AppLanguageContext.Provider value={value}>{children}</AppLanguageContext.Provider>;
