@@ -8,11 +8,13 @@ const mockedUseReducedMotion = jest.mocked(useReducedMotion);
 
 describe('AnimatedProgressBar', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     mockedUseReducedMotion.mockReturnValue(false);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   it('renders progress fill with correct percent', async () => {

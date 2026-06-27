@@ -14,11 +14,13 @@ export function AnimatedProgressBar({ percent, height = 12 }: AnimatedProgressBa
   const widthAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(widthAnim, {
+    const anim = Animated.timing(widthAnim, {
       toValue: Math.max(0, Math.min(100, percent)),
       duration: reduced ? 0 : 350,
       useNativeDriver: false,
-    }).start();
+    });
+    anim.start();
+    return () => anim.stop();
   }, [percent, reduced, widthAnim]);
 
   return (
@@ -32,6 +34,8 @@ export function AnimatedProgressBar({ percent, height = 12 }: AnimatedProgressBa
     >
       <Animated.View
         testID="progress-fill"
+        accessibilityRole="progressbar"
+        accessibilityValue={{ now: percent }}
         style={{
           height: '100%',
           backgroundColor: colors.primary,
