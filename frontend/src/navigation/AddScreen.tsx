@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CaptureScreen } from '../screens/CaptureScreen';
+import { CaptureSection } from '../features/add/CaptureSection';
 import { AnkiImportScreen } from '../features/import/AnkiImportScreen';
 import { AddWordModal } from '../components/AddWordModal';
 import { useAppLanguage } from '../i18n';
@@ -14,6 +14,7 @@ export function AddScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [mode, setMode] = useState<AddMode>('capture');
+  const [selectedDeckId, setSelectedDeckId] = useState('');
   const [manualModalVisible, setManualModalVisible] = useState(false);
 
   const options: { value: AddMode; label: string }[] = [
@@ -31,7 +32,7 @@ export function AddScreen() {
 
       <View style={styles.body}>
         {mode === 'capture' ? (
-          <CaptureScreen />
+          <CaptureSection selectedDeckId={selectedDeckId} />
         ) : mode === 'manual' ? (
           <View style={[styles.manualPlaceholder, { padding: spacing.xl }]}>
             <Button label={t('add.addWord')} iconLeft="add" onPress={() => setManualModalVisible(true)} />
