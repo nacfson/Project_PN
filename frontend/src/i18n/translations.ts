@@ -106,9 +106,11 @@ export const en = {
   'words.deckRenameFailed': 'Could not rename deck.',
   'words.deckDeleteFailed': 'Could not delete deck.',
 
+  'add.title': 'Add',
   'add.capture': 'Capture',
   'add.manual': 'Manual Add',
   'add.import': 'Import',
+  'add.deckLoadFailed': 'Could not load decks.',
   'add.passage': 'Passage',
   'add.passagePlaceholder': 'Paste or type text here...',
   'add.tapWords': 'Tap words to select',
@@ -398,9 +400,11 @@ export const ko: Record<TranslationKey, string> = {
   'words.deckRenameFailed': '덱 이름을 변경하지 못했습니다.',
   'words.deckDeleteFailed': '덱을 삭제하지 못했습니다.',
 
+  'add.title': '추가',
   'add.capture': '캡처',
   'add.manual': '직접 추가',
   'add.import': '가져오기',
+  'add.deckLoadFailed': '덱을 불러오지 못했습니다.',
   'add.passage': '지문',
   'add.passagePlaceholder': '텍스트를 붙여넣거나 입력하세요...',
   'add.tapWords': '단어를 탭해서 선택',
