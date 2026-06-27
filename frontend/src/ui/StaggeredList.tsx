@@ -1,5 +1,5 @@
 import { Children, ReactNode, useEffect, useRef } from 'react';
-import { Animated, StyleProp, ViewStyle } from 'react-native';
+import { Animated, Platform, StyleProp, ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface StaggeredListProps {
@@ -18,16 +18,25 @@ export function StaggeredList({ children, delayMs = 40, style }: StaggeredListPr
   }
 
   useEffect(() => {
-    if (reduced) return;
-    const animations = anims.current.map((anim, index) =>
+    if (reduced) {
+      // Ensure every item stays fully visible when reduced motion is enabled.
+      anims.current.forEach((anim) => anim.setValue(1));
+      return;
+    }
+
+    const animations = anims.current.map((anim) =>
       Animated.timing(anim, {
         toValue: 1,
         duration: 250,
-        delay: index * delayMs,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       })
     );
-    Animated.stagger(delayMs, animations).start();
+    const composite = Animated.stagger(delayMs, animations);
+    composite.start();
+
+    return () => {
+      composite.stop();
+    };
   }, [items.length, delayMs, reduced]);
 
   return (
