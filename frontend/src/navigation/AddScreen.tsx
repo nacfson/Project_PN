@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { listDecks } from '../api/decks';
@@ -19,9 +19,10 @@ export function AddScreen() {
   const [decksLoading, setDecksLoading] = useState(false);
   const [decksError, setDecksError] = useState<string | null>(null);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [deckRetryTick, setDeckRetryTick] = useState(0);
   const { pendingCount } = useAddQueue();
 
-  useEffect(() => {
+  const loadDecks = useCallback(() => {
     if (!targetLanguage) {
       setDecks([]);
       setSelectedDeckId(null);
@@ -44,12 +45,24 @@ export function AddScreen() {
       });
   }, [targetLanguage, t]);
 
+  useEffect(() => {
+    loadDecks();
+  }, [loadDecks, deckRetryTick]);
+
+  const handleRetry = useCallback(() => {
+    refreshLanguage();
+    setDeckRetryTick((tick) => tick + 1);
+  }, [refreshLanguage]);
+
   const hasPendingJobs = pendingCount > 0;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.lg, paddingBottom: spacing.xl * 2 }]}>
-        <View style={[styles.header, { marginBottom: spacing.lg }]}>
+      <ScrollView
+        stickyHeaderIndices={[0]}
+        contentContainerStyle={[styles.content, { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl * 2 }]}
+      >
+        <View style={[styles.header, { paddingTop: spacing.lg, paddingBottom: spacing.lg, backgroundColor: colors.background }]}>
           <Text variant="heading" style={{ marginBottom: spacing.md }}>
             {t('add.title')}
           </Text>
@@ -59,19 +72,19 @@ export function AddScreen() {
             onSelect={setSelectedDeckId}
             loading={decksLoading || languageLoading}
             error={languageError ?? decksError}
-            onRetry={() => {
-              refreshLanguage();
-            }}
+            onRetry={handleRetry}
             disabled={hasPendingJobs}
           />
         </View>
 
-        {selectedDeckId && (
-          <>
-            <CaptureSection selectedDeckId={selectedDeckId} />
-            <ManualAddSection selectedDeckId={selectedDeckId} />
-          </>
-        )}
+        <View style={{ gap: spacing.lg }}>
+          {selectedDeckId && (
+            <>
+              <CaptureSection selectedDeckId={selectedDeckId} />
+              <ManualAddSection selectedDeckId={selectedDeckId} />
+            </>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

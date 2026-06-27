@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Icon, Input, Text } from '../../ui';
@@ -37,24 +37,28 @@ export function TargetDeckSelector({
     return decks.filter((d) => d.name.toLowerCase().includes(normalized));
   }, [decks, query]);
 
-  if (error) {
-    return (
-      <View style={[styles.errorBox, { backgroundColor: colors.errorContainer, borderRadius: radii.md, padding: spacing.md }]}>
-        <Text variant="body" color="danger">{error}</Text>
-        {onRetry && <Pressable onPress={onRetry}><Text variant="caption" color="primary">{t('common.retry')}</Text></Pressable>}
-      </View>
-    );
-  }
+  const canInteract = !disabled && !loading;
 
   return (
-    <View>
+    <View style={styles.container}>
+      {error && (
+        <View style={[styles.errorBox, { backgroundColor: colors.errorContainer, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md }]}>
+          <Text variant="body" color="danger">{error}</Text>
+          {onRetry && (
+            <Pressable onPress={onRetry}>
+              <Text variant="caption" color="primary">{t('add.deckLoadRetry')}</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
       <Text variant="label" color="muted" style={{ marginBottom: spacing.sm }}>
         {t('add.targetDeck')}
       </Text>
       <Pressable
-        onPress={() => !disabled && setIsOpen((v) => !v)}
+        onPress={() => canInteract && setIsOpen((v) => !v)}
         accessibilityRole="button"
-        accessibilityState={{ expanded: isOpen, disabled: !!disabled }}
+        accessibilityState={{ expanded: isOpen, disabled: !canInteract }}
         style={[
           styles.selector,
           {
@@ -64,47 +68,58 @@ export function TargetDeckSelector({
             opacity: disabled ? 0.5 : 1,
           },
         ]}
+        testID="target-deck-selector-trigger"
       >
         <Text variant="body">{selected?.name ?? t('add.noDeck')}</Text>
-        <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size="sm" color={colors.onSurfaceVariant} />
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size="sm" color={colors.onSurfaceVariant} />
+        )}
       </Pressable>
 
       {isOpen && (
-        <View style={[styles.dropdown, { backgroundColor: colors.surface, borderRadius: radii.md, borderColor: colors.outlineVariant }]}>
-          <View style={{ padding: spacing.sm }}>
-            <Input
-              value={query}
-              onChangeText={setQuery}
-              placeholder={t('add.searchDecks')}
-              autoFocus
-            />
+        <>
+          <Pressable style={styles.overlay} onPress={() => setIsOpen(false)} />
+          <View style={[styles.dropdown, { backgroundColor: colors.surface, borderRadius: radii.md, borderColor: colors.outlineVariant }]}>
+            <View style={{ padding: spacing.sm }}>
+              <Input
+                value={query}
+                onChangeText={setQuery}
+                placeholder={t('add.searchDecks')}
+                autoFocus
+              />
+            </View>
+            <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+              {filtered.map((deck) => {
+                const isSelected = deck.id === selectedId;
+                return (
+                  <Pressable
+                    key={deck.id}
+                    onPress={() => {
+                      onSelect(deck.id);
+                      setIsOpen(false);
+                      setQuery('');
+                    }}
+                    style={[styles.item, { backgroundColor: isSelected ? colors.primaryContainer : colors.surface, borderBottomColor: colors.outlineVariant }]}
+                  >
+                    <Text variant="body" color={isSelected ? 'primary' : 'default'}>{deck.name}</Text>
+                    <Text variant="caption" color="muted">{t('add.deckCardCount', { count: deck.item_count })}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
-          <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
-            {filtered.map((deck) => {
-              const isSelected = deck.id === selectedId;
-              return (
-                <Pressable
-                  key={deck.id}
-                  onPress={() => {
-                    onSelect(deck.id);
-                    setIsOpen(false);
-                    setQuery('');
-                  }}
-                  style={[styles.item, { backgroundColor: isSelected ? colors.primaryContainer : colors.surface }]}
-                >
-                  <Text variant="body" color={isSelected ? 'primary' : 'default'}>{deck.name}</Text>
-                  <Text variant="caption" color="muted">{t('add.deckCardCount', { count: deck.item_count })}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
+        </>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+  },
   selector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -112,19 +127,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
+    zIndex: 2,
   },
   dropdown: {
+    position: 'relative',
     marginTop: 8,
     borderWidth: 1,
     overflow: 'hidden',
+    zIndex: 10,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 1,
   },
   item: {
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA',
   },
   errorBox: {
     gap: 8,
+    zIndex: 2,
   },
 });

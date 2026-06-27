@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PosSelector } from '../../components/PosSelector';
 import { WordChip } from '../../components/WordChip';
@@ -13,11 +13,11 @@ interface ManualAddSectionProps {
 }
 
 export function ManualAddSection({ selectedDeckId }: ManualAddSectionProps) {
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
-  const { enqueue, statusOf } = useAddQueue();
+  const { enqueue, statusOf, jobs } = useAddQueue();
 
   const submit = () => {
     const trimmed = word.trim();
@@ -28,8 +28,22 @@ export function ManualAddSection({ selectedDeckId }: ManualAddSectionProps) {
     setWord('');
   };
 
+  const recentJobs = useMemo(() => {
+    const seen = new Set<string>();
+    return jobs
+      .filter((job) => job.deckId === selectedDeckId)
+      .slice()
+      .reverse()
+      .filter((job) => {
+        if (seen.has(job.text)) return false;
+        seen.add(job.text);
+        return true;
+      })
+      .slice(0, 10);
+  }, [jobs, selectedDeckId]);
+
   return (
-    <View style={[styles.card, { backgroundColor: 'white', borderRadius: 16, padding: spacing.lg }]}>
+    <View style={[styles.card, { backgroundColor: colors.surfaceContainerLow, borderRadius: 16, padding: spacing.lg }]}>
       <Text variant="title" style={{ marginBottom: spacing.md }}>
         {t('add.addOneWord')}
       </Text>
@@ -54,11 +68,16 @@ export function ManualAddSection({ selectedDeckId }: ManualAddSectionProps) {
         <PosSelector value={pos} onChange={setPos} />
       </View>
 
-      <View style={styles.chipRow}>
-        {[word].filter(Boolean).map((w) => (
-          <WordChip key={w} word={w} status={statusOf(w)} />
-        ))}
-      </View>
+      {recentJobs.length > 0 && (
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="label" color="muted">{t('add.added')}</Text>
+          <View style={styles.chipRow}>
+            {recentJobs.map((job) => (
+              <WordChip key={job.id} word={job.text} status={statusOf(job.text)} />
+            ))}
+          </View>
+        </View>
+      )}
     </View>
   );
 }

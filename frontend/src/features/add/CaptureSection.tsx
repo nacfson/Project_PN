@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../../components/PosSelector';
 import { TappablePassage } from '../../components/TappablePassage';
 import { WordChip } from '../../components/WordChip';
@@ -68,7 +68,9 @@ export function CaptureSection({ selectedDeckId }: { selectedDeckId: string }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
+      <View style={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
+        <Text variant="title">{t('add.fromPassage')}</Text>
+
         <View style={{ gap: spacing.sm }}>
           <View style={styles.labelRow}>
             <Text variant="label" color="muted">
@@ -139,7 +141,7 @@ export function CaptureSection({ selectedDeckId }: { selectedDeckId: string }) {
           disabled={selected.size === 0}
           style={{ marginTop: spacing.sm }}
         />
-      </ScrollView>
+      </View>
     </View>
   );
 }

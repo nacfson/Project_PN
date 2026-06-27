@@ -54,4 +54,20 @@ describe('useAddQueue deck-aware', () => {
       );
     });
   });
+
+  it('passes deckId to addLearningItem when enqueueMany is used', async () => {
+    const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
+
+    await act(() => {
+      result.current.enqueueMany(['hello', 'world'], 'Any', 'deck-456');
+    });
+
+    await waitFor(() => {
+      expect(addLearningItem).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        'deck-456',
+      );
+    });
+  });
 });
