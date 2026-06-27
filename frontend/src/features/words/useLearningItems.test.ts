@@ -5,7 +5,6 @@ import { listLearningItems } from '../../api/learningItems';
 import { AppLanguageProvider } from '../../i18n';
 
 jest.mock('../../api/learningItems');
-jest.useFakeTimers();
 
 const mockedListLearningItems = jest.mocked(listLearningItems);
 
@@ -14,6 +13,10 @@ function Wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useLearningItems', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
     jest.useRealTimers();
