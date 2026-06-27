@@ -8,8 +8,15 @@ import { AccessibilityInfo, Platform } from 'react-native';
  * On iOS/Android this wraps `AccessibilityInfo.isReduceMotionEnabled()` and the
  * `reduceMotionChanged` event.
  */
+function getInitialReducedMotion(): boolean {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  return false;
+}
+
 export function useReducedMotion(): boolean {
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(getInitialReducedMotion);
 
   useEffect(() => {
     let active = true;
