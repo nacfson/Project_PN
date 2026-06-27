@@ -12,10 +12,9 @@ import { useNavigation, type CompositeNavigationProp, type NavigatorScreenParams
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useAppLanguage } from '../../i18n';
+import { useAppLanguage, type TranslationKey } from '../../i18n';
 import type { Deck, LearningItemListItem } from '../../types';
 import { Badge, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
-import type { TranslationKey } from '../../i18n';
 import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
 import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
@@ -259,6 +258,17 @@ export function MyWordsScreen() {
       </View>
     );
   };
+
+  if (!languageLoading && languageError) {
+    return (
+      <Screen padded>
+        <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md, flex: 1 }]}>
+          <Text variant="heading">{t('words.title')}</Text>
+          <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
+        </View>
+      </Screen>
+    );
+  }
 
   if (!languageLoading && !targetLanguage) {
     return (
