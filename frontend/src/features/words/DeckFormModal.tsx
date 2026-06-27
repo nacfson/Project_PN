@@ -14,6 +14,7 @@ export interface DeckFormModalProps {
   onSubmit: (name: string) => void;
   onDelete?: () => void;
   isLoading?: boolean;
+  error?: string;
 }
 
 export function DeckFormModal({
@@ -24,6 +25,7 @@ export function DeckFormModal({
   onSubmit,
   onDelete,
   isLoading,
+  error: apiError,
 }: DeckFormModalProps) {
   const { colors, radii, spacing } = useTheme();
   const { t } = useAppLanguage();
@@ -112,6 +114,10 @@ export function DeckFormModal({
               error={!!error}
               onSubmitEditing={handleSubmit}
             />
+
+            {apiError ? (
+              <Text style={{ color: colors.error }}>{apiError}</Text>
+            ) : null}
 
             <Button
               label={title}

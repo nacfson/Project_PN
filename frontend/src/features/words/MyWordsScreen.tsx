@@ -8,7 +8,9 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
+import { useNavigation, type CompositeNavigationProp, type NavigatorScreenParams } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
 import type { Deck, LearningItemListItem } from '../../types';
@@ -20,6 +22,9 @@ import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
 import { createDeck, deleteDeck, listDecks, renameDeck } from '../../api/decks';
 import { DeckList } from './DeckList';
 import { DeckFormModal } from './DeckFormModal';
+import type { WordsStackParamList } from '../../navigation/WordsStack';
+import type { MainTabParamList } from '../../navigation/MainTabs';
+import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
   { key: 'all', labelKey: 'words.filterAll' },
@@ -31,10 +36,19 @@ const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labe
   { key: 'mastered', labelKey: 'home.stage.mastered' },
 ];
 
+type MyWordsScreenTabParamList = Omit<MainTabParamList, 'Settings'> & {
+  Settings: NavigatorScreenParams<SettingsStackParamList>;
+};
+
+type MyWordsScreenNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<WordsStackParamList, 'WordsRoot'>,
+  BottomTabNavigationProp<MyWordsScreenTabParamList>
+>;
+
 export function MyWordsScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
-  const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const navigation = useNavigation<MyWordsScreenNavigationProp>();
 
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
@@ -133,7 +147,6 @@ export function MyWordsScreen() {
 
   const handleCloseModal = useCallback(() => {
     setFormMode(null);
-    setOperationError(null);
   }, []);
 
   const openCreate = useCallback(() => {
@@ -265,12 +278,6 @@ export function MyWordsScreen() {
       <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md }]}>
         <Text variant="heading">{t('words.title')}</Text>
 
-        {operationError ? (
-          <Card style={{ borderColor: colors.error, borderWidth: 1, gap: spacing.sm }}>
-            <Text style={{ color: colors.error }}>{operationError}</Text>
-          </Card>
-        ) : null}
-
         {languageLoading || decksLoading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
@@ -343,6 +350,7 @@ export function MyWordsScreen() {
         onSubmit={formMode === 'create' ? handleCreate : handleRename}
         onDelete={formMode === 'rename' && formDeck && !formDeck.is_default ? handleDelete : undefined}
         isLoading={formLoading}
+        error={operationError ?? undefined}
       />
     </Screen>
   );

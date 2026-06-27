@@ -92,4 +92,19 @@ describe('DeckFormModal', () => {
     fireEvent.press(screen.getByText('Delete'));
     expect(onDelete).toHaveBeenCalled();
   });
+
+  it('renders the api error inside the modal', async () => {
+    await render(
+      <DeckFormModal
+        visible
+        mode="create"
+        onClose={jest.fn()}
+        onSubmit={jest.fn()}
+        error="Could not create deck."
+      />,
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.getByText('Could not create deck.')).toBeTruthy();
+  });
 });
