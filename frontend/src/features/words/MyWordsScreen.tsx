@@ -34,7 +34,7 @@ const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labe
 ];
 
 export function MyWordsScreen() {
-  const { colors, radii, spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<WordsStackParamList, 'WordsRoot'>>();
 
