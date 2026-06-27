@@ -127,6 +127,7 @@ export const en = {
   'add.addWord': 'Add Word',
   'add.targetDeck': 'Target Deck',
   'add.selectDeck': 'Select deck',
+  'add.searchDecks': 'Search decks',
   'add.noDeck': 'No deck',
   'add.addedToDeck': 'Added "{{word}}" to {{deck}}',
 
@@ -417,6 +418,7 @@ export const ko: Record<TranslationKey, string> = {
   'add.addWord': '단어 추가',
   'add.targetDeck': '대상 덱',
   'add.selectDeck': '덱 선택',
+  'add.searchDecks': '덱 검색',
   'add.noDeck': '덱 없음',
   'add.addedToDeck': '"{{word}}"를 {{deck}}에 추가했습니다',
 
