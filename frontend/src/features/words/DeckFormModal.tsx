@@ -120,25 +120,30 @@ export function DeckFormModal({
               loading={isLoading}
             />
 
-            {mode === 'rename' && onDelete && !deck?.is_default && (
+            {mode === 'rename' && onDelete && deck && !deck.is_default && (
               <View style={{ gap: spacing.sm }}>
                 {confirmingDelete ? (
-                  <View style={[styles.confirmRow, { gap: spacing.sm }]}>
-                    <Text variant="caption" color="muted" style={{ flex: 1 }}>
-                      {t('words.deckDeleteConfirmMessage')}
+                  <View style={{ gap: spacing.sm }}>
+                    <Text variant="body" bold>
+                      {t('words.deckDeleteConfirmTitle', { deck: deck.name })}
                     </Text>
-                    <Button
-                      label={t('common.cancel')}
-                      variant="outline"
-                      onPress={() => setConfirmingDelete(false)}
-                      disabled={isLoading}
-                    />
-                    <Button
-                      label={t('words.deckDeleteConfirm')}
-                      variant="danger"
-                      onPress={handleDeletePress}
-                      loading={isLoading}
-                    />
+                    <View style={[styles.confirmRow, { gap: spacing.sm }]}>
+                      <Text variant="caption" color="muted" style={{ flex: 1 }}>
+                        {t('words.deckDeleteConfirmMessage')}
+                      </Text>
+                      <Button
+                        label={t('common.cancel')}
+                        variant="outline"
+                        onPress={() => setConfirmingDelete(false)}
+                        disabled={isLoading}
+                      />
+                      <Button
+                        label={t('words.deckDeleteConfirm')}
+                        variant="danger"
+                        onPress={handleDeletePress}
+                        loading={isLoading}
+                      />
+                    </View>
                   </View>
                 ) : (
                   <Button

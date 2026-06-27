@@ -8,12 +8,10 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
 import type { Deck, LearningItemListItem } from '../../types';
-import type { WordsStackParamList } from '../../navigation/WordsStack';
 import { Badge, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import type { TranslationKey } from '../../i18n';
 import { SpeakButton } from '../../components/SpeakButton';
@@ -36,7 +34,7 @@ const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labe
 export function MyWordsScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
-  const navigation = useNavigation<NativeStackNavigationProp<WordsStackParamList, 'WordsRoot'>>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
@@ -76,65 +74,79 @@ export function MyWordsScreen() {
     void loadDecks();
   }, [loadDecks]);
 
-  const handleCreate = async (name: string) => {
-    if (!targetLanguage) return;
-    setFormLoading(true);
-    setOperationError(null);
-    try {
-      await createDeck(name, targetLanguage);
-      setFormMode(null);
-      await loadDecks();
-      await refresh();
-    } catch (err) {
-      setOperationError(err instanceof Error ? err.message : t('words.deckCreateFailed'));
-    } finally {
-      setFormLoading(false);
-    }
-  };
+  const handleCreate = useCallback(
+    async (name: string) => {
+      if (!targetLanguage) return;
+      setFormLoading(true);
+      setOperationError(null);
+      try {
+        await createDeck(name, targetLanguage);
+        setFormMode(null);
+        await loadDecks();
+        await refresh();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.deckCreateFailed'));
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [targetLanguage, t, loadDecks, refresh],
+  );
 
-  const handleRename = async (name: string) => {
-    if (!formDeck) return;
-    setFormLoading(true);
-    setOperationError(null);
-    try {
-      await renameDeck(formDeck.id, name);
-      setFormMode(null);
-      await loadDecks();
-    } catch (err) {
-      setOperationError(err instanceof Error ? err.message : t('words.deckRenameFailed'));
-    } finally {
-      setFormLoading(false);
-    }
-  };
+  const handleRename = useCallback(
+    async (name: string) => {
+      if (!formDeck) return;
+      setFormLoading(true);
+      setOperationError(null);
+      try {
+        await renameDeck(formDeck.id, name);
+        setFormMode(null);
+        await loadDecks();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.deckRenameFailed'));
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [formDeck, t, loadDecks],
+  );
 
-  const handleDelete = async () => {
-    if (!formDeck) return;
-    setFormLoading(true);
-    setOperationError(null);
-    try {
-      await deleteDeck(formDeck.id);
-      setSelectedDeckId(null);
-      setFormMode(null);
-      await loadDecks();
-      await refresh();
-    } catch (err) {
-      setOperationError(err instanceof Error ? err.message : t('words.deckDeleteFailed'));
-    } finally {
-      setFormLoading(false);
-    }
-  };
+  const handleDelete = useCallback(
+    async () => {
+      if (!formDeck) return;
+      setFormLoading(true);
+      setOperationError(null);
+      try {
+        await deleteDeck(formDeck.id);
+        setSelectedDeckId(null);
+        setFormMode(null);
+        await loadDecks();
+        await refresh();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.deckDeleteFailed'));
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [formDeck, t, loadDecks, refresh],
+  );
 
-  const openCreate = () => {
+  const handleCloseModal = useCallback(() => {
+    setFormMode(null);
+    setOperationError(null);
+  }, []);
+
+  const openCreate = useCallback(() => {
     setFormDeck(undefined);
     setFormMode('create');
     setOperationError(null);
-  };
+  }, []);
 
-  const openEdit = (deck: Deck) => {
+  const openEdit = useCallback((deck: Deck) => {
     setFormDeck(deck);
     setFormMode('rename');
     setOperationError(null);
-  };
+  }, []);
 
   const hasSearch = q.trim().length > 0;
 
@@ -231,6 +243,23 @@ export function MyWordsScreen() {
     );
   };
 
+  if (!languageLoading && !targetLanguage) {
+    return (
+      <Screen padded>
+        <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md, flex: 1 }]}>
+          <Text variant="heading">{t('words.title')}</Text>
+          <EmptyState
+            icon="language-outline"
+            title={t('words.noLanguagePairTitle')}
+            message={t('words.noLanguagePairMessage')}
+            actionLabel={t('words.noLanguagePairAction')}
+            onAction={() => navigation.navigate('Settings', { screen: 'LanguagePairs' })}
+          />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen padded>
       <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md }]}>
@@ -310,7 +339,7 @@ export function MyWordsScreen() {
         visible={formMode !== null}
         mode={formMode ?? 'create'}
         deck={formDeck}
-        onClose={() => setFormMode(null)}
+        onClose={handleCloseModal}
         onSubmit={formMode === 'create' ? handleCreate : handleRename}
         onDelete={formMode === 'rename' && formDeck && !formDeck.is_default ? handleDelete : undefined}
         isLoading={formLoading}
