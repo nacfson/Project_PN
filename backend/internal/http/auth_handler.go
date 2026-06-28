@@ -37,14 +37,14 @@ type sessionResponse struct {
 }
 
 type meResponse struct {
-	ID              string             `json:"id"`
-	Email           string             `json:"email"`
-	EmailVerified   bool               `json:"email_verified"`
-	EmailVerifiedAt *time.Time         `json:"email_verified_at,omitempty"`
-	NativeLanguage  string             `json:"native_language"`
-	TargetLanguage  string             `json:"target_language"`
-	UILanguage      string             `json:"ui_language"`
-	ActiveLanguage  auth.UserLanguage  `json:"active_language"`
+	ID              string            `json:"id"`
+	Email           string            `json:"email"`
+	EmailVerified   bool              `json:"email_verified"`
+	EmailVerifiedAt *time.Time        `json:"email_verified_at,omitempty"`
+	NativeLanguage  string            `json:"native_language"`
+	TargetLanguage  string            `json:"target_language"`
+	UILanguage      string            `json:"ui_language"`
+	ActiveLanguage  auth.UserLanguage `json:"active_language"`
 }
 
 type emailNotVerifiedResponse struct {
@@ -99,6 +99,21 @@ func (h *authHandler) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func centralLogout(central *auth.CentralClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if central == nil {
+			writeError(w, http.StatusInternalServerError, "central auth is not configured")
+			return
+		}
+		token := bearerToken(r)
+		if err := central.Logout(r.Context(), token); err != nil {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {

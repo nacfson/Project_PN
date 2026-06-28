@@ -39,12 +39,26 @@ func main() {
 		EmailVerificationTTL:   cfg.EmailVerificationTTL,
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
+		DefaultUILang:          cfg.UILang,
 		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
 		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		AllowedUILangs:         cfg.AllowedUILangs,
 		ForceDefinitionLang:    cfg.ForceDefinitionLang,
 		ForceTargetLang:        cfg.ForceTargetLang,
+		ForceUILang:            cfg.ForceUILang,
 		AppPublicURL:           cfg.AppPublicURL,
 	})
+	var centralAuth *auth.CentralClient
+	if cfg.AuthMode == "central" {
+		if cfg.CentralAuthURL == "" {
+			slog.Error("CENTRAL_AUTH_URL is required when AUTH_MODE=central")
+			os.Exit(1)
+		}
+		centralAuth = auth.NewCentralClient(cfg.CentralAuthURL, nil)
+	} else if cfg.AuthMode != "local" {
+		slog.Error("unsupported AUTH_MODE", "mode", cfg.AuthMode)
+		os.Exit(1)
+	}
 	wordsService := words.New(pool, enricher, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	server := &http.Server{
@@ -53,6 +67,8 @@ func main() {
 			DB:             pool,
 			Words:          wordsService,
 			Auth:           authService,
+			AuthMode:       cfg.AuthMode,
+			CentralAuth:    centralAuth,
 			AllowedOrigins: cfg.AllowedOrigins,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

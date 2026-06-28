@@ -10,7 +10,7 @@ import {
 import { ApiError } from '../api/client';
 import { getLanguageOptions, login, register, requestVerificationEmail } from '../api/auth';
 import type { LanguageOptionsResponse } from '../types/auth';
-import { SUPPORTED_LANGUAGES } from '../config';
+import { IS_CENTRAL_AUTH, SUPPORTED_LANGUAGES } from '../config';
 import { getDeviceLanguageCode } from '../utils/locale';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
@@ -76,7 +76,7 @@ export function LoginScreen({ verifiedEmail, onAuthenticated }: LoginScreenProps
     setError(null);
     setBusy(true);
     try {
-      if (mode === 'register') {
+      if (!IS_CENTRAL_AUTH && mode === 'register') {
         await register(trimmedEmail, password, {
           targetLanguage: targetLang,
           nativeLanguage: nativeLang,
@@ -87,7 +87,7 @@ export function LoginScreen({ verifiedEmail, onAuthenticated }: LoginScreenProps
         onAuthenticated();
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
+      if (!IS_CENTRAL_AUTH && err instanceof ApiError && err.status === 403) {
         setVerificationPending(true);
         return;
       }
@@ -223,30 +223,32 @@ export function LoginScreen({ verifiedEmail, onAuthenticated }: LoginScreenProps
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Card elevated style={styles.card}>
           <View style={[styles.header, { gap: spacing.xs }]}>
-            <Text variant="heading">{mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}</Text>
+            <Text variant="heading">{IS_CENTRAL_AUTH || mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}</Text>
             <Text color="muted">{t('auth.subtitle')}</Text>
           </View>
 
-          <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceContainerHighest, borderRadius: 999 }]}>
-            <Button
-              label={t('auth.signIn')}
-              variant={mode === 'login' ? 'primary' : 'ghost'}
-              onPress={() => {
-                setMode('login');
-                setError(null);
-              }}
-              style={styles.segmentButton}
-            />
-            <Button
-              label={t('auth.createAccount')}
-              variant={mode === 'register' ? 'primary' : 'ghost'}
-              onPress={() => {
-                setMode('register');
-                setError(null);
-              }}
-              style={styles.segmentButton}
-            />
-          </View>
+          {!IS_CENTRAL_AUTH && (
+            <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceContainerHighest, borderRadius: 999 }]}>
+              <Button
+                label={t('auth.signIn')}
+                variant={mode === 'login' ? 'primary' : 'ghost'}
+                onPress={() => {
+                  setMode('login');
+                  setError(null);
+                }}
+                style={styles.segmentButton}
+              />
+              <Button
+                label={t('auth.createAccount')}
+                variant={mode === 'register' ? 'primary' : 'ghost'}
+                onPress={() => {
+                  setMode('register');
+                  setError(null);
+                }}
+                style={styles.segmentButton}
+              />
+            </View>
+          )}
 
           {verifiedEmail ? (
             <View style={[styles.successRow, { backgroundColor: colors.successSurface }]}>
@@ -285,18 +287,18 @@ export function LoginScreen({ verifiedEmail, onAuthenticated }: LoginScreenProps
               secureTextEntryToggle
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder={mode === 'register' ? t('auth.passwordCreatePlaceholder') : t('auth.passwordPlaceholder')}
+              placeholder={!IS_CENTRAL_AUTH && mode === 'register' ? t('auth.passwordCreatePlaceholder') : t('auth.passwordPlaceholder')}
               onSubmitEditing={() => void submitPassword()}
               returnKeyType="go"
             />
-            {mode === 'register' && (
+            {!IS_CENTRAL_AUTH && mode === 'register' && (
               <Text variant="caption" color="muted">
                 {t('auth.passwordHelp')}
               </Text>
             )}
           </View>
 
-          {mode === 'register' && (
+          {!IS_CENTRAL_AUTH && mode === 'register' && (
             <>
               {renderLanguageRow({
                 label: t('auth.targetLanguage'),
@@ -325,7 +327,7 @@ export function LoginScreen({ verifiedEmail, onAuthenticated }: LoginScreenProps
           ) : null}
 
           <Button
-            label={mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}
+            label={IS_CENTRAL_AUTH || mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}
             loading={busy}
             disabled={trimmedEmail.length === 0 || password.length === 0}
             onPress={() => void submitPassword()}

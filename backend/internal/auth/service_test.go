@@ -161,6 +161,53 @@ func TestVerificationTokenE2E(t *testing.T) {
 	}
 }
 
+func TestEnsureCentralUserCreatesAndReusesMappedProfile(t *testing.T) {
+	svc := testService(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("central")
+	central := CentralUser{
+		ID:    "brain-user-" + emailAddr,
+		Email: emailAddr,
+	}
+
+	user, err := svc.EnsureCentralUser(ctx, central)
+	if err != nil {
+		t.Fatalf("EnsureCentralUser create: %v", err)
+	}
+	if user.ID == "" {
+		t.Fatal("expected local user id")
+	}
+	if user.Email != emailAddr {
+		t.Fatalf("expected email %q, got %q", emailAddr, user.Email)
+	}
+	if !user.IsEmailVerified() {
+		t.Fatal("expected central user to be verified locally")
+	}
+	if user.ActiveLanguage.TargetLanguage == "" {
+		t.Fatal("expected active language")
+	}
+
+	again, err := svc.EnsureCentralUser(ctx, central)
+	if err != nil {
+		t.Fatalf("EnsureCentralUser reuse: %v", err)
+	}
+	if again.ID != user.ID {
+		t.Fatalf("expected reused local user %q, got %q", user.ID, again.ID)
+	}
+
+	var providerSubject string
+	if err := svc.pool.QueryRow(ctx, `
+		select provider_subject
+		from user_identities
+		where user_id = $1::uuid and provider = $2
+	`, user.ID, centralIdentityProvider).Scan(&providerSubject); err != nil {
+		t.Fatalf("lookup central identity: %v", err)
+	}
+	if providerSubject != central.ID {
+		t.Fatalf("expected provider subject %q, got %q", central.ID, providerSubject)
+	}
+}
+
 func TestRegisterRespectsForcedLanguages(t *testing.T) {
 	svc := testServiceWithOptions(t, Options{
 		SessionTTL:             time.Hour,
@@ -404,4 +451,3 @@ func repoPath(t *testing.T, parts ...string) string {
 	pathParts := append([]string{root}, parts...)
 	return filepath.Join(pathParts...)
 }
-

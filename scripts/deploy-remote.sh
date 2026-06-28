@@ -149,11 +149,14 @@ docker save "${SAVE_REFS[@]}" | gzip > "$TARBALL"
 log "building frontend web bundle"
 (
   cd frontend
-  npm install
+  npm install --legacy-peer-deps
   # Empty EXPO_PUBLIC_API_BASE_URL lets the web app resolve API calls from
   # window.location.origin, which works for both intranet and public IPs when
   # the bundle is served by nginx on the same origin.
-  EXPO_PUBLIC_API_BASE_URL= npm run web:export
+  EXPO_PUBLIC_API_BASE_URL= \
+    EXPO_PUBLIC_AUTH_MODE="${EXPO_PUBLIC_AUTH_MODE:-${AUTH_MODE:-local}}" \
+    EXPO_PUBLIC_CENTRAL_AUTH_URL="${EXPO_PUBLIC_CENTRAL_AUTH_URL:-${CENTRAL_AUTH_URL:-}}" \
+    npm run web:export
 )
 
 log "creating remote deploy directories on ${DEPLOY_HOST}:${REMOTE_DIR}"
@@ -220,6 +223,8 @@ FORCE_TARGET_LANG=
 FORCE_DEFINITION_LANG=
 
 EMAIL_PROVIDER=log
+AUTH_MODE=${AUTH_MODE:-local}
+CENTRAL_AUTH_URL=${CENTRAL_AUTH_URL:-}
 REQUIRE_EMAIL_VERIFIED=false
 SESSION_TTL=720h
 MAGIC_LINK_TTL=15m

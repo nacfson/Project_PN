@@ -19,6 +19,8 @@ type Dependencies struct {
 	DB             *pgxpool.Pool
 	Words          *words.Service
 	Auth           *auth.Service
+	AuthMode       string
+	CentralAuth    *auth.CentralClient
 	AllowedOrigins []string
 }
 
@@ -41,26 +43,37 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(deps.DB))
 
+	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
+		if deps.AuthMode == "" {
+			deps.AuthMode = "local"
+		}
+		authMW = authMiddlewareForMode(deps.Auth, deps.CentralAuth, deps.AuthMode)
 		ah := &authHandler{svc: deps.Auth}
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
-			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/register", ah.register)
-			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/login", ah.login)
-			authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/verify-email/request", ah.requestVerificationEmail)
-			authRouter.With(consumeIPRateLimit()).Get("/verify-email", ah.verifyEmail)
 			authRouter.Get("/language-options", ah.languageOptions)
+			if deps.AuthMode != "central" {
+				authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/register", ah.register)
+				authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/login", ah.login)
+				authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/verify-email/request", ah.requestVerificationEmail)
+				authRouter.With(consumeIPRateLimit()).Get("/verify-email", ah.verifyEmail)
+			}
 
 			authRouter.Group(func(protected chi.Router) {
-				protected.Use(authMiddleware(deps.Auth))
+				protected.Use(authMW)
 				protected.Get("/me", ah.me)
-				protected.Post("/logout", ah.logout)
+				if deps.AuthMode == "central" {
+					protected.Post("/logout", centralLogout(deps.CentralAuth))
+				} else {
+					protected.Post("/logout", ah.logout)
+				}
 			})
 		})
 
 		uh := &userHandler{svc: deps.Auth}
 		r.Route("/api/user", func(userRouter chi.Router) {
-			userRouter.Use(authMiddleware(deps.Auth))
+			userRouter.Use(authMW)
 			userRouter.Get("/languages", uh.listLanguages)
 			userRouter.Post("/languages", uh.addLanguage)
 			userRouter.Patch("/languages/{target_language}", uh.updateDisplayLanguage)
@@ -76,7 +89,7 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Route("/api", func(api chi.Router) {
 			api.Group(func(protected chi.Router) {
 				if deps.Auth != nil {
-					protected.Use(authMiddleware(deps.Auth))
+					protected.Use(authMW)
 					protected.Use(requireVerified())
 				}
 				protected.Post("/words/lookup", wh.lookup)
