@@ -13,5 +13,6 @@ export { LoadingState } from './LoadingState';
 export { RatingBar } from './RatingBar';
 export { RatingButton, type Rating, type RatingButtonProps } from './RatingButton';
 export { Screen } from './Screen';
+export { StaggeredList } from './StaggeredList';
 export { Switch } from './Switch';
 export { Text } from './Text';

@@ -13,6 +13,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useAppLanguage } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Icon, Text } from '../../ui';
 import type { Rating } from '../../ui';
@@ -71,8 +72,10 @@ export function Flashcard({
 }: FlashcardProps) {
   const { colors, spacing, radii, shadows } = useTheme();
   const { t } = useAppLanguage();
+  const reduced = useReducedMotion();
 
   const flipAnim = useRef(new Animated.Value(0)).current;
+  const flipScale = useRef(new Animated.Value(1)).current;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const [swipeHint, setSwipeHint] = useState<Rating | null>(null);
   const [pressed, setPressed] = useState(false);
@@ -80,13 +83,27 @@ export function Flashcard({
 
   // Animate flip whenever isFlipped changes.
   useEffect(() => {
-    Animated.timing(flipAnim, {
-      toValue: isFlipped ? 180 : 0,
-      duration: 350,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: true,
-    }).start();
-  }, [isFlipped, flipAnim]);
+    Animated.parallel([
+      Animated.timing(flipAnim, {
+        toValue: isFlipped ? 180 : 0,
+        duration: reduced ? 0 : 350,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(flipScale, {
+          toValue: 0.95,
+          duration: reduced ? 0 : 175,
+          useNativeDriver: true,
+        }),
+        Animated.timing(flipScale, {
+          toValue: 1,
+          duration: reduced ? 0 : 175,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [isFlipped, flipAnim, flipScale, reduced]);
 
   // Reset pan when card data changes.
   useEffect(() => {
@@ -327,14 +344,6 @@ export function Flashcard({
     outputRange: [0.96, 1, 0.96],
   });
 
-  const animatedStyle = {
-    transform: [
-      ...pan.getTranslateTransform(),
-      { rotate },
-      { scale },
-    ],
-  };
-
   return (
     <View style={styles.container}>
       {swipeHint && (
@@ -347,7 +356,18 @@ export function Flashcard({
         </View>
       )}
 
-      <Animated.View style={[styles.cardContainer, animatedStyle]}>
+      <Animated.View
+        style={[
+          styles.cardContainer,
+          {
+            transform: [
+              ...pan.getTranslateTransform(),
+              { rotate },
+              { scale: Animated.multiply(scale, flipScale) },
+            ],
+          },
+        ]}
+      >
         <Pressable
           onPress={handleFlip}
           onPressIn={() => setPressed(true)}
