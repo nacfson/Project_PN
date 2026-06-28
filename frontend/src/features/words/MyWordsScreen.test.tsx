@@ -132,6 +132,25 @@ describe('MyWordsScreen', () => {
     await waitFor(() => expect(screen.queryByText('1 selected')).toBeNull());
   });
 
+  it('opens inspector panel when info circle icon is pressed on deck canvas tile (web)', async () => {
+    jest.spyOn(Platform, 'OS', 'get').mockReturnValue('web');
+
+    const { container } = await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('Default')).toBeTruthy());
+
+    // Find the info icon Text element via its icon name string child
+    const infoIcons = container.queryAll(
+      (el) => el.type === 'Text' && el.props.children === 'information-circle-outline',
+    );
+    expect(infoIcons.length).toBeGreaterThanOrEqual(1);
+
+    // Press the icon — fireEvent walks up the fiber tree to find the onPress handler
+    fireEvent.press(infoIcons[0]);
+
+    await waitFor(() => expect(screen.getByText('Rename deck')).toBeTruthy());
+  });
+
   it('shows loading indicator when decks are loading', async () => {
     mockedListDecks.mockReturnValue(new Promise(() => {}));
 
