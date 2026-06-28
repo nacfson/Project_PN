@@ -1,7 +1,17 @@
+import { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Platform, Text } from 'react-native';
+import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import { InspectorPanel } from './InspectorPanel';
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <AppLanguageProvider>
+      <ThemeProvider>{children}</ThemeProvider>
+    </AppLanguageProvider>
+  );
+}
 
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
@@ -28,7 +38,7 @@ describe('InspectorPanel', () => {
       <InspectorPanel visible onClose={jest.fn()}>
         <Text>Inspector content</Text>
       </InspectorPanel>,
-      { wrapper: ThemeProvider }
+      { wrapper: Wrapper }
     );
     expect(screen.getByText('Inspector content')).toBeTruthy();
   });
@@ -39,7 +49,7 @@ describe('InspectorPanel', () => {
       <InspectorPanel visible onClose={onClose}>
         <Text>Content</Text>
       </InspectorPanel>,
-      { wrapper: ThemeProvider }
+      { wrapper: Wrapper }
     );
     fireEvent.press(screen.getByTestId('inspector-backdrop'));
     expect(onClose).toHaveBeenCalled();

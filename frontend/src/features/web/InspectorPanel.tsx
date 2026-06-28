@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef } from 'react';
 import { Animated, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useAppLanguage } from '../../i18n';
 import { Icon } from '../../ui';
 
 interface InspectorPanelProps {
@@ -14,6 +15,7 @@ interface InspectorPanelProps {
 export function InspectorPanel({ visible, onClose, children, title }: InspectorPanelProps) {
   const { colors, spacing, shadows } = useTheme();
   const reduced = useReducedMotion();
+  const { t } = useAppLanguage();
   const translateX = useRef(new Animated.Value(300)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -86,7 +88,7 @@ export function InspectorPanel({ visible, onClose, children, title }: InspectorP
               padding: spacing.sm,
             }}
             accessibilityRole="button"
-            accessibilityLabel="Close inspector"
+            accessibilityLabel={t('inspector.close')}
           >
             <Icon name="close" size="md" />
           </Pressable>

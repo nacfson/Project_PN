@@ -1,7 +1,17 @@
+import { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Platform } from 'react-native';
+import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import { CommandDock } from './CommandDock';
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <AppLanguageProvider>
+      <ThemeProvider>{children}</ThemeProvider>
+    </AppLanguageProvider>
+  );
+}
 
 const mockNavigate = jest.fn();
 let mockPendingCount = 0;
@@ -40,32 +50,20 @@ describe('CommandDock', () => {
   });
 
   it('renders collapsed dock with only the first item', async () => {
-    await render(
-      <ThemeProvider>
-        <CommandDock />
-      </ThemeProvider>
-    );
+    await render(<CommandDock />, { wrapper: Wrapper });
     // Collapsed: only the first item (add) is rendered
     expect(screen.getByTestId('dock-add')).toBeTruthy();
     expect(screen.queryByTestId('dock-practice')).toBeNull();
   });
 
   it('navigates to Add screen on press', async () => {
-    await render(
-      <ThemeProvider>
-        <CommandDock />
-      </ThemeProvider>
-    );
+    await render(<CommandDock />, { wrapper: Wrapper });
     await fireEvent.press(screen.getByTestId('dock-add'));
     expect(mockNavigate).toHaveBeenCalledWith('Add');
   });
 
   it('navigates to Practice screen on press', async () => {
-    await render(
-      <ThemeProvider>
-        <CommandDock />
-      </ThemeProvider>
-    );
+    await render(<CommandDock />, { wrapper: Wrapper });
     // Simulate expansion to reveal other items
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
     await fireEvent.press(screen.getByTestId('dock-practice'));
@@ -73,22 +71,14 @@ describe('CommandDock', () => {
   });
 
   it('navigates to Words (Search) screen on press', async () => {
-    await render(
-      <ThemeProvider>
-        <CommandDock />
-      </ThemeProvider>
-    );
+    await render(<CommandDock />, { wrapper: Wrapper });
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
     await fireEvent.press(screen.getByTestId('dock-search'));
     expect(mockNavigate).toHaveBeenCalledWith('Words');
   });
 
   it('toggles theme on Theme button press', async () => {
-    await render(
-      <ThemeProvider>
-        <CommandDock />
-      </ThemeProvider>
-    );
+    await render(<CommandDock />, { wrapper: Wrapper });
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
     await fireEvent.press(screen.getByTestId('dock-theme'));
     // ThemeProvider defaults to light mode, so toggling is a local state change;
@@ -99,11 +89,7 @@ describe('CommandDock', () => {
   it('shows pending count badge when pendingCount > 0', async () => {
     mockPendingCount = 3;
 
-    await render(
-      <ThemeProvider>
-        <CommandDock />
-      </ThemeProvider>
-    );
+    await render(<CommandDock />, { wrapper: Wrapper });
 
     // Expand to show labels
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');

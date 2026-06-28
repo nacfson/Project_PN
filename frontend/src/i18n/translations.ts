@@ -291,6 +291,14 @@ export const en = {
   'onboarding.next': 'Next',
   'onboarding.getStarted': 'Get started',
   'onboarding.skip': 'Skip',
+
+  'commandDock.addWord': 'Add word',
+  'commandDock.review': 'Review',
+  'commandDock.search': 'Search',
+  'commandDock.theme': 'Theme',
+  'inspector.close': 'Close inspector',
+  'contextualCommandBar.selected': '{count} selected',
+  'deckCanvas.newDeck': 'New deck',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -587,4 +595,12 @@ export const ko: Record<TranslationKey, string> = {
   'onboarding.next': '다음',
   'onboarding.getStarted': '시작하기',
   'onboarding.skip': '건너뛰기',
+
+  'commandDock.addWord': '단어 추가',
+  'commandDock.review': '복습',
+  'commandDock.search': '검색',
+  'commandDock.theme': '테마',
+  'inspector.close': '검사기 닫기',
+  'contextualCommandBar.selected': '{count}개 선택됨',
+  'deckCanvas.newDeck': '새 덱',
 };

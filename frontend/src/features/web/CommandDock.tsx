@@ -6,16 +6,17 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAddQueue } from '../../hooks/useAddQueue';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useAppLanguage } from '../../i18n';
 import { Icon, Text } from '../../ui';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList>;
 
 const DOCK_ITEMS = [
-  { id: 'add', icon: 'add', label: 'Add word', testID: 'dock-add', action: 'navigateAdd' as const },
-  { id: 'practice', icon: 'school', label: 'Review', testID: 'dock-practice', action: 'navigatePractice' as const },
-  { id: 'search', icon: 'search', label: 'Search', testID: 'dock-search', action: 'navigateWords' as const },
-  { id: 'theme', icon: 'contrast', label: 'Theme', testID: 'dock-theme', action: 'toggleTheme' as const },
+  { id: 'add', icon: 'add', labelKey: 'commandDock.addWord' as const, testID: 'dock-add', action: 'navigateAdd' as const },
+  { id: 'practice', icon: 'school', labelKey: 'commandDock.review' as const, testID: 'dock-practice', action: 'navigatePractice' as const },
+  { id: 'search', icon: 'search', labelKey: 'commandDock.search' as const, testID: 'dock-search', action: 'navigateWords' as const },
+  { id: 'theme', icon: 'contrast', labelKey: 'commandDock.theme' as const, testID: 'dock-theme', action: 'toggleTheme' as const },
 ];
 
 export function CommandDock() {
@@ -25,6 +26,7 @@ export function CommandDock() {
   const navigation = useNavigation<NavigationProp>();
   const { pendingCount } = useAddQueue();
   const reducedMotion = useReducedMotion();
+  const { t } = useAppLanguage();
   const [expanded, setExpanded] = useState(false);
 
   // When reduced motion is preferred, keep the dock permanently expanded
@@ -81,12 +83,12 @@ export function CommandDock() {
           onHoverIn={() => { if (!reducedMotion) setExpanded(true); }}
           onHoverOut={() => { if (!reducedMotion) setExpanded(false); }}
           accessibilityRole="button"
-          accessibilityLabel={item.label}
+          accessibilityLabel={t(item.labelKey)}
         >
           <Icon name={item.icon as never} size="md" color={colors.primary} />
           {isExpanded ? (
             <Text variant="label" color="primary">
-              {item.label}
+              {t(item.labelKey)}
               {item.id === 'add' && pendingCount > 0 ? ` (${pendingCount})` : ''}
             </Text>
           ) : null}

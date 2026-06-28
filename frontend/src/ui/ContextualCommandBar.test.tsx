@@ -1,6 +1,16 @@
+import { ReactNode } from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
+import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { ContextualCommandBar } from './ContextualCommandBar';
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <AppLanguageProvider>
+      <ThemeProvider>{children}</ThemeProvider>
+    </AppLanguageProvider>
+  );
+}
 
 describe('ContextualCommandBar', () => {
   it('renders actions and calls onClear', async () => {
@@ -12,7 +22,7 @@ describe('ContextualCommandBar', () => {
         onClear={onClear}
         actions={[{ id: 'rename', label: 'Rename', icon: 'create-outline', onPress: onRename }]}
       />,
-      { wrapper: ThemeProvider },
+      { wrapper: Wrapper },
     );
     const renameButton = screen.getByText('Rename');
     await act(async () => {
@@ -29,7 +39,7 @@ describe('ContextualCommandBar', () => {
   it('renders null when selectedCount is 0', async () => {
     const screen = await render(
       <ContextualCommandBar selectedCount={0} onClear={jest.fn()} actions={[]} />,
-      { wrapper: ThemeProvider },
+      { wrapper: Wrapper },
     );
     expect(screen.queryByText(/selected/)).toBeNull();
   });
@@ -42,7 +52,7 @@ describe('ContextualCommandBar', () => {
         onClear={jest.fn()}
         actions={[{ id: 'del', label: 'Delete', icon: 'trash-outline', onPress, disabled: true }]}
       />,
-      { wrapper: ThemeProvider },
+      { wrapper: Wrapper },
     );
     const deleteButton = screen.getByText('Delete');
     await act(async () => {

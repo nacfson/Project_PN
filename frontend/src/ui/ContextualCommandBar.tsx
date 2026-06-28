@@ -1,4 +1,5 @@
 import { Pressable, View } from 'react-native';
+import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon, Text } from './';
 
@@ -18,6 +19,7 @@ interface ContextualCommandBarProps {
 
 export function ContextualCommandBar({ selectedCount, actions, onClear }: ContextualCommandBarProps) {
   const { colors, spacing, radii, shadows } = useTheme();
+  const { t } = useAppLanguage();
 
   if (selectedCount === 0) return null;
 
@@ -39,7 +41,7 @@ export function ContextualCommandBar({ selectedCount, actions, onClear }: Contex
       }}
     >
       <Text variant="label" color="inverse" style={{ marginRight: spacing.md }}>
-        {selectedCount} selected
+        {t('contextualCommandBar.selected', { count: selectedCount })}
       </Text>
       <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm }}>
         {actions.map((action) => (

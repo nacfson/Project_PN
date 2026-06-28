@@ -78,7 +78,7 @@ export function DeckCanvas({ decks, selectedId, onSelect, onCreate, onEdit, onIn
         >
           <Icon name="add-circle" size="lg" color={colors.primary} />
           <Text variant="label" color="primary">
-            {t('words.createDeck')}
+            {t('deckCanvas.newDeck')}
           </Text>
         </View>
       </Pressable>
