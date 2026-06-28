@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef } from 'react';
-import { Animated, Modal, Pressable, Text, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Icon } from '../../ui';
@@ -12,7 +12,7 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ visible, onClose, children, title }: InspectorPanelProps) {
-  const { colors, spacing, radii, shadows } = useTheme();
+  const { colors, spacing, shadows } = useTheme();
   const reduced = useReducedMotion();
   const translateX = useRef(new Animated.Value(300)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -32,12 +32,21 @@ export function InspectorPanel({ visible, onClose, children, title }: InspectorP
     ]).start();
   }, [visible, reduced, translateX, opacity]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  if (Platform.OS !== 'web') return null;
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
-        <Pressable
-          testID="inspector-backdrop"
-          onPress={onClose}
+        <Animated.View
           style={{
             position: 'absolute',
             left: 0,
@@ -47,7 +56,13 @@ export function InspectorPanel({ visible, onClose, children, title }: InspectorP
             backgroundColor: 'rgba(0,0,0,0.25)',
             opacity,
           }}
-        />
+        >
+          <Pressable
+            testID="inspector-backdrop"
+            onPress={onClose}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
         <Animated.View
           style={{
             width: 360,
