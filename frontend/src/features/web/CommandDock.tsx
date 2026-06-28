@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAddQueue } from '../../hooks/useAddQueue';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Icon, Text } from '../../ui';
 import type { MainTabParamList } from '../../navigation/MainTabs';
@@ -22,7 +24,11 @@ export function CommandDock() {
   const { colors, spacing, radii, mode, setMode } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { pendingCount } = useAddQueue();
+  const reducedMotion = useReducedMotion();
   const [expanded, setExpanded] = useState(false);
+
+  // When reduced motion is preferred, keep the dock permanently expanded
+  const isExpanded = reducedMotion || expanded;
 
   const handleAction = (action: (typeof DOCK_ITEMS)[number]['action']) => {
     switch (action) {
@@ -41,8 +47,8 @@ export function CommandDock() {
     }
   };
 
-  const dockStyle = {
-    position: 'fixed' as const,
+  const dockStyle: ViewStyle = {
+    position: 'fixed' as any,
     right: 20,
     bottom: 100,
     zIndex: 100,
@@ -56,27 +62,29 @@ export function CommandDock() {
   };
 
   return (
-    <View style={dockStyle as any}>
-      {(expanded ? DOCK_ITEMS : DOCK_ITEMS.slice(0, 1)).map((item) => (
+    <View style={dockStyle}>
+      {(isExpanded ? DOCK_ITEMS : DOCK_ITEMS.slice(0, 1)).map((item) => (
         <Pressable
           key={item.id}
           testID={item.testID}
           onPress={() => handleAction(item.action)}
-          style={(({ hovered }: any) => ({
+          style={(state): ViewStyle => ({
             flexDirection: 'row',
             alignItems: 'center',
             gap: spacing.sm,
             padding: spacing.md,
             borderRadius: radii.full,
-            backgroundColor: hovered ? colors.primaryContainer : 'transparent',
-          })) as any}
-          onHoverIn={() => setExpanded(true)}
-          onHoverOut={() => setExpanded(false)}
+            backgroundColor: (state as { hovered?: boolean }).hovered
+              ? colors.primaryContainer
+              : 'transparent',
+          })}
+          onHoverIn={() => { if (!reducedMotion) setExpanded(true); }}
+          onHoverOut={() => { if (!reducedMotion) setExpanded(false); }}
           accessibilityRole="button"
           accessibilityLabel={item.label}
         >
           <Icon name={item.icon as never} size="md" color={colors.primary} />
-          {expanded ? (
+          {isExpanded ? (
             <Text variant="label" color="primary">
               {item.label}
               {item.id === 'add' && pendingCount > 0 ? ` (${pendingCount})` : ''}

@@ -4,24 +4,39 @@ import { ThemeProvider } from '../../theme/ThemeProvider';
 import { CommandDock } from './CommandDock';
 
 const mockNavigate = jest.fn();
+let mockPendingCount = 0;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
 }));
 
 jest.mock('../../hooks/useAddQueue', () => ({
-  useAddQueue: () => ({ pendingCount: 0 }),
+  useAddQueue: () => ({ pendingCount: mockPendingCount }),
 }));
 
-jest.mock('react-native', () => {
-  const RN = jest.requireActual('react-native');
-  RN.Platform.OS = 'web';
-  return RN;
-});
+jest.mock('../../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => false,
+}));
+
+// Note: Platform.OS is a value property (not a getter) in the jest-expo RN mock.
+// We use Object.defineProperty to safely override and restore it per test.
 
 describe('CommandDock', () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(Platform, 'OS');
+
   beforeEach(() => {
+    Object.defineProperty(Platform, 'OS', {
+      get: () => 'web',
+      configurable: true,
+    });
     mockNavigate.mockClear();
+    mockPendingCount = 0;
+  });
+
+  afterEach(() => {
+    if (originalDescriptor) {
+      Object.defineProperty(Platform, 'OS', originalDescriptor);
+    }
   });
 
   it('renders collapsed dock with only the first item', async () => {
@@ -41,7 +56,57 @@ describe('CommandDock', () => {
         <CommandDock />
       </ThemeProvider>
     );
-    fireEvent.press(screen.getByTestId('dock-add'));
+    await fireEvent.press(screen.getByTestId('dock-add'));
     expect(mockNavigate).toHaveBeenCalledWith('Add');
+  });
+
+  it('navigates to Practice screen on press', async () => {
+    await render(
+      <ThemeProvider>
+        <CommandDock />
+      </ThemeProvider>
+    );
+    // Simulate expansion to reveal other items
+    await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
+    await fireEvent.press(screen.getByTestId('dock-practice'));
+    expect(mockNavigate).toHaveBeenCalledWith('Practice');
+  });
+
+  it('navigates to Words (Search) screen on press', async () => {
+    await render(
+      <ThemeProvider>
+        <CommandDock />
+      </ThemeProvider>
+    );
+    await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
+    await fireEvent.press(screen.getByTestId('dock-search'));
+    expect(mockNavigate).toHaveBeenCalledWith('Words');
+  });
+
+  it('toggles theme on Theme button press', async () => {
+    await render(
+      <ThemeProvider>
+        <CommandDock />
+      </ThemeProvider>
+    );
+    await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
+    await fireEvent.press(screen.getByTestId('dock-theme'));
+    // ThemeProvider defaults to light mode, so toggling is a local state change;
+    // no navigation call is made
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('shows pending count badge when pendingCount > 0', async () => {
+    mockPendingCount = 3;
+
+    await render(
+      <ThemeProvider>
+        <CommandDock />
+      </ThemeProvider>
+    );
+
+    // Expand to show labels
+    await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
+    expect(screen.getByText(/3/)).toBeTruthy();
   });
 });
