@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,13 +16,16 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import type { Deck, LearningItemListItem } from '../../types';
-import { Badge, Card, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
+import { Badge, Button, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
 import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
 import { createDeck, deleteDeck, listDecks, renameDeck } from '../../api/decks';
-import { DeckList } from './DeckList';
+import { DeckCanvas } from './DeckCanvas';
 import { DeckFormModal } from './DeckFormModal';
+import { InspectorPanel } from '../web/InspectorPanel';
+import { ContextualCommandBar } from '../../ui/ContextualCommandBar';
+import { CinematicCard } from '../../ui/CinematicCard';
 import type { WordsStackParamList } from '../../navigation/WordsStack';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
@@ -61,6 +66,9 @@ export function MyWordsScreen() {
   const [formDeck, setFormDeck] = useState<Deck | undefined>(undefined);
   const [formLoading, setFormLoading] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
+
+  const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
+  const [inspectorDeck, setInspectorDeck] = useState<Deck | null>(null);
 
   const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } =
     useActiveTargetLanguage();
@@ -165,6 +173,44 @@ export function MyWordsScreen() {
     setOperationError(null);
   }, []);
 
+  const toggleDeckSelection = (deckId: string) => {
+    setSelectedDeckIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(deckId)) next.delete(deckId);
+      else next.add(deckId);
+      return next;
+    });
+  };
+
+  const clearDeckSelection = () => setSelectedDeckIds(new Set());
+
+  const handleSetDefault = async () => {
+    // Future backend endpoint; for now no-op with console warning.
+    console.warn('Set default deck not yet implemented');
+  };
+
+  const handleBatchRename = () => {
+    const first = decks.find((d) => selectedDeckIds.has(d.id));
+    if (first) {
+      setFormDeck(first);
+      setFormMode('rename');
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    const toDelete = decks.filter((d) => selectedDeckIds.has(d.id) && !d.is_default);
+    for (const deck of toDelete) {
+      try {
+        await deleteDeck(deck.id);
+      } catch (err) {
+        console.error('Batch delete failed for', deck.id, err);
+      }
+    }
+    setSelectedDeckIds(new Set());
+    await loadDecks();
+    await refresh();
+  };
+
   const hasSearch = q.trim().length > 0;
 
   const filteredItems = useMemo(() => {
@@ -181,9 +227,16 @@ export function MyWordsScreen() {
 
   const renderItem: ListRenderItem<LearningItemListItem> = useCallback(
     ({ item }) => (
-      <Card
-        style={{ marginBottom: spacing.md }}
+      <CinematicCard
         onPress={() => navigation.navigate('WordDetail', { item })}
+        style={{ marginBottom: spacing.md }}
+        revealActions={
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable onPress={() => {}} hitSlop={8} accessibilityRole="button">
+              <Icon name="folder-open-outline" size="md" color={colors.primary} />
+            </Pressable>
+          </View>
+        }
       >
         <View style={styles.row}>
           <View style={{ flex: 1, gap: spacing.xs }}>
@@ -208,7 +261,7 @@ export function MyWordsScreen() {
           <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant="default" />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
         </View>
-      </Card>
+      </CinematicCard>
     ),
     [spacing.sm, spacing.md, spacing.xs, t, navigation],
   );
@@ -296,12 +349,21 @@ export function MyWordsScreen() {
         {languageLoading || decksLoading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
-          <DeckList
+          <DeckCanvas
             decks={decks}
             selectedId={selectedDeckId}
-            onSelect={setSelectedDeckId}
+            onSelect={(id) => {
+              if (Platform.OS === 'web') {
+                toggleDeckSelection(id);
+              }
+              setSelectedDeckId(id);
+            }}
             onCreate={openCreate}
-            onEdit={openEdit}
+            onEdit={(deck) => {
+              setSelectedDeckId(deck.id);
+              openEdit(deck);
+            }}
+            onInspect={(deck) => setInspectorDeck(deck)}
           />
         )}
 
@@ -366,6 +428,64 @@ export function MyWordsScreen() {
         onDelete={formMode === 'rename' && formDeck && !formDeck.is_default ? handleDelete : undefined}
         isLoading={formLoading}
         error={operationError ?? undefined}
+      />
+
+      <InspectorPanel
+        visible={inspectorDeck !== null}
+        onClose={() => setInspectorDeck(null)}
+        title={inspectorDeck?.name}
+      >
+        <View style={{ gap: spacing.md }}>
+          <Text variant="caption" color="muted">
+            {t('add.deckCardCount', { count: inspectorDeck?.item_count ?? 0 })}
+          </Text>
+          <Button
+            label={t('words.renameDeck')}
+            variant="tonal"
+            onPress={() => {
+              if (inspectorDeck) openEdit(inspectorDeck);
+              setInspectorDeck(null);
+            }}
+          />
+          {inspectorDeck && !inspectorDeck.is_default && (
+            <Button
+              label={t('words.deleteDeck')}
+              variant="outline"
+              onPress={async () => {
+                try {
+                  await deleteDeck(inspectorDeck.id);
+                  setSelectedDeckId(null);
+                  await loadDecks();
+                  await refresh();
+                } catch (err) {
+                  console.error(err);
+                }
+                setInspectorDeck(null);
+              }}
+            />
+          )}
+        </View>
+      </InspectorPanel>
+
+      <ContextualCommandBar
+        selectedCount={selectedDeckIds.size}
+        onClear={clearDeckSelection}
+        actions={[
+          {
+            id: 'rename',
+            label: t('words.renameDeck'),
+            icon: 'create-outline',
+            onPress: handleBatchRename,
+            disabled: selectedDeckIds.size !== 1,
+          },
+          {
+            id: 'delete',
+            label: t('words.deleteDeck'),
+            icon: 'trash-outline',
+            onPress: handleBatchDelete,
+            disabled: Array.from(selectedDeckIds).some((id) => decks.find((d) => d.id === id)?.is_default),
+          },
+        ]}
       />
     </Screen>
   );
