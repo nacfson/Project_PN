@@ -5,6 +5,7 @@ export { Card } from './Card';
 export { Chip } from './Chip';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
+export { HoverReveal } from './HoverReveal';
 export { SegmentedControl } from './SegmentedControl';
 export { Icon } from './Icon';
 export { Input } from './Input';
