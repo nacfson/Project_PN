@@ -6,6 +6,7 @@ import { SettingsStack } from './SettingsStack';
 import { WordsStack } from './WordsStack';
 import { HomeScreen } from '../features/learn/HomeScreen';
 import { PracticeScreen } from '../features/practice/PracticeScreen';
+import { CommandDock } from '../features/web/CommandDock';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon } from '../ui';
@@ -95,6 +96,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           {() => <SettingsStack onLogout={onLogout} />}
         </Tab.Screen>
       </Tab.Navigator>
+      <CommandDock />
     </View>
   );
 }
