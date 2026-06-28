@@ -62,7 +62,7 @@ export function DeckCanvas({ decks, selectedId, onSelect, onCreate, onEdit, onIn
           </View>
         );
       })}
-      <Pressable onPress={onCreate} style={{ width: '46%', minWidth: 140 }}>
+      <Pressable onPress={onCreate} accessibilityRole="button" style={{ width: '46%', minWidth: 140 }}>
         <View
           style={{
             borderRadius: radii.xxl,

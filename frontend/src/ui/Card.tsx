@@ -76,7 +76,7 @@ export function Card({
     </View>
   );
 
-  if (!onPress) {
+  if (!onPress && !hoverElevation && !hoverScale) {
     return cardBody;
   }
 
