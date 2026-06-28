@@ -21,6 +21,7 @@ export interface AddJob {
   id: string;
   text: string;
   pos: PosFilter;
+  deckId?: string;
   status: AddJobStatus;
   error?: string;
   wordSenseId?: string;
@@ -30,8 +31,8 @@ interface AddQueueContextValue {
   jobs: AddJob[];
   pendingCount: number;
   dismissedIds: Set<string>;
-  enqueue: (text: string, pos: PosFilter) => void;
-  enqueueMany: (texts: string[], pos: PosFilter) => void;
+  enqueue: (text: string, pos: PosFilter, deckId?: string) => void;
+  enqueueMany: (texts: string[], pos: PosFilter, deckId?: string) => void;
   statusOf: (text: string) => WordStatus;
   dismiss: (id: string) => void;
 }
@@ -62,11 +63,9 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   jobsRef.current = jobs;
 
   const updateJob = useCallback((id: string, patch: Partial<AddJob>) => {
-    setJobs((prev) => {
-      const next = prev.map((job) => (job.id === id ? { ...job, ...patch } : job));
-      jobsRef.current = next;
-      return next;
-    });
+    const next = jobsRef.current.map((job) => (job.id === id ? { ...job, ...patch } : job));
+    jobsRef.current = next;
+    setJobs(next);
   }, []);
 
   const runWorker = useCallback(async () => {
@@ -95,7 +94,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          await addLearningItem(match.word_sense_id, DEFAULT_DEFINITION_LANGUAGE_CODE);
+          await addLearningItem(match.word_sense_id, DEFAULT_DEFINITION_LANGUAGE_CODE, next.deckId);
           updateJob(next.id, { status: 'done', wordSenseId: match.word_sense_id });
         } catch (err) {
           updateJob(next.id, { status: 'error', error: messageOf(err, t('common.somethingWrong')) });
@@ -114,7 +113,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   }, [runWorker]);
 
   const enqueue = useCallback(
-    (text: string, pos: PosFilter) => {
+    (text: string, pos: PosFilter, deckId?: string) => {
       const trimmed = text.trim();
       if (trimmed.length === 0) {
         return;
@@ -124,6 +123,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
         id: nextJobId(),
         text: trimmed,
         pos,
+        deckId,
         status: 'queued',
       };
 
@@ -138,7 +138,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   );
 
   const enqueueMany = useCallback(
-    (texts: string[], pos: PosFilter) => {
+    (texts: string[], pos: PosFilter, deckId?: string) => {
       const trimmed = texts.map((text) => text.trim()).filter((text) => text.length > 0);
       if (trimmed.length === 0) {
         return;
@@ -148,6 +148,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
         id: nextJobId(),
         text,
         pos,
+        deckId,
         status: 'queued' as const,
       }));
 

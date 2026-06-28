@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { PosSelector } from '../components/PosSelector';
-import { TappablePassage } from '../components/TappablePassage';
-import { WordChip } from '../components/WordChip';
-import { useAddQueue } from '../hooks/useAddQueue';
-import { recordCapturedWords } from '../storage/captureHistory';
-import { useAppLanguage } from '../i18n';
-import { useTheme } from '../theme/ThemeProvider';
-import { Button, Card, Input, Text } from '../ui';
-import type { PosFilter } from '../types';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { PosSelector } from '../../components/PosSelector';
+import { TappablePassage } from '../../components/TappablePassage';
+import { WordChip } from '../../components/WordChip';
+import { useAddQueue } from '../../hooks/useAddQueue';
+import { recordCapturedWords } from '../../storage/captureHistory';
+import { useAppLanguage } from '../../i18n';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Button, Card, Input, Text } from '../../ui';
+import type { PosFilter } from '../../types';
 
 const UNDO_DURATION_MS = 3000;
 
-export function CaptureScreen() {
+export function CaptureSection({ selectedDeckId }: { selectedDeckId: string }) {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [passage, setPassage] = useState('');
@@ -61,14 +61,16 @@ export function CaptureScreen() {
       return;
     }
     void recordCapturedWords(words);
-    enqueueMany(words, pos);
+    enqueueMany(words, pos, selectedDeckId);
   };
 
   const selectedList = Array.from(selected);
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
+      <View style={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
+        <Text variant="title">{t('add.fromPassage')}</Text>
+
         <View style={{ gap: spacing.sm }}>
           <View style={styles.labelRow}>
             <Text variant="label" color="muted">
@@ -139,7 +141,7 @@ export function CaptureScreen() {
           disabled={selected.size === 0}
           style={{ marginTop: spacing.sm }}
         />
-      </ScrollView>
+      </View>
     </View>
   );
 }

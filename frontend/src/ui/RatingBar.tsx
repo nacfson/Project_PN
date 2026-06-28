@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { useAppLanguage } from '../i18n';
 import { RatingButton } from './RatingButton';
+import { StaggeredList } from './StaggeredList';
 import type { Rating } from './RatingButton';
 
 interface RatingBarProps {
@@ -46,20 +47,22 @@ export function RatingBar({ intervals, onSelect }: RatingBarProps) {
 
   return (
     <View style={styles.container}>
-      {ratings.map((rating) => (
-        <RatingButton
-          key={rating}
-          option={{
-            rating,
-            label: labels[rating],
-            interval: activeIntervals[rating],
-            color: ratingColors[rating],
-            backgroundColor: ratingBgColors[rating],
-          }}
-          onPress={onSelect}
-          style={styles.button}
-        />
-      ))}
+      <StaggeredList delayMs={40} style={{ flexDirection: 'row', gap: 8 }}>
+        {ratings.map((rating) => (
+          <RatingButton
+            key={rating}
+            option={{
+              rating,
+              label: labels[rating],
+              interval: activeIntervals[rating],
+              color: ratingColors[rating],
+              backgroundColor: ratingBgColors[rating],
+            }}
+            onPress={onSelect}
+            style={styles.button}
+          />
+        ))}
+      </StaggeredList>
     </View>
   );
 }

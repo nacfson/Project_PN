@@ -80,3 +80,4 @@ backend/.tmp/
 
 # Git worktrees
 .worktrees/
+.superpowers/

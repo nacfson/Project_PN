@@ -1,6 +1,8 @@
 import type { Deck } from '../types';
 import { deleteJson, getJson, patchJson, postJson } from './client';
 
+export type { Deck } from '../types';
+
 export function listDecks(languageCode?: string): Promise<Deck[]> {
   const searchParams = new URLSearchParams();
   if (languageCode) {

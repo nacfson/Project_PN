@@ -14,7 +14,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, Text } from '../../ui';
+import { AnimatedProgressBar, Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, StaggeredList, Text } from '../../ui';
 import type { Rating } from '../../ui';
 import { isTauri } from '../../utils/platform';
 import {
@@ -613,17 +613,7 @@ export function PracticeScreen() {
               {cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant="info" />}
               {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
             </View>
-            <View style={[styles.progressBarContainer, { backgroundColor: colors.surfaceContainerHighest }]}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${progressPercent}%`,
-                    backgroundColor: colors.primary,
-                  },
-                ]}
-              />
-            </View>
+            <AnimatedProgressBar percent={progressPercent} height={6} />
           </View>
 
           <Flashcard
@@ -644,10 +634,12 @@ export function PracticeScreen() {
               <Text style={{ textAlign: 'center' }} bold>
                 {t('practice.rateRecall')}
               </Text>
-              <RatingBar
-                intervals={currentItem.preview_intervals}
-                onSelect={selectGrade}
-              />
+              <StaggeredList delayMs={40}>
+                <RatingBar
+                  intervals={currentItem.preview_intervals}
+                  onSelect={selectGrade}
+                />
+              </StaggeredList>
               {sessionMode === 'repeat' && (
                 <Button
                   label={t('practice.finishRepeat')}
