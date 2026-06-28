@@ -17,7 +17,7 @@ import { me } from '../../api/auth';
 import type { UserLanguage } from '../../types/auth';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
-import { Button, Card, Icon, LoadingState, Screen, Text } from '../../ui';
+import { Button, Card, Icon, LoadingState, Screen, Text, StaggeredList } from '../../ui';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 
 export function LanguagePairsScreen() {
@@ -128,60 +128,62 @@ export function LanguagePairsScreen() {
               </Text>
             </Card>
           ) : (
-            pairs.map((pair) => (
-              <Card key={pair.target_language} variant="filled">
-                <View style={styles.row}>
-                  <Pressable
-                    onPress={() => handleSetActive(pair.target_language)}
-                    style={styles.info}
-                    disabled={refreshing}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                      <Text variant="body" bold>
-                        {languageLabel(pair.target_language)}
-                      </Text>
-                      <Icon name="arrow-forward" size="sm" color={colors.onSurfaceVariant} />
-                      <Text variant="body" bold>
-                        {languageLabel(pair.display_language)}
-                      </Text>
-                    </View>
-                    {pair.is_active && (
-                      <View
-                        style={[
-                          styles.activeBadge,
-                          { backgroundColor: colors.primaryContainer },
-                        ]}
-                      >
-                        <Text variant="caption" color="primary">{t('settings.active')}</Text>
+            <StaggeredList>
+              {pairs.map((pair) => (
+                <Card key={pair.target_language} variant="filled">
+                  <View style={styles.row}>
+                    <Pressable
+                      onPress={() => handleSetActive(pair.target_language)}
+                      style={styles.info}
+                      disabled={refreshing}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                        <Text variant="body" bold>
+                          {languageLabel(pair.target_language)}
+                        </Text>
+                        <Icon name="arrow-forward" size="sm" color={colors.onSurfaceVariant} />
+                        <Text variant="body" bold>
+                          {languageLabel(pair.display_language)}
+                        </Text>
                       </View>
-                    )}
-                  </Pressable>
+                      {pair.is_active && (
+                        <View
+                          style={[
+                            styles.activeBadge,
+                            { backgroundColor: colors.primaryContainer },
+                          ]}
+                        >
+                          <Text variant="caption" color="primary">{t('settings.active')}</Text>
+                        </View>
+                      )}
+                    </Pressable>
 
-                  <View style={styles.actions}>
-                    <Pressable
-                      onPress={() => handleEdit(pair)}
-                      style={({ pressed }) => [
-                        styles.actionButton,
-                        { opacity: pressed ? 0.6 : 1 },
-                      ]}
-                      disabled={refreshing}
-                    >
-                      <Icon name="create-outline" size="md" color={colors.primary} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleRemove(pair)}
-                      style={({ pressed }) => [
-                        styles.actionButton,
-                        { opacity: pressed ? 0.6 : 1 },
-                      ]}
-                      disabled={refreshing}
-                    >
-                      <Icon name="trash-outline" size="md" color={colors.error} />
-                    </Pressable>
+                    <View style={styles.actions}>
+                      <Pressable
+                        onPress={() => handleEdit(pair)}
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          { opacity: pressed ? 0.6 : 1 },
+                        ]}
+                        disabled={refreshing}
+                      >
+                        <Icon name="create-outline" size="md" color={colors.primary} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleRemove(pair)}
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          { opacity: pressed ? 0.6 : 1 },
+                        ]}
+                        disabled={refreshing}
+                      >
+                        <Icon name="trash-outline" size="md" color={colors.error} />
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
-              </Card>
-            ))
+                </Card>
+              ))}
+            </StaggeredList>
           )}
         </View>
 

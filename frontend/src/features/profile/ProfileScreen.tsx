@@ -9,7 +9,8 @@ import { type AppLanguage, useAppLanguage } from '../../i18n';
 import type { MeResponse } from '../../types/auth';
 import type { ReviewSettings, StreakSettings } from '../../types';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Card, Icon, Input, LoadingState, Screen, Switch, Text } from '../../ui';
+import { Button, Icon, Input, LoadingState, Screen, Switch, Text, HoverReveal } from '../../ui';
+import { CinematicCard } from '../../ui/CinematicCard';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 
 interface ProfileScreenProps {
@@ -32,16 +33,21 @@ function SettingRow({
   trailing?: React.ReactNode;
 }) {
   const { colors, spacing } = useTheme();
+  const [hovered, setHovered] = useState(false);
 
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={({ pressed }) => [
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={[
         styles.row,
         {
           paddingVertical: spacing.md,
-          opacity: pressed ? 0.7 : 1,
+          opacity: onPress ? 0.85 : 1,
+          backgroundColor: hovered ? colors.surfaceContainer : 'transparent',
+          borderRadius: 12,
         },
       ]}
     >
@@ -58,7 +64,11 @@ function SettingRow({
           </Text>
         ) : null}
       </View>
-      {trailing || (onPress && <Icon name="chevron-forward" size="sm" />)}
+      {trailing || (onPress && (
+        <HoverReveal>
+          <Icon name="chevron-forward" size="sm" />
+        </HoverReveal>
+      ))}
     </Pressable>
   );
 }
@@ -229,7 +239,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
       <View style={[styles.content, { paddingVertical: spacing.lg, gap: spacing.lg }]}>
         <Text variant="heading">{t('settings.title')}</Text>
 
-        <Card>
+        <CinematicCard>
           <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
             <Text variant="label" color="muted">
               {t('settings.account')}
@@ -243,9 +253,9 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             value={`${languageLabel(user?.target_language)}${user?.target_language ? ' → ' : ''}${languageLabel(user?.native_language)}`}
             onPress={() => navigation.navigate('LanguagePairs')}
           />
-        </Card>
+        </CinematicCard>
 
-        <Card>
+        <CinematicCard>
           <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
             <Text variant="label" color="muted">
               {t('settings.review')}
@@ -331,9 +341,9 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
               </Text>
             </View>
           )}
-        </Card>
+        </CinematicCard>
 
-        <Card>
+        <CinematicCard>
           <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
             <Text variant="label" color="muted">
               {t('settings.app')}
@@ -369,7 +379,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           <SettingRow icon="help-circle-outline" label={t('settings.help')} />
           <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow icon="information-circle-outline" label={t('settings.about')} />
-        </Card>
+        </CinematicCard>
 
         <Button
           label={t('settings.logout')}
