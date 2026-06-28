@@ -495,14 +495,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  goalTrack: {
-    height: 12,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  goalFill: {
-    height: '100%',
-  },
   masteryBar: {
     flexDirection: 'row',
     overflow: 'hidden',
