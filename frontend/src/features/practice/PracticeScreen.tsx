@@ -14,7 +14,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { AnimatedProgressBar, Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, StaggeredList, Text } from '../../ui';
+import { AnimatedProgressBar, Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, Text } from '../../ui';
 import type { Rating } from '../../ui';
 import { isTauri } from '../../utils/platform';
 import {
@@ -85,8 +85,17 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
   };
 }
 
-function decideCardMode(_item: DueItem): CardMode {
-  return Math.random() < 0.9 ? 'flashcard' : 'typing';
+export function decideCardMode(item: DueItem): CardMode {
+  const flashcardProbabilityByStage: Record<string, number> = {
+    new: 0,
+    learning: 0,
+    recognized: 0.5,
+    recalled: 0.7,
+    usable: 0.85,
+    mastered: 0.95,
+  };
+  const flashcardProbability = flashcardProbabilityByStage[item.learning_stage] ?? 0;
+  return Math.random() < flashcardProbability ? 'flashcard' : 'typing';
 }
 
 export function PracticeScreen() {
@@ -102,6 +111,7 @@ export function PracticeScreen() {
   const [queue, setQueue] = useState<DueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [practiceState, setPracticeState] = useState<'prompt' | 'reveal' | 'grading'>('prompt');
   const [userAnswer, setUserAnswer] = useState('');
   const [responseTimeMs, setResponseTimeMs] = useState<number | null>(null);
   const [ratingScore, setRatingScore] = useState(2.0);
@@ -122,6 +132,7 @@ export function PracticeScreen() {
 
   const toggleFlip = () => {
     setIsFlipped(true);
+    setPracticeState('reveal');
   };
 
   useEffect(() => {
@@ -137,6 +148,7 @@ export function PracticeScreen() {
   const resetCardInteraction = useCallback(() => {
     cardStartedAtRef.current = Date.now();
     setIsFlipped(false);
+    setPracticeState('prompt');
     setUserAnswer('');
     setResponseTimeMs(null);
     setRatingScore(2.0);
@@ -371,6 +383,7 @@ export function PracticeScreen() {
     }
     setResponseTimeMs(Date.now() - cardStartedAtRef.current);
     setIsFlipped(true);
+    setPracticeState('reveal');
   };
 
   if (status === 'loading_due' || status === 'loading_repeat') {
@@ -626,20 +639,38 @@ export function PracticeScreen() {
             userAnswer={userAnswer}
             isPreviouslyFailed={isPreviouslyFailed}
             onFlip={toggleFlip}
-            onRate={selectGrade}
           />
 
-          {isFlipped && (
-            <View style={[styles.gradingPanel, { gap: spacing.md, borderTopColor: colors.outlineVariant }]}>
-              <Text style={{ textAlign: 'center' }} bold>
+          {isFlipped && practiceState === 'reveal' && (
+            <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+              <Button
+                testID="btn-show-grading"
+                label={t('practice.showRatingOptions')}
+                iconRight="arrow-forward"
+                onPress={() => setPracticeState('grading')}
+                style={{ width: '100%' }}
+              />
+            </View>
+          )}
+
+          {isFlipped && practiceState === 'grading' && (
+            <View
+              style={[
+                styles.gradingPanel,
+                {
+                  gap: spacing.md,
+                  borderTopColor: colors.outlineVariant,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+            >
+              <Text variant="caption" color="muted" style={{ textAlign: 'center' }} bold>
                 {t('practice.rateRecall')}
               </Text>
-              <StaggeredList delayMs={40}>
-                <RatingBar
-                  intervals={currentItem.preview_intervals}
-                  onSelect={selectGrade}
-                />
-              </StaggeredList>
+              <RatingBar
+                intervals={currentItem.preview_intervals}
+                onSelect={selectGrade}
+              />
               {sessionMode === 'repeat' && (
                 <Button
                   label={t('practice.finishRepeat')}
@@ -736,8 +767,10 @@ const styles = StyleSheet.create({
   },
   gradingPanel: {
     width: '100%',
-    marginTop: 24,
+    marginTop: 18,
     paddingTop: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
     borderTopWidth: 1,
   },
   saveIndicator: {
