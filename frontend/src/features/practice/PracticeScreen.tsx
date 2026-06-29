@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TextInput,
   View,
+  Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -115,6 +116,9 @@ export function PracticeScreen() {
   const [userAnswer, setUserAnswer] = useState('');
   const [responseTimeMs, setResponseTimeMs] = useState<number | null>(null);
   const [ratingScore, setRatingScore] = useState(2.0);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
 
   const [attempts, setAttempts] = useState<ReviewAttemptParams[]>([]);
   const [xpEarned, setXpEarned] = useState(0);
@@ -276,8 +280,38 @@ export function PracticeScreen() {
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
-    // Defer confirmGrade so the state update is committed.
-    setTimeout(() => confirmGrade(score), 0);
+
+    setShowFeedback(true);
+
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -500,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      confirmGrade(score);
+      setShowFeedback(false);
+      slideAnim.setValue(500);
+
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
   };
 
   const confirmGrade = (overrideScore?: number) => {
@@ -629,17 +663,39 @@ export function PracticeScreen() {
             <AnimatedProgressBar percent={progressPercent} height={6} />
           </View>
 
-          <Flashcard
-            key={currentItem.user_word_sense_id}
-            item={currentItem}
-            example={example}
-            blankedSentence={blankedSentence}
-            isFlipped={isFlipped}
-            cardMode={cardMode}
-            userAnswer={userAnswer}
-            isPreviouslyFailed={isPreviouslyFailed}
-            onFlip={toggleFlip}
-          />
+          <Animated.View style={{ transform: [{ translateX: slideAnim }], opacity: opacityAnim, width: '100%', position: 'relative' }}>
+            <Flashcard
+              key={currentItem.user_word_sense_id}
+              item={currentItem}
+              example={example}
+              blankedSentence={blankedSentence}
+              isFlipped={isFlipped}
+              cardMode={cardMode}
+              userAnswer={userAnswer}
+              isPreviouslyFailed={isPreviouslyFailed}
+              onFlip={toggleFlip}
+            />
+            {showFeedback && (
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    backgroundColor: colors.surfaceContainer,
+                    opacity: 0.95,
+                    borderRadius: 16,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                  },
+                ]}
+              >
+                <Icon name="checkmark-circle-outline" size="xl" color={colors.primary} />
+                <Text variant="title" bold style={{ marginTop: spacing.sm }} color="primary">
+                  {t('practice.saved')}
+                </Text>
+              </View>
+            )}
+          </Animated.View>
 
           {isFlipped && practiceState === 'reveal' && (
             <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
