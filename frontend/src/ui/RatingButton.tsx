@@ -11,7 +11,6 @@ interface RatingOption {
   label: string;
   interval: string;
   color: string;
-  backgroundColor: string;
 }
 
 interface RatingButtonProps {
@@ -29,12 +28,12 @@ export function RatingButton({ option, onPress, style }: RatingButtonProps) {
       style={({ pressed }) => [
         styles.base,
         {
-          backgroundColor: option.backgroundColor,
-          borderColor: option.color,
-          borderRadius: radii.lg,
-          paddingVertical: spacing.md,
-          paddingHorizontal: spacing.sm,
-          opacity: pressed ? 0.85 : 1,
+          backgroundColor: pressed ? colors.surfaceContainerHighest : colors.surfaceContainerLow,
+          borderColor: colors.outlineVariant,
+          borderRadius: radii.md,
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.md,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
         },
         style,
       ]}
@@ -42,12 +41,15 @@ export function RatingButton({ option, onPress, style }: RatingButtonProps) {
       accessibilityRole="button"
     >
       <View style={styles.content}>
-        <Text variant="label" bold style={[styles.label, { color: option.color }]}>
-          {option.label}
-        </Text>
-        <Text variant="caption" style={[styles.interval, { color: colors.onSurfaceVariant }]}>
-          {option.interval}
-        </Text>
+        <View style={[styles.accent, { backgroundColor: option.color }]} />
+        <View style={styles.copy}>
+          <Text variant="label" bold style={[styles.label, { color: colors.onSurface }]}>
+            {option.label}
+          </Text>
+          <Text variant="caption" style={[styles.interval, { color: colors.onSurfaceVariant }]}>
+            {option.interval}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -57,21 +59,31 @@ const styles = StyleSheet.create({
   base: {
     flex: 1,
     borderWidth: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 64,
+    minHeight: 58,
   },
   content: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
+    justifyContent: 'flex-start',
+    gap: 10,
+  },
+  accent: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  copy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
   },
   label: {
-    textAlign: 'center',
+    textAlign: 'left',
     fontSize: 15,
   },
   interval: {
-    textAlign: 'center',
+    textAlign: 'left',
     fontSize: 12,
   },
 });

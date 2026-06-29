@@ -480,6 +480,9 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	if dueItems[0].Examples[0].Sentence != "This is a due example sentence." {
 		t.Fatalf("expected example sentence %q, got %q", "This is a due example sentence.", dueItems[0].Examples[0].Sentence)
 	}
+	if dueItems[0].Examples[0].LocalizedTranslation != nil {
+		t.Fatalf("expected missing example translation to stay nil, got %q", *dueItems[0].Examples[0].LocalizedTranslation)
+	}
 
 	// Test POST /api/reviews/batch
 	payload := map[string]any{

@@ -11,6 +11,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import { parseVerifiedEmailFromLaunchUrl } from './src/utils/authLaunch';
+import { onUnauthorized } from './src/api/client';
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -75,6 +76,14 @@ function AppContent() {
   useEffect(() => {
     void checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    const unsubscribe = onUnauthorized(async () => {
+      await sessionStorage.removeToken();
+      setAuthState('unauthenticated');
+    });
+    return unsubscribe;
+  }, []);
 
   const onAuthenticated = useCallback(() => {
     setVerifiedEmail(null);

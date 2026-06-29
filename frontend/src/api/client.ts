@@ -36,8 +36,23 @@ async function parseResponse(response: Response): Promise<unknown> {
   return text.length > 0 ? (JSON.parse(text) as unknown) : null;
 }
 
+type UnauthorizedCallback = () => void;
+let unauthorizedListener: UnauthorizedCallback | null = null;
+
+export function onUnauthorized(callback: UnauthorizedCallback): () => void {
+  unauthorizedListener = callback;
+  return () => {
+    if (unauthorizedListener === callback) {
+      unauthorizedListener = null;
+    }
+  };
+}
+
 function throwOnError(response: Response, parsed: unknown): void {
   if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedListener?.();
+    }
     const message = (parsed as ErrorBody | null)?.error ?? `Request failed (${response.status})`;
     throw new ApiError(response.status, message);
   }
