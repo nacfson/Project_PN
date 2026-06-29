@@ -105,6 +105,7 @@ export const en = {
   'words.deckCreateFailed': 'Could not create deck.',
   'words.deckRenameFailed': 'Could not rename deck.',
   'words.deckDeleteFailed': 'Could not delete deck.',
+  'words.lastReviewed': 'Reviewed {time}',
 
   'add.title': 'Add Words',
   'add.capture': 'Capture',
@@ -179,7 +180,7 @@ export const en = {
   'practice.revealAnswer': 'Reveal answer',
   'practice.dontKnow': "I don't know",
   'practice.noAnswerGiven': 'No answer given',
-  'practice.rateRecall': 'Rate your memory recall',
+  'practice.rateRecall': 'How did this feel?',
   'practice.pronunciation': 'Pronunciation',
   'practice.definitionLabel': 'Definition',
   'practice.exampleLabel': 'Example',
@@ -410,6 +411,7 @@ export const ko: Record<TranslationKey, string> = {
   'words.deckCreateFailed': '덱을 만들지 못했습니다.',
   'words.deckRenameFailed': '덱 이름을 변경하지 못했습니다.',
   'words.deckDeleteFailed': '덱을 삭제하지 못했습니다.',
+  'words.lastReviewed': '최근 복습: {time}',
 
   'add.title': '단어 추가',
   'add.capture': '캡처',
@@ -484,7 +486,7 @@ export const ko: Record<TranslationKey, string> = {
   'practice.revealAnswer': '정답 보기',
   'practice.dontKnow': '모르겠어요',
   'practice.noAnswerGiven': '입력한 답 없음',
-  'practice.rateRecall': '기억 정도를 평가하세요',
+  'practice.rateRecall': '어느 정도로 느껴졌나요?',
   'practice.pronunciation': '발음',
   'practice.definitionLabel': '정의',
   'practice.exampleLabel': '예문',

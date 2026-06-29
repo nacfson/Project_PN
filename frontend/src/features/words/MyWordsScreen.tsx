@@ -49,9 +49,36 @@ type MyWordsScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MyWordsScreenTabParamList>
 >;
 
+function formatRelativeTime(iso: string, locale: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (Number.isNaN(diffMs) || diffMs < 0) {
+    return locale === 'ko' ? '방금 전' : 'just now';
+  }
+
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  const isKo = locale === 'ko';
+
+  if (diffSecs < 60) {
+    return isKo ? '방금 전' : 'just now';
+  }
+  if (diffMins < 60) {
+    return isKo ? `${diffMins}분 전` : `${diffMins}m ago`;
+  }
+  if (diffHours < 24) {
+    return isKo ? `${diffHours}시간 전` : `${diffHours}h ago`;
+  }
+  return isKo ? `${diffDays}일 전` : `${diffDays}d ago`;
+}
+
 export function MyWordsScreen() {
   const { colors, spacing } = useTheme();
-  const { t } = useAppLanguage();
+  const { t, language } = useAppLanguage();
   const navigation = useNavigation<MyWordsScreenNavigationProp>();
 
   const [q, setQ] = useState('');
@@ -257,13 +284,24 @@ export function MyWordsScreen() {
           </View>
           <Icon name="chevron-forward" size="md" />
         </View>
-        <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm }]}>
+        <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm, flexWrap: 'wrap' }]}>
           <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant="default" />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
+          {item.deck_name ? (
+            <Badge label={`📁 ${item.deck_name}`} variant="default" />
+          ) : null}
+          {item.last_reviewed_at ? (
+            <Badge
+              label={t('words.lastReviewed', {
+                time: formatRelativeTime(item.last_reviewed_at, language),
+              })}
+              variant="info"
+            />
+          ) : null}
         </View>
       </CinematicCard>
     ),
-    [spacing.sm, spacing.md, spacing.xs, t, navigation],
+    [spacing.sm, spacing.md, spacing.xs, t, navigation, language, colors],
   );
 
   const listEmpty = () => {

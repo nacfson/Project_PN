@@ -87,6 +87,9 @@ export interface LearningItemListItem {
   learning_stage: string;
   due_at: string;
   added_at: string;
+  deck_id?: string | null;
+  deck_name?: string | null;
+  last_reviewed_at?: string | null;
   examples: Example[];
 }
 

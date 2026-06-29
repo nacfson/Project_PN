@@ -8,6 +8,7 @@ import * as useLearningItemsHook from './useLearningItems';
 import * as decksApi from '../../api/decks';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
+import type { LearningItemListItem } from '../../types';
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -168,5 +169,91 @@ describe('MyWordsScreen', () => {
     await render(<MyWordsScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('Failed to load')).toBeTruthy());
+  });
+
+  it('displays the deck name and relative time since reviewed on word cards', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+    const mockItemWithDeck: LearningItemListItem = {
+      id: 'uws-1',
+      word_sense_id: 'ws-1',
+      word_id: 'w-1',
+      language_code: 'en',
+      lemma: 'abandon',
+      pronunciation: '/əˈbændən/',
+      part_of_speech: 'verb',
+      definition: 'to leave behind, to forsake',
+      short_definition: 'leave behind',
+      localized_definition: '떠나다, 버리다',
+      localized_short_definition: '떠나다',
+      cefr_level: 'B2',
+      meaning_order: 1,
+      learning_stage: 'learning',
+      due_at: '2026-06-28T00:00:00Z',
+      added_at: '2026-06-20T00:00:00Z',
+      deck_id: 'd1',
+      deck_name: 'Vocabulary Deck',
+      last_reviewed_at: twoHoursAgo,
+      examples: [],
+    };
+
+    mockedUseLearningItems.mockReturnValue({
+      items: [mockItemWithDeck],
+      nextCursor: null,
+      status: 'ready',
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore: jest.fn(),
+      refresh: jest.fn(),
+    });
+
+    await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
+    expect(screen.getByText('📁 Vocabulary Deck')).toBeTruthy();
+    expect(screen.getByText('Reviewed 2h ago')).toBeTruthy();
+  });
+
+  it('does not display deck name and relative time when not present', async () => {
+    const mockItemMinimal: LearningItemListItem = {
+      id: 'uws-2',
+      word_sense_id: 'ws-2',
+      word_id: 'w-2',
+      language_code: 'en',
+      lemma: 'acquire',
+      pronunciation: null,
+      part_of_speech: 'verb',
+      definition: 'to gain possession of',
+      short_definition: 'gain possession',
+      localized_definition: '획득하다',
+      localized_short_definition: '획득하다',
+      cefr_level: 'B2',
+      meaning_order: 1,
+      learning_stage: 'learning',
+      due_at: '2026-06-28T00:00:00Z',
+      added_at: '2026-06-20T00:00:00Z',
+      deck_id: null,
+      deck_name: null,
+      last_reviewed_at: null,
+      examples: [],
+    };
+
+    mockedUseLearningItems.mockReturnValue({
+      items: [mockItemMinimal],
+      nextCursor: null,
+      status: 'ready',
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore: jest.fn(),
+      refresh: jest.fn(),
+    });
+
+    await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('acquire')).toBeTruthy());
+    expect(screen.queryByText(/📁/)).toBeNull();
+    expect(screen.queryByText(/Reviewed/)).toBeNull();
   });
 });
