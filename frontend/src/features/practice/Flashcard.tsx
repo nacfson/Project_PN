@@ -2,13 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
-  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
   View,
-  type GestureResponderEvent,
-  type PanResponderGestureState,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAppLanguage } from '../../i18n';
@@ -16,7 +13,6 @@ import type { TranslationKey } from '../../i18n';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Icon, Text } from '../../ui';
-import type { Rating } from '../../ui';
 import type { DueItem } from '../../types';
 import { SpeakButton } from '../../components/SpeakButton';
 
@@ -29,11 +25,7 @@ interface FlashcardProps {
   userAnswer: string;
   isPreviouslyFailed: boolean;
   onFlip: () => void;
-  onRate: (rating: Rating) => void;
 }
-
-const SWIPE_THRESHOLD = 96;
-const DIRECTION_THRESHOLD = 24;
 
 function highlightWordInSentence(sentence: string, word: string): ReactNode[] {
   if (!sentence || !word) return [sentence];
@@ -59,6 +51,13 @@ function highlightWordInSentence(sentence: string, word: string): ReactNode[] {
   return parts;
 }
 
+function uniqueText(value: string | null | undefined, original: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed === original?.trim()) return null;
+  return trimmed;
+}
+
 export function Flashcard({
   item,
   example,
@@ -68,7 +67,6 @@ export function Flashcard({
   userAnswer,
   isPreviouslyFailed,
   onFlip,
-  onRate,
 }: FlashcardProps) {
   const { colors, spacing, radii, shadows } = useTheme();
   const { t } = useAppLanguage();
@@ -76,10 +74,7 @@ export function Flashcard({
 
   const flipAnim = useRef(new Animated.Value(0)).current;
   const flipScale = useRef(new Animated.Value(1)).current;
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const [swipeHint, setSwipeHint] = useState<Rating | null>(null);
   const [pressed, setPressed] = useState(false);
-  const hintRef = useRef<Rating | null>(null);
 
   // Animate flip whenever isFlipped changes.
   useEffect(() => {
@@ -105,13 +100,6 @@ export function Flashcard({
     ]).start();
   }, [isFlipped, flipAnim, flipScale, reduced]);
 
-  // Reset pan when card data changes.
-  useEffect(() => {
-    pan.setValue({ x: 0, y: 0 });
-    setSwipeHint(null);
-    hintRef.current = null;
-  }, [item.user_word_sense_id, pan]);
-
   const frontOpacity = flipAnim.interpolate({
     inputRange: [0, 90, 180],
     outputRange: [1, 0, 0],
@@ -132,105 +120,11 @@ export function Flashcard({
     outputRange: ['180deg', '360deg'],
   });
 
-  const ratingFromGesture = (dx: number, dy: number): Rating | null => {
-    const absX = Math.abs(dx);
-    const absY = Math.abs(dy);
-
-    // Require a dominant direction.
-    if (Math.max(absX, absY) < SWIPE_THRESHOLD) {
-      return null;
-    }
-    if (absX > absY && absX < SWIPE_THRESHOLD) {
-      return null;
-    }
-    if (absY > absX && absY < SWIPE_THRESHOLD) {
-      return null;
-    }
-
-    if (absX > absY) {
-      return dx > 0 ? 'good' : 'again';
-    }
-    return dy < 0 ? 'easy' : 'hard';
-  };
-
-  const updateHint = (dx: number, dy: number) => {
-    const hint = ratingFromGesture(dx, dy);
-    if (hint !== hintRef.current) {
-      hintRef.current = hint;
-      setSwipeHint(hint);
-      if (hint && Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      }
-    }
-  };
-
-  const resetHint = () => {
-    hintRef.current = null;
-    setSwipeHint(null);
-  };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !isFlipped,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (isFlipped) {
-          return false;
-        }
-        const { dx, dy } = gestureState;
-        return Math.abs(dx) > 8 || Math.abs(dy) > 8;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const { dx, dy } = gestureState;
-        pan.setValue({ x: dx, y: dy });
-        updateHint(dx, dy);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const { dx, dy } = gestureState;
-        const rating = ratingFromGesture(dx, dy);
-        if (rating) {
-          if (Platform.OS !== 'web') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          }
-          onRate(rating);
-          return;
-        }
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          friction: 8,
-          useNativeDriver: true,
-        }).start();
-        resetHint();
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          friction: 8,
-          useNativeDriver: true,
-        }).start();
-        resetHint();
-      },
-    })
-  ).current;
-
   const handleFlip = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     }
     onFlip();
-  };
-
-  const hintLabel: Record<Rating, string> = {
-    again: t('practice.ratingForgot'),
-    hard: t('practice.ratingHard'),
-    good: t('practice.ratingGood'),
-    easy: t('practice.ratingEasy'),
-  };
-
-  const hintColor: Record<Rating, string> = {
-    again: '#b3261e',
-    hard: '#d97706',
-    good: '#16a34a',
-    easy: '#6750a4',
   };
 
   const cardStyle = {
@@ -240,33 +134,51 @@ export function Flashcard({
     borderColor: colors.outlineVariant,
     ...shadows.md,
   };
+  const localizedDefinition = uniqueText(item.localized_definition, item.definition);
+  const localizedExample = uniqueText(example?.localized_translation, example?.sentence);
 
   const renderFront = () => (
     <View style={styles.cardContent}>
       <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
       {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
-      <Text variant="caption" color="muted" style={styles.promptLabel}>
-        {t('practice.recallPrompt')}
-      </Text>
-      <Text variant="title" bold style={styles.definitionText}>
-        {item.definition}
-      </Text>
-      {example ? (
-        <Text variant="body" style={styles.clozeText}>
-          &ldquo;{blankedSentence}&rdquo;
-        </Text>
+      {cardMode === 'flashcard' ? (
+        <>
+          <View style={[styles.wordRow, { gap: spacing.sm }]}>
+            <Text variant="headline" style={styles.wordText}>
+              {item.lemma}
+            </Text>
+            <SpeakButton language={item.language_code} text={item.lemma} />
+          </View>
+          {item.pronunciation && (
+            <Text variant="caption" color="muted">
+              {item.pronunciation}
+            </Text>
+          )}
+          <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+            <Icon name="finger-print" size="md" color={colors.primary} />
+            <Text variant="caption" color="primary" bold>
+              {t('practice.tapReveal')}
+            </Text>
+          </View>
+        </>
       ) : (
-        <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-          {t('practice.noExample')}
-        </Text>
-      )}
-      {cardMode === 'flashcard' && (
-        <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-          <Icon name="finger-print" size="md" color={colors.primary} />
-          <Text variant="caption" color="primary" bold>
-            {t('practice.tapReveal')}
+        <>
+          <Text variant="caption" color="muted" style={styles.promptLabel}>
+            {t('practice.recallPrompt')}
           </Text>
-        </View>
+          <Text variant="title" bold style={styles.definitionText}>
+            {item.definition}
+          </Text>
+          {example ? (
+            <Text variant="body" style={styles.clozeText}>
+              &ldquo;{blankedSentence}&rdquo;
+            </Text>
+          ) : (
+            <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+              {t('practice.noExample')}
+            </Text>
+          )}
+        </>
       )}
     </View>
   );
@@ -274,13 +186,15 @@ export function Flashcard({
   const renderBack = () => (
     <View style={styles.cardContent}>
       <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
-      <View style={[styles.wordRow, { gap: spacing.sm }]}>
-        <Text variant="headline" style={styles.wordText}>
-          {item.lemma}
-        </Text>
-        <SpeakButton language={item.language_code} text={item.lemma} />
-      </View>
-      {item.pronunciation && (
+      {cardMode === 'typing' && (
+        <View style={[styles.wordRow, { gap: spacing.sm }]}>
+          <Text variant="headline" style={styles.wordText}>
+            {item.lemma}
+          </Text>
+          <SpeakButton language={item.language_code} text={item.lemma} />
+        </View>
+      )}
+      {cardMode === 'typing' && item.pronunciation && (
         <Text variant="caption" color="muted">
           {item.pronunciation}
         </Text>
@@ -310,9 +224,9 @@ export function Flashcard({
         <Text variant="body" style={styles.backDefinitionText}>
           {item.definition}
         </Text>
-        {item.localized_definition && (
+        {localizedDefinition && (
           <Text variant="body" color="muted" style={styles.backDefinitionText}>
-            {item.localized_definition}
+            {localizedDefinition}
           </Text>
         )}
       </View>
@@ -324,9 +238,9 @@ export function Flashcard({
           <Text variant="body" style={styles.exampleSentence}>
             &ldquo;{highlightWordInSentence(example.sentence, item.normalized_text)}&rdquo;
           </Text>
-          {example.localized_translation && (
+          {localizedExample && (
             <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-              {example.localized_translation}
+              {localizedExample}
             </Text>
           )}
         </View>
@@ -334,53 +248,31 @@ export function Flashcard({
     </View>
   );
 
-  const rotate = pan.x.interpolate({
-    inputRange: [-200, 0, 200],
-    outputRange: ['-10deg', '0deg', '10deg'],
-  });
-
-  const scale = pan.y.interpolate({
-    inputRange: [-200, 0, 200],
-    outputRange: [0.96, 1, 0.96],
-  });
-
   return (
     <View style={styles.container}>
-      {swipeHint && (
-        <View style={styles.hintOverlay} pointerEvents="none">
-          <View style={[styles.hintBadge, { backgroundColor: hintColor[swipeHint] }]}>
-            <Text variant="title" bold style={{ color: '#fff' }}>
-              {hintLabel[swipeHint]}
-            </Text>
-          </View>
-        </View>
-      )}
-
       <Animated.View
         style={[
           styles.cardContainer,
           {
             transform: [
-              ...pan.getTranslateTransform(),
-              { rotate },
-              { scale: Animated.multiply(scale, flipScale) },
+              { scale: flipScale },
             ],
           },
         ]}
       >
         <Pressable
+          disabled={isFlipped}
           onPress={handleFlip}
           onPressIn={() => setPressed(true)}
           onPressOut={() => setPressed(false)}
           style={({ pressed: p }) => [
             styles.pressable,
             {
-              transform: [{ scale: pressed || p ? 0.98 : 1 }],
+              transform: [{ scale: (pressed || p) && !isFlipped ? 0.98 : 1 }],
             },
           ]}
-          {...panResponder.panHandlers}
-          accessibilityRole="button"
-          accessibilityLabel={t('practice.tapReveal')}
+          accessibilityRole={isFlipped ? undefined : 'button'}
+          accessibilityLabel={isFlipped ? undefined : t('practice.tapReveal')}
         >
           <Animated.View
             style={[
@@ -410,13 +302,6 @@ export function Flashcard({
           </Animated.View>
         </Pressable>
       </Animated.View>
-
-      <View style={[styles.guide, { marginTop: spacing.md }]}>
-        <Icon name="swap-horizontal" size="sm" color={colors.onSurfaceVariant} />
-        <Text variant="caption" color="muted">
-          {t('practice.swipeGuide')}
-        </Text>
-      </View>
     </View>
   );
 }
@@ -514,25 +399,5 @@ const styles = StyleSheet.create({
   },
   exampleTranslation: {
     textAlign: 'center',
-  },
-  hintOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  hintBadge: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  guide: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
 });
