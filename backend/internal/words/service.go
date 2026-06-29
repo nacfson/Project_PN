@@ -380,11 +380,13 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		        coalesce(st.definition, ws.definition),
 		        coalesce(st.short_definition, ws.short_definition),
 		        ws.cefr_level, ws.meaning_order,
-		        uws.learning_stage, rs.due_at, uws.added_at
+		        uws.learning_stage, rs.due_at, uws.added_at,
+		        uws.deck_id::text, d.name, rs.last_reviewed_at
 		 from user_word_senses uws
 		 join word_senses ws on ws.id = uws.word_sense_id
 		 join words w on w.id = ws.word_id
 		 join review_states rs on rs.user_word_sense_id = uws.id
+		 join decks d on d.id = uws.deck_id
 		 left join sense_translations st
 		   on st.word_sense_id = ws.id and st.language_code = $2
 		 where uws.user_id = $1::uuid
@@ -415,6 +417,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
 			&item.CEFRLevel, &item.MeaningOrder,
 			&item.LearningStage, &item.DueAt, &item.AddedAt,
+			&item.DeckID, &item.DeckName, &item.LastReviewedAt,
 		); err != nil {
 			return LearningItemsPage{}, err
 		}
@@ -440,7 +443,6 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		}
 		items[i].Examples = examples
 	}
-
 
 	if items == nil {
 		items = []LearningItemListItem{}
@@ -1021,8 +1023,6 @@ func loadExamples(ctx context.Context, q querier, wordSenseID, displayLang strin
 		}
 		if localized != nil && strings.TrimSpace(*localized) != "" {
 			ex.LocalizedTranslation = localized
-		} else {
-			ex.LocalizedTranslation = &ex.Sentence
 		}
 		examples = append(examples, ex)
 	}
@@ -1364,7 +1364,6 @@ func (s *Service) UpdateReviewSettings(ctx context.Context, userID string, param
 	return s.GetReviewSettings(ctx, userID)
 }
 
-
 // ensureReviewSettingsPool loads or creates the user's review_settings row
 // using the connection pool (non-transactional).
 func (s *Service) ensureReviewSettingsPool(ctx context.Context, userID string) (ReviewSettings, error) {
@@ -1408,4 +1407,3 @@ func (s *Service) ensureReviewSettingsPool(ctx context.Context, userID string) (
 
 	return settings, nil
 }
-

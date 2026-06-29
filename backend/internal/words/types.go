@@ -83,6 +83,9 @@ type LearningItemListItem struct {
 	LearningStage            string    `json:"learning_stage"`
 	DueAt                    time.Time `json:"due_at"`
 	AddedAt                  time.Time `json:"added_at"`
+	DeckID                   string    `json:"deck_id"`
+	DeckName                 string    `json:"deck_name"`
+	LastReviewedAt           *time.Time `json:"last_reviewed_at"`
 	Examples                 []Example `json:"examples"`
 }
 
