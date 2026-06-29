@@ -105,42 +105,46 @@ export function CaptureSection({ selectedDeckId }: { selectedDeckId: string }) {
           />
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="label" color="muted">
-            {t('add.tapWords')}
-          </Text>
-          <Card>
-            <TappablePassage text={passage} selected={selected} onToggle={toggle} />
-          </Card>
-        </View>
-
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="label" color="muted">
-            {t('add.partOfSpeechOptional')}
-          </Text>
-          <PosSelector value={pos} onChange={setPos} />
-        </View>
-
-        {selectedList.length > 0 && (
+        {passage.trim() !== '' && (
           <View style={{ gap: spacing.sm }}>
             <Text variant="label" color="muted">
-              {t('add.selected', { count: selectedList.length })}
+              {t('add.tapWords')}
             </Text>
-            <View style={styles.chipRow}>
-              {selectedList.map((w) => (
-                <WordChip key={w} word={w} status={statusOf(w)} onRemove={() => toggle(w)} />
-              ))}
-            </View>
+            <Card>
+              <TappablePassage text={passage} selected={selected} onToggle={toggle} />
+            </Card>
           </View>
         )}
 
-        <Button
-          label={t('add.addSelected', { count: selected.size })}
-          iconLeft="add"
-          onPress={addSelected}
-          disabled={selected.size === 0}
-          style={{ marginTop: spacing.sm }}
-        />
+        {selected.size > 0 && (
+          <>
+            <View style={{ gap: spacing.sm }}>
+              <Text variant="label" color="muted">
+                {t('add.partOfSpeechOptional')}
+              </Text>
+              <PosSelector value={pos} onChange={setPos} />
+            </View>
+
+            <View style={{ gap: spacing.sm }}>
+              <Text variant="label" color="muted">
+                {t('add.selected', { count: selectedList.length })}
+              </Text>
+              <View style={styles.chipRow}>
+                {selectedList.map((w) => (
+                  <WordChip key={w} word={w} status={statusOf(w)} onRemove={() => toggle(w)} />
+                ))}
+              </View>
+            </View>
+
+            <Button
+              label={t('add.addSelected', { count: selected.size })}
+              iconLeft="add"
+              onPress={addSelected}
+              disabled={selected.size === 0}
+              style={{ marginTop: spacing.sm }}
+            />
+          </>
+        )}
       </View>
     </View>
   );

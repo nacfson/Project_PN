@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { listDecks } from '../api/decks';
 import { CaptureSection } from '../features/add/CaptureSection';
@@ -21,6 +21,7 @@ export function AddScreen() {
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [deckRetryTick, setDeckRetryTick] = useState(0);
   const { pendingCount } = useAddQueue();
+  const [activeTab, setActiveTab] = useState<'passage' | 'manual'>('passage');
 
   const loadDecks = useCallback(() => {
     if (!targetLanguage) {
@@ -75,14 +76,42 @@ export function AddScreen() {
             onRetry={handleRetry}
             disabled={hasPendingJobs}
           />
+          {selectedDeckId && (
+            <View style={[styles.tabContainer, { backgroundColor: colors.surfaceContainerLow, marginTop: spacing.md }]}>
+              <Pressable
+                testID="tab-passage"
+                onPress={() => setActiveTab('passage')}
+                style={[
+                  styles.tabButton,
+                  activeTab === 'passage' && { backgroundColor: colors.surface },
+                ]}
+              >
+                <Text bold={activeTab === 'passage'} color={activeTab === 'passage' ? 'primary' : 'muted'}>
+                  {t('add.fromPassage')}
+                </Text>
+              </Pressable>
+              <Pressable
+                testID="tab-manual"
+                onPress={() => setActiveTab('manual')}
+                style={[
+                  styles.tabButton,
+                  activeTab === 'manual' && { backgroundColor: colors.surface },
+                ]}
+              >
+                <Text bold={activeTab === 'manual'} color={activeTab === 'manual' ? 'primary' : 'muted'}>
+                  {t('add.manual')}
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <View style={{ gap: spacing.lg }}>
-          {selectedDeckId && (
-            <>
-              <CaptureSection selectedDeckId={selectedDeckId} />
-              <ManualAddSection selectedDeckId={selectedDeckId} />
-            </>
+          {selectedDeckId && activeTab === 'passage' && (
+            <CaptureSection selectedDeckId={selectedDeckId} />
+          )}
+          {selectedDeckId && activeTab === 'manual' && (
+            <ManualAddSection selectedDeckId={selectedDeckId} />
           )}
         </View>
       </ScrollView>
@@ -99,5 +128,16 @@ const styles = StyleSheet.create({
   },
   header: {
     zIndex: 1,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
   },
 });
