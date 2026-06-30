@@ -4,34 +4,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"project-pn/internal/auth"
 )
 
-func TestCentralUserFromProxyHeaders(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	req.Header.Set("X-User-Id", "central-user-1")
-	req.Header.Set("X-User-Email", "Person@Example.COM")
-	req.Header.Set("X-User-Roles", "viewer, admin")
+func TestCentralAuthMiddleware_RejectsProxyHeaders(t *testing.T) {
+	svc := &auth.Service{}
+	central := auth.NewCentralClient("http://unused.invalid", nil)
+	mw := centralAuthMiddleware(svc, central)
 
-	user, ok := centralUserFromProxyHeaders(req)
-	if !ok {
-		t.Fatal("expected proxy central user")
-	}
-	if user.ID != "central-user-1" {
-		t.Fatalf("ID = %q", user.ID)
-	}
-	if user.Email != "Person@Example.COM" {
-		t.Fatalf("Email = %q", user.Email)
-	}
-	if !user.IsAdmin {
-		t.Fatal("expected admin role")
-	}
-}
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	req.Header.Set("X-User-Id", "00000000-0000-0000-0000-000000000001")
+	req.Header.Set("X-User-Email", "attacker@example.com")
+	rec := httptest.NewRecorder()
 
-func TestCentralUserFromProxyHeadersRejectsMissingIdentity(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	req.Header.Set("X-User-Email", "person@example.com")
+	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rec, req)
 
-	if _, ok := centralUserFromProxyHeaders(req); ok {
-		t.Fatal("expected missing proxy user id to be rejected")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
 	}
 }

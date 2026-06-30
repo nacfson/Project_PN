@@ -19,7 +19,7 @@ func authIPRateLimit() func(http.Handler) http.Handler {
 	return httprate.Limit(
 		authRateLimit,
 		time.Minute,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
+		httprate.WithKeyFuncs(keyByRealIP),
 		httprate.WithLimitHandler(rateLimitResponse),
 	)
 }
@@ -37,7 +37,7 @@ func consumeIPRateLimit() func(http.Handler) http.Handler {
 	return httprate.Limit(
 		20,
 		time.Minute,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
+		httprate.WithKeyFuncs(keyByRealIP),
 		httprate.WithLimitHandler(rateLimitResponse),
 	)
 }
@@ -90,27 +90,20 @@ func centralAuthMiddleware(svc *auth.Service, central *auth.CentralClient) func(
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := bearerToken(r)
-			var centralUser auth.CentralUser
-			if token != "" {
-				if central == nil {
-					writeError(w, http.StatusInternalServerError, "central auth is not configured")
-					return
-				}
-				session, err := central.ValidateSession(r.Context(), token)
-				if err != nil {
-					writeError(w, http.StatusUnauthorized, "unauthorized")
-					return
-				}
-				centralUser = session.User
-			} else {
-				var ok bool
-				centralUser, ok = centralUserFromProxyHeaders(r)
-				if !ok {
-					writeError(w, http.StatusUnauthorized, "unauthorized")
-					return
-				}
+			if token == "" {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
 			}
-			user, err := svc.EnsureCentralUser(r.Context(), centralUser)
+			if central == nil {
+				writeError(w, http.StatusInternalServerError, "central auth is not configured")
+				return
+			}
+			session, err := central.ValidateSession(r.Context(), token)
+			if err != nil {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			user, err := svc.EnsureCentralUser(r.Context(), session.User)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "internal error")
 				return
@@ -118,28 +111,6 @@ func centralAuthMiddleware(svc *auth.Service, central *auth.CentralClient) func(
 			next.ServeHTTP(w, r.WithContext(withUser(r.Context(), user)))
 		})
 	}
-}
-
-func centralUserFromProxyHeaders(r *http.Request) (auth.CentralUser, bool) {
-	id := strings.TrimSpace(r.Header.Get("X-User-Id"))
-	email := strings.TrimSpace(r.Header.Get("X-User-Email"))
-	if id == "" || email == "" {
-		return auth.CentralUser{}, false
-	}
-	return auth.CentralUser{
-		ID:      id,
-		Email:   email,
-		IsAdmin: hasProxyRole(r.Header.Get("X-User-Roles"), "admin"),
-	}, true
-}
-
-func hasProxyRole(rolesHeader, role string) bool {
-	for _, rolePart := range strings.Split(rolesHeader, ",") {
-		if strings.TrimSpace(rolePart) == role {
-			return true
-		}
-	}
-	return false
 }
 
 func authMiddlewareForMode(local *auth.Service, central *auth.CentralClient, mode string) func(http.Handler) http.Handler {
