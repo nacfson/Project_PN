@@ -5,6 +5,11 @@ set -euo pipefail
 # This script is intentionally separate from migrations and is invoked only by
 # scripts/start-web-dev.sh. It must not be called in production or staging.
 
+if [[ "${PN_ENV:-}" != "local" && "${APP_ENV:-}" != "local" ]]; then
+  echo "FATAL: seed-dev-guest.sh can only run with PN_ENV=local or APP_ENV=local" >&2
+  exit 1
+fi
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "ERROR: must be run from inside the Project PN git repo" >&2
   exit 1

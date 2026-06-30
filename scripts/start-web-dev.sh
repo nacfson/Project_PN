@@ -42,6 +42,8 @@ require_cmd() {
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "must be run from inside the Project PN git repo"
 cd "$REPO_ROOT"
 
+export PN_ENV=local
+
 SKIP_DB=false
 SKIP_MIGRATE=false
 
@@ -119,6 +121,9 @@ if [[ "$SKIP_MIGRATE" != true ]]; then
 else
   log "skipping migrations (--skip-migrate)"
 fi
+
+log "seeding local dev guest account"
+./scripts/seed-dev-guest.sh
 
 log "starting backend API"
 (cd backend && exec go run ./cmd/api) &
