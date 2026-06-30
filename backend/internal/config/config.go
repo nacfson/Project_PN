@@ -8,8 +8,8 @@ import (
 
 const (
 	defaultAppAddr        = ":8080"
-	defaultDatabaseURL    = "postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable"
 	defaultMigrationsPath = "file://db/migrations"
+	// No defaultDatabaseURL — DATABASE_URL must be provided by the environment.
 
 	defaultUserID         = "00000000-0000-0000-0000-000000000001"
 	defaultTargetLang     = "en"
@@ -77,7 +77,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		AppAddr:        envOrDefault("APP_ADDR", defaultAppAddr),
-		DatabaseURL:    envOrDefault("DATABASE_URL", defaultDatabaseURL),
+		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		MigrationsPath: envOrDefault("MIGRATIONS_PATH", defaultMigrationsPath),
 
 		EnrichBaseURL: os.Getenv("ENRICH_BASE_URL"),

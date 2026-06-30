@@ -24,6 +24,10 @@ func main() {
 	ctx := context.Background()
 
 	cfg := config.Load()
+	if cfg.DatabaseURL == "" {
+		slog.Error("DATABASE_URL is required")
+		os.Exit(1)
+	}
 
 	pool, err := db.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -76,6 +80,8 @@ func main() {
 
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
+	slog.Info("auth configuration loaded", "auth_mode", cfg.AuthMode, "central_auth_url", cfg.CentralAuthURL)
+
 	if cfg.NotificationWorkerEnabled {
 		worker := &notify.Worker{
 			Words:    wordsService,
