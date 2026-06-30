@@ -45,7 +45,7 @@ func consumeIPRateLimit() func(http.Handler) http.Handler {
 func emailKeyFromBody(r *http.Request) (string, error) {
 	email, err := peekRequestEmail(r)
 	if err != nil || email == "" {
-		return httprate.KeyByIP(r)
+		return keyByRealIP(r)
 	}
 	return "email:" + auth.NormalizeEmail(email), nil
 }

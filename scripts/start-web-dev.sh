@@ -78,6 +78,12 @@ if [[ ! -f backend/.env ]]; then
   cp backend/.env.example backend/.env
 fi
 
+# Load and export backend environment so compose credentials agree with DATABASE_URL.
+set -a
+# shellcheck source=backend/.env
+source backend/.env
+set +a
+
 if [[ ! -f frontend/.env ]]; then
   log "frontend/.env not found; copying from frontend/.env.example"
   cp frontend/.env.example frontend/.env

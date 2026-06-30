@@ -59,7 +59,7 @@ func main() {
 			centralAuthURL = cfg.CentralAuthURL
 		}
 		if centralAuthURL == "" {
-			slog.Error("CENTRAL_AUTH_URL is required when AUTH_MODE=central")
+			slog.Error("CENTRAL_AUTH_URL or CENTRAL_AUTH_INTERNAL_URL is required when AUTH_MODE=central")
 			os.Exit(1)
 		}
 		centralAuth = auth.NewCentralClient(centralAuthURL, nil)

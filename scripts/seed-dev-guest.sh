@@ -45,6 +45,6 @@ if ! command -v psql >/dev/null 2>&1; then
 fi
 
 echo "[seed-dev-guest] ensuring local guest account is verified and session is present"
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/seed-dev-guest.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v IS_LOCAL=1 -f scripts/seed-dev-guest.sql
 
 echo "[seed-dev-guest] done"

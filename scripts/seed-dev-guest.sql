@@ -4,6 +4,16 @@
 --
 -- It promotes the seeded dev user (migration 000002) to a verified account and
 -- creates a long-lived session for the plain token "local-dev-guest".
+--
+-- GUARD: This file must only be invoked through scripts/seed-dev-guest.sh, which
+-- refuses to run unless PN_ENV=local or APP_ENV=local. The psql guard below exits
+-- if the caller did not set IS_LOCAL=1.
+
+\if :{?IS_LOCAL}
+\else
+\echo 'FATAL: seed-dev-guest.sql can only run in local dev. Invoke via scripts/seed-dev-guest.sh.'
+\q
+\endif
 
 -- Plain token: local-dev-guest
 -- Hash = lower(hex(sha256('local-dev-guest')))
