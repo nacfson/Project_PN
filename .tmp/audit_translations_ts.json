@@ -1,0 +1,1687 @@
+{
+  "files": 66,
+  "uniqueKeys": 202,
+  "unused": [
+    "auth.emailNotVerified",
+    "auth.verificationSent",
+    "home.stage.learning",
+    "home.stage.mastered",
+    "home.stage.new",
+    "home.stage.recalled",
+    "home.stage.recognized",
+    "home.stage.usable",
+    "pos.Any",
+    "pos.adjective",
+    "pos.adverb",
+    "pos.conjunction",
+    "pos.determiner",
+    "pos.interjection",
+    "pos.noun",
+    "pos.preposition",
+    "pos.pronoun",
+    "pos.verb"
+  ],
+  "missing": [
+    "pos...."
+  ],
+  "usage": {
+    "pos....": [
+      {
+        "file": "frontend/src/components/PosSelector.tsx",
+        "line": 49,
+        "snippet": "{t(`pos.${option}`)}"
+      },
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 178,
+        "snippet": "label={t(`pos.${pos}`)}"
+      }
+    ],
+    "queue.adding": [
+      {
+        "file": "frontend/src/components/QueueBanner.tsx",
+        "line": 40,
+        "snippet": "{t('queue.adding', { count: pendingCount, plural: pendingCount === 1 ? '' : 's' })}"
+      }
+    ],
+    "queue.added": [
+      {
+        "file": "frontend/src/components/QueueBanner.tsx",
+        "line": 64,
+        "snippet": "? t('queue.added', { text: job.text })"
+      }
+    ],
+    "queue.failed": [
+      {
+        "file": "frontend/src/components/QueueBanner.tsx",
+        "line": 65,
+        "snippet": ": t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}"
+      }
+    ],
+    "queue.unknownError": [
+      {
+        "file": "frontend/src/components/QueueBanner.tsx",
+        "line": 65,
+        "snippet": ": t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}"
+      }
+    ],
+    "queue.dismiss": [
+      {
+        "file": "frontend/src/components/QueueBanner.tsx",
+        "line": 71,
+        "snippet": "accessibilityLabel={t('queue.dismiss')}"
+      }
+    ],
+    "sense.chooseMeaning": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 106,
+        "snippet": "<Text variant=\"title\">{t('sense.chooseMeaning', { query })}</Text>"
+      }
+    ],
+    "sense.noneFound": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 124,
+        "snippet": "{t('sense.noneFound')}"
+      },
+      {
+        "file": "frontend/src/hooks/useAddQueue.tsx",
+        "line": 94,
+        "snippet": "updateJob(next.id, { status: 'error', error: t('sense.noneFound') });"
+      }
+    ],
+    "sense.generating": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 165,
+        "snippet": "<Text color=\"muted\">{t('sense.generating')}</Text>"
+      }
+    ],
+    "sense.pickPartOfSpeech": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 172,
+        "snippet": "{t('sense.pickPartOfSpeech')}"
+      }
+    ],
+    "sense.noneMatch": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 193,
+        "snippet": "<Button label={t('sense.noneMatch')} variant=\"ghost\" onPress={handleNoneMatch} disabled={generating} />"
+      }
+    ],
+    "sense.addBest": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 194,
+        "snippet": "<Button label={t('sense.addBest')} variant=\"tonal\" onPress={handleAddBestMatch} disabled={!top || generating} />"
+      }
+    ],
+    "sense.add": [
+      {
+        "file": "frontend/src/components/SensePicker.tsx",
+        "line": 195,
+        "snippet": "<Button label={t('sense.add')} onPress={handleAddSelected} disabled={!selectedId || generating} />"
+      }
+    ],
+    "add.emptyPassage": [
+      {
+        "file": "frontend/src/components/TappablePassage.tsx",
+        "line": 42,
+        "snippet": "{t('add.emptyPassage')}"
+      }
+    ],
+    "import.title": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 59,
+        "snippet": "{t('import.title')}"
+      }
+    ],
+    "common.close": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 63,
+        "snippet": "{showHelp ? t('common.close') : t('import.help')}"
+      }
+    ],
+    "import.help": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 63,
+        "snippet": "{showHelp ? t('common.close') : t('import.help')}"
+      }
+    ],
+    "import.helpText": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 80,
+        "snippet": "{t('import.helpText')}"
+      }
+    ],
+    "import.pasteInstructions": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 88,
+        "snippet": "{t('import.pasteInstructions')}"
+      }
+    ],
+    "import.csvPlaceholder": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 104,
+        "snippet": "placeholder={t('import.csvPlaceholder')}"
+      }
+    ],
+    "import.preview": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 123,
+        "snippet": "label={t('import.preview')}"
+      }
+    ],
+    "import.reviewTitle": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 152,
+        "snippet": "{t('import.reviewTitle', { count: preview.cards.length })}"
+      }
+    ],
+    "import.startOver": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 156,
+        "snippet": "{t('import.startOver')}"
+      }
+    ],
+    "import.conflictHint": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 163,
+        "snippet": "{t('import.conflictHint')}"
+      }
+    ],
+    "import.import": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 179,
+        "snippet": "label={t('import.import')}"
+      }
+    ],
+    "import.complete": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 200,
+        "snippet": "{t('import.complete')}"
+      }
+    ],
+    "import.summary": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 203,
+        "snippet": "{t('import.summary', {"
+      }
+    ],
+    "import.importMore": [
+      {
+        "file": "frontend/src/features/import/AnkiImportScreen.tsx",
+        "line": 218,
+        "snippet": "<Button label={t('import.importMore')} onPress={reset} variant=\"tonal\" />"
+      }
+    ],
+    "import.existingMeanings": [
+      {
+        "file": "frontend/src/features/import/ImportConflictPicker.tsx",
+        "line": 41,
+        "snippet": "{t('import.existingMeanings')}"
+      }
+    ],
+    "import.overwriteMeaning": [
+      {
+        "file": "frontend/src/features/import/ImportConflictPicker.tsx",
+        "line": 54,
+        "snippet": "label={t('import.overwriteMeaning')}"
+      }
+    ],
+    "import.createNewMeaning": [
+      {
+        "file": "frontend/src/features/import/ImportConflictPicker.tsx",
+        "line": 62,
+        "snippet": "label={t('import.createNewMeaning')}"
+      }
+    ],
+    "import.add": [
+      {
+        "file": "frontend/src/features/import/ImportConflictPicker.tsx",
+        "line": 70,
+        "snippet": "label={t('import.add')}"
+      }
+    ],
+    "import.skip": [
+      {
+        "file": "frontend/src/features/import/ImportConflictPicker.tsx",
+        "line": 77,
+        "snippet": "label={t('import.skip')}"
+      }
+    ],
+    "home.masteryEmpty": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 55,
+        "snippet": "return <Text color=\"muted\">{t('home.masteryEmpty')}</Text>;"
+      }
+    ],
+    "home.forecastToday": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 127,
+        "snippet": "{index === 0 ? t('home.forecastToday') : String(index + 1)}"
+      }
+    ],
+    "home.forecastTotal": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 134,
+        "snippet": "{forecast.reduce((sum, day) => sum + day.count, 0)} {t('home.forecastTotal')}"
+      }
+    ],
+    "common.learner": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 163,
+        "snippet": "setDisplayName(displayNameFromEmail(user.email, t('common.learner')));"
+      }
+    ],
+    "home.greeting": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 200,
+        "snippet": "{t('home.greeting', { name: displayName })}"
+      }
+    ],
+    "home.subtitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 202,
+        "snippet": "<Text variant=\"headline\">{t('home.subtitle')}</Text>"
+      }
+    ],
+    "home.streakAtRisk": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 208,
+        "snippet": "{t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })}"
+      }
+    ],
+    "home.wordsDue": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 225,
+        "snippet": "{t('home.wordsDue')}"
+      }
+    ],
+    "home.startReview": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 228,
+        "snippet": "{dueCount === null ? '...' : t('home.startReview', { count: dueCount })}"
+      },
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 242,
+        "snippet": "label={t('home.startReview', { count: dueCount })}"
+      }
+    ],
+    "home.checkingDue": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 239,
+        "snippet": "<Text color=\"onPrimaryContainer\">{t('home.checkingDue')}</Text>"
+      },
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 410,
+        "snippet": "<Text color=\"muted\">{t('home.checkingDue')}</Text>"
+      }
+    ],
+    "home.previewPractice": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 249,
+        "snippet": "label={t('home.previewPractice')}"
+      }
+    ],
+    "home.dayStreak": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 268,
+        "snippet": "{t('home.dayStreak')}"
+      }
+    ],
+    "home.streakVacation": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 272,
+        "snippet": "{t('home.streakVacation')}"
+      }
+    ],
+    "home.streakFreezeAvailable": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 277,
+        "snippet": "{t('home.streakFreezeAvailable', { count: streakFreezeTokens })}"
+      }
+    ],
+    "home.longestStreak": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 282,
+        "snippet": "{t('home.longestStreak', { days: longestStreak })}"
+      }
+    ],
+    "tabs.words": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 297,
+        "snippet": "{t('tabs.words')}"
+      },
+      {
+        "file": "frontend/src/navigation/MainTabs.tsx",
+        "line": 67,
+        "snippet": "tabBarLabel: t('tabs.words'),"
+      }
+    ],
+    "home.xpToday": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 305,
+        "snippet": "<Text variant=\"title\">{t('home.xpToday')}</Text>"
+      }
+    ],
+    "home.wordOfTheDayTitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 333,
+        "snippet": "{t('home.wordOfTheDayTitle')}"
+      },
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 348,
+        "snippet": "<Text variant=\"title\">{t('home.wordOfTheDayTitle')}</Text>"
+      }
+    ],
+    "home.wordOfTheDayAdd": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 341,
+        "snippet": "label={t('home.wordOfTheDayAdd')}"
+      }
+    ],
+    "home.wordOfTheDayEmpty": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 349,
+        "snippet": "<Text color=\"muted\">{t('home.wordOfTheDayEmpty')}</Text>"
+      }
+    ],
+    "home.captureReentryTitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 354,
+        "snippet": "<Text variant=\"title\">{t('home.captureReentryTitle')}</Text>"
+      }
+    ],
+    "home.captureReentrySubtitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 356,
+        "snippet": "{t('home.captureReentrySubtitle')}"
+      }
+    ],
+    "home.captureReentryAdd": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 362,
+        "snippet": "label={t('home.captureReentryAdd')}"
+      }
+    ],
+    "home.captureReentryEmpty": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 368,
+        "snippet": "<Text color=\"muted\">{t('home.captureReentryEmpty')}</Text>"
+      }
+    ],
+    "home.challengesTitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 374,
+        "snippet": "<Text variant=\"title\">{t('home.challengesTitle')}</Text>"
+      }
+    ],
+    "home.challengesComingSoon": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 382,
+        "snippet": "<Badge label={t('home.challengesComingSoon')} variant=\"default\" />"
+      }
+    ],
+    "home.progressTitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 390,
+        "snippet": "<Text variant=\"title\">{t('home.progressTitle')}</Text>"
+      }
+    ],
+    "home.statsLoadFailed": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 392,
+        "snippet": "<Text color=\"muted\">{t('home.statsLoadFailed')}</Text>"
+      }
+    ],
+    "home.masteryTitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 397,
+        "snippet": "{t('home.masteryTitle')}"
+      }
+    ],
+    "home.forecastTitle": [
+      {
+        "file": "frontend/src/features/learn/HomeScreen.tsx",
+        "line": 404,
+        "snippet": "{t('home.forecastTitle')}"
+      }
+    ],
+    "practice.ratingForgot": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 205,
+        "snippet": "again: t('practice.ratingForgot'),"
+      },
+      {
+        "file": "frontend/src/ui/RatingBar.tsx",
+        "line": 36,
+        "snippet": "again: t('practice.ratingForgot'),"
+      }
+    ],
+    "practice.ratingHard": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 206,
+        "snippet": "hard: t('practice.ratingHard'),"
+      },
+      {
+        "file": "frontend/src/ui/RatingBar.tsx",
+        "line": 37,
+        "snippet": "hard: t('practice.ratingHard'),"
+      }
+    ],
+    "practice.ratingGood": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 207,
+        "snippet": "good: t('practice.ratingGood'),"
+      },
+      {
+        "file": "frontend/src/ui/RatingBar.tsx",
+        "line": 38,
+        "snippet": "good: t('practice.ratingGood'),"
+      }
+    ],
+    "practice.ratingEasy": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 208,
+        "snippet": "easy: t('practice.ratingEasy'),"
+      },
+      {
+        "file": "frontend/src/ui/RatingBar.tsx",
+        "line": 39,
+        "snippet": "easy: t('practice.ratingEasy'),"
+      }
+    ],
+    "practice.retrying": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 229,
+        "snippet": "{isPreviouslyFailed && <Badge label={t('practice.retrying')} variant=\"danger\" />}"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 613,
+        "snippet": "{isPreviouslyFailed && <Badge label={t('practice.retrying')} variant=\"danger\" />}"
+      }
+    ],
+    "practice.recallPrompt": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 231,
+        "snippet": "{t('practice.recallPrompt')}"
+      }
+    ],
+    "practice.noExample": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 242,
+        "snippet": "{t('practice.noExample')}"
+      }
+    ],
+    "practice.tapReveal": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 249,
+        "snippet": "{t('practice.tapReveal')}"
+      },
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 354,
+        "snippet": "accessibilityLabel={t('practice.tapReveal')}"
+      }
+    ],
+    "practice.yourAnswer": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 273,
+        "snippet": "{t('practice.yourAnswer')}"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 536,
+        "snippet": "{t('practice.yourAnswer')}"
+      }
+    ],
+    "practice.noAnswerGiven": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 276,
+        "snippet": "{userAnswer.trim().length > 0 ? userAnswer.trim() : t('practice.noAnswerGiven')}"
+      }
+    ],
+    "practice.definitionLabel": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 282,
+        "snippet": "{t('practice.definitionLabel')}"
+      }
+    ],
+    "practice.exampleLabel": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 296,
+        "snippet": "{t('practice.exampleLabel')}"
+      }
+    ],
+    "practice.swipeGuide": [
+      {
+        "file": "frontend/src/features/practice/Flashcard.tsx",
+        "line": 388,
+        "snippet": "{t('practice.swipeGuide')}"
+      }
+    ],
+    "practice.loadDueFailed": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 166,
+        "snippet": "setErrorMsg(err.message || t('practice.loadDueFailed'));"
+      }
+    ],
+    "practice.noReviewedWordsRepeat": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 200,
+        "snippet": "setErrorMsg(t('practice.noReviewedWordsRepeat'));"
+      }
+    ],
+    "practice.repeatFailed": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 205,
+        "snippet": "setErrorMsg(err.message || t('practice.repeatFailed'));"
+      }
+    ],
+    "practice.saveError": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 228,
+        "snippet": "setSaveError(err instanceof Error ? err.message : t('practice.saveError'));"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 429,
+        "snippet": "message={errorMsg || t('practice.saveError')}"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 606,
+        "snippet": "{t('practice.saveError')}"
+      }
+    ],
+    "practice.submitFailed": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 254,
+        "snippet": "setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 355,
+        "snippet": "setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 440,
+        "snippet": "setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));"
+      }
+    ],
+    "practice.preparing": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 378,
+        "snippet": "<LoadingState message={t('practice.preparing')} />"
+      }
+    ],
+    "practice.syncing": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 386,
+        "snippet": "<LoadingState message={t('practice.syncing')} />"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 598,
+        "snippet": "{t('practice.syncing')}"
+      }
+    ],
+    "practice.complete": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 399,
+        "snippet": "{t('practice.complete')}"
+      }
+    ],
+    "practice.xpEarned": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 403,
+        "snippet": "{t('practice.xpEarned')}"
+      }
+    ],
+    "practice.progressSaved": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 407,
+        "snippet": "{t('practice.progressSaved')}"
+      }
+    ],
+    "practice.backHome": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 411,
+        "snippet": "label={t('practice.backHome')}"
+      }
+    ],
+    "practice.submissionFailed": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 428,
+        "snippet": "title={t('practice.submissionFailed')}"
+      }
+    ],
+    "practice.retrySync": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 432,
+        "snippet": "label={t('practice.retrySync')}"
+      }
+    ],
+    "practice.discardProgress": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 446,
+        "snippet": "label={t('practice.discardProgress')}"
+      }
+    ],
+    "home.allCaughtUp": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 465,
+        "snippet": "title={t('home.allCaughtUp')}"
+      }
+    ],
+    "practice.noDueMessage": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 466,
+        "snippet": "message={t('practice.noDueMessage')}"
+      }
+    ],
+    "practice.refreshDue": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 476,
+        "snippet": "label={t('practice.refreshDue')}"
+      }
+    ],
+    "practice.studyAgain": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 483,
+        "snippet": "label={t('practice.studyAgain')}"
+      }
+    ],
+    "practice.answerPlaceholder": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 542,
+        "snippet": "placeholder={t('practice.answerPlaceholder')}"
+      }
+    ],
+    "practice.revealAnswer": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 560,
+        "snippet": "label={t('practice.revealAnswer')}"
+      }
+    ],
+    "practice.dontKnow": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 566,
+        "snippet": "label={t('practice.dontKnow')}"
+      }
+    ],
+    "practice.cardProgress": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 591,
+        "snippet": "{t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}"
+      }
+    ],
+    "practice.repeatMode": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 611,
+        "snippet": "{sessionMode === 'repeat' && <Badge label={t('practice.repeatMode')} variant=\"primary\" />}"
+      }
+    ],
+    "practice.flashcardMode": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 612,
+        "snippet": "{cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant=\"info\" />}"
+      }
+    ],
+    "practice.rateRecall": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 644,
+        "snippet": "{t('practice.rateRecall')}"
+      }
+    ],
+    "practice.finishRepeat": [
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 652,
+        "snippet": "label={t('practice.finishRepeat')}"
+      },
+      {
+        "file": "frontend/src/features/practice/PracticeScreen.tsx",
+        "line": 662,
+        "snippet": "label={t('practice.finishRepeat')}"
+      }
+    ],
+    "language.enLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 126,
+        "snippet": "return t('language.enLearning');"
+      }
+    ],
+    "language.koLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 128,
+        "snippet": "return t('language.koLearning');"
+      }
+    ],
+    "language.jaLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 130,
+        "snippet": "return t('language.jaLearning');"
+      }
+    ],
+    "language.esLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 132,
+        "snippet": "return t('language.esLearning');"
+      }
+    ],
+    "language.frLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 134,
+        "snippet": "return t('language.frLearning');"
+      }
+    ],
+    "language.deLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 136,
+        "snippet": "return t('language.deLearning');"
+      }
+    ],
+    "language.zhLearning": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 138,
+        "snippet": "return t('language.zhLearning');"
+      }
+    ],
+    "common.unknown": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 140,
+        "snippet": "return code || t('common.unknown');"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 258,
+        "snippet": "<SettingRow icon=\"person-outline\" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />"
+      }
+    ],
+    "settings.dailyGoalHelp": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 157,
+        "snippet": "setDailyGoalError(t('settings.dailyGoalHelp'));"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 278,
+        "snippet": "helperText={dailyGoalError ?? t('settings.dailyGoalHelp')}"
+      }
+    ],
+    "settings.dailyGoalSaveFailed": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 167,
+        "snippet": "setDailyGoalError(t('settings.dailyGoalSaveFailed'));"
+      }
+    ],
+    "settings.desiredRetentionHelp": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 176,
+        "snippet": "setRetentionError(t('settings.desiredRetentionHelp'));"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 296,
+        "snippet": "helperText={retentionError ?? t('settings.desiredRetentionHelp')}"
+      }
+    ],
+    "settings.desiredRetentionSaveFailed": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 186,
+        "snippet": "setRetentionError(t('settings.desiredRetentionSaveFailed'));"
+      }
+    ],
+    "settings.vacationModeSaveFailed": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 203,
+        "snippet": "setStreakError(t('settings.vacationModeSaveFailed'));"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 216,
+        "snippet": "setStreakError(t('settings.vacationModeSaveFailed'));"
+      }
+    ],
+    "settings.streakFreezeUnavailable": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 224,
+        "snippet": "setStreakError(t('settings.streakFreezeUnavailable'));"
+      }
+    ],
+    "settings.streakFreezeSaveFailed": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 233,
+        "snippet": "setStreakError(t('settings.streakFreezeSaveFailed'));"
+      }
+    ],
+    "settings.title": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 250,
+        "snippet": "<Text variant=\"heading\">{t('settings.title')}</Text>"
+      }
+    ],
+    "settings.account": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 255,
+        "snippet": "{t('settings.account')}"
+      }
+    ],
+    "settings.email": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 258,
+        "snippet": "<SettingRow icon=\"person-outline\" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />"
+      }
+    ],
+    "settings.learningLanguage": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 260,
+        "snippet": "<SettingRow icon=\"language-outline\" label={t('settings.learningLanguage')} value={languageLabel(user?.target_language)} />"
+      }
+    ],
+    "settings.review": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 266,
+        "snippet": "{t('settings.review')}"
+      }
+    ],
+    "app.loading": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 270,
+        "snippet": "<Text color=\"muted\">{t('app.loading')}</Text>"
+      }
+    ],
+    "settings.dailyGoal": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 273,
+        "snippet": "<Text variant=\"label\">{t('settings.dailyGoal')}</Text>"
+      }
+    ],
+    "settings.save": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 283,
+        "snippet": "label={t('settings.save')}"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 301,
+        "snippet": "label={t('settings.save')}"
+      }
+    ],
+    "settings.desiredRetention": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 291,
+        "snippet": "<Text variant=\"label\">{t('settings.desiredRetention')}</Text>"
+      }
+    ],
+    "settings.streak": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 309,
+        "snippet": "<Text variant=\"label\">{t('settings.streak')}</Text>"
+      }
+    ],
+    "settings.vacationModeActive": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 312,
+        "snippet": "? t('settings.vacationModeActive', { date: streakSettings.vacation_mode_until })"
+      }
+    ],
+    "settings.vacationModeOff": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 313,
+        "snippet": ": t('settings.vacationModeOff')}"
+      }
+    ],
+    "settings.vacationModeDisable": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 318,
+        "snippet": "label={t('settings.vacationModeDisable')}"
+      }
+    ],
+    "settings.vacationModeEnable": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 325,
+        "snippet": "label={t('settings.vacationModeEnable')}"
+      }
+    ],
+    "settings.streakFreeze": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 332,
+        "snippet": "label={t('settings.streakFreeze')}"
+      }
+    ],
+    "settings.streakFreezeHelp": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 345,
+        "snippet": "{t('settings.streakFreezeHelp')}"
+      }
+    ],
+    "settings.app": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 354,
+        "snippet": "{t('settings.app')}"
+      }
+    ],
+    "settings.darkTheme": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 359,
+        "snippet": "label={t('settings.darkTheme')}"
+      }
+    ],
+    "settings.appLanguage": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 365,
+        "snippet": "label={t('settings.appLanguage')}"
+      }
+    ],
+    "language.ko": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 366,
+        "snippet": "value={language === 'ko' ? t('language.ko') : t('language.en')}"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 377,
+        "snippet": "label={t('language.ko')}"
+      }
+    ],
+    "language.en": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 366,
+        "snippet": "value={language === 'ko' ? t('language.ko') : t('language.en')}"
+      },
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 372,
+        "snippet": "label={t('language.en')}"
+      }
+    ],
+    "settings.help": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 384,
+        "snippet": "<SettingRow icon=\"help-circle-outline\" label={t('settings.help')} />"
+      }
+    ],
+    "settings.about": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 386,
+        "snippet": "<SettingRow icon=\"information-circle-outline\" label={t('settings.about')} />"
+      }
+    ],
+    "settings.logout": [
+      {
+        "file": "frontend/src/features/profile/ProfileScreen.tsx",
+        "line": 390,
+        "snippet": "label={t('settings.logout')}"
+      }
+    ],
+    "words.loadFailed": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 78,
+        "snippet": "return <ErrorState message={error ?? t('words.loadFailed')} onRetry={() => void refresh()} />;"
+      }
+    ],
+    "words.noMatches": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 85,
+        "snippet": "title={t('words.noMatches', { query: q.trim() || t('words.filterAll') })}"
+      }
+    ],
+    "words.filterAll": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 85,
+        "snippet": "title={t('words.noMatches', { query: q.trim() || t('words.filterAll') })}"
+      }
+    ],
+    "words.noMatchesMessage": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 86,
+        "snippet": "message={t('words.noMatchesMessage')}"
+      }
+    ],
+    "words.emptyTitle": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 94,
+        "snippet": "title={t('words.emptyTitle')}"
+      }
+    ],
+    "words.emptyMessage": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 95,
+        "snippet": "message={t('words.emptyMessage')}"
+      }
+    ],
+    "words.title": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 114,
+        "snippet": "<Text variant=\"heading\">{t('words.title')}</Text>"
+      }
+    ],
+    "words.searchPlaceholder": [
+      {
+        "file": "frontend/src/features/words/MyWordsScreen.tsx",
+        "line": 118,
+        "snippet": "placeholder={t('words.searchPlaceholder')}"
+      }
+    ],
+    "common.somethingWrong": [
+      {
+        "file": "frontend/src/features/words/useLearningItems.ts",
+        "line": 65,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/features/words/useLearningItems.ts",
+        "line": 89,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/features/words/useLearningItems.ts",
+        "line": 107,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/hooks/useAddQueue.tsx",
+        "line": 101,
+        "snippet": "updateJob(next.id, { status: 'error', error: messageOf(err, t('common.somethingWrong')) });"
+      },
+      {
+        "file": "frontend/src/hooks/useSenseFlow.ts",
+        "line": 49,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/hooks/useSenseFlow.ts",
+        "line": 63,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/hooks/useSenseFlow.ts",
+        "line": 76,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/hooks/useSenseFlow.ts",
+        "line": 91,
+        "snippet": "setError(messageOf(err, t('common.somethingWrong')));"
+      },
+      {
+        "file": "frontend/src/ui/ErrorState.tsx",
+        "line": 17,
+        "snippet": "const resolvedTitle = title ?? t('common.somethingWrong');"
+      }
+    ],
+    "add.capture": [
+      {
+        "file": "frontend/src/navigation/AddScreen.tsx",
+        "line": 19,
+        "snippet": "{ value: 'capture', label: t('add.capture') },"
+      }
+    ],
+    "add.manual": [
+      {
+        "file": "frontend/src/navigation/AddScreen.tsx",
+        "line": 20,
+        "snippet": "{ value: 'manual', label: t('add.manual') },"
+      },
+      {
+        "file": "frontend/src/navigation/AddScreen.tsx",
+        "line": 27,
+        "snippet": "<Text variant=\"heading\">{t('add.manual')}</Text>"
+      }
+    ],
+    "add.import": [
+      {
+        "file": "frontend/src/navigation/AddScreen.tsx",
+        "line": 21,
+        "snippet": "{ value: 'import', label: t('add.import') },"
+      }
+    ],
+    "tabs.learn": [
+      {
+        "file": "frontend/src/navigation/MainTabs.tsx",
+        "line": 59,
+        "snippet": "tabBarLabel: t('tabs.learn'),"
+      }
+    ],
+    "tabs.add": [
+      {
+        "file": "frontend/src/navigation/MainTabs.tsx",
+        "line": 75,
+        "snippet": "tabBarLabel: t('tabs.add'),"
+      }
+    ],
+    "tabs.practice": [
+      {
+        "file": "frontend/src/navigation/MainTabs.tsx",
+        "line": 83,
+        "snippet": "tabBarLabel: t('tabs.practice'),"
+      }
+    ],
+    "tabs.settings": [
+      {
+        "file": "frontend/src/navigation/MainTabs.tsx",
+        "line": 90,
+        "snippet": "tabBarLabel: t('tabs.settings'),"
+      }
+    ],
+    "add.passage": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 75,
+        "snippet": "{t('add.passage')}"
+      }
+    ],
+    "add.undoClear": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 80,
+        "snippet": "{t('add.undoClear')}"
+      }
+    ],
+    "add.clearPassage": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 87,
+        "snippet": "{t('add.clearPassage')}"
+      }
+    ],
+    "add.passagePlaceholder": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 99,
+        "snippet": "placeholder={t('add.passagePlaceholder')}"
+      }
+    ],
+    "add.tapWords": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 108,
+        "snippet": "{t('add.tapWords')}"
+      }
+    ],
+    "add.partOfSpeechOptional": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 117,
+        "snippet": "{t('add.partOfSpeechOptional')}"
+      },
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 51,
+        "snippet": "{t('add.partOfSpeechOptional')}"
+      }
+    ],
+    "add.selected": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 125,
+        "snippet": "{t('add.selected', { count: selectedList.length })}"
+      }
+    ],
+    "add.addSelected": [
+      {
+        "file": "frontend/src/screens/CaptureScreen.tsx",
+        "line": 136,
+        "snippet": "label={t('add.addSelected', { count: selected.size })}"
+      }
+    ],
+    "auth.signInFailed": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 94,
+        "snippet": "setError(err instanceof ApiError ? err.message : t('auth.signInFailed'));"
+      }
+    ],
+    "auth.enterEmailFirst": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 102,
+        "snippet": "setError(t('auth.enterEmailFirst'));"
+      }
+    ],
+    "auth.verificationFailed": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 111,
+        "snippet": "setError(err instanceof ApiError ? err.message : t('auth.verificationFailed'));"
+      }
+    ],
+    "auth.lockedByAdmin": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 161,
+        "snippet": "<Text variant=\"caption\">{t('auth.lockedByAdmin')}</Text>"
+      }
+    ],
+    "auth.verifyEmailTitle": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 194,
+        "snippet": "{t('auth.verifyEmailTitle')}"
+      }
+    ],
+    "auth.verifyEmailMessage": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 197,
+        "snippet": "{t('auth.verifyEmailMessage', { email: trimmedEmail })}"
+      }
+    ],
+    "auth.resendVerification": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 200,
+        "snippet": "label={t('auth.resendVerification')}"
+      }
+    ],
+    "auth.backToSignIn": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 209,
+        "snippet": "label={t('auth.backToSignIn')}"
+      }
+    ],
+    "auth.signIn": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 226,
+        "snippet": "<Text variant=\"heading\">{mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}</Text>"
+      },
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 232,
+        "snippet": "label={t('auth.signIn')}"
+      },
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 328,
+        "snippet": "label={mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}"
+      }
+    ],
+    "auth.createAccount": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 226,
+        "snippet": "<Text variant=\"heading\">{mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}</Text>"
+      },
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 241,
+        "snippet": "label={t('auth.createAccount')}"
+      },
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 328,
+        "snippet": "label={mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}"
+      }
+    ],
+    "auth.subtitle": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 227,
+        "snippet": "<Text color=\"muted\">{t('auth.subtitle')}</Text>"
+      }
+    ],
+    "auth.emailVerified": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 255,
+        "snippet": "{t('auth.emailVerified')}"
+      }
+    ],
+    "auth.email": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 262,
+        "snippet": "{t('auth.email')}"
+      }
+    ],
+    "auth.emailPlaceholder": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 270,
+        "snippet": "placeholder={t('auth.emailPlaceholder')}"
+      }
+    ],
+    "auth.emailInvalid": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 274,
+        "snippet": "helperText={emailError ? t('auth.emailInvalid') : undefined}"
+      }
+    ],
+    "auth.password": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 279,
+        "snippet": "{t('auth.password')}"
+      }
+    ],
+    "auth.passwordCreatePlaceholder": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 288,
+        "snippet": "placeholder={mode === 'register' ? t('auth.passwordCreatePlaceholder') : t('auth.passwordPlaceholder')}"
+      }
+    ],
+    "auth.passwordPlaceholder": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 288,
+        "snippet": "placeholder={mode === 'register' ? t('auth.passwordCreatePlaceholder') : t('auth.passwordPlaceholder')}"
+      }
+    ],
+    "auth.passwordHelp": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 294,
+        "snippet": "{t('auth.passwordHelp')}"
+      }
+    ],
+    "auth.targetLanguage": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 302,
+        "snippet": "label: t('auth.targetLanguage'),"
+      }
+    ],
+    "auth.nativeLanguage": [
+      {
+        "file": "frontend/src/screens/LoginScreen.tsx",
+        "line": 309,
+        "snippet": "label: t('auth.nativeLanguage'),"
+      }
+    ],
+    "add.word": [
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 35,
+        "snippet": "{t('add.word')}"
+      }
+    ],
+    "add.wordPlaceholder": [
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 40,
+        "snippet": "placeholder={t('add.wordPlaceholder')}"
+      }
+    ],
+    "add.lookUp": [
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 57,
+        "snippet": "label={t('add.lookUp')}"
+      }
+    ],
+    "add.added": [
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 67,
+        "snippet": "{t('add.added')}"
+      }
+    ],
+    "add.emptyManualTitle": [
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 79,
+        "snippet": "title={t('add.emptyManualTitle')}"
+      }
+    ],
+    "add.emptyManualMessage": [
+      {
+        "file": "frontend/src/screens/ManualAddScreen.tsx",
+        "line": 80,
+        "snippet": "message={t('add.emptyManualMessage')}"
+      }
+    ],
+    "onboarding.slide1.title": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 20,
+        "snippet": "title: t('onboarding.slide1.title'),"
+      }
+    ],
+    "onboarding.slide1.description": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 21,
+        "snippet": "description: t('onboarding.slide1.description'),"
+      }
+    ],
+    "onboarding.slide2.title": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 25,
+        "snippet": "title: t('onboarding.slide2.title'),"
+      }
+    ],
+    "onboarding.slide2.description": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 26,
+        "snippet": "description: t('onboarding.slide2.description'),"
+      }
+    ],
+    "onboarding.slide3.title": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 30,
+        "snippet": "title: t('onboarding.slide3.title'),"
+      }
+    ],
+    "onboarding.slide3.description": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 31,
+        "snippet": "description: t('onboarding.slide3.description'),"
+      }
+    ],
+    "onboarding.getStarted": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 69,
+        "snippet": "label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}"
+      }
+    ],
+    "onboarding.next": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 69,
+        "snippet": "label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}"
+      }
+    ],
+    "onboarding.skip": [
+      {
+        "file": "frontend/src/screens/OnboardingScreen.tsx",
+        "line": 83,
+        "snippet": "{t('onboarding.skip')}"
+      }
+    ],
+    "common.retry": [
+      {
+        "file": "frontend/src/ui/ErrorState.tsx",
+        "line": 33,
+        "snippet": "<Button label={t('common.retry')} onPress={onRetry} style={{ marginTop: spacing.sm }} />"
+      }
+    ]
+  },
+  "rawText": [
+    {
+      "file": "frontend/src/components/SensePicker.tsx",
+      "line": 154,
+      "type": "JsxText",
+      "detail": "&ldquo;"
+    },
+    {
+      "file": "frontend/src/components/SensePicker.tsx",
+      "line": 154,
+      "type": "JsxText",
+      "detail": "&rdquo;"
+    },
+    {
+      "file": "frontend/src/features/learn/HomeScreen.tsx",
+      "line": 322,
+      "type": "JsxText",
+      "detail": "XP"
+    },
+    {
+      "file": "frontend/src/features/practice/Flashcard.tsx",
+      "line": 238,
+      "type": "JsxText",
+      "detail": "&ldquo;"
+    },
+    {
+      "file": "frontend/src/features/practice/Flashcard.tsx",
+      "line": 238,
+      "type": "JsxText",
+      "detail": "&rdquo;"
+    },
+    {
+      "file": "frontend/src/features/practice/Flashcard.tsx",
+      "line": 299,
+      "type": "JsxText",
+      "detail": "&ldquo;"
+    },
+    {
+      "file": "frontend/src/features/practice/Flashcard.tsx",
+      "line": 299,
+      "type": "JsxText",
+      "detail": "&rdquo;"
+    }
+  ]
+}
