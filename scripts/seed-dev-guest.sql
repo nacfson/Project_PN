@@ -9,10 +9,19 @@
 -- refuses to run unless PN_ENV=local or APP_ENV=local. The psql guard below exits
 -- if the caller did not set IS_LOCAL=1.
 
+-- GUARD: require IS_LOCAL=1. Use a deliberate SQL error so psql exits non-zero
+-- on failure; psql's \q does not accept an exit-code argument.
 \if :{?IS_LOCAL}
+  \if :IS_LOCAL
+  \else
+    \echo 'FATAL: seed-dev-guest.sql can only run in local dev. Invoke via scripts/seed-dev-guest.sh.'
+    \set ON_ERROR_STOP 1
+    DO $$ BEGIN RAISE EXCEPTION 'seed-dev-guest.sql guard failed: IS_LOCAL must be 1'; END $$;
+  \endif
 \else
-\echo 'FATAL: seed-dev-guest.sql can only run in local dev. Invoke via scripts/seed-dev-guest.sh.'
-\q
+  \echo 'FATAL: seed-dev-guest.sql can only run in local dev. Invoke via scripts/seed-dev-guest.sh.'
+  \set ON_ERROR_STOP 1
+  DO $$ BEGIN RAISE EXCEPTION 'seed-dev-guest.sql guard failed: IS_LOCAL not set'; END $$;
 \endif
 
 -- Plain token: local-dev-guest
