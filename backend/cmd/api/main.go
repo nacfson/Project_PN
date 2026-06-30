@@ -54,11 +54,16 @@ func main() {
 	})
 	var centralAuth *auth.CentralClient
 	if cfg.AuthMode == "central" {
-		if cfg.CentralAuthURL == "" {
+		centralAuthURL := cfg.CentralAuthInternalURL
+		if centralAuthURL == "" {
+			centralAuthURL = cfg.CentralAuthURL
+		}
+		if centralAuthURL == "" {
 			slog.Error("CENTRAL_AUTH_URL is required when AUTH_MODE=central")
 			os.Exit(1)
 		}
-		centralAuth = auth.NewCentralClient(cfg.CentralAuthURL, nil)
+		centralAuth = auth.NewCentralClient(centralAuthURL, nil)
+		slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	} else if cfg.AuthMode != "local" {
 		slog.Error("unsupported AUTH_MODE", "mode", cfg.AuthMode)
 		os.Exit(1)

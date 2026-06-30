@@ -66,6 +66,23 @@ Expected final output:
 
 If the script fails, stop and consult `deploy/deploy-exception-runbook.md`.
 
+### Important: invalidate Expo's Metro cache when `EXPO_PUBLIC_*` env vars change
+
+Expo's Metro bundler caches the transformed source files, including inlined
+`process.env.EXPO_PUBLIC_*` values. If you change auth mode, API URL, or any
+other `EXPO_PUBLIC_*` variable and the deployed web app still behaves like the
+old configuration, the bundle was built from a stale transform cache.
+
+Before running `scripts/deploy-remote.sh`, force a clean frontend export:
+
+```sh
+cd /Users/hyungjuyu/Projects/iOS/Project_PN/frontend
+npx expo export --platform web --clear
+```
+
+Then return to the repo root and run the deploy script. This ensures the new
+`EXPO_PUBLIC_*` values are baked into the bundle.
+
 ## Post-deploy verification
 
 Check the remote stack directly:
@@ -105,6 +122,7 @@ If any check fails, follow `deploy/deploy-exception-runbook.md`.
 | 502 Bad Gateway | `docker compose logs api` on server |
 | Migration password failed | `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` |
 | Old bundle still shown | Force recreate nginx: `docker compose up -d --force-recreate nginx` |
+| New `EXPO_PUBLIC_*` env vars ignored (e.g. auth mode still local) | Run `npx expo export --platform web --clear` before deploying |
 | Magic link wrong redirect | `APP_PUBLIC_URL` in remote `.env` |
 
 For deeper diagnosis, read `deploy/deploy-exception-runbook.md`.

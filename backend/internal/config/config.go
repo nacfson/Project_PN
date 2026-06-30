@@ -59,8 +59,9 @@ type Config struct {
 
 	AllowedOrigins []string
 
-	AuthMode       string
-	CentralAuthURL string
+	AuthMode              string
+	CentralAuthURL        string
+	CentralAuthInternalURL string
 
 	SessionTTL           time.Duration
 	EmailVerificationTTL time.Duration
@@ -97,8 +98,9 @@ func Load() Config {
 
 		AllowedOrigins: splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
 
-		AuthMode:       strings.ToLower(envOrDefault("AUTH_MODE", defaultAuthMode)),
-		CentralAuthURL: strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
+		AuthMode:               strings.ToLower(envOrDefault("AUTH_MODE", defaultAuthMode)),
+		CentralAuthURL:         strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
+		CentralAuthInternalURL: strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
 
 		SessionTTL:           durationOrDefault("SESSION_TTL", defaultSessionTTL),
 		EmailVerificationTTL: durationOrDefault("EMAIL_VERIFICATION_TTL", defaultEmailVerificationTTL),

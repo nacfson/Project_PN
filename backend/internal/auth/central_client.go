@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -56,6 +58,11 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return CentralSession{}, fmt.Errorf("auth: read central session response: %w", err)
+	}
+
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return CentralSession{}, ErrInvalidToken
 	}
@@ -64,10 +71,12 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 	}
 
 	var session CentralSession
-	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil {
+	if err := json.Unmarshal(body, &session); err != nil {
+		slog.Error("auth: failed to decode central session", "error", err, "body", string(body))
 		return CentralSession{}, fmt.Errorf("auth: decode central session: %w", err)
 	}
 	if session.User.ID == "" || NormalizeEmail(session.User.Email) == "" {
+		slog.Error("auth: central session missing user id or email", "session", session)
 		return CentralSession{}, ErrInvalidToken
 	}
 	session.User.Email = NormalizeEmail(session.User.Email)

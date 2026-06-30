@@ -72,19 +72,35 @@ async function centralLogin(body: LoginRequest): Promise<SessionResponse> {
     throw new ApiError(0, 'Central auth URL is not configured.');
   }
 
+  const url = `${CENTRAL_AUTH_URL}/api/auth/session`;
   let response: Response;
   try {
-    response = await fetch(`${CENTRAL_AUTH_URL}/api/auth/session`, {
+    response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-  } catch {
-    throw new ApiError(0, 'Network request failed. Is central auth running?');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ApiError(0, `Network request failed. Is central auth running? (${message})`);
   }
 
   const text = await response.text();
-  const parsed = text.length > 0 ? (JSON.parse(text) as { error?: string } & SessionResponse) : null;
+  const contentType = response.headers.get('content-type') ?? 'unknown';
+
+  let parsed: ({ error?: string } & SessionResponse) | null = null;
+  if (text.length > 0) {
+    try {
+      parsed = JSON.parse(text) as { error?: string } & SessionResponse;
+    } catch (parseErr) {
+      const preview = text.slice(0, 200).replace(/\s+/g, ' ');
+      throw new ApiError(
+        response.status,
+        `Central auth returned non-JSON (status ${response.status}, content-type ${contentType}): ${preview}`,
+      );
+    }
+  }
+
   if (!response.ok) {
     throw new ApiError(response.status, parsed?.error ?? `Request failed (${response.status})`);
   }
