@@ -20,9 +20,10 @@ import { Badge, Button, Chip, EmptyState, ErrorState, Icon, Input, LoadingState,
 import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
 import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
-import { createDeck, deleteDeck, listDecks, renameDeck } from '../../api/decks';
+import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from '../../api/decks';
 import { DeckCanvas } from './DeckCanvas';
 import { DeckFormModal } from './DeckFormModal';
+import { MoveToDeckModal } from './MoveToDeckModal';
 import { InspectorPanel } from '../web/InspectorPanel';
 import { ContextualCommandBar } from '../../ui/ContextualCommandBar';
 import { CinematicCard } from '../../ui/CinematicCard';
@@ -96,6 +97,14 @@ export function MyWordsScreen() {
 
   const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
   const [inspectorDeck, setInspectorDeck] = useState<Deck | null>(null);
+
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [moveItemIds, setMoveItemIds] = useState<string[]>([]);
+  const [moveExcludeDeckId, setMoveExcludeDeckId] = useState<string | null>(null);
+  const [moveLoading, setMoveLoading] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } =
     useActiveTargetLanguage();
@@ -222,6 +231,72 @@ export function MyWordsScreen() {
     console.warn('Set default deck not yet implemented');
   };
 
+  const openMoveModal = useCallback((itemIds: string[], excludeDeckId?: string | null) => {
+    setMoveItemIds(itemIds);
+    setMoveExcludeDeckId(excludeDeckId ?? null);
+    setMoveError(null);
+    setMoveModalOpen(true);
+  }, []);
+
+  const closeMoveModal = useCallback(() => {
+    setMoveModalOpen(false);
+    setMoveItemIds([]);
+    setMoveExcludeDeckId(null);
+    setMoveError(null);
+  }, []);
+
+  const handleMoveToDeck = useCallback(
+    async (deckId: string) => {
+      if (moveItemIds.length === 0) return;
+      setMoveLoading(true);
+      setMoveError(null);
+      try {
+        await moveItemsToDeck(deckId, moveItemIds);
+        closeMoveModal();
+        setSelectedItemIds(new Set());
+        await refresh();
+      } catch (err) {
+        setMoveError(err instanceof Error ? err.message : t('words.moveToDeckFailed'));
+      } finally {
+        setMoveLoading(false);
+      }
+    },
+    [moveItemIds, t, refresh, closeMoveModal],
+  );
+
+  const toggleItemSelection = useCallback((itemId: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }, []);
+
+  const clearItemSelection = useCallback(() => setSelectedItemIds(new Set()), []);
+
+  const handleCardPress = useCallback(
+    (item: LearningItemListItem) => {
+      if (selectedItemIds.size > 0) {
+        toggleItemSelection(item.id);
+        return;
+      }
+      navigation.navigate('WordDetail', { item });
+    },
+    [navigation, selectedItemIds.size, toggleItemSelection],
+  );
+
+  const handleCardLongPress = useCallback(
+    (item: LearningItemListItem) => {
+      setSelectedItemIds((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+    },
+    [],
+  );
+
   const handleBatchRename = () => {
     const first = decks.find((d) => selectedDeckIds.has(d.id));
     if (first) {
@@ -259,18 +334,30 @@ export function MyWordsScreen() {
   }, [items, filter, q]);
 
   const renderItem: ListRenderItem<LearningItemListItem> = useCallback(
-    ({ item }) => (
-      <CinematicCard
-        onPress={() => navigation.navigate('WordDetail', { item })}
-        style={{ marginBottom: spacing.md }}
-        revealActions={
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Pressable onPress={() => {}} hitSlop={8} accessibilityRole="button">
-              <Icon name="folder-open-outline" size="md" color={colors.primary} />
-            </Pressable>
-          </View>
-        }
-      >
+    ({ item }) => {
+      const selected = selectedItemIds.has(item.id);
+      return (
+        <CinematicCard
+          onPress={() => handleCardPress(item)}
+          onLongPress={() => handleCardLongPress(item)}
+          style={{
+            marginBottom: spacing.md,
+            backgroundColor: selected ? colors.primaryContainer : undefined,
+            borderColor: selected ? colors.primary : undefined,
+          }}
+          revealActions={
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Pressable
+                onPress={() => openMoveModal([item.id], item.deck_id ?? null)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('words.moveToDeck')}
+              >
+                <Icon name="folder-open-outline" size="md" color={colors.primary} />
+              </Pressable>
+            </View>
+          }
+        >
         <View style={styles.row}>
           <View style={{ flex: 1, gap: spacing.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -306,8 +393,9 @@ export function MyWordsScreen() {
           ) : null}
         </View>
       </CinematicCard>
-    ),
-    [spacing.sm, spacing.md, spacing.xs, t, navigation, language, colors],
+      );
+    },
+    [spacing.sm, spacing.md, spacing.xs, t, navigation, language, colors, handleCardPress, handleCardLongPress, openMoveModal, selectedItemIds],
   );
 
   const listEmpty = () => {
@@ -511,25 +599,48 @@ export function MyWordsScreen() {
         </View>
       </InspectorPanel>
 
+      <MoveToDeckModal
+        visible={moveModalOpen}
+        decks={decks}
+        excludeDeckId={moveExcludeDeckId}
+        onClose={closeMoveModal}
+        onSelect={handleMoveToDeck}
+        isLoading={moveLoading}
+        error={moveError}
+      />
+
       <ContextualCommandBar
-        selectedCount={selectedDeckIds.size}
-        onClear={clearDeckSelection}
-        actions={[
-          {
-            id: 'rename',
-            label: t('words.renameDeck'),
-            icon: 'create-outline',
-            onPress: handleBatchRename,
-            disabled: selectedDeckIds.size !== 1,
-          },
-          {
-            id: 'delete',
-            label: t('words.deleteDeck'),
-            icon: 'trash-outline',
-            onPress: handleBatchDelete,
-            disabled: Array.from(selectedDeckIds).some((id) => decks.find((d) => d.id === id)?.is_default),
-          },
-        ]}
+        selectedCount={selectedItemIds.size > 0 ? selectedItemIds.size : selectedDeckIds.size}
+        onClear={selectedItemIds.size > 0 ? clearItemSelection : clearDeckSelection}
+        actions={
+          selectedItemIds.size > 0
+            ? [
+                {
+                  id: 'move',
+                  label: t('words.moveToDeck'),
+                  icon: 'folder-open-outline',
+                  onPress: () => openMoveModal(Array.from(selectedItemIds), selectedDeckId),
+                },
+              ]
+            : [
+                {
+                  id: 'rename',
+                  label: t('words.renameDeck'),
+                  icon: 'create-outline',
+                  onPress: handleBatchRename,
+                  disabled: selectedDeckIds.size !== 1,
+                },
+                {
+                  id: 'delete',
+                  label: t('words.deleteDeck'),
+                  icon: 'trash-outline',
+                  onPress: handleBatchDelete,
+                  disabled: Array.from(selectedDeckIds).some(
+                    (id) => decks.find((d) => d.id === id)?.is_default,
+                  ),
+                },
+              ]
+        }
       />
     </Screen>
   );

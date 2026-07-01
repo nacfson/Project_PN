@@ -1,11 +1,15 @@
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import type { WordsStackParamList } from '../../navigation/WordsStack';
-import { Badge, Card, Screen, Text } from '../../ui';
+import { Badge, Button, Card, Screen, Text } from '../../ui';
 import { SpeakButton } from '../../components/SpeakButton';
+import { listDecks, moveItemsToDeck } from '../../api/decks';
+import type { Deck } from '../../types';
+import { MoveToDeckModal } from './MoveToDeckModal';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
 
@@ -21,11 +25,54 @@ function formatDate(iso: string, locale: string): string {
   });
 }
 
-export function WordDetailScreen({ route }: WordDetailScreenProps) {
+export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const { item } = route.params;
   const { colors, spacing } = useTheme();
   const { t, language } = useAppLanguage();
   const insets = useSafeAreaInsets();
+
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [decksLoading, setDecksLoading] = useState(false);
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [moveLoading, setMoveLoading] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setDecksLoading(true);
+    listDecks(item.language_code)
+      .then((loaded) => {
+        if (!active) return;
+        setDecks(loaded);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDecks([]);
+      })
+      .finally(() => {
+        if (active) setDecksLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [item.language_code]);
+
+  const handleMove = useCallback(
+    async (deckId: string) => {
+      setMoveLoading(true);
+      setMoveError(null);
+      try {
+        await moveItemsToDeck(deckId, [item.id]);
+        setMoveModalOpen(false);
+        navigation.goBack();
+      } catch (err) {
+        setMoveError(err instanceof Error ? err.message : t('words.moveToDeckFailed'));
+      } finally {
+        setMoveLoading(false);
+      }
+    },
+    [item.id, navigation, t],
+  );
 
   const definition = item.localized_definition || item.definition;
   const shortDefinition = item.localized_short_definition || item.short_definition;
@@ -117,6 +164,24 @@ export function WordDetailScreen({ route }: WordDetailScreenProps) {
             <Text variant="body">{formatDate(item.due_at, language)}</Text>
           </View>
         </Card>
+
+        <Button
+          label={t('words.moveToDeck')}
+          variant="tonal"
+          iconLeft="folder-open-outline"
+          onPress={() => setMoveModalOpen(true)}
+          style={{ marginTop: spacing.md }}
+        />
+
+        <MoveToDeckModal
+          visible={moveModalOpen}
+          decks={decks}
+          excludeDeckId={item.deck_id ?? null}
+          onClose={() => setMoveModalOpen(false)}
+          onSelect={handleMove}
+          isLoading={moveLoading || decksLoading}
+          error={moveError}
+        />
       </ScrollView>
     </Screen>
   );

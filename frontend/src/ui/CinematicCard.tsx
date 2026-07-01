@@ -5,6 +5,7 @@ import { HoverReveal } from './HoverReveal';
 
 interface CinematicCardProps extends ViewProps {
   onPress?: () => void;
+  onLongPress?: () => void;
   revealActions?: ReactNode;
   elevated?: boolean;
   children: ReactNode;
@@ -12,6 +13,7 @@ interface CinematicCardProps extends ViewProps {
 
 export function CinematicCard({
   onPress,
+  onLongPress,
   revealActions,
   elevated,
   children,
@@ -21,6 +23,7 @@ export function CinematicCard({
   return (
     <Card
       onPress={onPress}
+      onLongPress={onLongPress}
       elevated={elevated}
       hoverElevation
       hoverScale

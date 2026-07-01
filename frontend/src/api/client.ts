@@ -76,9 +76,14 @@ async function fetchWithFallback(path: string, init: RequestInit): Promise<Respo
 export async function getJson<TResponse>(path: string, options?: RequestOptions): Promise<TResponse> {
   let response: Response;
   try {
+    const headers = await buildHeaders(options);
     response = await fetchWithFallback(path, {
       method: 'GET',
-      headers: await buildHeaders(options),
+      headers: {
+        ...headers,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
