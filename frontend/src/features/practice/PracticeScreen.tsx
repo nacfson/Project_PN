@@ -100,7 +100,7 @@ export function decideCardMode(item: DueItem): CardMode {
 }
 
 export function PracticeScreen() {
-  const { colors, spacing, radii, shadows } = useTheme();
+  const { colors, spacing, radii, shadows, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
   const cardStartedAtRef = useRef(Date.now());
   const navigation = useNavigation<NavigationProp>();
@@ -281,17 +281,23 @@ export function PracticeScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
 
+    if (reduced) {
+      confirmGrade(score);
+      setShowFeedback(false);
+      slideAnim.setValue(0);
+      opacityAnim.setValue(1);
+      return;
+    }
+
     setShowFeedback(true);
 
     Animated.parallel([
-      Animated.timing(slideAnim, {
+      Animated.spring(slideAnim, {
         toValue: -500,
-        duration: 200,
         useNativeDriver: true,
       }),
-      Animated.timing(opacityAnim, {
+      Animated.spring(opacityAnim, {
         toValue: 0,
-        duration: 200,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -300,14 +306,14 @@ export function PracticeScreen() {
       slideAnim.setValue(500);
 
       Animated.parallel([
-        Animated.timing(slideAnim, {
+        Animated.spring(slideAnim, {
           toValue: 0,
-          duration: 250,
+          ...motion.spring.bouncy,
           useNativeDriver: true,
         }),
-        Animated.timing(opacityAnim, {
+        Animated.spring(opacityAnim, {
           toValue: 1,
-          duration: 250,
+          ...motion.spring.bouncy,
           useNativeDriver: true,
         }),
       ]).start();

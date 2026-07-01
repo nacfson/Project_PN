@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
-  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -10,7 +9,6 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useAppLanguage } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Icon, Text } from '../../ui';
 import type { DueItem } from '../../types';
@@ -68,9 +66,8 @@ export function Flashcard({
   isPreviouslyFailed,
   onFlip,
 }: FlashcardProps) {
-  const { colors, spacing, radii, shadows } = useTheme();
+  const { colors, spacing, radii, shadows, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
-  const reduced = useReducedMotion();
 
   const flipAnim = useRef(new Animated.Value(0)).current;
   const flipScale = useRef(new Animated.Value(1)).current;
@@ -78,27 +75,32 @@ export function Flashcard({
 
   // Animate flip whenever isFlipped changes.
   useEffect(() => {
+    if (reduced) {
+      flipAnim.setValue(isFlipped ? 180 : 0);
+      flipScale.setValue(1);
+      return;
+    }
+
     Animated.parallel([
-      Animated.timing(flipAnim, {
+      Animated.spring(flipAnim, {
         toValue: isFlipped ? 180 : 0,
-        duration: reduced ? 0 : 350,
-        easing: Easing.inOut(Easing.ease),
+        ...motion.spring.bouncy,
         useNativeDriver: true,
       }),
       Animated.sequence([
-        Animated.timing(flipScale, {
-          toValue: 0.95,
-          duration: reduced ? 0 : 175,
+        Animated.spring(flipScale, {
+          toValue: 0.97,
+          ...motion.spring.bouncy,
           useNativeDriver: true,
         }),
-        Animated.timing(flipScale, {
+        Animated.spring(flipScale, {
           toValue: 1,
-          duration: reduced ? 0 : 175,
+          ...motion.spring.bouncy,
           useNativeDriver: true,
         }),
       ]),
     ]).start();
-  }, [isFlipped, flipAnim, flipScale, reduced]);
+  }, [isFlipped, flipAnim, flipScale, reduced, motion]);
 
   const frontOpacity = flipAnim.interpolate({
     inputRange: [0, 90, 180],
