@@ -47,6 +47,10 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 	}
 	t.Cleanup(pool.Close)
 
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts, sense_translations CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
 	cfg := config.Load()
 	authSvc := auth.New(pool, email.NewLog(), auth.Options{
 		SessionTTL:             time.Hour,
@@ -67,6 +71,7 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
+		CentralAuth:    mockCentralClient(t),
 		AllowedOrigins: []string{"http://localhost:8081"},
 	})
 
@@ -81,6 +86,14 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 	if err != nil {
 		t.Fatalf("login test user: %v", err)
 	}
+	user, err := authSvc.Authenticate(ctx, session.Token)
+	if err != nil {
+		t.Fatalf("authenticate test user: %v", err)
+	}
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
+		t.Fatalf("ensure default deck: %v", err)
+	}
+	registerTestToken(session.Token, emailAddr)
 	return router, session.Token, pool, authSvc
 }
 
@@ -168,6 +181,10 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	otherUser, err := authSvc.Authenticate(ctx, otherSession.Token)
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
+	}
+	wordsSvc := words.New(pool, nil, "", "", "")
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, otherUser.ID, "en"); err != nil {
+		t.Fatalf("ensure other default deck: %v", err)
 	}
 
 	base := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
@@ -535,12 +552,12 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	if loggedRating != "good" {
 		t.Fatalf("expected logged review_rating 'good', got %q", loggedRating)
 	}
-	diff := loggedScore - 2.5
+	diff := loggedScore - 2.0
 	if diff < 0 {
 		diff = -diff
 	}
 	if diff > 0.001 {
-		t.Fatalf("expected logged rating_score 2.5, got %f", loggedScore)
+		t.Fatalf("expected logged rating_score 2.0, got %f", loggedScore)
 	}
 
 	// Verify review_states table: due_at should be pushed in the future

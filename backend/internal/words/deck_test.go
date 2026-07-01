@@ -103,6 +103,12 @@ func insertDeckFixtureWord(t *testing.T, pool *pgxpool.Pool, lemma string) strin
 	`, wordID, lemma+" definition").Scan(&senseID); err != nil {
 		t.Fatalf("insert sense %q: %v", lemma, err)
 	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+		values ($1::uuid, 'ko', $2, $2)
+	`, senseID, lemma+" translation"); err != nil {
+		t.Fatalf("insert translation %q: %v", lemma, err)
+	}
 	return senseID
 }
 

@@ -34,10 +34,39 @@ func TestAnkiImportPreviewAndImport(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx, `
 		insert into word_senses (word_id, definition, meaning_order)
-		values ($1::uuid, 'to move quickly on foot', 1)
+		values ($1::uuid, 'to move quickly', 1)
 		returning id::text
 	`, existingWordID).Scan(&existingSenseID); err != nil {
 		t.Fatalf("insert sense fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+		values ($1::uuid, 'ko', '달리다', '달리다')
+	`, existingSenseID); err != nil {
+		t.Fatalf("insert translation fixture: %v", err)
+	}
+
+	// Seed eat word and sense.
+	var eatWordID, eatSenseID string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', 'eat', 'eat', 'verb')
+		returning id::text
+	`).Scan(&eatWordID); err != nil {
+		t.Fatalf("insert eat word fixture: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'to consume food', 1)
+		returning id::text
+	`, eatWordID).Scan(&eatSenseID); err != nil {
+		t.Fatalf("insert eat sense fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+		values ($1::uuid, 'ko', '먹다', '먹다')
+	`, eatSenseID); err != nil {
+		t.Fatalf("insert eat translation fixture: %v", err)
 	}
 
 	csvBody := `Front,Back,Tags

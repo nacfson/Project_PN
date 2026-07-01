@@ -331,6 +331,9 @@ func TestRegisterCreatesActiveUserLanguage(t *testing.T) {
 	if err := svc.Register(ctx, emailAddr, "password123", "ko", "en", ""); err != nil {
 		t.Fatalf("register: %v", err)
 	}
+	if err := svc.VerifyEmailForTest(ctx, emailAddr); err != nil {
+		t.Fatalf("verify email: %v", err)
+	}
 
 	user, err := svc.Authenticate(ctx, mustLogin(t, svc, ctx, emailAddr, "password123"))
 	if err != nil {
@@ -362,6 +365,9 @@ func TestAddAndSwitchUserLanguage(t *testing.T) {
 
 	if err := svc.Register(ctx, emailAddr, "password123", "ko", "en", ""); err != nil {
 		t.Fatalf("register: %v", err)
+	}
+	if err := svc.VerifyEmailForTest(ctx, emailAddr); err != nil {
+		t.Fatalf("verify email: %v", err)
 	}
 	user, err := svc.Authenticate(ctx, mustLogin(t, svc, ctx, emailAddr, "password123"))
 	if err != nil {
@@ -407,6 +413,9 @@ func TestUILanguage(t *testing.T) {
 
 	if err := svc.Register(ctx, emailAddr, "password123", "", "", "ko"); err != nil {
 		t.Fatalf("register: %v", err)
+	}
+	if err := svc.VerifyEmailForTest(ctx, emailAddr); err != nil {
+		t.Fatalf("verify email: %v", err)
 	}
 	user, err := svc.Authenticate(ctx, mustLogin(t, svc, ctx, emailAddr, "password123"))
 	if err != nil {

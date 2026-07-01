@@ -33,6 +33,10 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
 	assertRejects := func(name, query string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, query, args...); err == nil {
@@ -55,6 +59,19 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 		returning id
 	`).Scan(&userB); err != nil {
 		t.Fatalf("insert user B: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		insert into decks (user_id, target_language, name, is_default)
+		values ($1::uuid, 'en', 'en (Default)', true)
+	`, userA); err != nil {
+		t.Fatalf("insert deck A: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into decks (user_id, target_language, name, is_default)
+		values ($1::uuid, 'en', 'en (Default)', true)
+	`, userB); err != nil {
+		t.Fatalf("insert deck B: %v", err)
 	}
 
 	if err := pool.QueryRow(ctx, `
@@ -242,6 +259,10 @@ func TestAuthSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
 	assertRejects := func(name, query string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, query, args...); err == nil {
@@ -338,6 +359,10 @@ func TestUserLanguagesSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
 	assertRejects := func(name, query string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, query, args...); err == nil {
@@ -427,6 +452,10 @@ func TestDeckSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
 	assertRejects := func(name, query string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, query, args...); err == nil {
@@ -441,6 +470,13 @@ func TestDeckSchemaAcceptance(t *testing.T) {
 		returning id
 	`).Scan(&userID); err != nil {
 		t.Fatalf("insert user: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		insert into decks (user_id, target_language, name, is_default)
+		values ($1::uuid, 'en', 'en (Default)', true)
+	`, userID); err != nil {
+		t.Fatalf("insert deck: %v", err)
 	}
 
 	if err := pool.QueryRow(ctx, `

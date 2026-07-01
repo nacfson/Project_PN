@@ -59,6 +59,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
+		CentralAuth:    mockCentralClient(t),
 		AllowedOrigins: []string{"http://localhost:8081"},
 	})
 
@@ -73,6 +74,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 	if err != nil {
 		t.Fatalf("login test user: %v", err)
 	}
+	registerTestToken(session.Token, emailAddr)
 
 	return router, session.Token
 }
