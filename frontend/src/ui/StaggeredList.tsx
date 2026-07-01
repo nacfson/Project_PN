@@ -1,6 +1,7 @@
 import { Children, ReactNode, useEffect, useRef } from 'react';
 import { Animated, Platform, StyleProp, ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { spring } from '../theme/motion';
 
 interface StaggeredListProps {
   children: ReactNode;
@@ -25,9 +26,9 @@ export function StaggeredList({ children, delayMs = 40, style }: StaggeredListPr
     }
 
     const animations = anims.current.map((anim) =>
-      Animated.timing(anim, {
+      Animated.spring(anim, {
         toValue: 1,
-        duration: 250,
+        ...spring.bouncy,
         useNativeDriver: Platform.OS !== 'web',
       })
     );
@@ -52,7 +53,7 @@ export function StaggeredList({ children, delayMs = 40, style }: StaggeredListPr
                 {
                   translateY: anim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [8, 0],
+                    outputRange: [16, 0],
                   }),
                 },
               ],

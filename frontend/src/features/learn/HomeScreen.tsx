@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, View, Pressable, RefreshControl } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { me } from '../../api/auth';
 import { getStatsSummary } from '../../api/stats';
@@ -9,7 +10,7 @@ import { useAppLanguage } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
 import type { StatsSummary } from '../../types';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, Screen, Text } from '../../ui';
+import { Badge, Button, Card, ErrorState, Icon, Screen, Text } from '../../ui';
 import { SkeletonCard } from '../../ui/SkeletonCard';
 import { StaggeredList } from '../../ui/StaggeredList';
 import { CinematicCard } from '../../ui/CinematicCard';
@@ -31,6 +32,8 @@ const STAGE_LABEL_KEYS: Record<MasteryStage, TranslationKey> = {
   mastered: 'home.stage.mastered',
 };
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 function displayNameFromEmail(email: string, fallback: string): string {
   const local = email.split('@')[0]?.trim();
   return local || fallback;
@@ -41,8 +44,24 @@ function MasteryBreakdown({
 }: {
   stageCounts: StatsSummary['stage_counts'];
 }) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors, spacing, radii, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
+  const growAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduced) {
+      growAnim.setValue(1);
+      return;
+    }
+    growAnim.setValue(0);
+    const anim = Animated.spring(growAnim, {
+      toValue: 1,
+      ...motion.spring.bouncy,
+      useNativeDriver: false,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [stageCounts, reduced, motion.spring.bouncy, growAnim]);
 
   const segments = useMemo(() => {
     return MASTERY_STAGES.map((stage) => ({
@@ -73,12 +92,15 @@ function MasteryBreakdown({
             return null;
           }
           return (
-            <View
+            <Animated.View
               key={segment.stage}
               style={{
-                flex: segment.count,
+                flex: Animated.multiply(growAnim, segment.count) as any,
                 backgroundColor: stageColors[segment.stage],
-                minWidth: 4,
+                minWidth: growAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 4],
+                }),
               }}
             />
           );
@@ -100,10 +122,34 @@ function MasteryBreakdown({
 }
 
 function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors, spacing, radii, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
-
   const maxCount = Math.max(1, ...forecast.map((day) => day.count));
+  const animValues = useRef<Animated.Value[]>([]);
+
+  if (animValues.current.length !== forecast.length) {
+    animValues.current = forecast.map(() => new Animated.Value(0));
+  }
+
+  useEffect(() => {
+    if (reduced) {
+      animValues.current.forEach((val) => val.setValue(1));
+      return;
+    }
+    animValues.current.forEach((val) => val.setValue(0));
+    const animations = animValues.current.map((val) =>
+      Animated.spring(val, {
+        toValue: 1,
+        ...motion.spring.bouncy,
+        useNativeDriver: false,
+      })
+    );
+    const composite = Animated.stagger(50, animations);
+    composite.start();
+    return () => {
+      composite.stop();
+    };
+  }, [forecast, reduced, motion.spring.bouncy]);
 
   return (
     <View style={{ gap: spacing.sm }}>
@@ -113,11 +159,16 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
           const isToday = index === 0;
           return (
             <View key={day.date} style={styles.forecastColumn}>
-              <View
+              <Animated.View
                 style={[
                   styles.forecastBar,
                   {
-                    height,
+                    height: animValues.current[index]
+                      ? animValues.current[index].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, height],
+                        })
+                      : height,
                     borderRadius: radii.sm,
                     backgroundColor: isToday ? colors.primary : colors.secondary,
                     opacity: day.count === 0 ? 0.25 : 1,
@@ -139,40 +190,87 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
 }
 
 export function HomeScreen() {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
   const navigation = useNavigation<NavigationProp>();
   const [displayName, setDisplayName] = useState('Learner');
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [statsError, setStatsError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
+  const flameScale = useRef(new Animated.Value(1)).current;
+  const bookScale = useRef(new Animated.Value(1)).current;
+
+  const fetchHomeData = useCallback((activeRef?: { current: boolean }) => {
+    return Promise.all([getStatsSummary(), me()])
+      .then(([summary, user]) => {
+        if (activeRef && !activeRef.current) return;
+        setStats(summary);
+        setStatsError(false);
+        setDisplayName(displayNameFromEmail(user.email, t('common.learner')));
+      })
+      .catch((err) => {
+        console.error('Error fetching home stats:', err);
+        if (activeRef && !activeRef.current) return;
+        setStats(null);
+        setStatsError(true);
+      });
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-
-      Promise.all([getStatsSummary(), me()])
-        .then(([summary, user]) => {
-          if (!active) {
-            return;
-          }
-          setStats(summary);
-          setStatsError(false);
-          setDisplayName(displayNameFromEmail(user.email, t('common.learner')));
-        })
-        .catch((err) => {
-          console.error('Error fetching home stats:', err);
-          if (active) {
-            setStats(null);
-            setStatsError(true);
-          }
-        });
-
+      const active = { current: true };
+      void fetchHomeData(active);
       return () => {
-        active = false;
+        active.current = false;
       };
-    }, [])
+    }, [fetchHomeData])
   );
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchHomeData().finally(() => {
+      setRefreshing(false);
+    });
+  }, [fetchHomeData]);
+
+  const handleRetry = useCallback(() => {
+    setStats(null);
+    setStatsError(false);
+    void fetchHomeData();
+  }, [fetchHomeData]);
+
+  const handlePressFlame = useCallback(() => {
+    if (reduced) {
+      navigation.navigate('Settings');
+      return;
+    }
+    flameScale.setValue(motion.scale.press);
+    Animated.spring(flameScale, {
+      toValue: 1.0,
+      tension: motion.spring.bouncy.tension,
+      friction: motion.spring.bouncy.friction,
+      useNativeDriver: true,
+    }).start(() => {
+      navigation.navigate('Settings');
+    });
+  }, [reduced, motion, navigation, flameScale]);
+
+  const handlePressBook = useCallback(() => {
+    if (reduced) {
+      navigation.navigate('Words');
+      return;
+    }
+    bookScale.setValue(motion.scale.press);
+    Animated.spring(bookScale, {
+      toValue: 1.0,
+      tension: motion.spring.bouncy.tension,
+      friction: motion.spring.bouncy.friction,
+      useNativeDriver: true,
+    }).start(() => {
+      navigation.navigate('Words');
+    });
+  }, [reduced, motion, navigation, bookScale]);
 
   const dueCount = stats?.due_today ?? null;
   const hasDue = dueCount !== null && dueCount > 0;
@@ -200,169 +298,203 @@ export function HomeScreen() {
 
   return (
     <Screen padded>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingVertical: spacing.lg }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingVertical: spacing.lg }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+          />
+        }
+      >
         <View style={{ gap: spacing.lg }}>
           <View style={{ gap: spacing.xs }}>
-          <Text variant="caption" color="muted">
-            {t('home.greeting', { name: displayName })}
-          </Text>
-          <Text variant="headline">{t('home.subtitle')}</Text>
-        </View>
-
-        <Button
-          label={t('add.addWord')}
-          iconLeft="add"
-          variant="tonal"
-          onPress={() => navigation.navigate('Add')}
-          accessibilityLabel={t('add.addWord')}
-        />
-
-        {stats && streakAtRisk && hasDue ? (
-          <Card style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
-            <Text style={{ color: colors.warning }}>
-              {t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })}
+            <Text variant="caption" color="muted">
+              {t('home.greeting', { name: displayName })}
             </Text>
-          </Card>
-        ) : null}
+            <Text variant="headline">{t('home.subtitle')}</Text>
+          </View>
 
-        {statsError || !stats ? renderLoading() : (
-          <StaggeredList style={{ gap: spacing.lg }}>
-            <CinematicCard
-              elevated
-              onPress={() => navigation.navigate('Practice')}
-              style={[styles.heroCard, { backgroundColor: colors.primaryContainer, borderColor: 'transparent' }]}
-              revealActions={
-                <Icon name="arrow-forward" size="md" color={colors.onPrimaryContainer} />
-              }
-            >
-              <View style={styles.row}>
-                <View style={styles.heroTitleRow}>
-                  <View style={[styles.heroIconCircle, { backgroundColor: colors.primary }]}>
-                    <Icon name={hasDue ? 'school' : 'checkmark-circle'} size="lg" color={colors.onPrimary} />
-                  </View>
-                  <View>
-                    <Text variant="caption" color="onPrimaryContainer">
-                      {t('home.wordsDue')}
-                    </Text>
-                    <Text variant="title" color="onPrimaryContainer" bold>
-                      {dueCount === null ? '...' : t('home.startReview', { count: dueCount })}
-                    </Text>
-                  </View>
-                </View>
-                <Badge
-                  label={dueCount === null ? '...' : String(dueCount)}
-                  variant={hasDue ? 'primary' : 'success'}
-                />
-              </View>
+          <Button
+            label={t('add.addWord')}
+            iconLeft="add"
+            variant="tonal"
+            onPress={() => navigation.navigate('Add')}
+            accessibilityLabel={t('add.addWord')}
+          />
 
-              {dueCount === null ? (
-                <Text color="onPrimaryContainer">{t('home.checkingDue')}</Text>
-              ) : hasDue ? (
-                <Button
-                  label={t('home.startReview', { count: dueCount })}
-                  iconRight="arrow-forward"
-                  onPress={() => navigation.navigate('Practice')}
-                  style={{ marginTop: spacing.md }}
-                />
-              ) : (
-                <Button
-                  label={t('home.previewPractice')}
-                  variant="outline"
-                  iconRight="arrow-forward"
-                  onPress={() => navigation.navigate('Practice')}
-                  style={{ marginTop: spacing.md }}
-                />
-              )}
-            </CinematicCard>
-
-            <View style={[styles.statsGrid, { gap: spacing.md }]}>
-              <Card style={styles.statCard} onPress={() => navigation.navigate('Settings')}>
-                <View style={[styles.statIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
-                  <Icon name="flame" size="md" color={colors.tertiary} />
-                </View>
-                <View style={{ gap: spacing.xs }}>
-                  <Text variant="title" bold>
-                    {stats ? streakDays : '...'}
-                  </Text>
-                  <Text variant="caption" color="muted">
-                    {t('home.dayStreak')}
-                  </Text>
-                  {stats && vacationModeActive ? (
-                    <Text variant="caption" color="muted">
-                      {t('home.streakVacation')}
-                    </Text>
-                  ) : null}
-                  {stats && !vacationModeActive && streakFreezeTokens > 0 ? (
-                    <Text variant="caption" color="muted">
-                      {t('home.streakFreezeAvailable', { count: streakFreezeTokens })}
-                    </Text>
-                  ) : null}
-                  {stats && longestStreak > streakDays ? (
-                    <Text variant="caption" color="muted">
-                      {t('home.longestStreak', { days: longestStreak })}
-                    </Text>
-                  ) : null}
-                </View>
-              </Card>
-
-              <Card style={styles.statCard} onPress={() => navigation.navigate('Words')}>
-                <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryContainer }]}>
-                  <Icon name="book" size="md" color={colors.secondary} />
-                </View>
-                <View style={{ gap: spacing.xs }}>
-                  <Text variant="title" bold>
-                    {totalWords ?? '...'}
-                  </Text>
-                  <Text variant="caption" color="muted">
-                    {t('tabs.words')}
-                  </Text>
-                </View>
-              </Card>
-            </View>
-
-            <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
-              <View style={styles.row}>
-                <Text variant="title">{t('home.xpToday')}</Text>
-                <Text variant="caption" color="primary" bold>
-                  {Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))}%
-                </Text>
-              </View>
-              <AnimatedProgressBar percent={Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))} />
-              <Text variant="caption" color="muted">
-                {xpToday} / {dailyGoalXP} XP
+          {stats && streakAtRisk && hasDue ? (
+            <Card style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
+              <Text style={{ color: colors.warning }}>
+                {t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })}
               </Text>
             </Card>
+          ) : null}
 
-            <Card style={{ gap: spacing.md, padding: spacing.lg }}>
-              <Text variant="title">{t('home.progressTitle')}</Text>
-              {statsError ? (
-                <Text color="muted">{t('home.statsLoadFailed')}</Text>
-              ) : stats ? (
-                <>
-                  <View style={{ gap: spacing.xs }}>
-                    <Text variant="caption" color="muted">
-                      {t('home.masteryTitle')}
-                    </Text>
-                    <MasteryBreakdown stageCounts={stats.stage_counts} />
+          {statsError ? (
+            <ErrorState
+              message={t('home.statsLoadFailed')}
+              onRetry={handleRetry}
+            />
+          ) : !stats ? (
+            renderLoading()
+          ) : (
+            <StaggeredList style={{ gap: spacing.lg }}>
+              <CinematicCard
+                elevated
+                onPress={() => navigation.navigate('Practice')}
+                style={[styles.heroCard, { padding: 0, overflow: 'hidden', borderColor: 'transparent' }]}
+                revealActions={
+                  <Icon name="arrow-forward" size="md" color="#ffffff" />
+                }
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.accent]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ padding: 20 }}
+                >
+                  <View style={styles.row}>
+                    <View style={styles.heroTitleRow}>
+                      <View style={[styles.heroIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+                        <Icon name={hasDue ? 'school' : 'checkmark-circle'} size="lg" color="#ffffff" />
+                      </View>
+                      <View>
+                        <Text variant="caption" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                          {t('home.wordsDue')}
+                        </Text>
+                        <Text variant="title" style={{ color: '#ffffff' }} bold>
+                          {dueCount === null ? '...' : t('home.startReview', { count: dueCount })}
+                        </Text>
+                      </View>
+                    </View>
+                    <Badge
+                      label={dueCount === null ? '...' : String(dueCount)}
+                      variant={hasDue ? 'primary' : 'success'}
+                    />
                   </View>
 
-                  <View style={{ gap: spacing.xs }}>
-                    <Text variant="caption" color="muted">
-                      {t('home.forecastTitle')}
-                    </Text>
-                    <ForecastChart forecast={stats.forecast} />
-                  </View>
-                </>
-              ) : (
-                <Text color="muted">{t('home.checkingDue')}</Text>
-              )}
-            </Card>
-          </StaggeredList>
-        )}
-      </View>
+                  {dueCount === null ? (
+                    <Text style={{ color: '#ffffff', marginTop: spacing.md }}>{t('home.checkingDue')}</Text>
+                  ) : hasDue ? (
+                    <Button
+                      label={t('home.startReview', { count: dueCount })}
+                      iconRight="arrow-forward"
+                      variant="secondary"
+                      onPress={() => navigation.navigate('Practice')}
+                      style={{ marginTop: spacing.md }}
+                    />
+                  ) : (
+                    <Button
+                      label={t('home.previewPractice')}
+                      variant="secondary"
+                      iconRight="arrow-forward"
+                      onPress={() => navigation.navigate('Practice')}
+                      style={{ marginTop: spacing.md }}
+                    />
+                  )}
+                </LinearGradient>
+              </CinematicCard>
+
+              <View style={[styles.statsGrid, { gap: spacing.md }]}>
+                <AnimatedPressable
+                  style={{ flex: 1, transform: [{ scale: flameScale }] }}
+                  onPress={handlePressFlame}
+                  accessibilityRole="button"
+                >
+                  <Card style={styles.statCard}>
+                    <View style={[styles.statIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
+                      <Icon name="flame" size="md" color={colors.tertiary} />
+                    </View>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="title" bold>
+                        {stats ? streakDays : '...'}
+                      </Text>
+                      <Text variant="caption" color="muted">
+                        {t('home.dayStreak')}
+                      </Text>
+                      {stats && vacationModeActive ? (
+                        <Text variant="caption" color="muted">
+                          {t('home.streakVacation')}
+                        </Text>
+                      ) : null}
+                      {stats && !vacationModeActive && streakFreezeTokens > 0 ? (
+                        <Text variant="caption" color="muted">
+                          {t('home.streakFreezeAvailable', { count: streakFreezeTokens })}
+                        </Text>
+                      ) : null}
+                      {stats && longestStreak > streakDays ? (
+                        <Text variant="caption" color="muted">
+                          {t('home.longestStreak', { days: longestStreak })}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Card>
+                </AnimatedPressable>
+
+                <AnimatedPressable
+                  style={{ flex: 1, transform: [{ scale: bookScale }] }}
+                  onPress={handlePressBook}
+                  accessibilityRole="button"
+                >
+                  <Card style={styles.statCard}>
+                    <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryContainer }]}>
+                      <Icon name="book" size="md" color={colors.secondary} />
+                    </View>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="title" bold>
+                        {totalWords ?? '...'}
+                      </Text>
+                      <Text variant="caption" color="muted">
+                        {t('tabs.words')}
+                      </Text>
+                    </View>
+                  </Card>
+                </AnimatedPressable>
+              </View>
+
+              <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
+                <View style={styles.row}>
+                  <Text variant="title">{t('home.xpToday')}</Text>
+                  <Text variant="caption" color="primary" bold>
+                    {Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))}%
+                  </Text>
+                </View>
+                <AnimatedProgressBar percent={Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))} />
+                <Text variant="caption" color="muted">
+                  {xpToday} / {dailyGoalXP} XP
+                </Text>
+              </Card>
+
+              <Card style={{ gap: spacing.md, padding: spacing.lg }}>
+                <Text variant="title">{t('home.progressTitle')}</Text>
+                {statsError ? (
+                  <Text color="muted">{t('home.statsLoadFailed')}</Text>
+                ) : stats ? (
+                  <>
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="caption" color="muted">
+                        {t('home.masteryTitle')}
+                      </Text>
+                      <MasteryBreakdown stageCounts={stats.stage_counts} />
+                    </View>
+
+                    <View style={{ gap: spacing.xs }}>
+                      <Text variant="caption" color="muted">
+                        {t('home.forecastTitle')}
+                      </Text>
+                      <ForecastChart forecast={stats.forecast} />
+                    </View>
+                  </>
+                ) : (
+                  <Text color="muted">{t('home.checkingDue')}</Text>
+                )}
+              </Card>
+            </StaggeredList>
+          )}
+        </View>
       </ScrollView>
-
-
     </Screen>
   );
 }
