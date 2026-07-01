@@ -14,6 +14,7 @@ interface ChipProps extends Omit<PressableProps, 'children'> {
 
 export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
   const { colors, radii, spacing, motion, reduced } = useTheme();
+  const { tension, friction } = motion.spring.bouncy;
   const scaleAnim = useRef(new Animated.Value(1.0)).current;
   const isFirstRender = useRef(true);
 
@@ -29,21 +30,23 @@ export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
     }
 
     scaleAnim.setValue(1.0);
-    Animated.sequence([
+    const anim = Animated.sequence([
       Animated.spring(scaleAnim, {
         toValue: 1.05,
-        tension: motion.spring.bouncy.tension,
-        friction: motion.spring.bouncy.friction,
+        tension,
+        friction,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: 1.0,
-        tension: motion.spring.bouncy.tension,
-        friction: motion.spring.bouncy.friction,
+        tension,
+        friction,
         useNativeDriver: true,
       }),
-    ]).start();
-  }, [selected, reduced, motion.spring.bouncy, scaleAnim]);
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [selected, reduced, scaleAnim, tension, friction]);
 
   return (
     <AnimatedPressable

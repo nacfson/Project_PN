@@ -12,6 +12,7 @@ interface AnimatedProgressBarProps {
 
 export function AnimatedProgressBar({ percent, height = 12 }: AnimatedProgressBarProps) {
   const { colors, radii, motion, reduced } = useTheme();
+  const { tension, friction } = motion.spring.bouncy;
   const widthAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0.75)).current;
 
@@ -23,13 +24,13 @@ export function AnimatedProgressBar({ percent, height = 12 }: AnimatedProgressBa
     }
     const anim = Animated.spring(widthAnim, {
       toValue: clamped,
-      tension: motion.spring.bouncy.tension,
-      friction: motion.spring.bouncy.friction,
+      tension,
+      friction,
       useNativeDriver: false,
     });
     anim.start();
     return () => anim.stop();
-  }, [percent, reduced, widthAnim, motion.spring.bouncy]);
+  }, [percent, reduced, widthAnim, tension, friction]);
 
   useEffect(() => {
     if (reduced) {
