@@ -221,7 +221,8 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `EMAIL_PROVIDER` | `log` | `log` prints verification URLs to API stdout; `resend` sends via Resend API. |
 | `RESEND_API_KEY` | empty | Required when `EMAIL_PROVIDER=resend`. |
 | `EMAIL_FROM` | empty | From address for Resend. |
-| `APP_PUBLIC_URL` | `http://localhost:8080` | Base URL for verification-link redirects (`…/?verified=true&email=`). |
+| `APP_PUBLIC_URL` | `http://localhost:8080` | Base URL of the API, used in verification email links (`/api/auth/verify-email`). |
+| `WEB_APP_PUBLIC_URL` | empty (falls back to `APP_PUBLIC_URL`) | Base URL of the web frontend, used for post-verification redirects (`/?verified=true&email=`). Set to `http://localhost:8081` in local web dev where the API and frontend run on separate ports. |
 
 ## Enrichment
 
