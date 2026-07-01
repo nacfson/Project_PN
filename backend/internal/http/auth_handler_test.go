@@ -56,6 +56,7 @@ func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 		AppPublicURL:           "http://localhost:8080",
+		WebAppPublicURL:        "http://localhost:8081",
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
@@ -144,8 +145,8 @@ func TestRegisterAndLogin(t *testing.T) {
 		t.Fatalf("verify-email: expected 302, got %d body=%s", consumeRec.Code, consumeRec.Body.String())
 	}
 	location := consumeRec.Header().Get("Location")
-	if !strings.Contains(location, "verified=true") {
-		t.Fatalf("expected verified redirect, got %q", location)
+	if !strings.HasPrefix(location, "http://localhost:8081/?verified=true") {
+		t.Fatalf("expected redirect to web app URL, got %q", location)
 	}
 
 	loginBody2 := bytes.NewBufferString(`{"email":"` + emailAddr + `","password":"` + password + `"}`)

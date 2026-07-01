@@ -27,6 +27,7 @@ const (
 	defaultEmailVerificationTTL = 24 * time.Hour
 	defaultEmailProvider        = "log"
 	defaultAppPublicURL         = "http://localhost:8080"
+	defaultWebAppPublicURL      = ""
 	defaultAuthMode             = "local"
 
 	// Web (Expo dev) and Tauri desktop WebView origins that may call the API.
@@ -69,6 +70,7 @@ type Config struct {
 	ResendAPIKey         string
 	EmailFrom            string
 	AppPublicURL         string
+	WebAppPublicURL      string
 
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
@@ -108,6 +110,7 @@ func Load() Config {
 		ResendAPIKey:         os.Getenv("RESEND_API_KEY"),
 		EmailFrom:            os.Getenv("EMAIL_FROM"),
 		AppPublicURL:         envOrDefault("APP_PUBLIC_URL", defaultAppPublicURL),
+		WebAppPublicURL:      envOrDefault("WEB_APP_PUBLIC_URL", defaultWebAppPublicURL),
 
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),

@@ -34,6 +34,7 @@ type Service struct {
 	forceTargetLang        string
 	forceUILang            string
 	appPublicURL           string
+	webAppPublicURL        string
 }
 
 type Options struct {
@@ -49,9 +50,14 @@ type Options struct {
 	ForceTargetLang        string
 	ForceUILang            string
 	AppPublicURL           string
+	WebAppPublicURL        string
 }
 
 func New(pool *pgxpool.Pool, mailer email.Mailer, opts Options) *Service {
+	webAppPublicURL := opts.WebAppPublicURL
+	if webAppPublicURL == "" {
+		webAppPublicURL = opts.AppPublicURL
+	}
 	return &Service{
 		pool:                   pool,
 		mailer:                 mailer,
@@ -67,11 +73,16 @@ func New(pool *pgxpool.Pool, mailer email.Mailer, opts Options) *Service {
 		forceTargetLang:        opts.ForceTargetLang,
 		forceUILang:            opts.ForceUILang,
 		appPublicURL:           opts.AppPublicURL,
+		webAppPublicURL:        webAppPublicURL,
 	}
 }
 
 func (s *Service) AppPublicURL() string {
 	return s.appPublicURL
+}
+
+func (s *Service) WebAppPublicURL() string {
+	return s.webAppPublicURL
 }
 
 func (s *Service) LanguageOptions() LanguageOptions {

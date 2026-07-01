@@ -153,7 +153,7 @@ func (h *authHandler) verifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectBase := h.svc.AppPublicURL()
+	redirectBase := h.svc.WebAppPublicURL()
 	redirectURL := redirectBase
 	if redirectBase == "" {
 		redirectURL = "/"

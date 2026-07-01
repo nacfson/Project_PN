@@ -121,7 +121,7 @@ Common causes:
 
 - PostgreSQL not healthy → `docker compose logs postgres`
 - Migration failed → `docker compose logs migrate`
-- Missing env var → `docker compose config | grep -A2 APP_PUBLIC_URL`
+- Missing env var → `docker compose config | grep -A2 'APP_PUBLIC_URL\|WEB_APP_PUBLIC_URL'`
 
 Restart everything:
 
@@ -216,14 +216,14 @@ ls -la web/index.html
 
 ## Magic link redirects to wrong URL
 
-**Cause:** `APP_PUBLIC_URL` in remote `.env` does not match the URL users open.
+**Cause:** `APP_PUBLIC_URL` or `WEB_APP_PUBLIC_URL` in remote `.env` does not match the URL users open.
 
 **Fix:** Update and restart API:
 
 ```sh
 ssh zlUbuntu
 cd ~/project-pn/deploy
-grep APP_PUBLIC_URL .env
+grep -E 'APP_PUBLIC_URL|WEB_APP_PUBLIC_URL' .env
 ```
 
 For staging:

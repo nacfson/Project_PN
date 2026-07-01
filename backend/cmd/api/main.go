@@ -51,6 +51,7 @@ func main() {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 		AppPublicURL:           cfg.AppPublicURL,
+		WebAppPublicURL:        cfg.WebAppPublicURL,
 	})
 	var centralAuth *auth.CentralClient
 	if cfg.AuthMode == "central" {
