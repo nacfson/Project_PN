@@ -1,5 +1,5 @@
 import type { Deck } from '../types';
-import { deleteJson, getJson, patchJson, postJson } from './client';
+import { deleteJson, getJson, patchJson, postJson, postNoContent } from './client';
 
 export type { Deck } from '../types';
 
@@ -22,4 +22,10 @@ export function renameDeck(deckId: string, name: string): Promise<void> {
 
 export function deleteDeck(deckId: string): Promise<void> {
   return deleteJson<void>(`/api/decks/${deckId}`);
+}
+
+export function moveItemsToDeck(deckId: string, userWordSenseIds: string[]): Promise<void> {
+  return postNoContent(`/api/decks/${deckId}/move-items`, {
+    user_word_sense_ids: userWordSenseIds,
+  });
 }

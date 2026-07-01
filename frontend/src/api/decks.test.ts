@@ -1,5 +1,5 @@
-import { createDeck, deleteDeck, listDecks, renameDeck } from './decks';
-import { deleteJson, getJson, patchJson, postJson } from './client';
+import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from './decks';
+import { deleteJson, getJson, patchJson, postJson, postNoContent } from './client';
 
 jest.mock('./client');
 
@@ -7,6 +7,7 @@ const mockedGetJson = jest.mocked(getJson);
 const mockedPostJson = jest.mocked(postJson);
 const mockedPatchJson = jest.mocked(patchJson);
 const mockedDeleteJson = jest.mocked(deleteJson);
+const mockedPostNoContent = jest.mocked(postNoContent);
 
 const baseDeck = {
   user_id: 'u1',
@@ -78,6 +79,18 @@ describe('deck API', () => {
       await deleteDeck('deck-2');
 
       expect(mockedDeleteJson).toHaveBeenCalledWith('/api/decks/deck-2');
+    });
+  });
+
+  describe('moveItemsToDeck', () => {
+    it('posts user_word_sense_ids to the move-items endpoint', async () => {
+      mockedPostNoContent.mockResolvedValue(undefined);
+
+      await moveItemsToDeck('deck-2', ['uws-1', 'uws-2']);
+
+      expect(mockedPostNoContent).toHaveBeenCalledWith('/api/decks/deck-2/move-items', {
+        user_word_sense_ids: ['uws-1', 'uws-2'],
+      });
     });
   });
 });

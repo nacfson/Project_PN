@@ -22,6 +22,7 @@ jest.mock('../../api/decks');
 const mockedUseActiveTargetLanguage = jest.mocked(useActiveTargetLanguageHook.useActiveTargetLanguage);
 const mockedUseLearningItems = jest.mocked(useLearningItemsHook.useLearningItems);
 const mockedListDecks = jest.mocked(decksApi.listDecks);
+const mockedMoveItemsToDeck = jest.mocked(decksApi.moveItemsToDeck);
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
@@ -255,5 +256,65 @@ describe('MyWordsScreen', () => {
     await waitFor(() => expect(screen.getByText('acquire')).toBeTruthy());
     expect(screen.queryByText(/📁/)).toBeNull();
     expect(screen.queryByText(/Reviewed/)).toBeNull();
+  });
+
+  it('opens move-to-deck modal and moves a single item', async () => {
+    const customDeck = { ...defaultDeck, id: 'd2', name: 'Verbs', is_default: false, item_count: 5 };
+    mockedListDecks.mockResolvedValue([defaultDeck, customDeck]);
+    mockedMoveItemsToDeck.mockResolvedValue(undefined);
+
+    const mockItem: LearningItemListItem = {
+      id: 'uws-3',
+      word_sense_id: 'ws-3',
+      word_id: 'w-3',
+      language_code: 'en',
+      lemma: 'analyze',
+      pronunciation: null,
+      part_of_speech: 'verb',
+      definition: 'to examine in detail',
+      short_definition: 'examine',
+      localized_definition: '분석하다',
+      localized_short_definition: '분석하다',
+      cefr_level: 'B1',
+      meaning_order: 1,
+      learning_stage: 'learning',
+      due_at: '2026-06-28T00:00:00Z',
+      added_at: '2026-06-20T00:00:00Z',
+      deck_id: 'd1',
+      deck_name: 'Default',
+      last_reviewed_at: null,
+      examples: [],
+    };
+
+    mockedUseLearningItems.mockReturnValue({
+      items: [mockItem],
+      nextCursor: null,
+      status: 'ready',
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore: jest.fn(),
+      refresh: jest.fn(),
+    });
+
+    const { container } = await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('analyze')).toBeTruthy());
+
+    // Find the move icon by its icon name string child and press it
+    const moveIcons = container.queryAll(
+      (el) => el.type === 'Text' && el.props.children === 'folder-open-outline',
+    );
+    expect(moveIcons.length).toBeGreaterThanOrEqual(1);
+    fireEvent.press(moveIcons[0]);
+
+    // Modal should appear with destination deck
+    await waitFor(() => expect(screen.getAllByText('Verbs').length).toBeGreaterThanOrEqual(2));
+
+    // Select the destination deck inside the modal (last occurrence)
+    const verbsOptions = screen.getAllByText('Verbs');
+    fireEvent.press(verbsOptions[verbsOptions.length - 1]);
+
+    await waitFor(() => expect(mockedMoveItemsToDeck).toHaveBeenCalledWith('d2', ['uws-3']));
   });
 });

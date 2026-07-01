@@ -7,6 +7,7 @@ interface CardProps extends ViewProps {
   elevated?: boolean;
   variant?: 'filled' | 'outlined';
   onPress?: () => void;
+  onLongPress?: () => void;
   hoverElevation?: boolean;
   hoverScale?: boolean;
 }
@@ -15,6 +16,7 @@ export function Card({
   elevated,
   variant = 'filled',
   onPress,
+  onLongPress,
   hoverElevation,
   hoverScale,
   style,
@@ -84,6 +86,7 @@ export function Card({
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <Pressable
         onPress={onPress}
+        onLongPress={onLongPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onHoverIn={handleHoverIn}

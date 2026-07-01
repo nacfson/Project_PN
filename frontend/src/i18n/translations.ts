@@ -105,6 +105,10 @@ export const en = {
   'words.deckCreateFailed': 'Could not create deck.',
   'words.deckRenameFailed': 'Could not rename deck.',
   'words.deckDeleteFailed': 'Could not delete deck.',
+  'words.moveToDeck': 'Move to deck',
+  'words.moveToDeckTitle': 'Move to deck',
+  'words.moveToDeckFailed': 'Could not move items.',
+  'words.noOtherDecks': 'No other decks available.',
   'words.lastReviewed': 'Reviewed {time}',
 
   'add.title': 'Add Words',
@@ -413,6 +417,10 @@ export const ko: Record<TranslationKey, string> = {
   'words.deckCreateFailed': '덱을 만들지 못했습니다.',
   'words.deckRenameFailed': '덱 이름을 변경하지 못했습니다.',
   'words.deckDeleteFailed': '덱을 삭제하지 못했습니다.',
+  'words.moveToDeck': '덱으로 이동',
+  'words.moveToDeckTitle': '덱으로 이동',
+  'words.moveToDeckFailed': '항목을 이동하지 못했습니다.',
+  'words.noOtherDecks': '이동할 수 있는 다른 덱이 없습니다.',
   'words.lastReviewed': '최근 복습: {time}',
 
   'add.title': '단어 추가',
