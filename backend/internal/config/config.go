@@ -27,7 +27,6 @@ const (
 	defaultEmailVerificationTTL = 24 * time.Hour
 	defaultEmailProvider        = "log"
 	defaultAppPublicURL         = "http://localhost:8080"
-	defaultAuthMode             = "local"
 
 	// Web (Expo dev) and Tauri desktop WebView origins that may call the API.
 	// Tauri serves the bundle from tauri://localhost (macOS) and
@@ -59,7 +58,6 @@ type Config struct {
 
 	AllowedOrigins []string
 
-	AuthMode              string
 	CentralAuthURL        string
 	CentralAuthInternalURL string
 
@@ -98,7 +96,6 @@ func Load() Config {
 
 		AllowedOrigins: splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
 
-		AuthMode:               strings.ToLower(envOrDefault("AUTH_MODE", defaultAuthMode)),
 		CentralAuthURL:         strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
 		CentralAuthInternalURL: strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
 

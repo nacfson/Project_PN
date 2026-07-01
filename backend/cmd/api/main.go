@@ -53,21 +53,16 @@ func main() {
 		AppPublicURL:           cfg.AppPublicURL,
 	})
 	var centralAuth *auth.CentralClient
-	if cfg.AuthMode == "central" {
-		centralAuthURL := cfg.CentralAuthInternalURL
-		if centralAuthURL == "" {
-			centralAuthURL = cfg.CentralAuthURL
-		}
-		if centralAuthURL == "" {
-			slog.Error("CENTRAL_AUTH_URL or CENTRAL_AUTH_INTERNAL_URL is required when AUTH_MODE=central")
-			os.Exit(1)
-		}
-		centralAuth = auth.NewCentralClient(centralAuthURL, nil)
-		slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
-	} else if cfg.AuthMode != "local" {
-		slog.Error("unsupported AUTH_MODE", "mode", cfg.AuthMode)
+	centralAuthURL := cfg.CentralAuthInternalURL
+	if centralAuthURL == "" {
+		centralAuthURL = cfg.CentralAuthURL
+	}
+	if centralAuthURL == "" {
+		slog.Error("CENTRAL_AUTH_URL or CENTRAL_AUTH_INTERNAL_URL is required")
 		os.Exit(1)
 	}
+	centralAuth = auth.NewCentralClient(centralAuthURL, nil)
+	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	server := &http.Server{
@@ -76,7 +71,6 @@ func main() {
 			DB:             pool,
 			Words:          wordsService,
 			Auth:           authService,
-			AuthMode:       cfg.AuthMode,
 			CentralAuth:    centralAuth,
 			AllowedOrigins: cfg.AllowedOrigins,
 		}),
@@ -85,7 +79,7 @@ func main() {
 
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
-	slog.Info("auth configuration loaded", "auth_mode", cfg.AuthMode, "central_auth_url", cfg.CentralAuthURL)
+	slog.Info("auth configuration loaded", "central_auth_url", cfg.CentralAuthURL)
 
 	if cfg.NotificationWorkerEnabled {
 		worker := &notify.Worker{
