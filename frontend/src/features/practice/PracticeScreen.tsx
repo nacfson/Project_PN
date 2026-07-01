@@ -459,12 +459,9 @@ export function PracticeScreen() {
             <Text variant="title" bold>
               {t('practice.xpEarned')}
             </Text>
-            <View
+            <Badge
+              variant="primary"
               style={{
-                backgroundColor: colors.primaryContainer,
-                borderRadius: radii.full,
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.xs,
                 flexDirection: 'row',
                 alignItems: 'center',
               }}
@@ -477,7 +474,7 @@ export function PracticeScreen() {
                 style={{ color: colors.onPrimaryContainer }}
               />
               <Text variant="caption" bold style={{ color: colors.onPrimaryContainer }}> XP</Text>
-            </View>
+            </Badge>
             <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
               {t('practice.progressSaved')}
             </Text>

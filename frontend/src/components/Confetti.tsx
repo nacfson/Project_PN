@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { Animated, useWindowDimensions, StyleSheet, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface ConfettiProps {
@@ -22,11 +22,11 @@ interface ParticleConfig {
 }
 
 export function Confetti({ active }: ConfettiProps) {
-  const { colors } = useTheme();
-  const screenWidth = Dimensions.get('window').width;
-  const screenHeight = Dimensions.get('window').height;
+  const { colors, reduced } = useTheme();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const particlesRef = useRef<ParticleConfig[]>([]);
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   if (particlesRef.current.length === 0) {
     const particleColors = [
@@ -63,6 +63,8 @@ export function Confetti({ active }: ConfettiProps) {
   }
 
   useEffect(() => {
+    if (reduced) return;
+
     if (active) {
       // Reset values to 0
       particlesRef.current.forEach((p) => p.progress.setValue(0));
@@ -75,14 +77,21 @@ export function Confetti({ active }: ConfettiProps) {
           useNativeDriver: true,
         }),
       );
-      Animated.parallel(animations).start();
+      animationRef.current = Animated.parallel(animations);
+      animationRef.current.start();
     } else {
       // Reset to 0 when not active
       particlesRef.current.forEach((p) => p.progress.setValue(0));
     }
-  }, [active]);
 
-  if (!active) return null;
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
+  }, [active, reduced]);
+
+  if (!active || reduced) return null;
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none" testID="confetti-container">

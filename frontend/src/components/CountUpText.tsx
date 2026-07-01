@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useTheme } from '../theme/ThemeProvider';
 import { Text } from '../ui';
 
 interface CountUpTextProps {
@@ -23,15 +24,16 @@ export function CountUpText({
   _clearInterval = clearInterval,
   ...rest
 }: CountUpTextProps) {
+  const { reduced } = useTheme();
   const [displayValue, setDisplayValue] = useState(0);
-  const startValueRef = useRef<number>(0);
-  const targetValueRef = useRef<number>(target);
 
   useEffect(() => {
-    const start = displayValue;
-    startValueRef.current = start;
-    targetValueRef.current = target;
+    if (reduced || duration <= 0) {
+      setDisplayValue(target);
+      return;
+    }
 
+    const start = displayValue;
     if (start === target) return;
 
     let elapsed = 0;
@@ -42,7 +44,7 @@ export function CountUpText({
       const progress = Math.min(elapsed / duration, 1);
       
       const easeProgress = progress * (2 - progress);
-      const currentValue = Math.floor(start + (target - start) * easeProgress);
+      const currentValue = Math.round(start + (target - start) * easeProgress);
 
       setDisplayValue(currentValue);
 
@@ -54,7 +56,7 @@ export function CountUpText({
     return () => {
       _clearInterval(interval);
     };
-  }, [target, duration, _setInterval, _clearInterval]);
+  }, [target, duration, reduced, _setInterval, _clearInterval]);
 
   return (
     <Text variant={variant} color={color} bold={bold} style={style} {...rest}>

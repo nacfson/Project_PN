@@ -5,11 +5,12 @@ import { Text } from './Text';
 type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
 
 interface BadgeProps extends ViewProps {
-  label: string;
+  label?: string;
   variant?: BadgeVariant;
+  children?: React.ReactNode;
 }
 
-export function Badge({ label, variant = 'default', style, ...rest }: BadgeProps) {
+export function Badge({ label, variant = 'default', children, style, ...rest }: BadgeProps) {
   const { colors, spacing, radii } = useTheme();
 
   const palette = {
@@ -37,9 +38,13 @@ export function Badge({ label, variant = 'default', style, ...rest }: BadgeProps
       ]}
       {...rest}
     >
-      <Text variant="caption" style={{ color: text, fontWeight: '600' }}>
-        {label}
-      </Text>
+      {children ? (
+        children
+      ) : (
+        <Text variant="caption" style={{ color: text, fontWeight: '600' }}>
+          {label}
+        </Text>
+      )}
     </View>
   );
 }
