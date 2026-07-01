@@ -25,7 +25,7 @@ export function CentralAuthScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Card elevated style={styles.card}>
         <View style={styles.header}>
-          <Icon name="shield-lock" size="lg" color={colors.primary} />
+          <Icon name="lock-closed" size="lg" color={colors.primary} />
           <Text variant="heading" style={{ marginTop: spacing.sm }}>Project PN</Text>
           <Text color="muted" style={{ textAlign: 'center' }}>
             A word is global, but memory is personal.

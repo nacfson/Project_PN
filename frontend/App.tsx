@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { me } from './src/api/auth';
@@ -7,10 +7,10 @@ import { onboardingStorage, sessionStorage } from './src/api/storage';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
 import { AppLanguageProvider } from './src/i18n';
 import { RootNavigator } from './src/navigation/RootNavigator';
-import { LoginScreen } from './src/screens/LoginScreen';
+import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
-import { parseVerifiedEmailFromLaunchUrl } from './src/utils/authLaunch';
+import { parseTokenFromLaunchUrl, extractTokenFromUrl } from './src/utils/authLaunch';
 import { onUnauthorized } from './src/api/client';
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
@@ -38,7 +38,6 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 function AppContent() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
-  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const { colors, mode } = useTheme();
 
   useEffect(() => {
@@ -46,12 +45,6 @@ function AppContent() {
     onboardingStorage.getCompleted().then((completed) => {
       if (!active) return;
       setOnboardingCompleted(completed);
-    });
-    parseVerifiedEmailFromLaunchUrl().then((email: string | null) => {
-      if (!active) return;
-      if (email) {
-        setVerifiedEmail(email);
-      }
     });
     return () => {
       active = false;
@@ -78,16 +71,36 @@ function AppContent() {
   }, [checkAuth]);
 
   useEffect(() => {
+    const checkIncomingToken = async () => {
+      const token = await parseTokenFromLaunchUrl();
+      if (token) {
+        await sessionStorage.setToken(token);
+        void checkAuth();
+      }
+    };
+    void checkIncomingToken();
+  }, [checkAuth]);
+
+  useEffect(() => {
+    const handleOpenURL = async (event: { url: string }) => {
+      const token = extractTokenFromUrl(event.url);
+      if (token) {
+        await sessionStorage.setToken(token);
+        void checkAuth();
+      }
+    };
+    const subscription = Linking.addEventListener('url', handleOpenURL);
+    return () => {
+      subscription.remove();
+    };
+  }, [checkAuth]);
+
+  useEffect(() => {
     const unsubscribe = onUnauthorized(async () => {
       await sessionStorage.removeToken();
       setAuthState('unauthenticated');
     });
     return unsubscribe;
-  }, []);
-
-  const onAuthenticated = useCallback(() => {
-    setVerifiedEmail(null);
-    setAuthState('authenticated');
   }, []);
 
   const completeOnboarding = useCallback(() => {
@@ -118,7 +131,7 @@ function AppContent() {
           edges={['top', 'right', 'bottom', 'left']}
           style={[styles.safe, { backgroundColor: colors.background }]}
         >
-          <LoginScreen onAuthenticated={onAuthenticated} />
+          <CentralAuthScreen />
         </SafeAreaView>
       )}
     </>
