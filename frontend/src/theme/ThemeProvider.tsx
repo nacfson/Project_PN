@@ -72,17 +72,5 @@ export function useTheme() {
   if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
-  return {
-    mode: context.mode,
-    colors: context.colors,
-    spacing: context.spacing,
-    radii: context.radii,
-    shadows: context.shadows,
-    iconSizes: context.iconSizes,
-    typography: context.typography,
-    setMode: context.setMode,
-    toggleMode: context.toggleMode,
-    motion: context.motion,
-    reduced: context.reduced,
-  };
+  return context;
 }

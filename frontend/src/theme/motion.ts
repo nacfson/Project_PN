@@ -29,19 +29,39 @@ export const scale = {
 
 // Hook to listen to reduced motion accessibility
 export function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+    return false;
+  });
+
   useEffect(() => {
     let active = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (active) setReduced(enabled);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      if (active) setReduced(enabled);
-    });
-    return () => {
-      active = false;
-      sub.remove();
-    };
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+      const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const listener = (event: MediaQueryListEvent) => {
+        if (active) setReduced(event.matches);
+      };
+      mediaQuery.addEventListener('change', listener);
+      return () => {
+        active = false;
+        mediaQuery.removeEventListener('change', listener);
+      };
+    } else {
+      AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+        if (active) setReduced(enabled);
+      });
+      const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+        if (active) setReduced(enabled);
+      });
+      return () => {
+        active = false;
+        sub.remove();
+      };
+    }
   }, []);
+
   return reduced;
 }

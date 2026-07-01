@@ -42,8 +42,8 @@ const md3Light = {
   inverseOnSurface: '#f5eff7',
   inversePrimary: '#d0bcff',
 
-  accent: '#ff8a80',
-  accent2: '#4ecdc4',
+  accent: '#d04f42',
+  accent2: '#008080',
 } as const;
 
 const md3Dark = {
