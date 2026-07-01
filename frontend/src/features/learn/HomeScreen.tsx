@@ -87,24 +87,32 @@ function MasteryBreakdown({
   return (
     <View style={{ gap: spacing.md }}>
       <View style={[styles.masteryBar, { borderRadius: radii.full, backgroundColor: colors.surfaceContainerHighest }]}>
-        {segments.map((segment) => {
-          if (segment.count === 0) {
-            return null;
-          }
-          return (
-            <Animated.View
-              key={segment.stage}
-              style={{
-                flex: Animated.multiply(growAnim, segment.count) as any,
-                backgroundColor: stageColors[segment.stage],
-                minWidth: growAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 4],
-                }),
-              }}
-            />
-          );
-        })}
+        <Animated.View
+          style={{
+            flexDirection: 'row',
+            width: growAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', '100%'],
+            }),
+            height: '100%',
+          }}
+        >
+          {segments.map((segment) => {
+            if (segment.count === 0) {
+              return null;
+            }
+            return (
+              <View
+                key={segment.stage}
+                style={{
+                  flex: segment.count,
+                  backgroundColor: stageColors[segment.stage],
+                  minWidth: 4,
+                }}
+              />
+            );
+          })}
+        </Animated.View>
       </View>
 
       <View style={[styles.legendGrid, { gap: spacing.sm }]}>
