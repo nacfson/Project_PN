@@ -1,7 +1,10 @@
-import { Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, type PressableProps } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon } from './Icon';
 import { Text } from './Text';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface ChipProps extends Omit<PressableProps, 'children'> {
   label: string;
@@ -10,10 +13,40 @@ interface ChipProps extends Omit<PressableProps, 'children'> {
 }
 
 export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
-  const { colors, radii, spacing } = useTheme();
+  const { colors, radii, spacing, motion, reduced } = useTheme();
+  const scaleAnim = useRef(new Animated.Value(1.0)).current;
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    if (reduced) {
+      scaleAnim.setValue(1.0);
+      return;
+    }
+
+    scaleAnim.setValue(1.0);
+    Animated.sequence([
+      Animated.spring(scaleAnim, {
+        toValue: 1.05,
+        tension: motion.spring.bouncy.tension,
+        friction: motion.spring.bouncy.friction,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1.0,
+        tension: motion.spring.bouncy.tension,
+        friction: motion.spring.bouncy.friction,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [selected, reduced, motion.spring.bouncy, scaleAnim]);
 
   return (
-    <Pressable
+    <AnimatedPressable
       style={({ pressed }) => [
         styles.base,
         {
@@ -23,6 +56,7 @@ export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
           paddingHorizontal: spacing.md,
           paddingVertical: spacing.sm,
           opacity: pressed ? 0.8 : 1,
+          transform: [{ scale: scaleAnim as any }],
         },
       ]}
       accessibilityRole="button"
@@ -37,7 +71,7 @@ export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

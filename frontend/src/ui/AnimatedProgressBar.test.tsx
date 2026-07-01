@@ -1,9 +1,13 @@
 import { render } from '@testing-library/react-native';
 import { AnimatedProgressBar } from './AnimatedProgressBar';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useReducedMotion } from '../theme/motion';
 
-jest.mock('../hooks/useReducedMotion');
+jest.mock('../theme/motion', () => ({
+  ...jest.requireActual('../theme/motion'),
+  useReducedMotion: jest.fn(),
+}));
+
 const mockedUseReducedMotion = jest.mocked(useReducedMotion);
 
 describe('AnimatedProgressBar', () => {
