@@ -1,9 +1,9 @@
 export type ThemeMode = 'light' | 'dark';
 
 const md3Light = {
-  primary: '#6750a4',
+  primary: '#7c5cbf',
   onPrimary: '#ffffff',
-  primaryContainer: '#eaddff',
+  primaryContainer: '#f0ecf8',
   onPrimaryContainer: '#21005d',
 
   secondary: '#625b71',
@@ -21,10 +21,10 @@ const md3Light = {
   errorContainer: '#f9dedc',
   onErrorContainer: '#410e0b',
 
-  background: '#fffbfe',
+  background: '#f9f6fc',
   onBackground: '#1c1b1f',
 
-  surface: '#fffbfe',
+  surface: '#f9f6fc',
   onSurface: '#1c1b1f',
   surfaceVariant: '#e7e0ec',
   onSurfaceVariant: '#49454f',
@@ -41,12 +41,15 @@ const md3Light = {
   inverseSurface: '#322f35',
   inverseOnSurface: '#f5eff7',
   inversePrimary: '#d0bcff',
+
+  accent: '#ff8a80',
+  accent2: '#4ecdc4',
 } as const;
 
 const md3Dark = {
-  primary: '#d0bcff',
+  primary: '#b794f4',
   onPrimary: '#381e72',
-  primaryContainer: '#4f378b',
+  primaryContainer: '#363152',
   onPrimaryContainer: '#eaddff',
 
   secondary: '#ccc2dc',
@@ -64,10 +67,10 @@ const md3Dark = {
   errorContainer: '#8c1d18',
   onErrorContainer: '#f9dedc',
 
-  background: '#141218',
+  background: '#171520',
   onBackground: '#e6e1e5',
 
-  surface: '#141218',
+  surface: '#171520',
   onSurface: '#e6e1e5',
   surfaceVariant: '#49454f',
   onSurfaceVariant: '#cab6cc',
@@ -84,6 +87,9 @@ const md3Dark = {
   inverseSurface: '#e6e0e9',
   inverseOnSurface: '#322f35',
   inversePrimary: '#6750a4',
+
+  accent: '#ff8a80',
+  accent2: '#4ecdc4',
 } as const;
 
 export interface MD3Colors {
@@ -119,6 +125,8 @@ export interface MD3Colors {
   inverseSurface: string;
   inverseOnSurface: string;
   inversePrimary: string;
+  accent: string;
+  accent2: string;
 }
 
 function semanticColors(mode: ThemeMode): MD3Colors {
@@ -190,10 +198,10 @@ export const spacing = {
 } as const;
 
 export const radii = {
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 18,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
   xxl: 28,
   full: 9999,
 } as const;
@@ -237,7 +245,7 @@ export const iconSizes = {
 } as const;
 
 export const typography = {
-  fontFamily: undefined as string | undefined,
+  fontFamily: 'Nunito-Regular',
   sizes: {
     xs: 11,
     sm: 13,

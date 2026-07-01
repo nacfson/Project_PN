@@ -10,10 +10,14 @@ import {
 import { useColorScheme } from 'react-native';
 import { themeModeStorage } from '../api/storage';
 import { themeFor, type Theme, type ThemeMode } from './tokens';
+import * as motion from './motion';
+import { useReducedMotion } from './motion';
 
 interface ThemeContextValue extends Theme {
   setMode: (mode: ThemeMode) => void;
   toggleMode: () => void;
+  motion: typeof motion;
+  reduced: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -23,6 +27,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() =>
     systemColorScheme === 'dark' ? 'dark' : 'light',
   );
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     let active = true;
@@ -54,16 +59,30 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       ...themeFor(mode),
       setMode,
       toggleMode,
+      motion,
+      reduced,
     };
-  }, [mode, setMode, toggleMode]);
+  }, [mode, setMode, toggleMode, reduced]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-export function useTheme(): ThemeContextValue {
+export function useTheme() {
   const context = useContext(ThemeContext);
   if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
-  return context;
+  return {
+    mode: context.mode,
+    colors: context.colors,
+    spacing: context.spacing,
+    radii: context.radii,
+    shadows: context.shadows,
+    iconSizes: context.iconSizes,
+    typography: context.typography,
+    setMode: context.setMode,
+    toggleMode: context.toggleMode,
+    motion: context.motion,
+    reduced: context.reduced,
+  };
 }
