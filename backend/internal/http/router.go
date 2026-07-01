@@ -19,7 +19,6 @@ type Dependencies struct {
 	DB             *pgxpool.Pool
 	Words          *words.Service
 	Auth           *auth.Service
-	AuthMode       string
 	CentralAuth    *auth.CentralClient
 	AllowedOrigins []string
 }
@@ -53,29 +52,16 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
-		if deps.AuthMode == "" {
-			deps.AuthMode = "local"
-		}
-		authMW = authMiddlewareForMode(deps.Auth, deps.CentralAuth, deps.AuthMode)
+		authMW = authMiddleware(deps.Auth, deps.CentralAuth)
 		ah := &authHandler{svc: deps.Auth}
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
 			authRouter.Get("/language-options", ah.languageOptions)
-			if deps.AuthMode != "central" {
-				authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/register", ah.register)
-				authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/login", ah.login)
-				authRouter.With(authIPRateLimit(), authEmailRateLimit()).Post("/verify-email/request", ah.requestVerificationEmail)
-				authRouter.With(consumeIPRateLimit()).Get("/verify-email", ah.verifyEmail)
-			}
 
 			authRouter.Group(func(protected chi.Router) {
 				protected.Use(authMW)
 				protected.Get("/me", ah.me)
-				if deps.AuthMode == "central" {
-					protected.Post("/logout", centralLogout(deps.CentralAuth))
-				} else {
-					protected.Post("/logout", ah.logout)
-				}
+				protected.Post("/logout", centralLogout(deps.CentralAuth))
 			})
 		})
 
