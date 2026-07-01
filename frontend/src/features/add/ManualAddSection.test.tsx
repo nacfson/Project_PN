@@ -28,6 +28,13 @@ describe('ManualAddSection', () => {
     expect(addButton).toBeDisabled();
   });
 
+  it('wraps the input in a flex container that can shrink so the add button is not pushed out of bounds', async () => {
+    await render(<ManualAddSection selectedDeckId="deck-123" />, { wrapper: Wrapper });
+
+    const inputWrapper = screen.getByTestId('manual-add-input-wrapper');
+    expect(inputWrapper).toHaveStyle({ flex: 1, minWidth: 0 });
+  });
+
   it('enqueues a word with the selected deck', async () => {
     await render(<ManualAddSection selectedDeckId="deck-123" />, { wrapper: Wrapper });
 

@@ -10,7 +10,7 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import { useNavigation, type CompositeNavigationProp, type NavigatorScreenParams } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, type CompositeNavigationProp, type NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -125,6 +125,12 @@ export function MyWordsScreen() {
   useEffect(() => {
     void loadDecks();
   }, [loadDecks]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshLanguage();
+    }, [refreshLanguage]),
+  );
 
   const handleCreate = useCallback(
     async (name: string) => {

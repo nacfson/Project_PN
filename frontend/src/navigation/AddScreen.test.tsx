@@ -4,21 +4,32 @@ import { AddScreen } from './AddScreen';
 import { AddQueueProvider } from '../hooks/useAddQueue';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
+import * as decksApi from '../api/decks';
+
+var mockUseActiveTargetLanguage = jest.fn();
 
 jest.mock('../api/decks', () => ({
-  listDecks: jest.fn().mockResolvedValue([
-    { id: 'd1', name: 'All Words', is_default: true, target_language: 'en', item_count: 10, user_id: 'u1', created_at: '', updated_at: '' },
-  ]),
+  listDecks: jest.fn(),
+  createDeck: jest.fn(),
+  renameDeck: jest.fn(),
+  deleteDeck: jest.fn(),
 }));
 
 jest.mock('../hooks/useActiveTargetLanguage', () => ({
-  useActiveTargetLanguage: () => ({ targetLanguage: 'en', displayLanguage: 'ko', loading: false, error: null, refresh: jest.fn() }),
+  useActiveTargetLanguage: (...args: any[]) => mockUseActiveTargetLanguage(...args),
 }));
 
 jest.mock('../api/words', () => ({
   addLearningItem: jest.fn().mockResolvedValue(undefined),
   lookupWord: jest.fn().mockResolvedValue({ sense_options: [] }),
 }));
+
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useFocusEffect: jest.fn(),
+}));
+
+const mockedListDecks = jest.mocked(decksApi.listDecks);
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
@@ -30,7 +41,32 @@ function Wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+const enDecks = [
+  { id: 'd1', name: 'All Words', is_default: true, target_language: 'en', item_count: 10, user_id: 'u1', created_at: '', updated_at: '' },
+];
+
+const esDecks = [
+  { id: 'es-d1', name: 'Todas', is_default: true, target_language: 'es', item_count: 0, user_id: 'u1', created_at: '', updated_at: '' },
+];
+
 describe('AddScreen', () => {
+  beforeEach(() => {
+    mockUseActiveTargetLanguage.mockReturnValue({
+      targetLanguage: 'en',
+      displayLanguage: 'ko',
+      loading: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    mockedListDecks.mockImplementation((languageCode) =>
+      Promise.resolve(languageCode === 'es' ? esDecks : enDecks),
+    );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('renders segmented switcher and defaults to From Passage tab', async () => {
     await render(<AddScreen />, { wrapper: Wrapper });
 
@@ -49,7 +85,7 @@ describe('AddScreen', () => {
   });
 
   it('switches to Manual Add tab when clicked', async () => {
-    render(<AddScreen />, { wrapper: Wrapper });
+    await render(<AddScreen />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('All Words')).toBeTruthy();
@@ -71,5 +107,26 @@ describe('AddScreen', () => {
     // Passage capture flow should be visible again
     await waitFor(() => expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy());
     expect(screen.queryByPlaceholderText('Type a word')).toBeNull();
+  });
+
+  it('selects the default deck for the new language pair when the active target language changes', async () => {
+    const { rerender } = await render(<AddScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('All Words')).toBeTruthy());
+    expect(mockedListDecks).toHaveBeenLastCalledWith('en');
+
+    // Switch active language pair to Spanish
+    mockUseActiveTargetLanguage.mockReturnValue({
+      targetLanguage: 'es',
+      displayLanguage: 'en',
+      loading: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    rerender(<AddScreen />);
+
+    await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
+    expect(mockedListDecks).toHaveBeenLastCalledWith('es');
+    expect(screen.queryByText('No deck')).toBeNull();
   });
 });

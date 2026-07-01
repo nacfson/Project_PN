@@ -4,13 +4,10 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { me } from '../../api/auth';
-import { getContentChallenges, getWordOfTheDay } from '../../api/content';
 import { getStatsSummary } from '../../api/stats';
-import { useAddQueue } from '../../hooks/useAddQueue';
 import { useAppLanguage } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
-import type { ContentChallenge, SenseOption, StatsSummary } from '../../types';
-import { recentCaptureWords } from '../../storage/captureHistory';
+import type { StatsSummary } from '../../types';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Screen, Text } from '../../ui';
 import { SkeletonCard } from '../../ui/SkeletonCard';
@@ -145,30 +142,23 @@ export function HomeScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const navigation = useNavigation<NavigationProp>();
-  const { enqueue, enqueueMany } = useAddQueue();
   const [displayName, setDisplayName] = useState('Learner');
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [statsError, setStatsError] = useState(false);
-  const [wordOfTheDay, setWordOfTheDay] = useState<SenseOption | null>(null);
-  const [captureWords, setCaptureWords] = useState<string[]>([]);
-  const [challenges, setChallenges] = useState<ContentChallenge[]>([]);
 
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      Promise.all([getStatsSummary(), me(), getWordOfTheDay(), getContentChallenges(), recentCaptureWords()])
-        .then(([summary, user, wotd, challengeResponse, recentCaptures]) => {
+      Promise.all([getStatsSummary(), me()])
+        .then(([summary, user]) => {
           if (!active) {
             return;
           }
           setStats(summary);
           setStatsError(false);
           setDisplayName(displayNameFromEmail(user.email, t('common.learner')));
-          setWordOfTheDay(wotd.sense_options[0] ?? null);
-          setChallenges(challengeResponse.challenges);
-          setCaptureWords(recentCaptures);
         })
         .catch((err) => {
           console.error('Error fetching home stats:', err);
@@ -342,69 +332,6 @@ export function HomeScreen() {
                 {xpToday} / {dailyGoalXP} XP
               </Text>
             </Card>
-
-            {wordOfTheDay ? (
-              <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
-                <View style={styles.row}>
-                  <View style={[styles.smallIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
-                    <Icon name="bulb" size="md" color={colors.tertiary} />
-                  </View>
-                  <Text variant="label" color="muted">
-                    {t('home.wordOfTheDayTitle')}
-                  </Text>
-                </View>
-                <Text variant="title" bold>
-                  {wordOfTheDay.lemma}
-                </Text>
-                <Text color="muted">{wordOfTheDay.localized_definition || wordOfTheDay.definition}</Text>
-                <Button
-                  label={t('home.wordOfTheDayAdd')}
-                  variant="tonal"
-                  onPress={() => enqueue(wordOfTheDay.lemma, 'Any')}
-                />
-              </Card>
-            ) : (
-              <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
-                <Text variant="title">{t('home.wordOfTheDayTitle')}</Text>
-                <Text color="muted">{t('home.wordOfTheDayEmpty')}</Text>
-              </Card>
-            )}
-
-            <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
-              <Text variant="title">{t('home.captureReentryTitle')}</Text>
-              <Text variant="caption" color="muted">
-                {t('home.captureReentrySubtitle')}
-              </Text>
-              {captureWords.length > 0 ? (
-                <>
-                  <Text>{captureWords.join(', ')}</Text>
-                  <Button
-                    label={t('home.captureReentryAdd')}
-                    variant="tonal"
-                    onPress={() => enqueueMany(captureWords, 'Any')}
-                  />
-                </>
-              ) : (
-                <Text color="muted">{t('home.captureReentryEmpty')}</Text>
-              )}
-            </Card>
-
-            {challenges.length > 0 ? (
-              <Card style={{ gap: spacing.md, padding: spacing.lg }}>
-                <Text variant="title">{t('home.challengesTitle')}</Text>
-                {challenges.map((challenge) => (
-                  <View key={challenge.id} style={{ gap: spacing.xs }}>
-                    <Text>{challenge.title}</Text>
-                    <Text variant="caption" color="muted">
-                      {challenge.description}
-                    </Text>
-                    {challenge.status === 'coming_soon' ? (
-                      <Badge label={t('home.challengesComingSoon')} variant="default" />
-                    ) : null}
-                  </View>
-                ))}
-              </Card>
-            ) : null}
 
             <Card style={{ gap: spacing.md, padding: spacing.lg }}>
               <Text variant="title">{t('home.progressTitle')}</Text>

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deck / Language-Pair Sync Mockup</title>
+  <style>
+    :root {
+      --bg: #f3f0f7;
+      --surface: #ffffff;
+      --primary: #6b4eff;
+      --primary-text: #ffffff;
+      --outline: #d6cfe3;
+      --text: #1f1b2e;
+      --muted: #6b6680;
+      --radius: 12px;
+      --shadow: 0 2px 8px rgba(31, 27, 46, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .phone {
+      width: 100%;
+      max-width: 380px;
+      min-height: 720px;
+      background: var(--surface);
+      border-radius: 28px;
+      box-shadow: 0 12px 40px rgba(31, 27, 46, 0.18);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 24px 20px 12px;
+      border-bottom: 1px solid var(--outline);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 22px;
+    }
+
+    .language-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .language-row select {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--outline);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .screen {
+      flex: 1;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .deck-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .deck-chip {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border: 1px solid var(--outline);
+      border-radius: 999px;
+      background: var(--surface);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .deck-chip.active {
+      background: #e9e4f8;
+      border-color: transparent;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .deck-chip.create {
+      border-style: dashed;
+      color: var(--primary);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .word-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .word {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .definition {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .badges {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--bg);
+      color: var(--muted);
+    }
+
+    .badge.primary {
+      background: var(--primary);
+      color: var(--primary-text);
+    }
+
+    .add-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-wrapper {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--outline);
+      border-radius: var(--radius);
+      background: var(--bg);
+      font-size: 16px;
+      outline: none;
+    }
+
+    .btn {
+      flex-shrink: 0;
+      padding: 12px 18px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: var(--primary-text);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 4px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .tab.active {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow: var(--shadow);
+    }
+
+    .notice {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      padding: 12px;
+      background: var(--bg);
+      border-radius: var(--radius);
+    }
+
+    .bottom-nav {
+      display: flex;
+      justify-content: space-around;
+      padding: 12px 0 24px;
+      border-top: 1px solid var(--outline);
+    }
+
+    .nav-item {
+      font-size: 13px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px 12px;
+    }
+
+    .nav-item.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .hidden { display: none !important; }
+
+    .hero {
+      background: linear-gradient(135deg, #e9e4f8 0%, #d8d0f5 100%);
+      border: none;
+    }
+
+    .hero-title {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .hero-count {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .progress-bar {
+      height: 10px;
+      background: var(--bg);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 42%;
+      background: var(--primary);
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <header>
+      <h1 id="screenTitle">Home</h1>
+      <div class="language-row">
+        <label for="pair">Language pair:</label>
+        <select id="pair">
+          <option value="en-ko">English → Korean</option>
+          <option value="es-en">Spanish → English</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- Home screen -->
+    <div class="screen" id="homeScreen">
+      <div>
+        <div style="font-size: 13px; color: var(--muted);">Good morning, Learner</div>
+        <div style="font-size: 20px; font-weight: 700; margin-top: 4px;">Ready to review?</div>
+      </div>
+
+      <button class="btn" style="width: 100%;">＋ Add Word</button>
+
+      <div class="card hero">
+        <div class="hero-title">Words due today</div>
+        <div class="hero-count">12 words</div>
+        <button class="btn" style="margin-top: 12px; width: 100%;">Start Review</button>
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <div class="card" style="flex: 1;">
+          <div style="font-size: 22px; font-weight: 700;">5</div>
+          <div style="font-size: 12px; color: var(--muted);">day streak</div>
+        </div>
+        <div class="card" style="flex: 1;">
+          <div style="font-size: 22px; font-weight: 700;">128</div>
+          <div style="font-size: 12px; color: var(--muted);">words</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600;">XP today</span>
+          <span style="font-size: 13px; color: var(--primary); font-weight: 700;">42%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">84 / 200 XP</div>
+      </div>
+
+      <div class="notice">
+        From your captures, Word of the day, and Themed challenges have been removed.
+      </div>
+    </div>
+
+    <!-- Words screen -->
+    <div class="screen hidden" id="wordsScreen">
+      <div>
+        <div class="section-title">Decks</div>
+        <div class="deck-strip" id="deckStrip">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Add word</div>
+        <div class="card">
+          <div class="tabs">
+            <div class="tab">From Passage</div>
+            <div class="tab active">Single Word</div>
+          </div>
+          <div style="margin-top: 16px;">
+            <div class="add-row">
+              <div class="input-wrapper">
+                <input class="input" type="text" placeholder="Type a word" value="serendipity" />
+              </div>
+              <button class="btn">Add Word</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Words</div>
+        <div class="card">
+          <div class="word-row">
+            <div>
+              <div class="word">abandon</div>
+              <div class="definition">to leave behind, to forsake</div>
+            </div>
+          </div>
+          <div class="badges">
+            <span class="badge">verb</span>
+            <span class="badge primary">learning</span>
+            <span class="badge" id="deckBadge">📁 Default</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="notice">
+        Switch the language pair above to see the deck strip update.
+      </div>
+    </div>
+
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-target="homeScreen">Home</button>
+      <button class="nav-item" data-target="wordsScreen">Words</button>
+      <button class="nav-item">Add</button>
+      <button class="nav-item">Profile</button>
+    </nav>
+  </div>
+
+  <script>
+    const decksByPair = {
+      'en-ko': [
+        { id: 'all', name: 'All Decks', count: 128, icon: '☰', default: true },
+        { id: 'd1', name: 'Default', count: 86, icon: '📁' },
+        { id: 'd2', name: 'TOEFL', count: 42, icon: '📁' },
+      ],
+      'es-en': [
+        { id: 'all', name: 'All Decks', count: 34, icon: '☰', default: true },
+        { id: 'es-d1', name: 'Todas', count: 34, icon: '📁' },
+      ],
+    };
+
+    const pairSelect = document.getElementById('pair');
+    const deckStrip = document.getElementById('deckStrip');
+    const deckBadge = document.getElementById('deckBadge');
+    const screenTitle = document.getElementById('screenTitle');
+
+    function renderDecks(pair) {
+      const decks = decksByPair[pair];
+      deckStrip.innerHTML = '';
+      decks.forEach((deck, index) => {
+        const chip = document.createElement('button');
+        chip.className = 'deck-chip' + (index === 0 ? ' active' : '');
+        chip.innerHTML = `<span>${deck.icon}</span><span>${deck.name} (${deck.count})</span>`;
+        chip.onclick = () => {
+          document.querySelectorAll('.deck-chip').forEach((c) => c.classList.remove('active'));
+          chip.classList.add('active');
+          deckBadge.textContent = `📁 ${deck.name}`;
+        };
+        deckStrip.appendChild(chip);
+      });
+
+      const createChip = document.createElement('button');
+      createChip.className = 'deck-chip create';
+      createChip.innerHTML = '<span>＋</span><span>Create deck</span>';
+      deckStrip.appendChild(createChip);
+
+      deckBadge.textContent = `📁 ${decks[0].name}`;
+    }
+
+    pairSelect.addEventListener('change', (e) => renderDecks(e.target.value));
+    renderDecks(pairSelect.value);
+
+    // Bottom nav switching
+    document.querySelectorAll('.nav-item[data-target]').forEach((item) => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
+        item.classList.add('active');
+        document.getElementById('homeScreen').classList.add('hidden');
+        document.getElementById('wordsScreen').classList.add('hidden');
+        const target = document.getElementById(item.dataset.target);
+        target.classList.remove('hidden');
+        screenTitle.textContent = item.dataset.target === 'homeScreen' ? 'Home' : 'My Words';
+      });
+    });
+  </script>
+</body>
+</html>

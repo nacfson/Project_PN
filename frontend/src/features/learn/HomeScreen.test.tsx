@@ -6,19 +6,13 @@ import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 
 jest.mock('../../api/auth', () => ({ me: jest.fn() }));
-jest.mock('../../api/content', () => ({ getContentChallenges: jest.fn(), getWordOfTheDay: jest.fn() }));
 jest.mock('../../api/stats', () => ({ getStatsSummary: jest.fn() }));
-jest.mock('../../storage/captureHistory', () => ({ recentCaptureWords: jest.fn() }));
 
 const mockNavigate = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate }),
   useFocusEffect: jest.fn(),
-}));
-
-jest.mock('../../hooks/useAddQueue', () => ({
-  useAddQueue: () => ({ enqueue: jest.fn(), enqueueMany: jest.fn() }),
 }));
 
 function Wrapper({ children }: { children: ReactNode }) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { listDecks } from '../api/decks';
 import { CaptureSection } from '../features/add/CaptureSection';
 import { ManualAddSection } from '../features/add/ManualAddSection';
@@ -36,7 +37,8 @@ export function AddScreen() {
       .then((loaded) => {
         setDecks(loaded);
         const defaultDeck = loaded.find((d) => d.is_default);
-        setSelectedDeckId((prev) => prev ?? defaultDeck?.id ?? loaded[0]?.id ?? null);
+        const fallbackId = defaultDeck?.id ?? loaded[0]?.id ?? null;
+        setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : fallbackId));
       })
       .catch(() => {
         setDecksError(t('add.deckLoadFailed'));
@@ -49,6 +51,12 @@ export function AddScreen() {
   useEffect(() => {
     loadDecks();
   }, [loadDecks, deckRetryTick]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshLanguage();
+    }, [refreshLanguage]),
+  );
 
   const handleRetry = useCallback(() => {
     refreshLanguage();

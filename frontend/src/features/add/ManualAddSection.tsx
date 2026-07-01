@@ -49,17 +49,18 @@ export function ManualAddSection({ selectedDeckId }: ManualAddSectionProps) {
       </Text>
 
       <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
-        <Input
-          value={word}
-          onChangeText={setWord}
-          placeholder={t('add.wordPlaceholder')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          onSubmitEditing={submit}
-          returnKeyType="search"
-          onClear={() => setWord('')}
-          style={{ flex: 1 }}
-        />
+        <View style={{ flex: 1, minWidth: 0 }} testID="manual-add-input-wrapper">
+          <Input
+            value={word}
+            onChangeText={setWord}
+            placeholder={t('add.wordPlaceholder')}
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={submit}
+            returnKeyType="search"
+            onClear={() => setWord('')}
+          />
+        </View>
         <Button label={t('add.addWord')} onPress={submit} disabled={word.trim().length === 0} />
       </View>
 

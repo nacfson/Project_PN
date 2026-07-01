@@ -59,11 +59,6 @@ function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-function resolveAuthMode(): 'local' | 'central' {
-  const mode = (process.env.EXPO_PUBLIC_AUTH_MODE ?? 'local').trim().toLowerCase();
-  return mode === 'central' ? 'central' : 'local';
-}
-
 function resolveCentralAuthUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_CENTRAL_AUTH_URL;
   return fromEnv ? stripTrailingSlash(fromEnv.trim()) : '';
@@ -74,9 +69,7 @@ export const API_BASE_URLS = [
   API_BASE_URL,
   ...resolveApiFallbackUrls().filter((url) => url !== API_BASE_URL),
 ];
-export const AUTH_MODE = resolveAuthMode();
 export const CENTRAL_AUTH_URL = resolveCentralAuthUrl();
-export const IS_CENTRAL_AUTH = AUTH_MODE === 'central';
 
 export const DEFAULT_LANGUAGE_CODE = 'en';
 export const DEFAULT_DEFINITION_LANGUAGE_CODE = 'ko';

@@ -13,6 +13,7 @@ import type { LearningItemListItem } from '../../types';
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: jest.fn() }),
+  useFocusEffect: jest.fn(),
 }));
 
 jest.mock('../../hooks/useActiveTargetLanguage');
@@ -150,6 +151,40 @@ describe('MyWordsScreen', () => {
     fireEvent.press(infoIcons[0]);
 
     await waitFor(() => expect(screen.getByText('Rename deck')).toBeTruthy());
+  });
+
+  it('loads decks for the new language pair when the active target language changes', async () => {
+    const esDeck = {
+      id: 'es-d1',
+      name: 'Todas',
+      target_language: 'es',
+      is_default: true,
+      item_count: 0,
+      user_id: 'u1',
+      created_at: '',
+      updated_at: '',
+    };
+    mockedListDecks.mockImplementation((languageCode) =>
+      Promise.resolve(languageCode === 'es' ? [esDeck] : [defaultDeck]),
+    );
+
+    const { rerender } = await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('Default')).toBeTruthy());
+    expect(mockedListDecks).toHaveBeenLastCalledWith('en');
+
+    mockedUseActiveTargetLanguage.mockReturnValue({
+      targetLanguage: 'es',
+      displayLanguage: 'en',
+      loading: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    rerender(<MyWordsScreen />);
+
+    await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
+    expect(mockedListDecks).toHaveBeenLastCalledWith('es');
+    expect(screen.queryByText('Default')).toBeNull();
   });
 
   it('shows loading indicator when decks are loading', async () => {

@@ -118,7 +118,7 @@ function AppContent() {
           edges={['top', 'right', 'bottom', 'left']}
           style={[styles.safe, { backgroundColor: colors.background }]}
         >
-          <LoginScreen verifiedEmail={verifiedEmail} onAuthenticated={onAuthenticated} />
+          <LoginScreen onAuthenticated={onAuthenticated} />
         </SafeAreaView>
       )}
     </>

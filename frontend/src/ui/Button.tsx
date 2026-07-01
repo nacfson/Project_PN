@@ -124,7 +124,7 @@ export function Button({
                   color={labelColor === 'inverse' ? colors.onPrimary : colors.primary}
                 />
               )}
-              <Text variant="label" color={labelColor} style={{ textAlign: 'center' }}>
+              <Text variant="label" color={labelColor} style={{ textAlign: 'center' }} numberOfLines={1}>
                 {label}
               </Text>
               {iconRight && (

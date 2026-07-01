@@ -1,18 +1,13 @@
 import {
   CENTRAL_AUTH_URL,
-  DEFAULT_DEFINITION_LANGUAGE_CODE,
-  DEFAULT_LANGUAGE_CODE,
-  IS_CENTRAL_AUTH,
 } from '../config';
 import type {
   LanguageOptionsResponse,
   LoginRequest,
   MeResponse,
-  RegisterRequest,
   SessionResponse,
-  VerifyEmailRequest,
 } from '../types/auth';
-import { ApiError, getJson, postJson, postNoContent } from './client';
+import { ApiError, getJson, postNoContent } from './client';
 import { sessionStorage } from './storage';
 
 const noAuth = { auth: false as const };
@@ -21,28 +16,9 @@ export async function getLanguageOptions(): Promise<LanguageOptionsResponse> {
   return getJson<LanguageOptionsResponse>('/api/auth/language-options', noAuth);
 }
 
-export async function register(
-  email: string,
-  password: string,
-  langs?: { nativeLanguage?: string; targetLanguage?: string },
-): Promise<void> {
-  if (IS_CENTRAL_AUTH) {
-    throw new ApiError(400, 'Account creation is managed by the central auth platform.');
-  }
-  const body: RegisterRequest = {
-    email,
-    password,
-    native_language: langs?.nativeLanguage ?? DEFAULT_DEFINITION_LANGUAGE_CODE,
-    target_language: langs?.targetLanguage ?? DEFAULT_LANGUAGE_CODE,
-  };
-  await postJson<void>('/api/auth/register', body, noAuth);
-}
-
 export async function login(email: string, password: string): Promise<SessionResponse> {
   const body: LoginRequest = { email, password };
-  const session = IS_CENTRAL_AUTH
-    ? await centralLogin(body)
-    : await postJson<SessionResponse>('/api/auth/login', body, noAuth);
+  const session = await centralLogin(body);
   await sessionStorage.setToken(session.token);
   return session;
 }
@@ -57,14 +33,6 @@ export async function logout(): Promise<void> {
   } finally {
     await sessionStorage.removeToken();
   }
-}
-
-export async function requestVerificationEmail(email: string): Promise<void> {
-  if (IS_CENTRAL_AUTH) {
-    throw new ApiError(400, 'Email verification is managed by the central auth platform.');
-  }
-  const body: VerifyEmailRequest = { email };
-  await postNoContent('/api/auth/verify-email/request', body, noAuth);
 }
 
 async function centralLogin(body: LoginRequest): Promise<SessionResponse> {
