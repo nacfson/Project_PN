@@ -74,6 +74,8 @@ export const CENTRAL_AUTH_URL = resolveCentralAuthUrl();
 export const DEFAULT_LANGUAGE_CODE = 'en';
 export const DEFAULT_DEFINITION_LANGUAGE_CODE = 'ko';
 
+export const PN_EXTENSION_ID = process.env.EXPO_PUBLIC_PN_EXTENSION_ID ?? '';
+
 export interface LanguageOption {
   code: string;
   name: string;

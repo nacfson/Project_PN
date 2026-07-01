@@ -1,20 +1,26 @@
-import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from './decks';
-import { deleteJson, getJson, patchJson, postJson, postNoContent } from './client';
+import {
+  createDeck as createDeckApi,
+  deleteDeck as deleteDeckApi,
+  listDecks as listDecksApi,
+  renameDeck as renameDeckApi,
+  moveItemsToDeck as moveItemsToDeckApi,
+} from '@project-pn/api';
+import { createDeck, deleteDeck, listDecks, renameDeck, moveItemsToDeck } from './decks';
 
-jest.mock('./client');
+jest.mock('@project-pn/api');
 
-const mockedGetJson = jest.mocked(getJson);
-const mockedPostJson = jest.mocked(postJson);
-const mockedPatchJson = jest.mocked(patchJson);
-const mockedDeleteJson = jest.mocked(deleteJson);
-const mockedPostNoContent = jest.mocked(postNoContent);
+const mockedListDecksApi = jest.mocked(listDecksApi);
+const mockedCreateDeckApi = jest.mocked(createDeckApi);
+const mockedRenameDeckApi = jest.mocked(renameDeckApi);
+const mockedDeleteDeckApi = jest.mocked(deleteDeckApi);
+const mockedMoveItemsToDeckApi = jest.mocked(moveItemsToDeckApi);
 
 const baseDeck = {
   user_id: 'u1',
   target_language: 'en',
   item_count: 0,
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-01T00:00:00Z',
+  created_at: '',
+  updated_at: '',
 };
 
 describe('deck API', () => {
@@ -23,74 +29,52 @@ describe('deck API', () => {
   });
 
   describe('listDecks', () => {
-    it('returns decks for the given language', async () => {
-      const decks = [{ id: 'deck-1', name: 'Daily', is_default: true, ...baseDeck }];
-      mockedGetJson.mockResolvedValue({ decks });
+    it('fetches decks with optionally supplied languageCode', async () => {
+      const decks = [{ id: 'deck-1', name: 'Deck 1', is_default: true, ...baseDeck }];
+      mockedListDecksApi.mockResolvedValue(decks);
 
-      const result = await listDecks('en');
+      const res = await listDecks('en');
 
-      expect(mockedGetJson).toHaveBeenCalledWith('/api/decks?language_code=en');
-      expect(result).toEqual(decks);
-    });
-
-    it('returns all decks when no language is given', async () => {
-      const decks = [
-        { id: 'deck-1', name: 'Daily', is_default: true, ...baseDeck },
-        { id: 'deck-2', name: 'Weekly', is_default: true, ...baseDeck, target_language: 'es' },
-      ];
-      mockedGetJson.mockResolvedValue({ decks });
-
-      const result = await listDecks();
-
-      expect(mockedGetJson).toHaveBeenCalledWith('/api/decks');
-      expect(result).toEqual(decks);
+      expect(res).toBe(decks);
+      expect(mockedListDecksApi).toHaveBeenCalledWith('en');
     });
   });
 
   describe('createDeck', () => {
-    it('posts name and target language', async () => {
-      const deck = { id: 'deck-2', name: 'Verbs', is_default: false, ...baseDeck };
-      mockedPostJson.mockResolvedValue(deck);
+    it('creates a new deck', async () => {
+      const newDeck = { id: 'deck-2', name: 'New Deck', is_default: false, ...baseDeck };
+      mockedCreateDeckApi.mockResolvedValue(newDeck);
 
-      const result = await createDeck('Verbs', 'en');
+      const res = await createDeck('New Deck', 'en');
 
-      expect(mockedPostJson).toHaveBeenCalledWith('/api/decks', {
-        name: 'Verbs',
-        target_language: 'en',
-      });
-      expect(result).toEqual(deck);
+      expect(res).toBe(newDeck);
+      expect(mockedCreateDeckApi).toHaveBeenCalledWith('New Deck', 'en');
     });
   });
 
   describe('renameDeck', () => {
-    it('patches the new name', async () => {
-      mockedPatchJson.mockResolvedValue(undefined);
+    it('renames the deck', async () => {
+      await renameDeck('deck-2', 'Renamed');
 
-      await renameDeck('deck-2', 'Nouns');
-
-      expect(mockedPatchJson).toHaveBeenCalledWith('/api/decks/deck-2', { name: 'Nouns' });
+      expect(mockedRenameDeckApi).toHaveBeenCalledWith('deck-2', 'Renamed');
     });
   });
 
   describe('deleteDeck', () => {
-    it('sends a DELETE request', async () => {
-      mockedDeleteJson.mockResolvedValue(undefined);
-
+    it('deletes the deck', async () => {
       await deleteDeck('deck-2');
 
-      expect(mockedDeleteJson).toHaveBeenCalledWith('/api/decks/deck-2');
+      expect(mockedDeleteDeckApi).toHaveBeenCalledWith('deck-2');
     });
   });
 
   describe('moveItemsToDeck', () => {
     it('posts user_word_sense_ids to the move-items endpoint', async () => {
-      mockedPostNoContent.mockResolvedValue(undefined);
+      mockedMoveItemsToDeckApi.mockResolvedValue(undefined);
 
       await moveItemsToDeck('deck-2', ['uws-1', 'uws-2']);
 
-      expect(mockedPostNoContent).toHaveBeenCalledWith('/api/decks/deck-2/move-items', {
-        user_word_sense_ids: ['uws-1', 'uws-2'],
-      });
+      expect(mockedMoveItemsToDeckApi).toHaveBeenCalledWith('deck-2', ['uws-1', 'uws-2']);
     });
   });
 });

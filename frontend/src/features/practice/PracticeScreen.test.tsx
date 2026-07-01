@@ -79,7 +79,7 @@ describe('PracticeScreen Integration', () => {
     // Force decideCardMode to select 'flashcard' (flashcard uses randomized check on recognized items)
     const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
 
-    render(<PracticeScreen />, { wrapper: Wrapper });
+    await render(<PracticeScreen />, { wrapper: Wrapper });
 
     // Step 1: Prompt State
     await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());

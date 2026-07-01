@@ -12,8 +12,18 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import { parseTokenFromLaunchUrl, extractTokenFromUrl } from './src/utils/authLaunch';
 import { onUnauthorized } from './src/api/client';
+import { PN_EXTENSION_ID } from './src/config';
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
+
+function notifyExtension(token: string) {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('extension') !== '1' || !PN_EXTENSION_ID) return;
+  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+    chrome.runtime.sendMessage(PN_EXTENSION_ID, { token });
+  }
+}
 
 function LoadingScreen() {
   const { colors } = useTheme();
@@ -72,6 +82,7 @@ function AppContent() {
         const incomingToken = await parseTokenFromLaunchUrl();
         if (incomingToken) {
           await sessionStorage.setToken(incomingToken);
+          notifyExtension(incomingToken);
         }
         await checkAuth();
       } catch {
@@ -86,6 +97,7 @@ function AppContent() {
       const token = extractTokenFromUrl(event.url);
       if (token) {
         await sessionStorage.setToken(token);
+        notifyExtension(token);
         void checkAuth();
       }
     };

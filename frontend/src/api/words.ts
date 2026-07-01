@@ -1,9 +1,9 @@
 import { DEFAULT_DEFINITION_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE } from '../config';
-import type { LearningItem, LookupResponse } from '../types';
-import { postJson } from './client';
+import { addLearningItem as addLearningItemApi, lookupWord as lookupWordApi } from './client';
+import type { LearningItem, LookupResponse, PosFilter } from '@project-pn/api';
 
 interface LookupOptions {
-  partOfSpeech?: string;
+  partOfSpeech?: PosFilter;
   wordId?: string;
   force?: boolean;
   languageCode?: string;
@@ -11,16 +11,12 @@ interface LookupOptions {
 }
 
 export async function lookupWord(text: string, options: LookupOptions = {}): Promise<LookupResponse> {
-  const partOfSpeech =
-    options.partOfSpeech && options.partOfSpeech !== 'Any' ? options.partOfSpeech : undefined;
-
-  return postJson<LookupResponse>('/api/words/lookup', {
-    text,
-    language_code: options.languageCode ?? DEFAULT_LANGUAGE_CODE,
-    display_language_code: options.displayLanguageCode ?? DEFAULT_DEFINITION_LANGUAGE_CODE,
-    part_of_speech: partOfSpeech,
-    word_id: options.wordId,
-    force: options.force ?? false,
+  return lookupWordApi(text, {
+    partOfSpeech: options.partOfSpeech,
+    wordId: options.wordId,
+    force: options.force,
+    languageCode: options.languageCode ?? DEFAULT_LANGUAGE_CODE,
+    displayLanguageCode: options.displayLanguageCode ?? DEFAULT_DEFINITION_LANGUAGE_CODE,
   });
 }
 
@@ -29,12 +25,5 @@ export async function addLearningItem(
   displayLanguageCode: string = DEFAULT_DEFINITION_LANGUAGE_CODE,
   deckId?: string,
 ): Promise<LearningItem> {
-  const body: Record<string, unknown> = {
-    word_sense_id: wordSenseId,
-    display_language_code: displayLanguageCode,
-  };
-  if (deckId) {
-    body.deck_id = deckId;
-  }
-  return postJson<LearningItem>('/api/learning-items', body);
+  return addLearningItemApi(wordSenseId, displayLanguageCode, deckId);
 }

@@ -6,6 +6,8 @@ Personal vocabulary learning system. Add words you do not know, study them with 
 
 - **Backend**: Go, PostgreSQL, Docker Compose
 - **Frontend**: React Native / Expo with TypeScript (Web, iOS, Android), Tauri for desktop
+- **Browser Extension**: Chrome/Edge Manifest V3, TypeScript, esbuild
+- **Shared Package**: `@project-pn/api` for API client logic
 - **Deploy**: Docker Compose on Ubuntu, nginx
 
 ## Quick Start
@@ -28,16 +30,19 @@ For local backend setup details, see [`backend/docs/go-backend-setup.md`](backen
 | Deploy to zlUbuntu | [`backend/docs/remote-deploy-runbook.md`](backend/docs/remote-deploy-runbook.md) |
 | Fix deploy issues | [`deploy/deploy-exception-runbook.md`](deploy/deploy-exception-runbook.md) |
 | Run manual QA locally | [`docs/dev-test-plan.md`](docs/dev-test-plan.md) |
+| Build the browser extension | [`browser-extension/README.md`](browser-extension/README.md) |
 | Navigate all docs | [`docs/GUIDE.md`](docs/GUIDE.md) |
 
 ## Project Structure
 
 ```text
-backend/   Go API, migrations, backend docs
-frontend/  React Native / Expo app, Tauri desktop wrapper
-deploy/    Docker Compose, nginx, deploy scripts
-docs/      Project-wide docs and plans
-scripts/   Development and deployment helpers
+backend/            Go API, migrations, backend docs
+frontend/           React Native / Expo app, Tauri desktop wrapper
+browser-extension/  Chrome/Edge extension for webpage word capture
+packages/api/       Shared API client used by frontend and extension
+deploy/             Docker Compose, nginx, deploy scripts
+docs/               Project-wide docs and plans
+scripts/            Development and deployment helpers
 ```
 
 ## Core Principle

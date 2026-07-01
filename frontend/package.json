@@ -3,6 +3,7 @@
   "version": "1.0.2",
   "main": "index.ts",
   "dependencies": {
+    "@project-pn/api": "*",
     "@expo/vector-icons": "^15.1.1",
     "@react-navigation/bottom-tabs": "^7.18.0",
     "@react-navigation/native": "^7.3.1",

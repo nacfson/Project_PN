@@ -33,6 +33,9 @@ const (
 	// Tauri serves the bundle from tauri://localhost (macOS) and
 	// http://tauri.localhost (Windows).
 	defaultAllowedOrigins = "http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost"
+
+	defaultDevExtensionID  = ""
+	defaultProdExtensionID = ""
 )
 
 type Config struct {
@@ -96,7 +99,11 @@ func Load() Config {
 		AllowedUILangs:         splitAndTrim(envOrDefault("ALLOWED_UI_LANGUAGES", defaultAllowedUILangs)),
 		ForceUILang:            envOrDefault("FORCE_UI_LANGUAGE", defaultForceUILang),
 
-		AllowedOrigins: splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
+		AllowedOrigins: buildAllowedOrigins(
+			splitAndTrim(envOrDefault("ALLOWED_ORIGINS", defaultAllowedOrigins)),
+			envOrDefault("PN_DEV_EXTENSION_ID", defaultDevExtensionID),
+			envOrDefault("PN_PROD_EXTENSION_ID", defaultProdExtensionID),
+		),
 
 		CentralAuthURL:         strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
 		CentralAuthInternalURL: strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
@@ -113,6 +120,18 @@ func Load() Config {
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
 		ExpoAccessToken:            os.Getenv("EXPO_ACCESS_TOKEN"),
 	}
+}
+
+func buildAllowedOrigins(base []string, devExtensionID, prodExtensionID string) []string {
+	origins := make([]string, len(base))
+	copy(origins, base)
+	if devExtensionID != "" {
+		origins = append(origins, "chrome-extension://"+devExtensionID)
+	}
+	if prodExtensionID != "" {
+		origins = append(origins, "chrome-extension://"+prodExtensionID)
+	}
+	return origins
 }
 
 func splitAndTrim(value string) []string {
