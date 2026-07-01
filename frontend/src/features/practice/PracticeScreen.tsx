@@ -25,6 +25,8 @@ import {
 } from '../../api/learningItems';
 import type { DueItem, LearningItemListItem, ReviewAttemptParams } from '../../types';
 import { Flashcard } from './Flashcard';
+import { Confetti } from '../../components/Confetti';
+import { CountUpText } from '../../components/CountUpText';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Practice'>;
 type SessionMode = 'normal' | 'repeat';
@@ -445,6 +447,7 @@ export function PracticeScreen() {
   if (status === 'success') {
     return (
       <Screen padded>
+        <Confetti active={true} />
         <View style={[styles.center, { gap: spacing.lg }]}>
           <View style={[styles.successIconCircle, { backgroundColor: colors.primaryContainer }]}>
             <Icon name="checkmark-circle" size="xl" color={colors.primary} />
@@ -456,7 +459,25 @@ export function PracticeScreen() {
             <Text variant="title" bold>
               {t('practice.xpEarned')}
             </Text>
-            <Badge label={`+${xpEarned} XP`} variant="primary" />
+            <View
+              style={{
+                backgroundColor: colors.primaryContainer,
+                borderRadius: radii.full,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <Text variant="caption" bold style={{ color: colors.onPrimaryContainer }}>+</Text>
+              <CountUpText
+                target={xpEarned}
+                variant="caption"
+                bold
+                style={{ color: colors.onPrimaryContainer }}
+              />
+              <Text variant="caption" bold style={{ color: colors.onPrimaryContainer }}> XP</Text>
+            </View>
             <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
               {t('practice.progressSaved')}
             </Text>

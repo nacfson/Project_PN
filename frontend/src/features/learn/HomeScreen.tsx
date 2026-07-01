@@ -15,6 +15,7 @@ import { SkeletonCard } from '../../ui/SkeletonCard';
 import { StaggeredList } from '../../ui/StaggeredList';
 import { CinematicCard } from '../../ui/CinematicCard';
 import { AnimatedProgressBar } from '../../ui/AnimatedProgressBar';
+import { CountUpText } from '../../components/CountUpText';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Learn'>;
 
@@ -416,9 +417,11 @@ export function HomeScreen() {
                       <Icon name="flame" size="md" color={colors.tertiary} />
                     </View>
                     <View style={{ gap: spacing.xs }}>
-                      <Text variant="title" bold>
-                        {stats ? streakDays : '...'}
-                      </Text>
+                      {stats ? (
+                        <CountUpText target={streakDays} variant="title" bold />
+                      ) : (
+                        <Text variant="title" bold>...</Text>
+                      )}
                       <Text variant="caption" color="muted">
                         {t('home.dayStreak')}
                       </Text>
@@ -451,9 +454,11 @@ export function HomeScreen() {
                       <Icon name="book" size="md" color={colors.secondary} />
                     </View>
                     <View style={{ gap: spacing.xs }}>
-                      <Text variant="title" bold>
-                        {totalWords ?? '...'}
-                      </Text>
+                      {totalWords !== null ? (
+                        <CountUpText target={totalWords} variant="title" bold />
+                      ) : (
+                        <Text variant="title" bold>...</Text>
+                      )}
                       <Text variant="caption" color="muted">
                         {t('tabs.words')}
                       </Text>
@@ -471,7 +476,7 @@ export function HomeScreen() {
                 </View>
                 <AnimatedProgressBar percent={Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))} />
                 <Text variant="caption" color="muted">
-                  {xpToday} / {dailyGoalXP} XP
+                  <CountUpText target={xpToday} variant="caption" color="muted" /> / {dailyGoalXP} XP
                 </Text>
               </Card>
 
