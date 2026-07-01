@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
+
 
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
@@ -40,8 +40,6 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 
 	cfg := config.Load()
 	authSvc := auth.New(pool, email.NewLog(), auth.Options{
-		SessionTTL:             time.Hour,
-		EmailVerificationTTL:   24 * time.Hour,
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
 		DefaultUILang:          cfg.UILang,
@@ -64,19 +62,17 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 	})
 
 	emailAddr := uniqueEmail("user-handler")
-	if err := authSvc.Register(ctx, emailAddr, "password123", "ko", "en", ""); err != nil {
-		t.Fatalf("register test user: %v", err)
-	}
-	if err := authSvc.VerifyEmailForTest(ctx, emailAddr); err != nil {
-		t.Fatalf("verify test user: %v", err)
-	}
-	session, err := authSvc.Login(ctx, emailAddr, "password123")
+	token := "token-" + emailAddr
+	registerTestToken(token, emailAddr)
+	_, err = authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
-		t.Fatalf("login test user: %v", err)
+		t.Fatalf("ensure test central user: %v", err)
 	}
-	registerTestToken(session.Token, emailAddr)
 
-	return router, session.Token
+	return router, token
 }
 
 func TestUserLanguagesEndpoints(t *testing.T) {

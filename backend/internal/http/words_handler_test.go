@@ -53,8 +53,6 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 
 	cfg := config.Load()
 	authSvc := auth.New(pool, email.NewLog(), auth.Options{
-		SessionTTL:             time.Hour,
-		EmailVerificationTTL:   24 * time.Hour,
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
 		DefaultUILang:          cfg.UILang,
@@ -76,25 +74,19 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 	})
 
 	emailAddr := uniqueEmail("words-validation")
-	if err := authSvc.Register(ctx, emailAddr, "password123", "", "", ""); err != nil {
-		t.Fatalf("register test user: %v", err)
-	}
-	if err := authSvc.VerifyEmailForTest(ctx, emailAddr); err != nil {
-		t.Fatalf("verify test user: %v", err)
-	}
-	session, err := authSvc.Login(ctx, emailAddr, "password123")
+	token := "token-" + emailAddr
+	registerTestToken(token, emailAddr)
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
-		t.Fatalf("login test user: %v", err)
-	}
-	user, err := authSvc.Authenticate(ctx, session.Token)
-	if err != nil {
-		t.Fatalf("authenticate test user: %v", err)
+		t.Fatalf("ensure test central user: %v", err)
 	}
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
 		t.Fatalf("ensure default deck: %v", err)
 	}
-	registerTestToken(session.Token, emailAddr)
-	return router, session.Token, pool, authSvc
+	return router, token, pool, authSvc
 }
 
 func authRequest(t *testing.T, method, path, body, token string) *http.Request {
@@ -163,22 +155,21 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
 
-	user, err := authSvc.Authenticate(ctx, token)
+	emailAddr := token[6:]
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
 		t.Fatalf("authenticate primary user: %v", err)
 	}
 	otherEmail := uniqueEmail("words-other")
-	if err := authSvc.Register(ctx, otherEmail, "password123", "", "", ""); err != nil {
-		t.Fatalf("register other user: %v", err)
-	}
-	if err := authSvc.VerifyEmailForTest(ctx, otherEmail); err != nil {
-		t.Fatalf("verify other user: %v", err)
-	}
-	otherSession, err := authSvc.Login(ctx, otherEmail, "password123")
-	if err != nil {
-		t.Fatalf("login other user: %v", err)
-	}
-	otherUser, err := authSvc.Authenticate(ctx, otherSession.Token)
+	otherToken := "token-" + otherEmail
+	registerTestToken(otherToken, otherEmail)
+	otherUser, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + otherEmail,
+		Email: otherEmail,
+	})
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
 	}
@@ -315,8 +306,6 @@ func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 
 	svc := words.New(nil, nil, "00000000-0000-0000-0000-000000000001", "en", "ko")
 	authSvc := auth.New(nil, email.NewLog(), auth.Options{
-		SessionTTL:            time.Hour,
-		EmailVerificationTTL:  24 * time.Hour,
 		DefaultDefinitionLang: "ko",
 		DefaultTargetLang:     "en",
 		AppPublicURL:          "http://localhost:8080",
@@ -406,8 +395,6 @@ func TestApiRoutesAbsentWithoutWordsService(t *testing.T) {
 	t.Parallel()
 
 	authSvc := auth.New(nil, email.NewLog(), auth.Options{
-		SessionTTL:            time.Hour,
-		EmailVerificationTTL:  24 * time.Hour,
 		DefaultDefinitionLang: "ko",
 		DefaultTargetLang:     "en",
 		AppPublicURL:          "http://localhost:8080",
@@ -428,7 +415,11 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
 
-	user, err := authSvc.Authenticate(ctx, token)
+	emailAddr := token[6:]
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
@@ -660,7 +651,11 @@ func TestGetStatsSummary(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
 
-	user, err := authSvc.Authenticate(ctx, token)
+	emailAddr := token[6:]
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}

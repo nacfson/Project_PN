@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"project-pn/internal/auth"
 	"project-pn/internal/words"
 )
 
@@ -16,9 +17,13 @@ func TestDeckCRUD(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
 
-	user, err := authSvc.Authenticate(ctx, token)
+	emailAddr := token[6:]
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
-		t.Fatalf("authenticate: %v", err)
+		t.Fatalf("ensure central user: %v", err)
 	}
 
 	// List decks ensures a default deck for the active language.
@@ -127,9 +132,13 @@ func TestDeckMoveItemsRequiresMatchingLanguage(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
 
-	user, err := authSvc.Authenticate(ctx, token)
+	emailAddr := token[6:]
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
 	if err != nil {
-		t.Fatalf("authenticate: %v", err)
+		t.Fatalf("ensure central user: %v", err)
 	}
 
 	// Add a second language pair so we can create a deck for it.

@@ -10,10 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
-	"project-pn/internal/email"
 	"project-pn/internal/enrich"
 	"project-pn/internal/migrations"
 )
@@ -37,6 +35,11 @@ func deckTestPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("open database: %v", err)
 	}
 	t.Cleanup(pool.Close)
+
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts, sense_translations CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
 	return pool
 }
 
@@ -49,39 +52,26 @@ func deckTestService(t *testing.T, pool *pgxpool.Pool) *Service {
 func deckTestUser(t *testing.T, pool *pgxpool.Pool) (userID, token string) {
 	t.Helper()
 	ctx := context.Background()
-	cfg := config.Load()
-	authSvc := auth.New(pool, email.NewLog(), auth.Options{
-		SessionTTL:             time.Hour,
-		EmailVerificationTTL:   24 * time.Hour,
-		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
-		DefaultTargetLang:      cfg.DefaultTargetLang,
-		DefaultUILang:          cfg.UILang,
-		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
-		AllowedTargetLangs:     cfg.AllowedTargetLangs,
-		AllowedUILangs:         cfg.AllowedUILangs,
-		ForceDefinitionLang:    cfg.ForceDefinitionLang,
-		ForceTargetLang:        cfg.ForceTargetLang,
-		ForceUILang:            cfg.ForceUILang,
-		AppPublicURL:           cfg.AppPublicURL,
-	})
-
 	emailAddr := "deck-test-" + time.Now().Format("150405.000000") + "@example.com"
-	if err := authSvc.Register(ctx, emailAddr, "password123", "", "", ""); err != nil {
-		t.Fatalf("register test user: %v", err)
-	}
-	if err := authSvc.VerifyEmailForTest(ctx, emailAddr); err != nil {
-		t.Fatalf("verify test user: %v", err)
-	}
-	session, err := authSvc.Login(ctx, emailAddr, "password123")
+	err := pool.QueryRow(ctx, `
+		insert into users (email, native_language, target_language, ui_language, email_verified_at)
+		values ($1, 'ko', 'en', 'ko', now())
+		returning id::text
+	`, emailAddr).Scan(&userID)
 	if err != nil {
-		t.Fatalf("login test user: %v", err)
+		t.Fatalf("insert test user: %v", err)
 	}
 
-	user, err := authSvc.Authenticate(ctx, session.Token)
+	// Create user_languages pair to satisfy active pair checks
+	_, err = pool.Exec(ctx, `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'en', 'ko', true)
+	`, userID)
 	if err != nil {
-		t.Fatalf("authenticate test user: %v", err)
+		t.Fatalf("insert test user language: %v", err)
 	}
-	return user.ID, session.Token
+
+	return userID, ""
 }
 
 func insertDeckFixtureWord(t *testing.T, pool *pgxpool.Pool, lemma string) string {

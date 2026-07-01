@@ -39,8 +39,6 @@ func main() {
 	enricher := enrich.NewOpenAI(cfg.EnrichBaseURL, cfg.EnrichAPIKey, cfg.EnrichModel)
 	mailer := email.NewProvider(cfg.EmailProvider, cfg.ResendAPIKey, cfg.EmailFrom)
 	authService := auth.New(pool, mailer, auth.Options{
-		SessionTTL:             cfg.SessionTTL,
-		EmailVerificationTTL:   cfg.EmailVerificationTTL,
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
 		DefaultUILang:          cfg.UILang,
