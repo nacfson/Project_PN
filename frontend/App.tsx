@@ -67,18 +67,18 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    void checkAuth();
-  }, [checkAuth]);
-
-  useEffect(() => {
-    const checkIncomingToken = async () => {
-      const token = await parseTokenFromLaunchUrl();
-      if (token) {
-        await sessionStorage.setToken(token);
-        void checkAuth();
+    const initializeAuth = async () => {
+      try {
+        const incomingToken = await parseTokenFromLaunchUrl();
+        if (incomingToken) {
+          await sessionStorage.setToken(incomingToken);
+        }
+        await checkAuth();
+      } catch {
+        setAuthState('unauthenticated');
       }
     };
-    void checkIncomingToken();
+    void initializeAuth();
   }, [checkAuth]);
 
   useEffect(() => {
