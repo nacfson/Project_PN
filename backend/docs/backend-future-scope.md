@@ -29,8 +29,6 @@ speaking_attempts
 - `tags`, `collections`, and `collection_words` are useful for exam lists, courses, and custom grouping.
 - The MVP already accepts `writing` and `speaking` as `review_attempts.activity_type` values (see `backend/docs/backend-schema-mvp.md`), so individual activity rows can be recorded today. Dedicated `writing_attempts` and `speaking_attempts` tables (with their own evaluation, feedback, and grading fields) become useful when productive-use workflows become first-class features.
 - `ai_enrichment_jobs` can be added when definitions, examples, cloze questions, or feedback are generated asynchronously. The current enrichment path is synchronous and in-request (see `backend/docs/go-backend-setup.md`), which is fine for low traffic but blocks the request while the model responds.
-- **Password reset** — not implemented; users rely on magic link or OAuth for account recovery today.
-- **Additional OAuth providers** beyond Google — future scope.
 
 ## Current MVP Reference
 

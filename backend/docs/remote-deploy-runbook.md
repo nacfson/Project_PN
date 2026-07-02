@@ -75,8 +75,7 @@ Cloudflare documents them as testing/development only, not production.
 QUICK_TUNNEL_ACK=public-test-only scripts/start-remote-quick-tunnel.sh
 ```
 
-To also update the remote `.env` so magic-link redirects use the temporary URL
-and CORS allows it, run:
+To also update the remote `.env` so CORS allows it, run:
 
 ```sh
 QUICK_TUNNEL_ACK=public-test-only UPDATE_REMOTE_ENV=true scripts/start-remote-quick-tunnel.sh

@@ -61,9 +61,6 @@ The backend schema should satisfy these scenarios:
 ### Auth schema (migration `000003`)
 
 - Duplicate emails differing only by case are rejected (`users_email_lower_idx`).
-- Duplicate `sessions.token_hash` is rejected.
-- Deleting a `users` row cascades to `sessions`.
-- `magic_link_tokens.consumed_at` and `magic_login_exchanges.consumed_at` can be set for single-use redemption tracking.
 
 Use these scenarios when writing migration tests, repository tests, or service-level tests for vocabulary learning behavior.
 
@@ -82,39 +79,16 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 ### Auth — protection and sessions
 
 - `POST /api/words/lookup`, `GET /api/learning-items`, `POST /api/learning-items`, and `GET /api/auth/me` return **401** without `Authorization: Bearer`.
-- `POST /api/auth/register` then `GET /api/auth/me` with the returned token returns **200** with user profile.
-- `POST /api/auth/login` with valid credentials returns **200** `{ token, expires_at }`.
+- `GET /api/auth/me` with a valid central auth session token returns **200** with user profile.
 
-### Auth — rate limits
+### Auth — email verification gating
 
-Public auth routes use `github.com/go-chi/httprate`:
+- Protected learning routes run the verification check and return **403** if email is not verified (i.e. `email_verified_at` is null).
 
-| Route | Limit keys |
-|-------|------------|
-| `POST /api/auth/register`, `/login`, `/magic-link` | per-IP **and** per-normalized-email (10/min each) |
-| `POST /api/auth/oauth/{provider}` | per-IP (10/min) |
-| `GET /api/auth/magic/consume`, `POST /api/auth/magic/exchange` | per-IP (20/min) |
+### Auth — Central Auth JIT user provisioning
 
-Exceeded limits return **429** `{ "error": "too many requests" }`. Auth error bodies stay generic where enumeration is a concern.
-
-### Auth — magic link E2E
-
-- `GET /api/auth/magic/consume?token=` with valid token returns **302** to `{APP_PUBLIC_URL}/auth/callback#code=...` (fragment, not query).
-- `POST /api/auth/magic/exchange` with the code returns **200** session token.
-- Invalid or expired token/code returns **401**.
-
-### Auth — `REQUIRE_EMAIL_VERIFIED`
-
-- When `REQUIRE_EMAIL_VERIFIED=true`, newly registered (unverified) users get **403** on `POST /api/words/lookup`.
-- When `REQUIRE_EMAIL_VERIFIED=false` (default), authenticated lookup is not blocked for verification.
-
-### Auth — Google OAuth (stub verifier)
-
-HTTP tests inject a stub `OAuthVerifier` (production uses `google.golang.org/api/idtoken` with `GOOGLE_CLIENT_IDS`):
-
-- New Google user → **200** session; user has `email_verified_at` set.
-- Second login with same `(provider, provider_subject)` → same user id.
-- Register password user, then OAuth with matching verified email → identities linked; same user id; password login still works.
+- First-time login with Nacfson Cloud user → provisions a local `users` row and a `user_identities` link.
+- Subsequent requests with the same user resolve to the same local user ID.
 
 ### Words (authenticated)
 

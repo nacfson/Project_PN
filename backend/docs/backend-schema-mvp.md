@@ -6,10 +6,7 @@ Build only these tables for the first version:
 
 ```text
 users
-sessions
 user_identities
-magic_link_tokens
-magic_login_exchanges
 words
 word_senses
 user_word_senses
@@ -90,7 +87,6 @@ users
 - native_language text not null
 - target_language text not null
 - ui_language text not null default 'en'
-- password_hash text
 - email_verified_at timestamptz
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
@@ -108,8 +104,7 @@ Rules:
 - `native_language` and `target_language` are legacy defaults kept for backward compatibility. New code should read the active pair from `user_languages`.
 - `ui_language` is the app interface language, independent from learning content.
 - `native_language` and `target_language` should use stable language codes such as `ko`, `en`, or `ja`.
-- `password_hash` is bcrypt for password accounts; null for OAuth-only users until they set a password.
-- `email_verified_at` is set when the user proves email ownership (magic-link consume, Google OAuth with verified email, etc.). Used by `REQUIRE_EMAIL_VERIFIED` gating.
+- `email_verified_at` is set to `now()` by central auth user JIT provisioning. Used by email verification gating.
 
 ## user_languages
 
@@ -174,33 +169,6 @@ Rules:
 - The default deck receives items when no other deck is specified.
 - Deleting a custom deck moves its items to the default deck for the same target language; the default deck itself cannot be deleted.
 
-## sessions
-
-Opaque bearer sessions for authenticated API access.
-
-```sql
-sessions
-- id uuid primary key default gen_random_uuid()
-- user_id uuid not null references users(id) on delete cascade
-- token_hash text not null
-- expires_at timestamptz not null
-- created_at timestamptz not null default now()
-```
-
-Required constraints and indexes:
-
-```sql
-constraint sessions_token_hash_unique unique (token_hash)
-create index sessions_user_id_idx on sessions (user_id)
-create index sessions_expires_at_idx on sessions (expires_at)
-```
-
-Rules:
-
-- Plaintext tokens are never stored; only a hash is persisted.
-- Expired sessions are rejected on `Authenticate`; lazy cleanup may delete expired rows.
-- `Logout` deletes the current session row only.
-
 ## user_identities
 
 Links external OAuth providers to app users.
@@ -224,62 +192,9 @@ create index user_identities_user_id_idx on user_identities (user_id)
 
 Rules:
 
-- `provider` values include `google` today.
-- Account linking to an existing password user happens only when OAuth reports `emailVerified == true` and the normalized emails match.
+- `provider` values include `nacfson` (central auth).
+- Account linking to an existing user happens when central auth verifies the email and the normalized emails match.
 
-## magic_link_tokens
-
-Single-use email login tokens.
-
-```sql
-magic_link_tokens
-- id uuid primary key default gen_random_uuid()
-- user_id uuid not null references users(id) on delete cascade
-- token_hash text not null
-- expires_at timestamptz not null
-- consumed_at timestamptz
-- created_at timestamptz not null default now()
-```
-
-Required constraints and indexes:
-
-```sql
-constraint magic_link_tokens_token_hash_unique unique (token_hash)
-create index magic_link_tokens_user_id_idx on magic_link_tokens (user_id)
-create index magic_link_tokens_expires_at_idx on magic_link_tokens (expires_at)
-```
-
-Rules:
-
-- `consumed_at` is set when the token is redeemed via `GET /api/auth/magic/consume`.
-- Consumption also sets `users.email_verified_at` when previously null.
-
-## magic_login_exchanges
-
-Short-lived exchange codes handed to the frontend callback (fragment `#code=`) after magic-link consume.
-
-```sql
-magic_login_exchanges
-- id uuid primary key default gen_random_uuid()
-- user_id uuid not null references users(id) on delete cascade
-- code_hash text not null
-- expires_at timestamptz not null
-- consumed_at timestamptz
-- created_at timestamptz not null default now()
-```
-
-Required constraints and indexes:
-
-```sql
-constraint magic_login_exchanges_code_hash_unique unique (code_hash)
-create index magic_login_exchanges_user_id_idx on magic_login_exchanges (user_id)
-create index magic_login_exchanges_expires_at_idx on magic_login_exchanges (expires_at)
-```
-
-Rules:
-
-- Single-use: `POST /api/auth/magic/exchange` sets `consumed_at` and mints a bearer session.
-- Prefer fragment delivery (`#code=`) so the code is not sent to nginx access logs; see `backend/docs/backend-flows.md`.
 
 ## words
 
@@ -696,10 +611,7 @@ Rules:
 ## Suggested Relationships
 
 ```text
-users 1 -> many sessions
 users 1 -> many user_identities
-users 1 -> many magic_link_tokens
-users 1 -> many magic_login_exchanges
 users 1 -> many user_languages
 users 1 -> many decks
 users 1 -> 1 review_settings
