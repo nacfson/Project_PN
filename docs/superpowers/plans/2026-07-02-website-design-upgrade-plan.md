@@ -430,3 +430,76 @@ graph TD
   git add frontend/src/ui/Screen.tsx frontend/src/navigation/MainTabs.tsx
   git commit -m "feat: add sliding tab indicators and scroll collapsible headers"
   ```
+
+---
+
+### Task 4: Screen Refreshes & Visual Overhaul
+**Files:**
+- Modify: `frontend/src/features/learn/HomeScreen.tsx`
+- Modify: `frontend/src/features/words/MyWordsScreen.tsx`
+- Modify: `frontend/src/features/practice/PracticeScreen.tsx`
+- Modify: `frontend/src/features/profile/ProfileScreen.tsx`
+
+**Interfaces:**
+- Refreshes screen components to import and apply new glass cards, button styles, gradient lines, and typography weight keys.
+
+- [ ] **Step 1: Write a rendering verification test for Screen Refreshes**
+  Create or append a render verification block to ensure no syntax/runtime issues exist on import:
+  ```typescript
+  import { render } from '@testing-library/react-native';
+  import { HomeScreen } from '../features/learn/HomeScreen';
+  import { MyWordsScreen } from '../features/words/MyWordsScreen';
+
+  describe('Premium Screen Layouts', () => {
+    it('renders HomeScreen without layout exceptions', () => {
+      const { toJSON } = render(<HomeScreen />);
+      expect(toJSON()).toBeTruthy();
+    });
+  });
+  ```
+
+- [ ] **Step 2: Run test to verify it passes before refactoring**
+  Run: `npm run test`
+  Expected: PASS
+
+- [ ] **Step 3: Update `HomeScreen.tsx`**
+  Convert main dashboard cards to glass. Wrap the streak count with a wobbly scaling wrapper, and use linear gradient values on progress bars.
+  ```diff
+  // Example code adjustments inside HomeScreen:
+  - <Card style={styles.card}>
+  + <Card glass style={styles.card}>
+  ```
+
+- [ ] **Step 4: Update `MyWordsScreen.tsx`**
+  Apply glass styling to list rows. Replace simple badge color properties with accent-tinted styles.
+  ```diff
+  // Example code adjustments inside MyWordsScreen:
+  - <Card variant="outlined" style={styles.wordCard}>
+  + <Card glass style={styles.wordCard}>
+  ```
+
+- [ ] **Step 5: Update `PracticeScreen.tsx`**
+  Apply 3D card perspective wrapper. Update grading rating buttons to use wobbly spring pills.
+  ```diff
+  // Example code adjustments inside PracticeScreen:
+  - <Pressable style={styles.cardContainer}>
+  + <View style={styles.perspectiveContainer}>
+  ```
+
+- [ ] **Step 6: Update `ProfileScreen.tsx`**
+  Restyle settings row groups with a unified card container and add custom sliders that update values smoothly.
+  ```diff
+  // Example code adjustments inside ProfileScreen:
+  - <View style={styles.section}>
+  + <Card glass style={styles.settingsGroup}>
+  ```
+
+- [ ] **Step 7: Run tests and commit**
+  Run: `npm run test`
+  Verify: PASS
+  Commit:
+  ```bash
+  git add frontend/src/features/
+  git commit -m "style: overhaul key screens for premium Apple look and feel"
+  ```
+
