@@ -57,8 +57,8 @@ func (s *Service) EnsureCentralUser(ctx context.Context, central CentralUser) (U
 				return User{}, fmt.Errorf("auth: lookup central user email: %w", err)
 			}
 			err = tx.QueryRow(ctx, `
-				insert into users (email, password_hash, email_verified_at, native_language, target_language, ui_language)
-				values ($1, null, now(), $2, $3, $4)
+				insert into users (email, email_verified_at, native_language, target_language, ui_language)
+				values ($1, now(), $2, $3, $4)
 				returning id::text
 			`, emailAddr, nativeLang, targetLang, uiLang).Scan(&userID)
 			if err != nil {

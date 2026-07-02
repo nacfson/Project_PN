@@ -41,7 +41,7 @@ func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
 	}
 	t.Cleanup(pool.Close)
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 

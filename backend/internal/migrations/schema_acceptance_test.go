@@ -33,7 +33,7 @@ func TestMVPSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -259,7 +259,7 @@ func TestAuthSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -272,69 +272,18 @@ func TestAuthSchemaAcceptance(t *testing.T) {
 
 	var userID string
 	if err := pool.QueryRow(ctx, `
-		insert into users (email, native_language, target_language, password_hash)
-		values ('auth-a@example.com', 'ko', 'en', 'hash')
+		insert into users (email, native_language, target_language)
+		values ('auth-a@example.com', 'ko', 'en')
 		returning id
 	`).Scan(&userID); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
 	assertRejects("duplicate email case-insensitive", `
-		insert into users (email, native_language, target_language, password_hash)
-		values ('AUTH-A@example.com', 'ko', 'en', 'hash2')
+		insert into users (email, native_language, target_language)
+		values ('AUTH-A@example.com', 'ko', 'en')
 	`)
 
-	var sessionID string
-	if err := pool.QueryRow(ctx, `
-		insert into sessions (user_id, token_hash, expires_at)
-		values ($1, 'session-hash-a', now() + interval '1 hour')
-		returning id
-	`, userID).Scan(&sessionID); err != nil {
-		t.Fatalf("insert session: %v", err)
-	}
-	assertRejects("duplicate session token hash", `
-		insert into sessions (user_id, token_hash, expires_at)
-		values ($1, 'session-hash-a', now() + interval '1 hour')
-	`, userID)
 
-	if _, err := pool.Exec(ctx, `delete from users where id = $1`, userID); err != nil {
-		t.Fatalf("delete user cascade: %v", err)
-	}
-	var sessionCount int
-	if err := pool.QueryRow(ctx, `select count(*) from sessions where id = $1`, sessionID).Scan(&sessionCount); err != nil {
-		t.Fatalf("count sessions after cascade: %v", err)
-	}
-	if sessionCount != 0 {
-		t.Fatalf("expected sessions cascade delete, got %d", sessionCount)
-	}
-
-	if err := pool.QueryRow(ctx, `
-		insert into users (email, native_language, target_language, password_hash)
-		values ('auth-b@example.com', 'ko', 'en', 'hash')
-		returning id
-	`).Scan(&userID); err != nil {
-		t.Fatalf("reinsert user: %v", err)
-	}
-
-	var verificationID string
-	if err := pool.QueryRow(ctx, `
-		insert into email_verification_tokens (user_id, token_hash, expires_at)
-		values ($1, 'verification-hash-a', now() + interval '1 hour')
-		returning id
-	`, userID).Scan(&verificationID); err != nil {
-		t.Fatalf("insert verification token: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		update email_verification_tokens set consumed_at = now() where id = $1
-	`, verificationID); err != nil {
-		t.Fatalf("consume verification token: %v", err)
-	}
-	var consumedAt *time.Time
-	if err := pool.QueryRow(ctx, `select consumed_at from email_verification_tokens where id = $1`, verificationID).Scan(&consumedAt); err != nil {
-		t.Fatalf("read consumed_at: %v", err)
-	}
-	if consumedAt == nil {
-		t.Fatal("expected verification token consumed_at to be set")
-	}
 }
 
 func TestUserLanguagesSchemaAcceptance(t *testing.T) {
@@ -359,7 +308,7 @@ func TestUserLanguagesSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -452,7 +401,7 @@ func TestDeckSchemaAcceptance(t *testing.T) {
 	}
 	defer pool.Close()
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 

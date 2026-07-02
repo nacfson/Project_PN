@@ -47,7 +47,7 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 	}
 	t.Cleanup(pool.Close)
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, sessions, decks, user_languages, user_word_senses, review_states, review_attempts, sense_translations CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, sense_translations CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
