@@ -1,56 +1,20 @@
 # Backend Flows
 
-## Register / Login Flow (email + password)
+## Central Auth Flow
 
-1. Client fetches `GET /api/auth/language-options` to learn defaults, allowed languages, and forced values (including `ui_defaults` and `ui_forced`).
-2. Client `POST /api/auth/register` with `{ email, password, native_language?, target_language?, ui_language? }`.
-3. API resolves languages using this priority for each field:
-   - `FORCE_*` environment value wins if set.
-   - Request value if present and allowed.
-   - `DEFAULT_*` environment value as final fallback.
-4. API normalizes email, bcrypt-hashes password, inserts `users` row (including `ui_language`), and inserts the first `(target_language, native_language)` pair into `user_languages` with `is_active = true`.
-5. Response: `{ token, expires_at }` (201 on register, 200 on login).
-6. Client sends `Authorization: Bearer <token>` on protected routes.
-7. `POST /api/auth/logout` deletes the current session row.
-
-Default languages when omitted: `native_language` ← `DEFAULT_DEFINITION_LANG`; `target_language` ← `DEFAULT_TARGET_LANG`; `ui_language` ← `DEFAULT_UI_LANGUAGE`.
-
-## Google OAuth Flow
-
-1. Client obtains a Google ID token (platform-specific; web uses `expo-auth-session`).
-2. Client `POST /api/auth/oauth/google` with `{ "id_token": "..." }`.
-3. API verifies the token against configured `GOOGLE_CLIENT_IDS` audiences (injectable verifier in tests).
-4. Service resolves user: existing `user_identities` row → same user; else verified-email match → link identity; else create user + identity.
-5. Response: `{ token, expires_at }`.
-
-Account linking to an existing password user requires OAuth `emailVerified == true` and matching normalized email.
-
-## Magic-Link Flow (fragment callback)
-
-Preferred handoff uses a URL **fragment** so the exchange code is not logged by nginx or most proxies.
-
-```mermaid
-sequenceDiagram
-  participant User
-  participant API
-  participant CallbackPage
-  User->>API: POST /api/auth/magic-link { email }
-  API->>User: email with link to GET /api/auth/magic/consume?token=
-  User->>API: GET /api/auth/magic/consume?token=
-  API->>API: verify token, set email_verified_at, mint exchange code
-  API->>CallbackPage: 302 Location: {APP_PUBLIC_URL}/auth/callback#code=...
-  CallbackPage->>CallbackPage: read #code client-side (not sent to server)
-  CallbackPage->>API: POST /api/auth/magic/exchange { code }
-  API->>User: { token, expires_at }
-```
-
-Rules:
-
-- `POST /api/auth/magic-link` always returns **204** whether or not the email exists (no enumeration).
-- Consume redirect sets `Referrer-Policy: no-referrer` and `Cache-Control: no-store`.
-- Staging nginx skips access logging for `/api/auth/*` and `/auth/callback` query paths; fragment `#code=` never appears in server logs.
-- **Fallback:** clients may read `?code=` from the query string if a platform cannot use fragments; codes remain single-use with short TTL (`EXCHANGE_CODE_TTL`, default 5m). Browser history may briefly retain `#code=` or `?code=`.
-- Cross-device: the session is created on the device that completes `magic/exchange`.
+1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
+2. Nacfson Cloud handles credentials (email/password, OAuth, etc.) and redirects back to the app with a session token in the URL (`?token=` or `#token=`).
+3. Client stores the token (`localStorage` on web, `expo-secure-store` on native).
+4. Client sends `Authorization: Bearer <token>` on all protected API requests.
+5. Backend middleware extracts the token and calls `CentralClient.ValidateSession()` (GET `{CENTRAL_AUTH_INTERNAL_URL}/api/auth/session`).
+6. Central auth returns `{ user: { id, email, is_admin }, expires_at }`.
+7. Backend calls `EnsureCentralUser()` which:
+   - Looks up `user_identities` by `(provider='nacfson', provider_subject=central_user_id)`.
+   - Falls back to email match if no identity link exists.
+   - Creates a new `users` row + `user_identities` link if neither exists.
+   - Creates a default `user_languages` entry for new users.
+8. The resolved `auth.User` is stored in request context for downstream handlers.
+9. `POST /api/auth/logout` proxies to the central auth server's `DELETE /api/auth/session`.
 
 ## Add-Word Flow
 
@@ -101,7 +65,7 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 7. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
 8. App reloads the affected senses (joined with localized translations and examples) and returns the result.
 
-The enricher is optional. If `ENRICH_BASE_URL` is empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
+The enricher is optional. If both primary (or legacy `ENRICH_BASE_URL`) and fallback base URLs are empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
 
 ## Force-Generate Flow (none of these match)
 
@@ -153,12 +117,6 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | HTTP route | Flow | Service / handler |
 |------------|------|-------------------|
 | `GET /api/auth/language-options` | Language options | `auth.Service.LanguageOptions` |
-| `POST /api/auth/register` | Register | `auth.Service.Register` |
-| `POST /api/auth/login` | Login | `auth.Service.Login` |
-| `POST /api/auth/oauth/{provider}` | OAuth login | `auth.Service.LoginWithOAuth` |
-| `POST /api/auth/magic-link` | Magic link request | `auth.Service.SendMagicLink` |
-| `GET /api/auth/magic/consume` | Magic consume → redirect | `auth.Service.ConsumeMagicLink` |
-| `POST /api/auth/magic/exchange` | Magic code → session | `auth.Service.ExchangeMagicCode` |
 | `GET /api/auth/me` | Current user | context user |
 | `POST /api/auth/logout` | Logout | `auth.Service.Logout` |
 | `GET /api/user/languages` | List user language pairs | `auth.Service.GetUserLanguages` |

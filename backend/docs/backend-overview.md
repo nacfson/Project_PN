@@ -59,18 +59,9 @@ The backend is exposed as an HTTP API. Routes are defined in `backend/internal/h
 | `GET` | `/healthz` | Liveness probe. Always 200 if the process is up. |
 | `GET` | `/readyz` | Readiness probe. Pings PostgreSQL; 200 if reachable, 503 otherwise. |
 
-### Auth (public, rate limited)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `POST` | `/api/auth/register` | Create account (email/password). Returns bearer session `{ token, expires_at }`. |
-| `POST` | `/api/auth/login` | Email/password login. Returns bearer session. |
-| `POST` | `/api/auth/oauth/{provider}` | OAuth login (`google` today). Body: `{ "id_token" }`. Returns bearer session. |
-| `POST` | `/api/auth/magic-link` | Request a magic-link email. Always 204 (no email enumeration). |
-| `GET` | `/api/auth/magic/consume?token=` | Validate magic token; 302 redirect to `{APP_PUBLIC_URL}/auth/callback#code=...`. |
-| `POST` | `/api/auth/magic/exchange` | Exchange one-time callback code for bearer session. Body: `{ "code" }`. |
-
 ### Auth (protected)
+
+Requires `Authorization: Bearer <token>`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -93,11 +84,11 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 ## Authentication
 
-The MVP implements application-layer authentication against the local PostgreSQL `users` table. Sessions are opaque bearer tokens stored as hashes in `sessions`. The only login path is email/password (`register` → verify email via link → `login`).
+The backend delegates authentication to an external Nacfson Cloud service (`CENTRAL_AUTH_URL`). The client obtains a session token from `auth.nacfson.cloud`, then sends it as `Authorization: Bearer <token>` on every API request. The backend validates each token by calling the central auth server's `GET /api/auth/session` endpoint via `CentralClient.ValidateSession()`.
 
-The acting user is derived from the `Authorization: Bearer` header, not from the request body. Migration `000002_seed_dev_user.up.sql` still seeds a dev user for local fixtures; production-style flows create real users via auth endpoints.
+On first contact, `EnsureCentralUser()` provisions a local `users` row (with `user_identities` linking) using the identity returned by the central auth server. Subsequent requests resolve the existing local user via `user_identities(provider='nacfson', provider_subject)`.
 
-Auth configuration (`SESSION_TTL`, `EMAIL_VERIFICATION_TTL`, `EMAIL_PROVIDER`, `APP_PUBLIC_URL`, etc.) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
+Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
 
 ## Public Docker Deployment
 
@@ -113,11 +104,15 @@ Canonical dictionary text is stored on `word_senses` and `examples`. Localized d
 
 Toggled by environment variables:
 
-- `ENRICH_BASE_URL` (empty disables generation; cache-only lookups still work)
-- `ENRICH_API_KEY`
-- `ENRICH_MODEL`
+- `ENRICH_PRIMARY_BASE_URL` (empty disables primary generation; cache-only lookups still work)
+- `ENRICH_PRIMARY_API_KEY`
+- `ENRICH_PRIMARY_MODEL`
+- `ENRICH_FALLBACK_BASE_URL` (optional fallback base URL tried when primary fails)
+- `ENRICH_FALLBACK_API_KEY`
+- `ENRICH_FALLBACK_MODEL`
+- Legacy `ENRICH_BASE_URL`, `ENRICH_API_KEY`, and `ENRICH_MODEL` remain supported as aliases for the primary slot.
 
-When `ENRICH_BASE_URL` is empty, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
+When no primary or legacy base URL is configured, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; configure ENRICH_PRIMARY_BASE_URL or add the sense manually". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
 
 For full support across the app's listed target languages (`en`, `ko`, `ja`,
 `zh`, `es`, `fr`, `de`), configure a real multilingual OpenAI-compatible

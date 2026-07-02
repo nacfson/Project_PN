@@ -1,23 +1,11 @@
-# Subagent-Driven Development Progress Ledger
+# SDD Progress Ledger — Gemini Primary + DeepSeek Fallback
 
-App: Project PN Frontend Visual & Motion Overhaul
+Base: 2407f53
+Plan: docs/superpowers/plans/2026-07-02-gemini-primary-deepseek-fallback.md
 
-## Tasks Status
-- [x] Task 1: Package Dependencies and Font Loading
-- [x] Task 2: Theme Tokens & Motion Presets
-- [x] Task 3: AnimatedProgressBar & Chip Upgrades
-- [x] Task 4: HomeScreen Polish & Staggered Lists
-- [x] Task 5: Screen Transitions & Micro-Animations
-- [x] Task 6: Celebration Elements: Confetti & CountUpText
+## Tasks
 
-## History Log
-- Task 1: complete (commits dfc4400, review clean)
-- Task 2: complete (commits 0c58142, review clean)
-- Task 3: complete (commits 79efdfd, review clean)
-- Task 4: complete (commits ce0a51b, review clean)
-- Task 5: complete (commits 437cb31, review clean)
-- Task 6: complete (commits 20befe4, review clean)
-
-
-
-
+- [x] Task 1: Create FallbackEnricher with tests (commit 0076684, review clean)
+- [x] Task 2: Extend config for primary + fallback providers (completed manually, verified build + tests)
+- [x] Task 3: Wire FallbackEnricher into main.go (completed manually, verified build + tests)
+- [x] Task 4: Update documentation (completed manually, verified)

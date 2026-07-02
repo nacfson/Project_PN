@@ -37,9 +37,13 @@ type Config struct {
 	DatabaseURL    string
 	MigrationsPath string
 
-	EnrichBaseURL string
-	EnrichAPIKey  string
-	EnrichModel   string
+	EnrichPrimaryBaseURL string
+	EnrichPrimaryAPIKey  string
+	EnrichPrimaryModel   string
+
+	EnrichFallbackBaseURL string
+	EnrichFallbackAPIKey  string
+	EnrichFallbackModel   string
 
 	DefaultUserID         string
 	DefaultTargetLang     string
@@ -70,9 +74,13 @@ func Load() Config {
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		MigrationsPath: envOrDefault("MIGRATIONS_PATH", defaultMigrationsPath),
 
-		EnrichBaseURL: os.Getenv("ENRICH_BASE_URL"),
-		EnrichAPIKey:  os.Getenv("ENRICH_API_KEY"),
-		EnrichModel:   os.Getenv("ENRICH_MODEL"),
+		EnrichPrimaryBaseURL: envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL")),
+		EnrichPrimaryAPIKey:  envOrDefault("ENRICH_PRIMARY_API_KEY", os.Getenv("ENRICH_API_KEY")),
+		EnrichPrimaryModel:   envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL")),
+
+		EnrichFallbackBaseURL: os.Getenv("ENRICH_FALLBACK_BASE_URL"),
+		EnrichFallbackAPIKey:  os.Getenv("ENRICH_FALLBACK_API_KEY"),
+		EnrichFallbackModel:   os.Getenv("ENRICH_FALLBACK_MODEL"),
 
 		DefaultUserID:          envOrDefault("DEFAULT_USER_ID", defaultUserID),
 		DefaultTargetLang:      envOrDefault("DEFAULT_TARGET_LANG", defaultTargetLang),

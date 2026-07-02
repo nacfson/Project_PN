@@ -35,7 +35,18 @@ func main() {
 	}
 	defer pool.Close()
 
-	enricher := enrich.NewOpenAI(cfg.EnrichBaseURL, cfg.EnrichAPIKey, cfg.EnrichModel)
+	primary := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
+	var fallback enrich.Enricher
+	if cfg.EnrichFallbackBaseURL != "" {
+		fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
+	}
+	enricher := enrich.NewFallback(primary, fallback, slog.Default())
+	slog.Info("enrich providers configured",
+		"primary_model", cfg.EnrichPrimaryModel,
+		"primary_url", cfg.EnrichPrimaryBaseURL,
+		"fallback_model", cfg.EnrichFallbackModel,
+		"fallback_url", cfg.EnrichFallbackBaseURL,
+	)
 	authService := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
