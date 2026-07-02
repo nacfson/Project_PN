@@ -15,8 +15,3 @@ type User struct {
 func (u User) IsEmailVerified() bool {
 	return u.EmailVerifiedAt != nil
 }
-
-type Session struct {
-	Token     string
-	ExpiresAt time.Time
-}

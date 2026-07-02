@@ -55,10 +55,3 @@ func bearerToken(r *http.Request) string {
 	return strings.TrimSpace(header[7:])
 }
 
-func writeRateLimited(w http.ResponseWriter) {
-	writeError(w, http.StatusTooManyRequests, "too many requests")
-}
-
-func rateLimitResponse(w http.ResponseWriter, _ *http.Request) {
-	writeRateLimited(w)
-}
