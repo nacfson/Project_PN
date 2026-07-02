@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"project-pn/internal/db"
-	"project-pn/internal/email"
 	"project-pn/internal/migrations"
 )
 
@@ -24,7 +23,6 @@ func testService(t *testing.T) *Service {
 		ForceDefinitionLang:    "",
 		ForceTargetLang:        "",
 		ForceUILang:            "",
-		AppPublicURL:           "http://localhost:8080",
 	})
 }
 
@@ -52,7 +50,7 @@ func testServiceWithOptions(t *testing.T, opts Options) *Service {
 		t.Fatalf("truncate: %v", err)
 	}
 
-	return New(pool, email.NewLog(), opts)
+	return New(pool, opts)
 }
 
 func TestNormalizeEmail(t *testing.T) {

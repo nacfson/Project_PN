@@ -12,7 +12,6 @@ import (
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
-	"project-pn/internal/email"
 	"project-pn/internal/enrich"
 	"project-pn/internal/migrations"
 	"project-pn/internal/words"
@@ -39,7 +38,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 	t.Cleanup(pool.Close)
 
 	cfg := config.Load()
-	authSvc := auth.New(pool, email.NewLog(), auth.Options{
+	authSvc := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
 		DefaultUILang:          cfg.UILang,
@@ -49,7 +48,6 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 		ForceDefinitionLang:    cfg.ForceDefinitionLang,
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
-		AppPublicURL:           "http://localhost:8080",
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 

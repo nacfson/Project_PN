@@ -13,7 +13,6 @@ import (
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
-	"project-pn/internal/email"
 	"project-pn/internal/enrich"
 	httpapi "project-pn/internal/http"
 	"project-pn/internal/notify"
@@ -37,8 +36,7 @@ func main() {
 	defer pool.Close()
 
 	enricher := enrich.NewOpenAI(cfg.EnrichBaseURL, cfg.EnrichAPIKey, cfg.EnrichModel)
-	mailer := email.NewProvider(cfg.EmailProvider, cfg.ResendAPIKey, cfg.EmailFrom)
-	authService := auth.New(pool, mailer, auth.Options{
+	authService := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
 		DefaultUILang:          cfg.UILang,
@@ -48,8 +46,6 @@ func main() {
 		ForceDefinitionLang:    cfg.ForceDefinitionLang,
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
-		AppPublicURL:           cfg.AppPublicURL,
-		WebAppPublicURL:        cfg.WebAppPublicURL,
 	})
 	var centralAuth *auth.CentralClient
 	centralAuthURL := cfg.CentralAuthInternalURL

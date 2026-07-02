@@ -15,7 +15,6 @@ import (
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
-	"project-pn/internal/email"
 	"project-pn/internal/enrich"
 	"project-pn/internal/migrations"
 	"project-pn/internal/words"
@@ -52,7 +51,7 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 	}
 
 	cfg := config.Load()
-	authSvc := auth.New(pool, email.NewLog(), auth.Options{
+	authSvc := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
 		DefaultUILang:          cfg.UILang,
@@ -62,7 +61,6 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 		ForceDefinitionLang:    cfg.ForceDefinitionLang,
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
-		AppPublicURL:           cfg.AppPublicURL,
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	router := NewRouter(Dependencies{
@@ -305,10 +303,9 @@ func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 	t.Parallel()
 
 	svc := words.New(nil, nil, "00000000-0000-0000-0000-000000000001", "en", "ko")
-	authSvc := auth.New(nil, email.NewLog(), auth.Options{
+	authSvc := auth.New(nil, auth.Options{
 		DefaultDefinitionLang: "ko",
 		DefaultTargetLang:     "en",
-		AppPublicURL:          "http://localhost:8080",
 	})
 	router := NewRouter(Dependencies{
 		Words:          svc,
@@ -394,10 +391,9 @@ func insertLearningItemFixture(t *testing.T, pool *pgxpool.Pool, userID, lemma, 
 func TestApiRoutesAbsentWithoutWordsService(t *testing.T) {
 	t.Parallel()
 
-	authSvc := auth.New(nil, email.NewLog(), auth.Options{
+	authSvc := auth.New(nil, auth.Options{
 		DefaultDefinitionLang: "ko",
 		DefaultTargetLang:     "en",
-		AppPublicURL:          "http://localhost:8080",
 	})
 	router := NewRouter(Dependencies{Auth: authSvc})
 

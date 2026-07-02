@@ -8,8 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"project-pn/internal/email"
 )
 
 type querier interface {
@@ -19,7 +17,6 @@ type querier interface {
 
 type Service struct {
 	pool                   *pgxpool.Pool
-	mailer                 email.Mailer
 	defaultDefinitionLang  string
 	defaultTargetLang      string
 	defaultUILang          string
@@ -29,8 +26,6 @@ type Service struct {
 	forceDefinitionLang    string
 	forceTargetLang        string
 	forceUILang            string
-	appPublicURL           string
-	webAppPublicURL        string
 }
 
 type Options struct {
@@ -43,18 +38,11 @@ type Options struct {
 	ForceDefinitionLang    string
 	ForceTargetLang        string
 	ForceUILang            string
-	AppPublicURL           string
-	WebAppPublicURL        string
 }
 
-func New(pool *pgxpool.Pool, mailer email.Mailer, opts Options) *Service {
-	webAppPublicURL := opts.WebAppPublicURL
-	if webAppPublicURL == "" {
-		webAppPublicURL = opts.AppPublicURL
-	}
+func New(pool *pgxpool.Pool, opts Options) *Service {
 	return &Service{
 		pool:                   pool,
-		mailer:                 mailer,
 		defaultDefinitionLang:  opts.DefaultDefinitionLang,
 		defaultTargetLang:      opts.DefaultTargetLang,
 		defaultUILang:          opts.DefaultUILang,
@@ -64,18 +52,10 @@ func New(pool *pgxpool.Pool, mailer email.Mailer, opts Options) *Service {
 		forceDefinitionLang:    opts.ForceDefinitionLang,
 		forceTargetLang:        opts.ForceTargetLang,
 		forceUILang:            opts.ForceUILang,
-		appPublicURL:           opts.AppPublicURL,
-		webAppPublicURL:        webAppPublicURL,
 	}
 }
 
-func (s *Service) AppPublicURL() string {
-	return s.appPublicURL
-}
 
-func (s *Service) WebAppPublicURL() string {
-	return s.webAppPublicURL
-}
 
 func (s *Service) LanguageOptions() LanguageOptions {
 	return LanguageOptions{
