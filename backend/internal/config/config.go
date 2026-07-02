@@ -23,12 +23,6 @@ const (
 	defaultAllowedUILangs         = ""
 	defaultForceUILang            = ""
 
-	defaultSessionTTL           = 720 * time.Hour
-	defaultEmailVerificationTTL = 24 * time.Hour
-	defaultEmailProvider        = "log"
-	defaultAppPublicURL         = "http://localhost:8080"
-	defaultWebAppPublicURL      = ""
-
 	// Web (Expo dev) and Tauri desktop WebView origins that may call the API.
 	// Tauri serves the bundle from tauri://localhost (macOS) and
 	// http://tauri.localhost (Windows).
@@ -65,14 +59,6 @@ type Config struct {
 	CentralAuthURL        string
 	CentralAuthInternalURL string
 
-	SessionTTL           time.Duration
-	EmailVerificationTTL time.Duration
-	EmailProvider        string
-	ResendAPIKey         string
-	EmailFrom            string
-	AppPublicURL         string
-	WebAppPublicURL      string
-
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
 	ExpoAccessToken            string
@@ -107,14 +93,6 @@ func Load() Config {
 
 		CentralAuthURL:         strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
 		CentralAuthInternalURL: strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
-
-		SessionTTL:           durationOrDefault("SESSION_TTL", defaultSessionTTL),
-		EmailVerificationTTL: durationOrDefault("EMAIL_VERIFICATION_TTL", defaultEmailVerificationTTL),
-		EmailProvider:        envOrDefault("EMAIL_PROVIDER", defaultEmailProvider),
-		ResendAPIKey:         os.Getenv("RESEND_API_KEY"),
-		EmailFrom:            os.Getenv("EMAIL_FROM"),
-		AppPublicURL:         envOrDefault("APP_PUBLIC_URL", defaultAppPublicURL),
-		WebAppPublicURL:      envOrDefault("WEB_APP_PUBLIC_URL", defaultWebAppPublicURL),
 
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
