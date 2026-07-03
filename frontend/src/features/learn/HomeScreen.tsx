@@ -306,18 +306,19 @@ export function HomeScreen() {
   );
 
   return (
-    <Screen padded>
-      <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingVertical: spacing.lg }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[colors.primary]}
-          />
-        }
-      >
-        <View style={{ gap: spacing.lg }}>
+    <Screen
+      title="Learn"
+      padded
+      contentContainerStyle={[styles.scroll, { paddingVertical: spacing.lg }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+        />
+      }
+    >
+      <View style={{ gap: spacing.lg }}>
           <View style={{ gap: spacing.xs }}>
             <Text variant="caption" color="muted">
               {t('home.greeting', { name: displayName })}
@@ -334,7 +335,7 @@ export function HomeScreen() {
           />
 
           {stats && streakAtRisk && hasDue ? (
-            <Card style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
+            <Card glass={true} style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
               <Text style={{ color: colors.warning }}>
                 {t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })}
               </Text>
@@ -412,7 +413,7 @@ export function HomeScreen() {
                   onPress={handlePressFlame}
                   accessibilityRole="button"
                 >
-                  <Card style={styles.statCard}>
+                  <Card glass={true} style={styles.statCard}>
                     <View style={[styles.statIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
                       <Icon name="flame" size="md" color={colors.tertiary} />
                     </View>
@@ -449,7 +450,7 @@ export function HomeScreen() {
                   onPress={handlePressBook}
                   accessibilityRole="button"
                 >
-                  <Card style={styles.statCard}>
+                  <Card glass={true} style={styles.statCard}>
                     <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryContainer }]}>
                       <Icon name="book" size="md" color={colors.secondary} />
                     </View>
@@ -467,7 +468,7 @@ export function HomeScreen() {
                 </AnimatedPressable>
               </View>
 
-              <Card style={{ gap: spacing.sm, padding: spacing.lg }}>
+              <Card glass={true} style={{ gap: spacing.sm, padding: spacing.lg }}>
                 <View style={styles.row}>
                   <Text variant="title">{t('home.xpToday')}</Text>
                   <Text variant="caption" color="primary" bold>
@@ -480,7 +481,7 @@ export function HomeScreen() {
                 </Text>
               </Card>
 
-              <Card style={{ gap: spacing.md, padding: spacing.lg }}>
+              <Card glass={true} style={{ gap: spacing.md, padding: spacing.lg }}>
                 <Text variant="title">{t('home.progressTitle')}</Text>
                 {statsError ? (
                   <Text color="muted">{t('home.statsLoadFailed')}</Text>
@@ -507,7 +508,6 @@ export function HomeScreen() {
             </StaggeredList>
           )}
         </View>
-      </ScrollView>
     </Screen>
   );
 }

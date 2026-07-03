@@ -76,6 +76,7 @@ jest.mock('react-native-reanimated', () => {
     View: RN.View,
     ScrollView: RN.ScrollView,
     Text: RN.Text,
+    FlatList: RN.FlatList,
     createAnimatedComponent: (c) => c,
   };
 

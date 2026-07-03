@@ -30,7 +30,7 @@ export function RatingButton({ option, onPress, style }: RatingButtonProps) {
         {
           backgroundColor: pressed ? colors.surfaceContainerHighest : colors.surfaceContainerLow,
           borderColor: colors.outlineVariant,
-          borderRadius: radii.md,
+          borderRadius: radii.full,
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
           transform: [{ scale: pressed ? 0.98 : 1 }],

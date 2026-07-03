@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { StyleSheet, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
@@ -132,18 +132,28 @@ export const Screen = React.forwardRef<any, ScreenProps>(
     };
 
     if (as && title) {
+      const UserHeaderComponent = rest.ListHeaderComponent;
       scrollProps.ListHeaderComponent = (
-        <Animated.View
-          style={[
-            styles.largeHeader,
-            padded && { paddingHorizontal: spacing.xl },
-            largeHeaderAnimatedStyle,
-          ]}
-        >
-          <Text variant="headline" style={{ color: colors.onBackground }}>
-            {title}
-          </Text>
-        </Animated.View>
+        <View>
+          <Animated.View
+            style={[
+              styles.largeHeader,
+              padded && { paddingHorizontal: spacing.xl },
+              largeHeaderAnimatedStyle,
+            ]}
+          >
+            <Text variant="headline" style={{ color: colors.onBackground }}>
+              {title}
+            </Text>
+          </Animated.View>
+          {UserHeaderComponent && (
+            typeof UserHeaderComponent === 'function'
+              ? React.createElement(UserHeaderComponent as any)
+              : React.isValidElement(UserHeaderComponent)
+                ? UserHeaderComponent
+                : null
+          )}
+        </View>
       );
     }
 

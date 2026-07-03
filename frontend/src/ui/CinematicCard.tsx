@@ -8,6 +8,7 @@ interface CinematicCardProps extends ViewProps {
   onLongPress?: () => void;
   revealActions?: ReactNode;
   elevated?: boolean;
+  glass?: boolean;
   children: ReactNode;
 }
 
@@ -16,6 +17,7 @@ export function CinematicCard({
   onLongPress,
   revealActions,
   elevated,
+  glass,
   children,
   style,
   ...rest
@@ -25,6 +27,7 @@ export function CinematicCard({
       onPress={onPress}
       onLongPress={onLongPress}
       elevated={elevated}
+      glass={glass}
       hoverElevation
       hoverScale
       style={style}

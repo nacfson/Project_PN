@@ -194,7 +194,7 @@ describe('MyWordsScreen', () => {
     await render(<MyWordsScreen />, { wrapper: Wrapper });
 
     // Deck listing should show the heading without deck canvas (still loading)
-    await waitFor(() => expect(screen.getByText('My Words')).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText('My Words').length).toBeGreaterThanOrEqual(1));
     // Deck canvas is not rendered when loading - "Default" is not visible
     expect(screen.queryByText('Default')).toBeNull();
   });

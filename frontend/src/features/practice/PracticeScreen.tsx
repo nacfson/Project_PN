@@ -455,7 +455,7 @@ export function PracticeScreen() {
           <Text variant="heading" color="primary" style={{ textAlign: 'center' }}>
             {t('practice.complete')}
           </Text>
-          <Card elevated style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
+          <Card glass={true} style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
             <Text variant="title" bold>
               {t('practice.xpEarned')}
             </Text>
@@ -594,7 +594,8 @@ export function PracticeScreen() {
   const answerBarHeight = 144;
 
   const answerBar = showAnswerBar ? (
-    <View
+    <Card
+      glass={true}
       style={[
         styles.answerBar,
         {
@@ -641,7 +642,7 @@ export function PracticeScreen() {
           onPress={() => revealAnswer(true)}
         />
       </View>
-    </View>
+    </Card>
   ) : null;
 
   return (
@@ -734,7 +735,8 @@ export function PracticeScreen() {
           )}
 
           {isFlipped && practiceState === 'grading' && (
-            <View
+            <Card
+              glass={true}
               style={[
                 styles.gradingPanel,
                 {
@@ -759,7 +761,7 @@ export function PracticeScreen() {
                   onPress={finishRepeatSession}
                 />
               )}
-            </View>
+            </Card>
           )}
           {sessionMode === 'repeat' && !isFlipped && (
             <Button

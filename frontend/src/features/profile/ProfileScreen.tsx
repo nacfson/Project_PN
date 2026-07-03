@@ -9,8 +9,7 @@ import { type AppLanguage, useAppLanguage } from '../../i18n';
 import type { MeResponse } from '../../types/auth';
 import type { ReviewSettings, StreakSettings } from '../../types';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Icon, Input, LoadingState, Screen, Switch, Text, HoverReveal } from '../../ui';
-import { CinematicCard } from '../../ui/CinematicCard';
+import { Button, Card, Icon, Input, LoadingState, Screen, Switch, Text, HoverReveal } from '../../ui';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 
 interface ProfileScreenProps {
@@ -235,11 +234,10 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   }
 
   return (
-    <Screen padded>
+    <Screen title={t('settings.title')} padded>
       <View style={[styles.content, { paddingVertical: spacing.lg, gap: spacing.lg }]}>
-        <Text variant="heading">{t('settings.title')}</Text>
 
-        <CinematicCard>
+        <Card glass={true}>
           <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
             <Text variant="label" color="muted">
               {t('settings.account')}
@@ -253,9 +251,9 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             value={`${languageLabel(user?.target_language)}${user?.target_language ? ' → ' : ''}${languageLabel(user?.native_language)}`}
             onPress={() => navigation.navigate('LanguagePairs')}
           />
-        </CinematicCard>
+        </Card>
 
-        <CinematicCard>
+        <Card glass={true}>
           <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
             <Text variant="label" color="muted">
               {t('settings.review')}
@@ -341,9 +339,9 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
               </Text>
             </View>
           )}
-        </CinematicCard>
+        </Card>
 
-        <CinematicCard>
+        <Card glass={true}>
           <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
             <Text variant="label" color="muted">
               {t('settings.app')}
@@ -379,7 +377,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           <SettingRow icon="help-circle-outline" label={t('settings.help')} />
           <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow icon="information-circle-outline" label={t('settings.about')} />
-        </CinematicCard>
+        </Card>
 
         <Button
           label={t('settings.logout')}

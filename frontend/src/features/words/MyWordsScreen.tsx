@@ -16,6 +16,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import type { Deck, LearningItemListItem } from '../../types';
+import Animated from 'react-native-reanimated';
 import { Badge, Button, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
 import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
@@ -338,6 +339,7 @@ export function MyWordsScreen() {
       const selected = selectedItemIds.has(item.id);
       return (
         <CinematicCard
+          glass={true}
           onPress={() => handleCardPress(item)}
           onLongPress={() => handleCardLongPress(item)}
           style={{
@@ -447,9 +449,8 @@ export function MyWordsScreen() {
 
   if (!languageLoading && languageError) {
     return (
-      <Screen padded>
-        <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md, flex: 1 }]}>
-          <Text variant="heading">{t('words.title')}</Text>
+      <Screen title={t('words.title')} padded>
+        <View style={{ gap: spacing.md, flex: 1 }}>
           <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
         </View>
       </Screen>
@@ -458,9 +459,8 @@ export function MyWordsScreen() {
 
   if (!languageLoading && !targetLanguage) {
     return (
-      <Screen padded>
-        <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md, flex: 1 }]}>
-          <Text variant="heading">{t('words.title')}</Text>
+      <Screen title={t('words.title')} padded>
+        <View style={{ gap: spacing.md, flex: 1 }}>
           <EmptyState
             icon="language-outline"
             title={t('words.noLanguagePairTitle')}
@@ -473,11 +473,9 @@ export function MyWordsScreen() {
     );
   }
 
-  return (
-    <Screen padded>
-      <View style={[styles.header, { paddingTop: spacing.lg, gap: spacing.md }]}>
-        <Text variant="heading">{t('words.title')}</Text>
-
+  const ListHeaderComponent = useMemo(() => {
+    return (
+      <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
         {languageLoading || decksLoading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
@@ -508,9 +506,7 @@ export function MyWordsScreen() {
           onClear={() => setQ('')}
           loading={status === 'loading'}
         />
-      </View>
 
-      <View style={{ marginBottom: spacing.md }}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -526,10 +522,31 @@ export function MyWordsScreen() {
           ))}
         </ScrollView>
       </View>
+    );
+  }, [
+    languageLoading,
+    decksLoading,
+    decks,
+    selectedDeckId,
+    openCreate,
+    openEdit,
+    q,
+    status,
+    filter,
+    colors.primary,
+    spacing.md,
+    spacing.sm,
+    t,
+  ]);
 
-      <FlatList
+  return (
+    <>
+      <Screen
+        title={t('words.title')}
+        padded
+        as={Animated.FlatList}
         data={filteredItems}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: any) => item.id}
         renderItem={renderItem}
         contentContainerStyle={[
           styles.list,
@@ -540,6 +557,7 @@ export function MyWordsScreen() {
         onEndReachedThreshold={0.4}
         ListEmptyComponent={listEmpty}
         ListFooterComponent={listFooter}
+        ListHeaderComponent={ListHeaderComponent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -642,7 +660,7 @@ export function MyWordsScreen() {
               ]
         }
       />
-    </Screen>
+    </>
   );
 }
 
