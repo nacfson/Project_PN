@@ -74,8 +74,10 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
     [item.id, navigation, t],
   );
 
-  const definition = item.localized_definition || item.definition;
-  const shortDefinition = item.localized_short_definition || item.short_definition;
+  const explanation = item.definition;
+  const shortExplanation = item.short_definition;
+  const translation = item.localized_definition;
+  const shortTranslation = item.localized_short_definition;
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
   const examples = item.examples ?? [];
 
@@ -108,18 +110,6 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           {cefrLabel && <Badge label={cefrLabel} variant="info" />}
         </View>
 
-        <Card style={{ marginBottom: spacing.md }}>
-          <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-            {t('words.detailDefinition')}
-          </Text>
-          <Text variant="body">{definition}</Text>
-          {shortDefinition && shortDefinition !== definition && (
-            <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-              {shortDefinition}
-            </Text>
-          )}
-        </Card>
-
         {examples.length > 0 && (
           <Card style={{ marginBottom: spacing.md }}>
             <Text variant="label" color="muted" style={{ marginBottom: spacing.sm }}>
@@ -147,6 +137,34 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
                 </View>
               ))}
             </View>
+          </Card>
+        )}
+
+        {explanation && (
+          <Card style={{ marginBottom: spacing.md }}>
+            <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
+              {t('words.detailExplanation')}
+            </Text>
+            <Text variant="body">{explanation}</Text>
+            {shortExplanation && shortExplanation !== explanation && (
+              <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
+                {shortExplanation}
+              </Text>
+            )}
+          </Card>
+        )}
+
+        {translation && translation !== explanation && (
+          <Card style={{ marginBottom: spacing.md }}>
+            <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
+              {t('words.detailTranslation')}
+            </Text>
+            <Text variant="body">{translation}</Text>
+            {shortTranslation && shortTranslation !== translation && (
+              <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
+                {shortTranslation}
+              </Text>
+            )}
           </Card>
         )}
 
