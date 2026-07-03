@@ -9,6 +9,7 @@ import Animated, {
   Extrapolation,
   withTiming,
   runOnJS,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from './Text';
@@ -23,7 +24,7 @@ export interface ScreenProps extends ScrollViewProps {
 
 // Context to share scroll state with parent navigator for hiding the tab bar
 export const TabBarScrollContext = createContext<{
-  tabBarTranslateY: Animated.SharedValue<number>;
+  tabBarTranslateY: SharedValue<number>;
 } | null>(null);
 
 export const Screen = React.forwardRef<any, ScreenProps>(
@@ -36,7 +37,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
     const accumulatedDelta = useSharedValue(0);
 
     const scrollHandler = useAnimatedScrollHandler({
-      onScroll: (event) => {
+      onScroll: (event: any) => {
         const currentY = event.contentOffset.y;
         const delta = currentY - lastScrollY.value;
         scrollY.value = currentY;
@@ -114,6 +115,38 @@ export const Screen = React.forwardRef<any, ScreenProps>(
 
     const ScrollComponent = as || Animated.ScrollView;
 
+    // Dynamically build scroll props as any to satisfy compiler for ScrollView/FlatList differences
+    const scrollProps: any = {
+      ref,
+      onScroll: scrollHandler,
+      scrollEventThrottle: 16,
+      scrollEnabled,
+      style: [styles.inner, style],
+      contentContainerStyle: [
+        padded && { paddingHorizontal: spacing.xl },
+        title ? styles.innerWithTitle : undefined,
+        { paddingBottom: 60 + insets.bottom + 16 },
+        contentContainerStyle,
+      ],
+      ...rest,
+    };
+
+    if (as && title) {
+      scrollProps.ListHeaderComponent = (
+        <Animated.View
+          style={[
+            styles.largeHeader,
+            padded && { paddingHorizontal: spacing.xl },
+            largeHeaderAnimatedStyle,
+          ]}
+        >
+          <Text variant="headline" style={{ color: colors.onBackground }}>
+            {title}
+          </Text>
+        </Animated.View>
+      );
+    }
+
     return (
       <SafeAreaView
         edges={['top', 'right', 'left']}
@@ -135,36 +168,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
             </Text>
           </Animated.View>
         )}
-        <ScrollComponent
-          ref={ref}
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
-          scrollEnabled={scrollEnabled}
-          style={[styles.inner, style]}
-          contentContainerStyle={[
-            padded && { paddingHorizontal: spacing.xl },
-            title ? styles.innerWithTitle : undefined,
-            // Handle bottom padding entirely inside content container style to avoid safe area visual gaps
-            { paddingBottom: 60 + insets.bottom + 16 },
-            contentContainerStyle,
-          ]}
-          ListHeaderComponent={
-            as && title ? (
-              <Animated.View
-                style={[
-                  styles.largeHeader,
-                  padded && { paddingHorizontal: spacing.xl },
-                  largeHeaderAnimatedStyle,
-                ]}
-              >
-                <Text variant="headline" style={{ color: colors.onBackground }}>
-                  {title}
-                </Text>
-              </Animated.View>
-            ) : undefined
-          }
-          {...rest}
-        >
+        <ScrollComponent {...scrollProps}>
           {!as && title && (
             <Animated.View
               style={[
