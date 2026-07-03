@@ -9,6 +9,16 @@ jest.mock('../theme/ThemeProvider', () => ({
       onSurfaceVariant: '#49454f',
     },
     typography: {
+      fontFamily: 'Inter-Regular',
+      sizes: {
+        xs: 11,
+        sm: 13,
+        md: 15,
+        lg: 17,
+        xl: 21,
+        xxl: 28,
+        xxxl: 34,
+      },
       weights: {
         bold: '700',
       },

@@ -1,11 +1,13 @@
 import { useRef, useState, useEffect } from 'react';
-import { Animated, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface CardProps extends ViewProps {
   elevated?: boolean;
   variant?: 'filled' | 'outlined';
+  glass?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
   hoverElevation?: boolean;
@@ -15,6 +17,7 @@ interface CardProps extends ViewProps {
 export function Card({
   elevated,
   variant = 'filled',
+  glass,
   onPress,
   onLongPress,
   hoverElevation,
@@ -59,27 +62,51 @@ export function Card({
     }).start();
   }, [targetScale, scaleAnim]);
 
-  const cardBody = (
+  const backgroundColor = glass
+    ? colors.surfaceGlass
+    : variant === 'filled'
+      ? colors.surfaceContainerLow
+      : colors.surface;
+
+  const borderColor = glass
+    ? colors.borderGlass
+    : variant === 'outlined'
+      ? colors.outlineVariant
+      : 'transparent';
+
+  const glassWebStyle = glass && Platform.OS === 'web'
+    ? { backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' } as Record<string, string>
+    : undefined;
+
+  const cardContent = (
     <View
       style={[
         styles.base,
         {
-          backgroundColor: variant === 'filled' ? colors.surfaceContainerLow : colors.surface,
-          borderRadius: radii.xxl,
+          backgroundColor,
+          borderRadius: radii.xl,
           padding: spacing.lg,
-          borderColor: variant === 'outlined' ? colors.outlineVariant : 'transparent',
+          borderColor,
         },
+        glassWebStyle,
         targetShadow,
         style,
       ]}
       {...rest}
     >
+      {glass && Platform.OS === 'ios' ? (
+        <BlurView
+          intensity={20}
+          tint="light"
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
       {children}
     </View>
   );
 
   if (!onPress && !hoverElevation && !hoverScale) {
-    return cardBody;
+    return cardContent;
   }
 
   return (
@@ -92,7 +119,7 @@ export function Card({
         onHoverIn={handleHoverIn}
         onHoverOut={handleHoverOut}
       >
-        {cardBody}
+        {cardContent}
       </Pressable>
     </Animated.View>
   );
@@ -101,5 +128,6 @@ export function Card({
 const styles = StyleSheet.create({
   base: {
     borderWidth: 1,
+    overflow: 'hidden',
   },
 });

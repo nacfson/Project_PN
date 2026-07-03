@@ -26,6 +26,7 @@ interface ButtonProps extends Omit<PressableProps, 'children'> {
   style?: StyleProp<ViewStyle>;
   fullWidth?: boolean;
   haptic?: boolean;
+  pill?: boolean;
 }
 
 export function Button({
@@ -38,6 +39,7 @@ export function Button({
   style,
   fullWidth,
   haptic = true,
+  pill,
   ...rest
 }: ButtonProps) {
   const { colors, spacing, radii } = useTheme();
@@ -47,8 +49,9 @@ export function Button({
   const handlePressIn = () => {
     if (isDisabled) return;
     Animated.spring(scaleAnim, {
-      toValue: 0.97,
-      friction: 6,
+      toValue: 0.95,
+      stiffness: 300,
+      damping: 20,
       useNativeDriver: true,
     }).start();
     if (haptic && Platform.OS !== 'web') {
@@ -59,7 +62,8 @@ export function Button({
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      friction: 6,
+      stiffness: 300,
+      damping: 20,
       useNativeDriver: true,
     }).start();
   };
@@ -88,6 +92,8 @@ export function Button({
             ? 'primary'
             : 'default';
 
+  const buttonRadius = pill ? radii.full : radii.lg;
+
   return (
     <Animated.View
       style={[
@@ -105,7 +111,7 @@ export function Button({
           {
             paddingVertical: spacing.md,
             paddingHorizontal: spacing.lg,
-            borderRadius: radii.full,
+            borderRadius: buttonRadius,
             opacity: isDisabled ? 0.5 : pressed ? 0.9 : 1,
           },
           variantStyle,

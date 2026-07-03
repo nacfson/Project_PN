@@ -1,4 +1,4 @@
-import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react-native';
+import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 
 type TextVariant = 'body' | 'caption' | 'title' | 'heading' | 'headline' | 'label';
@@ -9,6 +9,15 @@ interface TextProps extends RNTextProps {
   color?: TextColor;
   bold?: boolean;
 }
+
+const variantStylesFor = (sizes: typeof import('../theme/tokens').typography.sizes): Record<TextVariant, TextStyle> => ({
+  body: { fontSize: sizes.md, lineHeight: 22, fontFamily: 'Inter-Regular' },
+  caption: { fontSize: sizes.sm, lineHeight: 18, fontFamily: 'Inter-Medium', letterSpacing: 0.2 },
+  title: { fontSize: sizes.lg, fontWeight: '700', lineHeight: 24, fontFamily: 'Inter-Bold', letterSpacing: -0.2 },
+  heading: { fontSize: sizes.xl, fontWeight: '800', lineHeight: 28, fontFamily: 'Inter-ExtraBold', letterSpacing: -0.3 },
+  headline: { fontSize: sizes.xxl, fontWeight: '900', lineHeight: 34, fontFamily: 'Inter-ExtraBold', letterSpacing: -0.5 },
+  label: { fontSize: sizes.sm, fontWeight: '600', lineHeight: 18, fontFamily: 'Inter-SemiBold', letterSpacing: 0.4 },
+});
 
 export function Text({ variant = 'body', color = 'default', bold, style, ...rest }: TextProps) {
   const { colors, typography } = useTheme();
@@ -24,10 +33,12 @@ export function Text({ variant = 'body', color = 'default', bold, style, ...rest
     onSecondaryContainer: colors.onSecondaryContainer,
   };
 
+  const variantStyles = variantStylesFor(typography.sizes);
+
   return (
     <RNText
       style={[
-        styles.base,
+        { fontSize: typography.sizes.md, fontFamily: typography.fontFamily },
         variantStyles[variant],
         { color: colorMap[color] },
         bold && { fontWeight: typography.weights.bold },
@@ -38,17 +49,3 @@ export function Text({ variant = 'body', color = 'default', bold, style, ...rest
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    fontSize: 15,
-  },
-});
-
-const variantStyles = StyleSheet.create({
-  body: { fontSize: 15, lineHeight: 22 },
-  caption: { fontSize: 13, lineHeight: 18 },
-  title: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
-  heading: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
-  headline: { fontSize: 28, fontWeight: '400', lineHeight: 36 },
-  label: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
-});

@@ -21,3 +21,13 @@ jest.mock('@expo/vector-icons/Ionicons', () => {
   };
 });
 
+// Mock expo-blur so tests can render BlurView without native modules.
+jest.mock('expo-blur', () => {
+  const mockReact = require('react');
+  return {
+    BlurView: function BlurViewMock(props) {
+      return mockReact.createElement('View', { ...props, testID: 'blur-view' });
+    },
+  };
+});
+

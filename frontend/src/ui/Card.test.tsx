@@ -25,4 +25,16 @@ describe('Card', () => {
     fireEvent.press(screen.getByText('Press me'));
     expect(onPress).toHaveBeenCalled();
   });
+
+  it('supports rendering glass option', async () => {
+    const { getByTestId } = await render(
+      <Card glass testID="glass-card"><Text>Glass</Text></Card>,
+      { wrapper: ThemeProvider },
+    );
+    const card = getByTestId('glass-card');
+    expect(card.props.style).toContainEqual(expect.objectContaining({
+      backgroundColor: expect.stringContaining('rgba')
+    }));
+  });
 });
+
