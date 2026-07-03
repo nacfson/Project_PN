@@ -600,7 +600,6 @@ export function PracticeScreen() {
         styles.answerBar,
         {
           borderTopColor: colors.outlineVariant,
-          backgroundColor: colors.surface,
           paddingBottom: spacing.lg,
         },
       ]}
@@ -742,7 +741,6 @@ export function PracticeScreen() {
                 {
                   gap: spacing.md,
                   borderTopColor: colors.outlineVariant,
-                  backgroundColor: colors.surface,
                 },
               ]}
             >

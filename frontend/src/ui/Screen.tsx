@@ -149,9 +149,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
           {UserHeaderComponent && (
             typeof UserHeaderComponent === 'function'
               ? React.createElement(UserHeaderComponent as any)
-              : React.isValidElement(UserHeaderComponent)
-                ? UserHeaderComponent
-                : null
+              : UserHeaderComponent
           )}
         </View>
       );

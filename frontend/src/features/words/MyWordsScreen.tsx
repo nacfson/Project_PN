@@ -216,14 +216,14 @@ export function MyWordsScreen() {
     setOperationError(null);
   }, []);
 
-  const toggleDeckSelection = (deckId: string) => {
+  const toggleDeckSelection = useCallback((deckId: string) => {
     setSelectedDeckIds((prev) => {
       const next = new Set(prev);
       if (next.has(deckId)) next.delete(deckId);
       else next.add(deckId);
       return next;
     });
-  };
+  }, []);
 
   const clearDeckSelection = () => setSelectedDeckIds(new Set());
 
