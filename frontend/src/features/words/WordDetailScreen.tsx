@@ -157,7 +157,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
         {translation && translation !== explanation && (
           <Card style={{ marginBottom: spacing.md }}>
             <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-              {t('words.detailTargetLanguage')}
+              {t('words.detailTranslation')}
             </Text>
             <Text variant="body">{translation}</Text>
             {shortTranslation && shortTranslation !== translation && (

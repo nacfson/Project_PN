@@ -97,7 +97,7 @@ describe('WordDetailScreen', () => {
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('Explanation')).toBeTruthy();
     expect(screen.getByText('to leave behind, to forsake')).toBeTruthy();
-    expect(screen.getByText('[Target Language]')).toBeTruthy();
+    expect(screen.getByText('Translation')).toBeTruthy();
     expect(screen.getByText('떠나다, 버리다')).toBeTruthy();
   });
 
@@ -113,6 +113,6 @@ describe('WordDetailScreen', () => {
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('Explanation')).toBeTruthy();
     expect(screen.getByText('same meaning')).toBeTruthy();
-    expect(screen.queryByText('[Target Language]')).toBeNull();
+    expect(screen.queryByText('Translation')).toBeNull();
   });
 });
