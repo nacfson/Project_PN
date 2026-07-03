@@ -323,8 +323,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	queryLimit := limit + 1
 
 	var err error
-	var defLangCode string
-	params.LanguageCode, defLangCode, err = s.fillLangs(ctx, userID, params.LanguageCode, "")
+	params.LanguageCode, _, err = s.fillLangs(ctx, userID, params.LanguageCode, "")
 	if err != nil {
 		return LearningItemsPage{}, err
 	}
@@ -340,7 +339,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		params.LanguageCode = deck.TargetLanguage
 	}
 
-	args := []any{userID, params.LanguageCode, defLangCode}
+	args := []any{userID, params.LanguageCode}
 	deckPredicate := ""
 	if params.DeckID != "" {
 		args = append(args, params.DeckID)
@@ -376,7 +375,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	query := fmt.Sprintf(
 		`select uws.id::text, uws.word_sense_id::text, w.id::text,
 		        w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
-		        $3::text as display_language,
+		        $2::text as display_language,
 		        ws.definition, ws.short_definition,
 		        coalesce(st.definition, ws.definition),
 		        coalesce(st.short_definition, ws.short_definition),
@@ -389,7 +388,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		 join review_states rs on rs.user_word_sense_id = uws.id
 		 join decks d on d.id = uws.deck_id
 		 left join sense_translations st
-		   on st.word_sense_id = ws.id and st.language_code = $3
+		   on st.word_sense_id = ws.id and st.language_code = $2
 		 where uws.user_id = $1::uuid
 		   and w.language_code = $2
 		   and uws.archived_at is null
@@ -1069,8 +1068,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 	}
 
 	var err error
-	var defLangCode string
-	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, "")
+	langCode, _, err = s.fillLangs(ctx, userID, langCode, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1126,7 +1124,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 	}
 
 	deckPredicate := ""
-	argsBase := []any{userID, langCode, defLangCode}
+	argsBase := []any{userID, langCode}
 	if deckID != "" {
 		argsBase = append(argsBase, deckID)
 		deckPredicate = fmt.Sprintf("and uws.deck_id = $%d::uuid", len(argsBase))
@@ -1135,7 +1133,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 	baseQuery := `
 		select uws.id::text, uws.word_sense_id::text, w.id::text,
 		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
-		       $3::text as display_language,
+		       $2::text as display_language,
 		       ws.definition, ws.short_definition,
 		       coalesce(st.definition, ws.definition),
 		       coalesce(st.short_definition, ws.short_definition),
@@ -1151,7 +1149,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		join words w on w.id = ws.word_id
 		join review_states rs on rs.user_word_sense_id = uws.id
 		left join sense_translations st
-		  on st.word_sense_id = ws.id and st.language_code = $3
+		  on st.word_sense_id = ws.id and st.language_code = $2
 		where uws.user_id = $1::uuid
 		  and w.language_code = $2
 		  %s
