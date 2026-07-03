@@ -26,7 +26,7 @@ export function Card({
   children,
   ...rest
 }: CardProps) {
-  const { colors, spacing, radii, shadows } = useTheme();
+  const { colors, spacing, radii, shadows, mode } = useTheme();
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -97,8 +97,9 @@ export function Card({
       {glass && Platform.OS === 'ios' ? (
         <BlurView
           intensity={20}
-          tint="light"
+          tint={mode === 'dark' ? 'dark' : 'light'}
           style={StyleSheet.absoluteFill}
+          pointerEvents="none"
         />
       ) : null}
       {children}
