@@ -20,6 +20,7 @@ export interface ScreenProps extends ScrollViewProps {
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   as?: React.ComponentType<any>;
+  ListHeaderComponent?: React.ReactNode | React.ComponentType<any>;
 }
 
 // Context to share scroll state with parent navigator for hiding the tab bar
