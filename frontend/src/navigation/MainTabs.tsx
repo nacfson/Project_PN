@@ -46,7 +46,10 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { colors, spacing, radii } = useTheme();
   const insets = useSafeAreaInsets();
   const scrollContext = useContext(TabBarScrollContext);
-  const translateY = scrollContext?.tabBarTranslateY ?? useSharedValue(0);
+  
+  // Unconditional declaration of Reanimated hooks to adhere to React Rules of Hooks
+  const fallbackTranslateY = useSharedValue(0);
+  const translateY = scrollContext?.tabBarTranslateY ?? fallbackTranslateY;
 
   const tabBarHeight = 60 + insets.bottom;
   const [containerWidth, setContainerWidth] = useState(0);

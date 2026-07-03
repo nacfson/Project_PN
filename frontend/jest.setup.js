@@ -29,6 +29,16 @@ jest.mock('expo-blur', () => {
   };
 });
 
+// Mock react-native-safe-area-context for Jest environment
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  return {
+    SafeAreaProvider: ({ children }) => children,
+    SafeAreaView: ({ children, style, ...props }) => React.createElement('View', { ...props, style }, children),
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
 // Mock react-native-reanimated to avoid Worklets native parts check in tests.
 jest.mock('react-native-reanimated', () => {
   const React = require('react');
@@ -83,5 +93,6 @@ jest.mock('react-native-reanimated', () => {
       EXTEND: 'extend',
     },
     withTiming: mockWithTiming,
+    runOnJS: (fn) => fn, // Mock runOnJS to just return the function for JS thread execution in tests
   };
 });

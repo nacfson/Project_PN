@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { StyleSheet, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -8,6 +8,7 @@ import Animated, {
   interpolate,
   Extrapolation,
   withTiming,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from './Text';
@@ -17,6 +18,7 @@ export interface ScreenProps extends ScrollViewProps {
   title?: string;
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  as?: React.ComponentType<any>;
 }
 
 // Context to share scroll state with parent navigator for hiding the tab bar
@@ -24,12 +26,14 @@ export const TabBarScrollContext = createContext<{
   tabBarTranslateY: Animated.SharedValue<number>;
 } | null>(null);
 
-export const Screen = React.forwardRef<Animated.ScrollView, ScreenProps>(
-  ({ padded, style, contentContainerStyle, children, title, onScroll, ...rest }, ref) => {
+export const Screen = React.forwardRef<any, ScreenProps>(
+  ({ padded, style, contentContainerStyle, children, title, onScroll, as, ...rest }, ref) => {
     const { colors, spacing } = useTheme();
+    const insets = useSafeAreaInsets();
     const scrollContext = useContext(TabBarScrollContext);
     const scrollY = useSharedValue(0);
     const lastScrollY = useSharedValue(0);
+    const accumulatedDelta = useSharedValue(0);
 
     const scrollHandler = useAnimatedScrollHandler({
       onScroll: (event) => {
@@ -40,22 +44,31 @@ export const Screen = React.forwardRef<Animated.ScrollView, ScreenProps>(
         if (scrollContext) {
           if (currentY <= 0) {
             scrollContext.tabBarTranslateY.value = withTiming(0, { duration: 200 });
-          } else if (delta > 10 && currentY > 50) {
-            scrollContext.tabBarTranslateY.value = withTiming(100, { duration: 200 });
-          } else if (delta < -10) {
-            scrollContext.tabBarTranslateY.value = withTiming(0, { duration: 200 });
+            accumulatedDelta.value = 0;
+          } else {
+            const wasScrollingDown = accumulatedDelta.value > 0;
+            const isScrollingDown = delta > 0;
+
+            if (isScrollingDown === wasScrollingDown) {
+              accumulatedDelta.value += delta;
+            } else {
+              accumulatedDelta.value = delta;
+            }
+
+            if (accumulatedDelta.value > 40 && currentY > 50) {
+              scrollContext.tabBarTranslateY.value = withTiming(100, { duration: 200 });
+            } else if (accumulatedDelta.value < -40) {
+              scrollContext.tabBarTranslateY.value = withTiming(0, { duration: 200 });
+            }
           }
         }
         lastScrollY.value = currentY;
+
+        if (onScroll) {
+          runOnJS(onScroll)(event);
+        }
       },
     });
-
-    const handleScroll = (event: any) => {
-      scrollHandler(event);
-      if (onScroll) {
-        onScroll(event);
-      }
-    };
 
     const smallHeaderAnimatedStyle = useAnimatedStyle(() => {
       const opacity = interpolate(
@@ -99,9 +112,11 @@ export const Screen = React.forwardRef<Animated.ScrollView, ScreenProps>(
     // otherwise default to false if not specified (to avoid conflicts with nested ScrollViews).
     const scrollEnabled = rest.scrollEnabled ?? (title ? true : false);
 
+    const ScrollComponent = as || Animated.ScrollView;
+
     return (
       <SafeAreaView
-        edges={['top', 'right', 'bottom', 'left']}
+        edges={['top', 'right', 'left']}
         style={[styles.safe, { backgroundColor: colors.background }]}
       >
         {title && (
@@ -120,22 +135,37 @@ export const Screen = React.forwardRef<Animated.ScrollView, ScreenProps>(
             </Text>
           </Animated.View>
         )}
-        <Animated.ScrollView
+        <ScrollComponent
           ref={ref}
-          onScroll={handleScroll}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
           scrollEnabled={scrollEnabled}
           style={[styles.inner, style]}
           contentContainerStyle={[
             padded && { paddingHorizontal: spacing.xl },
             title ? styles.innerWithTitle : undefined,
-            // Ensure paddingBottom so custom absolute tab bar does not overlay content
-            { paddingBottom: scrollEnabled ? 80 : 0 },
+            // Handle bottom padding entirely inside content container style to avoid safe area visual gaps
+            { paddingBottom: 60 + insets.bottom + 16 },
             contentContainerStyle,
           ]}
+          ListHeaderComponent={
+            as && title ? (
+              <Animated.View
+                style={[
+                  styles.largeHeader,
+                  padded && { paddingHorizontal: spacing.xl },
+                  largeHeaderAnimatedStyle,
+                ]}
+              >
+                <Text variant="headline" style={{ color: colors.onBackground }}>
+                  {title}
+                </Text>
+              </Animated.View>
+            ) : undefined
+          }
           {...rest}
         >
-          {title && (
+          {!as && title && (
             <Animated.View
               style={[
                 styles.largeHeader,
@@ -148,8 +178,8 @@ export const Screen = React.forwardRef<Animated.ScrollView, ScreenProps>(
               </Text>
             </Animated.View>
           )}
-          {children}
-        </Animated.ScrollView>
+          {!as && children}
+        </ScrollComponent>
       </SafeAreaView>
     );
   }
