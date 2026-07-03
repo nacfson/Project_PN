@@ -12,6 +12,14 @@ import { themeModeStorage } from '../api/storage';
 import { themeFor, type Theme, type ThemeMode } from './tokens';
 import * as motion from './motion';
 import { useReducedMotion } from './motion';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
 
 interface ThemeContextValue extends Theme {
   setMode: (mode: ThemeMode) => void;
@@ -28,6 +36,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     systemColorScheme === 'dark' ? 'dark' : 'light',
   );
   const reduced = useReducedMotion();
+  const [fontsLoaded] = useFonts({
+    'Inter-Regular': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+    'Inter-ExtraBold': Inter_800ExtraBold,
+  });
 
   useEffect(() => {
     let active = true;
@@ -63,6 +78,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       reduced,
     };
   }, [mode, setMode, toggleMode, reduced]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

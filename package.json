@@ -1,0 +1,12 @@
+{
+  "name": "project-pn-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "browser-extension",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@babel/runtime": "^7.26.0"
+  }
+}

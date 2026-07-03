@@ -1,19 +1,19 @@
 export type ThemeMode = 'light' | 'dark';
 
 const md3Light = {
-  primary: '#7c5cbf',
+  primary: '#4F6AFF',
   onPrimary: '#ffffff',
-  primaryContainer: '#f0ecf8',
+  primaryContainer: '#E8EDFF',
   onPrimaryContainer: '#21005d',
 
-  secondary: '#625b71',
+  secondary: '#5B6B8A',
   onSecondary: '#ffffff',
   secondaryContainer: '#e8def8',
   onSecondaryContainer: '#1d192b',
 
-  tertiary: '#7d5260',
+  tertiary: '#E87C4F',
   onTertiary: '#ffffff',
-  tertiaryContainer: '#ffd8e4',
+  tertiaryContainer: '#FFEBE2',
   onTertiaryContainer: '#31111d',
 
   error: '#b3261e',
@@ -21,10 +21,10 @@ const md3Light = {
   errorContainer: '#f9dedc',
   onErrorContainer: '#410e0b',
 
-  background: '#f9f6fc',
+  background: '#F5F7FC',
   onBackground: '#1c1b1f',
 
-  surface: '#f9f6fc',
+  surface: '#FFFFFF',
   onSurface: '#1c1b1f',
   surfaceVariant: '#e7e0ec',
   onSurfaceVariant: '#49454f',
@@ -36,30 +36,33 @@ const md3Light = {
   surfaceContainerHighest: '#e6e0e9',
 
   outline: '#79747e',
-  outlineVariant: '#cab6cc',
+  outlineVariant: '#C8CDD8',
 
   inverseSurface: '#322f35',
   inverseOnSurface: '#f5eff7',
   inversePrimary: '#d0bcff',
 
-  accent: '#d04f42',
+  accent: '#00B4A0',
   accent2: '#008080',
+
+  surfaceGlass: 'rgba(255, 255, 255, 0.72)',
+  borderGlass: 'rgba(255, 255, 255, 0.5)',
 } as const;
 
 const md3Dark = {
-  primary: '#b794f4',
+  primary: '#7B93FF',
   onPrimary: '#381e72',
-  primaryContainer: '#363152',
+  primaryContainer: '#1E2A5E',
   onPrimaryContainer: '#eaddff',
 
-  secondary: '#ccc2dc',
+  secondary: '#A8B8D8',
   onSecondary: '#332d41',
   secondaryContainer: '#4a4458',
   onSecondaryContainer: '#e8def8',
 
-  tertiary: '#efb8c8',
+  tertiary: '#FFB088',
   onTertiary: '#492532',
-  tertiaryContainer: '#633b48',
+  tertiaryContainer: '#3E2419',
   onTertiaryContainer: '#ffd8e4',
 
   error: '#f2b8b5',
@@ -67,10 +70,10 @@ const md3Dark = {
   errorContainer: '#8c1d18',
   onErrorContainer: '#f9dedc',
 
-  background: '#171520',
+  background: '#0A0E1A',
   onBackground: '#e6e1e5',
 
-  surface: '#171520',
+  surface: '#141827',
   onSurface: '#e6e1e5',
   surfaceVariant: '#49454f',
   onSurfaceVariant: '#cab6cc',
@@ -82,14 +85,17 @@ const md3Dark = {
   surfaceContainerHighest: '#322f35',
 
   outline: '#938f99',
-  outlineVariant: '#49454f',
+  outlineVariant: '#2A3048',
 
   inverseSurface: '#e6e0e9',
   inverseOnSurface: '#322f35',
   inversePrimary: '#6750a4',
 
-  accent: '#ff8a80',
+  accent: '#4EDDC8',
   accent2: '#4ecdc4',
+
+  surfaceGlass: 'rgba(255, 255, 255, 0.05)',
+  borderGlass: 'rgba(255, 255, 255, 0.08)',
 } as const;
 
 export interface MD3Colors {
@@ -127,6 +133,8 @@ export interface MD3Colors {
   inversePrimary: string;
   accent: string;
   accent2: string;
+  surfaceGlass: string;
+  borderGlass: string;
 }
 
 function semanticColors(mode: ThemeMode): MD3Colors {
@@ -215,22 +223,22 @@ export const shadows = {
     elevation: 0,
   },
   sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowColor: 'rgba(79, 106, 255, 0.04)',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: 'rgba(79, 106, 255, 0.06)',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.07,
     shadowRadius: 8,
     elevation: 3,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: 'rgba(79, 106, 255, 0.1)',
+    shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 6,
@@ -245,15 +253,15 @@ export const iconSizes = {
 } as const;
 
 export const typography = {
-  fontFamily: 'Nunito-Regular',
+  fontFamily: 'Inter-Regular',
   sizes: {
     xs: 11,
     sm: 13,
     md: 15,
-    lg: 18,
-    xl: 22,
+    lg: 17,
+    xl: 21,
     xxl: 28,
-    xxxl: 36,
+    xxxl: 34,
   },
   weights: {
     regular: '400' as const,
