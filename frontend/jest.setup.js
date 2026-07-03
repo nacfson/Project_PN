@@ -1,7 +1,5 @@
 // Required by @testing-library/react-native v14+ when using React 18/19.
 // See: https://callstack.github.io/react-native-testing-library/docs/getting-started
-// We set the flag both on the Jest sandbox global and on the Node real global
-// so that untransformed native modules (e.g. react-reconciler) also see it.
 if (typeof globalThis.IS_REACT_ACT_ENVIRONMENT === 'undefined') {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 }
@@ -31,3 +29,70 @@ jest.mock('expo-blur', () => {
   };
 });
 
+// Mock react-native-safe-area-context for Jest environment
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  return {
+    SafeAreaProvider: ({ children }) => children,
+    SafeAreaView: ({ children, style, ...props }) => React.createElement('View', { ...props, style }, children),
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
+// Mock react-native-reanimated to avoid Worklets native parts check in tests.
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const RN = require('react-native');
+
+  const mockUseSharedValue = (initialValue) => {
+    return { value: initialValue };
+  };
+
+  const mockUseDerivedValue = (fn) => {
+    return { value: fn() };
+  };
+
+  const mockInterpolate = (value, inputRange, outputRange) => {
+    return outputRange[0];
+  };
+
+  const mockWithTiming = (value) => value;
+
+  const mockUseAnimatedScrollHandler = (handlers) => {
+    return (event) => {
+      if (typeof handlers === 'function') {
+        handlers(event);
+      } else if (handlers && handlers.onScroll) {
+        handlers.onScroll(event);
+      }
+    };
+  };
+
+  const mockUseAnimatedStyle = (styleFn) => {
+    return styleFn();
+  };
+
+  const Animated = {
+    View: RN.View,
+    ScrollView: RN.ScrollView,
+    Text: RN.Text,
+    createAnimatedComponent: (c) => c,
+  };
+
+  return {
+    __esModule: true,
+    default: Animated,
+    useSharedValue: mockUseSharedValue,
+    useAnimatedScrollHandler: mockUseAnimatedScrollHandler,
+    useAnimatedStyle: mockUseAnimatedStyle,
+    useDerivedValue: mockUseDerivedValue,
+    interpolate: mockInterpolate,
+    Extrapolation: {
+      CLAMP: 'clamp',
+      IDENTITY: 'identity',
+      EXTEND: 'extend',
+    },
+    withTiming: mockWithTiming,
+    runOnJS: (fn) => fn, // Mock runOnJS to just return the function for JS thread execution in tests
+  };
+});
