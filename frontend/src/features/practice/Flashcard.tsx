@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
+  LayoutAnimation,
   Platform,
   Pressable,
   StyleSheet,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAppLanguage } from '../../i18n';
@@ -72,6 +74,29 @@ export function Flashcard({
   const flipAnim = useRef(new Animated.Value(0)).current;
   const flipScale = useRef(new Animated.Value(1)).current;
   const [pressed, setPressed] = useState(false);
+
+  const [frontHeight, setFrontHeight] = useState(320);
+  const [backHeight, setBackHeight] = useState(320);
+
+  const handleFrontLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    if (height > 0) {
+      setFrontHeight(height + 48); // add top + bottom padding of 24
+    }
+  };
+
+  const handleBackLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    if (height > 0) {
+      setBackHeight(height + 48); // add top + bottom padding of 24
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+  }, [isFlipped]);
 
   // Animate flip whenever isFlipped changes.
   useEffect(() => {
@@ -141,121 +166,128 @@ export function Flashcard({
 
   const renderFront = () => (
     <View style={styles.cardContent}>
-      <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
-      {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
-      {cardMode === 'flashcard' ? (
-        <>
+      <View onLayout={handleFrontLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
+        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
+        {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+        {cardMode === 'flashcard' ? (
+          <>
+            <View style={[styles.wordRow, { gap: spacing.sm }]}>
+              <Text variant="headline" style={styles.wordText}>
+                {item.lemma}
+              </Text>
+              <SpeakButton language={item.language_code} text={item.lemma} />
+            </View>
+            {item.pronunciation && (
+              <Text variant="caption" color="muted">
+                {item.pronunciation}
+              </Text>
+            )}
+            <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+              <Icon name="finger-print" size="md" color={colors.primary} />
+              <Text variant="caption" color="primary" bold>
+                {t('practice.tapReveal')}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text variant="caption" color="muted" style={styles.promptLabel}>
+              {t('practice.typePrompt')}
+            </Text>
+            <Text variant="title" bold style={styles.definitionText}>
+              {item.definition}
+            </Text>
+            {example ? (
+              <Text variant="body" style={styles.clozeText}>
+                &ldquo;{blankedSentence}&rdquo;
+              </Text>
+            ) : (
+              <Text variant="body" color="muted" style={styles.clozePlaceholder}>
+                {t('practice.noExample')}
+              </Text>
+            )}
+          </>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderBack = () => (
+    <View style={styles.cardContent}>
+      <View onLayout={handleBackLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
+        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
+        {cardMode === 'typing' && (
           <View style={[styles.wordRow, { gap: spacing.sm }]}>
             <Text variant="headline" style={styles.wordText}>
               {item.lemma}
             </Text>
             <SpeakButton language={item.language_code} text={item.lemma} />
           </View>
-          {item.pronunciation && (
-            <Text variant="caption" color="muted">
-              {item.pronunciation}
-            </Text>
-          )}
-          <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-            <Icon name="finger-print" size="md" color={colors.primary} />
-            <Text variant="caption" color="primary" bold>
-              {t('practice.tapReveal')}
-            </Text>
-          </View>
-        </>
-      ) : (
-        <>
-          <Text variant="caption" color="muted" style={styles.promptLabel}>
-            {t('practice.typePrompt')}
-          </Text>
-          <Text variant="title" bold style={styles.definitionText}>
-            {item.definition}
-          </Text>
-          {example ? (
-            <Text variant="body" style={styles.clozeText}>
-              &ldquo;{blankedSentence}&rdquo;
-            </Text>
-          ) : (
-            <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-              {t('practice.noExample')}
-            </Text>
-          )}
-        </>
-      )}
-    </View>
-  );
-
-  const renderBack = () => (
-    <View style={styles.cardContent}>
-      <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
-      {cardMode === 'typing' && (
-        <View style={[styles.wordRow, { gap: spacing.sm }]}>
-          <Text variant="headline" style={styles.wordText}>
-            {item.lemma}
-          </Text>
-          <SpeakButton language={item.language_code} text={item.lemma} />
-        </View>
-      )}
-      {cardMode === 'typing' && item.pronunciation && (
-        <Text variant="caption" color="muted">
-          {item.pronunciation}
-        </Text>
-      )}
-      {cardMode === 'typing' && (
-        <View
-          style={[
-            styles.answerResult,
-            {
-              borderColor: colors.outlineVariant,
-              backgroundColor: colors.surfaceContainerHighest,
-            },
-          ]}
-        >
+        )}
+        {cardMode === 'typing' && item.pronunciation && (
           <Text variant="caption" color="muted">
-            {t('practice.yourAnswer')}
-          </Text>
-          <Text variant="body" style={styles.answerResultText}>
-            {userAnswer.trim().length > 0 ? userAnswer.trim() : t('practice.noAnswerGiven')}
-          </Text>
-        </View>
-      )}
-      <View style={[styles.section, { gap: spacing.xs }]}>
-        <Text variant="caption" color="muted">
-          {t('practice.definitionLabel')}
-        </Text>
-        <Text variant="body" style={styles.backDefinitionText}>
-          {item.definition}
-        </Text>
-        {localizedDefinition && (
-          <Text variant="body" color="muted" style={styles.backDefinitionText}>
-            {localizedDefinition}
+            {item.pronunciation}
           </Text>
         )}
-      </View>
-      {example && (
-        <View style={[styles.section, { gap: spacing.xs, marginTop: spacing.sm }]}>
+        {cardMode === 'typing' && (
+          <View
+            style={[
+              styles.answerResult,
+              {
+                borderColor: colors.outlineVariant,
+                backgroundColor: colors.surfaceContainerHighest,
+              },
+            ]}
+          >
+            <Text variant="caption" color="muted">
+              {t('practice.yourAnswer')}
+            </Text>
+            <Text variant="body" style={styles.answerResultText}>
+              {userAnswer.trim().length > 0 ? userAnswer.trim() : t('practice.noAnswerGiven')}
+            </Text>
+          </View>
+        )}
+        <View style={[styles.section, { gap: spacing.xs }]}>
           <Text variant="caption" color="muted">
-            {t('practice.exampleLabel')}
+            {t('practice.definitionLabel')}
           </Text>
-          <Text variant="body" style={styles.exampleSentence}>
-            &ldquo;{highlightWordInSentence(example.sentence, item.normalized_text)}&rdquo;
+          <Text variant="body" style={styles.backDefinitionText}>
+            {item.definition}
           </Text>
-          {localizedExample && (
-            <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-              {localizedExample}
+          {localizedDefinition && (
+            <Text variant="body" color="muted" style={styles.backDefinitionText}>
+              {localizedDefinition}
             </Text>
           )}
         </View>
-      )}
+        {example && (
+          <View style={[styles.section, { gap: spacing.xs, marginTop: spacing.sm }]}>
+            <Text variant="caption" color="muted">
+              {t('practice.exampleLabel')}
+            </Text>
+            <Text variant="body" style={styles.exampleSentence}>
+              &ldquo;{highlightWordInSentence(example.sentence, item.normalized_text)}&rdquo;
+            </Text>
+            {localizedExample && (
+              <Text variant="caption" color="muted" style={styles.exampleTranslation}>
+                {localizedExample}
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
     </View>
   );
 
+  const currentHeight = Math.max(320, isFlipped ? backHeight : frontHeight);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: currentHeight }]}>
       <Animated.View
         style={[
           styles.cardContainer,
           {
+            height: currentHeight,
             transform: [
               { scale: flipScale },
             ],
@@ -270,6 +302,7 @@ export function Flashcard({
           style={({ pressed: p }) => [
             styles.pressable,
             {
+              height: currentHeight,
               transform: [{ scale: (pressed || p) && !isFlipped ? 0.98 : 1 }],
             },
           ]}
