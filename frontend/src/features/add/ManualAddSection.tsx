@@ -10,22 +10,58 @@ import type { PosFilter } from '../../types';
 
 interface ManualAddSectionProps {
   selectedDeckId: string;
+  targetLanguage: string;
 }
 
-export function ManualAddSection({ selectedDeckId }: ManualAddSectionProps) {
+export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSectionProps) {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
   const { enqueue, statusOf, jobs } = useAddQueue();
+
+  const handleBlur = () => {
+    setTouched(true);
+    const trimmed = word.trim();
+    if (trimmed.length === 0) {
+      setValidationError(t('add.wordRequired'));
+    } else if (/[0-9_]/.test(trimmed)) {
+      setValidationError(t('add.validationInvalidWord'));
+    } else {
+      setValidationError(null);
+    }
+  };
+
+  const handleChangeText = (text: string) => {
+    setWord(text);
+    if (touched || validationError) {
+      const trimmed = text.trim();
+      if (trimmed.length === 0) {
+        setValidationError(t('add.wordRequired'));
+      } else if (/[0-9_]/.test(trimmed)) {
+        setValidationError(t('add.validationInvalidWord'));
+      } else {
+        setValidationError(null);
+      }
+    }
+  };
 
   const submit = () => {
     const trimmed = word.trim();
     if (trimmed.length === 0) {
+      setValidationError(t('add.wordRequired'));
       return;
     }
-    enqueue(trimmed, pos, selectedDeckId);
+    if (/[0-9_]/.test(trimmed)) {
+      setValidationError(t('add.validationInvalidWord'));
+      return;
+    }
+    enqueue(trimmed, pos, selectedDeckId, targetLanguage);
     setWord('');
+    setValidationError(null);
+    setTouched(false);
   };
 
   const recentJobs = useMemo(() => {
@@ -52,13 +88,20 @@ export function ManualAddSection({ selectedDeckId }: ManualAddSectionProps) {
         <View style={{ flex: 1, minWidth: 0 }} testID="manual-add-input-wrapper">
           <Input
             value={word}
-            onChangeText={setWord}
+            onChangeText={handleChangeText}
+            onBlur={handleBlur}
+            error={!!validationError}
+            helperText={validationError || undefined}
             placeholder={t('add.wordPlaceholder')}
             autoCapitalize="none"
             autoCorrect={false}
             onSubmitEditing={submit}
             returnKeyType="search"
-            onClear={() => setWord('')}
+            onClear={() => {
+              setWord('');
+              setValidationError(null);
+              setTouched(false);
+            }}
           />
         </View>
         <Button label={t('add.addWord')} onPress={submit} disabled={word.trim().length === 0} />

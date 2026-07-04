@@ -111,10 +111,11 @@ export function MyWordsScreen() {
     useActiveTargetLanguage();
 
   const deckFilter = selectedDeckId ?? undefined;
-  const { items, status, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(
+  const { items, status, isSearching, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(
     q,
     deckFilter,
     !!targetLanguage,
+    targetLanguage ?? undefined,
   );
 
   const loadDecks = useCallback(async () => {
@@ -504,7 +505,7 @@ export function MyWordsScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           onClear={() => setQ('')}
-          loading={status === 'loading'}
+          loading={isSearching}
         />
 
         <ScrollView

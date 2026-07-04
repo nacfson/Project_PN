@@ -16,7 +16,7 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function useLearningItems(q: string, deckId?: string, enabled: boolean = true) {
+export function useLearningItems(q: string, deckId?: string, enabled: boolean = true, languageCode?: string) {
   const { t } = useAppLanguage();
   const debouncedQ = useDebouncedValue(q, 300);
   const [items, setItems] = useState<LearningItemListItem[]>([]);
@@ -37,6 +37,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
         q: debouncedQ.trim() || undefined,
         cursor: options.cursor ?? undefined,
         deckId,
+        languageCode,
       });
 
       if (options.requestId !== requestIdRef.current) {
@@ -48,7 +49,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
       setStatus('ready');
       setError(null);
     },
-    [debouncedQ, deckId],
+    [debouncedQ, deckId, languageCode],
   );
 
   const reload = useCallback(async () => {
@@ -122,10 +123,13 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     }
   }, [fetchPage, t]);
 
+  const isSearching = status === 'loading' || q !== debouncedQ;
+
   return {
     items,
     nextCursor,
     status,
+    isSearching,
     isLoadingMore,
     isRefreshing,
     error,
