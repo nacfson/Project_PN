@@ -23,14 +23,6 @@ type Dependencies struct {
 	AllowedOrigins []string
 }
 
-func keyByRealIP(r *http.Request) (string, error) {
-	ip := r.Header.Get("X-Real-IP")
-	if ip == "" {
-		ip = r.RemoteAddr
-	}
-	return ip, nil
-}
-
 func NewRouter(deps Dependencies) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
