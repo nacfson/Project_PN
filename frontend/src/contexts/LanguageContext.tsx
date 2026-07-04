@@ -48,8 +48,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setActive = useCallback(
     async (targetLanguage: string) => {
-      await setActiveUserLanguage(targetLanguage);
-      refresh();
+      try {
+        await setActiveUserLanguage(targetLanguage);
+        refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to set active language');
+        throw err;
+      }
     },
     [refresh],
   );

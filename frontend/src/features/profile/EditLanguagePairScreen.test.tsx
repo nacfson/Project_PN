@@ -4,6 +4,7 @@ import { EditLanguagePairScreen } from './EditLanguagePairScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import { ApiError } from '../../api/client';
+import { clearLanguageOptionsCache } from '../../api/auth';
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -14,6 +15,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('../../api/auth', () => ({
+  ...jest.requireActual('../../api/auth'),
   getLanguageOptions: jest.fn().mockResolvedValue({
     defaults: {},
     allowed: { target_languages: [], definition_languages: [] },
@@ -38,6 +40,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 describe('EditLanguagePairScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearLanguageOptionsCache();
     mockUpdateLanguagePair.mockResolvedValue(undefined);
   });
 

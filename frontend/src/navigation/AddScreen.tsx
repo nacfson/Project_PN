@@ -14,7 +14,7 @@ import { Text } from '../ui';
 export function AddScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
-  const { targetLanguage, loading: languageLoading, error: languageError } = useActiveTargetLanguage();
+  const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } = useActiveTargetLanguage();
   const [decks, setDecks] = useState<Awaited<ReturnType<typeof listDecks>>>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [decksError, setDecksError] = useState<string | null>(null);
@@ -52,8 +52,9 @@ export function AddScreen() {
   }, [loadDecks, deckRetryTick]);
 
   const handleRetry = useCallback(() => {
+    refreshLanguage();
     setDeckRetryTick((tick) => tick + 1);
-  }, []);
+  }, [refreshLanguage]);
 
   const hasPendingJobs = pendingCount > 0;
 

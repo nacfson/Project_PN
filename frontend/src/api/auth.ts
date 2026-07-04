@@ -12,12 +12,20 @@ let languageOptionsCache: Promise<LanguageOptionsResponse> | null = null;
 let languageOptionsCacheTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+export function clearLanguageOptionsCache(): void {
+  languageOptionsCache = null;
+  languageOptionsCacheTime = 0;
+}
+
 export async function getLanguageOptions(): Promise<LanguageOptionsResponse> {
   const now = Date.now();
   if (languageOptionsCache && now - languageOptionsCacheTime < CACHE_TTL_MS) {
     return languageOptionsCache;
   }
-  languageOptionsCache = getLanguageOptionsApi();
+  languageOptionsCache = getLanguageOptionsApi().catch((err) => {
+    clearLanguageOptionsCache();
+    throw err;
+  });
   languageOptionsCacheTime = now;
   return languageOptionsCache;
 }

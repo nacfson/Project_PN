@@ -1,3 +1,4 @@
+import type { MeResponse, LanguageOptionsResponse, AllowedLanguages } from './types';
 import { configureApi, getJson, postJson, ApiError } from './client';
 
 beforeEach(() => {
@@ -37,8 +38,6 @@ test('tries fallback URLs', async () => {
   await getJson('/test');
   expect(global.fetch).toHaveBeenLastCalledWith('http://second/test', expect.any(Object));
 });
-
-import type { MeResponse, LanguageOptionsResponse, AllowedLanguages } from './types';
 
 type AssertKeys<T, K extends keyof T> = K;
 

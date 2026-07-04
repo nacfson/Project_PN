@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -27,21 +28,46 @@ func (rl *rateLimiter) allow(ip string) bool {
 
 	now := time.Now()
 	cutoff := now.Add(-rl.window)
-	var recent []time.Time
+	recent := rl.visitors[ip][:0]
 	for _, t := range rl.visitors[ip] {
 		if t.After(cutoff) {
 			recent = append(recent, t)
 		}
 	}
+
+	if len(recent) >= rl.limit {
+		if len(recent) == 0 {
+			delete(rl.visitors, ip)
+		} else {
+			rl.visitors[ip] = recent
+		}
+		return false
+	}
+
 	recent = append(recent, now)
 	rl.visitors[ip] = recent
-	return len(recent) <= rl.limit
+	return true
+}
+
+func stripPort(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
+}
+
+func clientIP(r *http.Request) string {
+	ip, err := keyByRealIP(r)
+	if err == nil && ip != "" {
+		return ip
+	}
+	return stripPort(r.RemoteAddr)
 }
 
 func (rl *rateLimiter) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _ := keyByRealIP(r)
-		if !rl.allow(ip) {
+		if !rl.allow(clientIP(r)) {
 			writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 			return
 		}

@@ -211,7 +211,7 @@ func (s *Service) AddUserLanguage(ctx context.Context, userID, targetLang, displ
 	`, userID, targetLang, displayLang, makeActive).Scan(&ul.UserID, &ul.TargetLanguage, &ul.DisplayLanguage, &ul.IsActive, &ul.CreatedAt, &ul.UpdatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return UserLanguage{}, fmt.Errorf("auth: target language %s already exists for user", targetLang)
+			return UserLanguage{}, ErrTargetLanguageExists
 		}
 		return UserLanguage{}, fmt.Errorf("auth: insert user language: %w", err)
 	}
@@ -280,13 +280,16 @@ func (s *Service) UpdateUserLanguage(ctx context.Context, userID, oldTargetLang,
 	}
 
 	if oldTargetLang == newTargetLang {
-		_, err = s.pool.Exec(ctx, `
+		ct, err := s.pool.Exec(ctx, `
 			update user_languages
 			set display_language = $3, updated_at = now()
 			where user_id = $1::uuid and target_language = $2
 		`, userID, oldTargetLang, displayLang)
 		if err != nil {
 			return fmt.Errorf("auth: update display language: %w", err)
+		}
+		if ct.RowsAffected() == 0 {
+			return ErrLanguageNotFound
 		}
 		return nil
 	}
@@ -323,6 +326,9 @@ func (s *Service) UpdateUserLanguage(ctx context.Context, userID, oldTargetLang,
 		where user_id = $1::uuid and target_language = $2
 	`, userID, oldTargetLang, newTargetLang, displayLang)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrTargetLanguageExists
+		}
 		return fmt.Errorf("auth: update user language: %w", err)
 	}
 

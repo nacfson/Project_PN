@@ -7,10 +7,5 @@ export type {
   LanguageOptionsResponse,
   LanguagePair,
   AllowedLanguages,
+  UserLanguage,
 } from '@project-pn/api';
-
-export interface UserLanguage {
-  target_language: string;
-  display_language: string;
-  is_active: boolean;
-}

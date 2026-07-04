@@ -29,6 +29,9 @@ export function LanguagePairsScreen() {
     setRefreshing(true);
     try {
       await setActive(targetLanguage);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      Alert.alert(t('common.somethingWrong'), message);
     } finally {
       setRefreshing(false);
     }
@@ -50,6 +53,9 @@ export function LanguagePairsScreen() {
             try {
               await removeUserLanguage(pair.target_language);
               await refresh();
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              Alert.alert(t('common.somethingWrong'), message);
             } finally {
               setRefreshing(false);
             }

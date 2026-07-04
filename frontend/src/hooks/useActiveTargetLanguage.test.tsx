@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useActiveTargetLanguage } from './useActiveTargetLanguage';
 import { LanguageProvider } from '../contexts/LanguageContext';
+import type { UserLanguage } from '../types/auth';
 
 const mockGetUserLanguages = jest.fn();
 jest.mock('../api/userLanguages', () => ({
@@ -14,6 +15,15 @@ function Wrapper({ children }: { children: ReactNode }) {
   return <LanguageProvider>{children}</LanguageProvider>;
 }
 
+function makeLanguage(partial: Omit<UserLanguage, 'user_id' | 'created_at' | 'updated_at'>): UserLanguage {
+  return {
+    user_id: 'u1',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...partial,
+  };
+}
+
 describe('useActiveTargetLanguage', () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -21,8 +31,8 @@ describe('useActiveTargetLanguage', () => {
 
   it('returns the active target and display language', async () => {
     mockGetUserLanguages.mockResolvedValue([
-      { target_language: 'en', display_language: 'ko', is_active: true },
-      { target_language: 'es', display_language: 'en', is_active: false },
+      makeLanguage({ target_language: 'en', display_language: 'ko', is_active: true }),
+      makeLanguage({ target_language: 'es', display_language: 'en', is_active: false }),
     ]);
 
     const { result } = await renderHook(() => useActiveTargetLanguage(), { wrapper: Wrapper });
@@ -34,7 +44,7 @@ describe('useActiveTargetLanguage', () => {
 
   it('falls back to the first language pair when none is active', async () => {
     mockGetUserLanguages.mockResolvedValue([
-      { target_language: 'es', display_language: 'en', is_active: false },
+      makeLanguage({ target_language: 'es', display_language: 'en', is_active: false }),
     ]);
 
     const { result } = await renderHook(() => useActiveTargetLanguage(), { wrapper: Wrapper });
