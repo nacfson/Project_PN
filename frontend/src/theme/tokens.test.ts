@@ -1,4 +1,4 @@
-import { colorsFor, typography, shadows } from './tokens';
+import { colorsFor, typography, shadows, visualVariations } from './tokens';
 
 describe('Theme Tokens Upgrade', () => {
   it('should contain the new blue-indigo primary brand color', () => {
@@ -61,5 +61,15 @@ describe('Theme Tokens Upgrade', () => {
     expect(darkColors.background).toBe('#0A0E1A');
     expect(darkColors.surface).toBe('#141827');
     expect(darkColors.outlineVariant).toBe('#2A3048');
+  });
+
+  it('should export bentoIndigo, bentoSunset, and bentoLight visualVariations', () => {
+    expect(visualVariations).toBeDefined();
+    expect(visualVariations.bentoIndigo).toBeDefined();
+    expect(visualVariations.bentoSunset).toBeDefined();
+    expect(visualVariations.bentoLight).toBeDefined();
+    expect(visualVariations.bentoIndigo.background).toBe('#07070a');
+    expect(visualVariations.bentoSunset.background).toBe('#0f0a0a');
+    expect(visualVariations.bentoLight.background).toBe('#f4f5f7');
   });
 });

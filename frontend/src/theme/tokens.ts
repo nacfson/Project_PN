@@ -285,3 +285,56 @@ export function themeFor(mode: ThemeMode) {
 }
 
 export type Theme = ReturnType<typeof themeFor>;
+
+export const visualVariations = {
+  bentoIndigo: {
+    background: '#07070a',
+    surface: 'rgba(14, 14, 23, 0.7)',
+    border: 'rgba(255, 255, 255, 0.05)',
+    primaryGlow: 'rgba(139, 92, 246, 0.15)',
+    accentPink: '#ec4899',
+    accentPinkGlow: 'rgba(236, 72, 153, 0.25)',
+    glassBlur: 24,
+  },
+  bentoSunset: {
+    background: '#0f0a0a',
+    surface: 'rgba(25, 18, 18, 0.7)',
+    border: 'rgba(245, 158, 11, 0.08)',
+    primaryGlow: 'rgba(245, 158, 11, 0.2)',
+    accentOrange: '#f97316',
+    accentOrangeGlow: 'rgba(249, 115, 22, 0.3)',
+    glassBlur: 24,
+  },
+  bentoLight: {
+    background: '#f4f5f7',
+    surface: 'rgba(255, 255, 255, 0.72)',
+    border: 'rgba(0, 0, 0, 0.04)',
+    primaryGlow: 'rgba(59, 130, 246, 0.1)',
+    accentPink: '#db2777',
+    accentPinkGlow: 'rgba(219, 39, 119, 0.15)',
+    glassBlur: 24,
+  },
+  cyberpunk: {
+    background: '#060913',
+    surface: 'rgba(20, 30, 55, 0.45)',
+    border: 'rgba(255, 255, 255, 0.08)',
+    primaryGlow: 'rgba(79, 106, 255, 0.4)',
+    accentGlow: 'rgba(0, 255, 204, 0.4)',
+    glassBlur: 16,
+  },
+  minimalist: {
+    background: '#0d0d0e',
+    surface: '#18181c',
+    border: '#27272c',
+    primaryGlow: 'transparent',
+    accentGlow: 'transparent',
+    glassBlur: 0,
+  },
+  brutalist: {
+    background: '#0c0f1d',
+    surface: '#19213f',
+    border: '#ffffff', // Thick solid white borders (2px)
+    shadow: '6px 6px 0px #000000',
+  }
+};
+
