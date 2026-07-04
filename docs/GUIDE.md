@@ -46,8 +46,8 @@ This guide maps every documentation file in the repository. Use it to find the r
 | [`README.md`](../README.md) | Top-level project index |
 | [`dev-test-plan.md`](dev-test-plan.md) | Local manual QA test plan |
 | [`GUIDE.md`](GUIDE.md) | This file |
-| [`superpowers/plans/`](superpowers/plans/) | Implementation plans |
-| [`superpowers/specs/`](superpowers/specs/) | Design specs |
+| [`superplan/plan/`](superplan/plan/) | Implementation plans |
+| [`superplan/spec/`](superplan/spec/) | Design specs |
 
 ## Task Routing
 

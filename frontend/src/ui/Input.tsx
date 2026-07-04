@@ -29,8 +29,8 @@ export function Input({
   const [focused, setFocused] = useState(false);
   const [isHidden, setIsHidden] = useState(() => (secureTextEntryToggle ? true : secureTextEntry ?? false));
 
-  const showClear = onClear && value && value.length > 0;
-  const showLoading = loading;
+  const showClear = !!(onClear && value && value.length > 0);
+  const showLoading = !!loading;
   const effectiveSecureTextEntry = secureTextEntryToggle ? isHidden : secureTextEntry;
   const isMultiline = rest.multiline === true;
   const trailingCount = (showLoading ? 1 : 0) + (secureTextEntryToggle ? 1 : 0) + (showClear ? 1 : 0);

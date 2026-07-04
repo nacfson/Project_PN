@@ -277,6 +277,7 @@ export function Flashcard({
           accessibilityLabel={isFlipped ? undefined : t('practice.tapReveal')}
         >
           <Animated.View
+            pointerEvents={isFlipped ? 'none' : 'auto'}
             style={[
               styles.face,
               cardStyle,
@@ -284,12 +285,14 @@ export function Flashcard({
                 opacity: frontOpacity,
                 transform: [{ perspective: 1000 }, { rotateY: frontRotateY }],
               },
+              Platform.OS === 'web' && isFlipped && { display: 'none' },
             ]}
           >
             {renderFront()}
           </Animated.View>
 
           <Animated.View
+            pointerEvents={isFlipped ? 'auto' : 'none'}
             style={[
               styles.face,
               styles.backFace,
@@ -298,6 +301,7 @@ export function Flashcard({
                 opacity: backOpacity,
                 transform: [{ perspective: 1000 }, { rotateY: backRotateY }],
               },
+              Platform.OS === 'web' && !isFlipped && { display: 'none' },
             ]}
           >
             {renderBack()}

@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import { Linking, Platform, StyleSheet, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { CENTRAL_AUTH_URL } from '../config';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
+import { sessionStorage } from '../api/storage';
+import { extractTokenFromUrl } from '../utils/authLaunch';
 
-export function CentralAuthScreen() {
+interface CentralAuthScreenProps {
+  onTokenReceived?: () => void;
+}
+
+export function CentralAuthScreen({ onTokenReceived }: CentralAuthScreenProps) {
   const { colors, spacing } = useTheme();
   const [busy, setBusy] = useState(false);
 
@@ -13,7 +20,21 @@ export function CentralAuthScreen() {
     try {
       const redirectUrl = Platform.OS === 'web' ? window.location.origin : 'projectpn://auth';
       const authUrl = `${CENTRAL_AUTH_URL}/login?rd=${encodeURIComponent(redirectUrl)}`;
-      await Linking.openURL(authUrl);
+      
+      if (Platform.OS === 'web') {
+        await Linking.openURL(authUrl);
+      } else {
+        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+        if (result.type === 'success') {
+          const token = extractTokenFromUrl(result.url);
+          if (token) {
+            await sessionStorage.setToken(token);
+            if (onTokenReceived) {
+              onTokenReceived();
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to open SSO page', err);
     } finally {

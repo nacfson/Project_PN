@@ -70,7 +70,8 @@ function AppContent() {
     try {
       await me();
       setAuthState('authenticated');
-    } catch {
+    } catch (err) {
+      console.error('checkAuth failed:', err);
       await sessionStorage.removeToken();
       setAuthState('unauthenticated');
     }
@@ -143,7 +144,7 @@ function AppContent() {
           edges={['top', 'right', 'bottom', 'left']}
           style={[styles.safe, { backgroundColor: colors.background }]}
         >
-          <CentralAuthScreen />
+          <CentralAuthScreen onTokenReceived={checkAuth} />
         </SafeAreaView>
       )}
     </>

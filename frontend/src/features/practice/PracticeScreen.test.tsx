@@ -85,23 +85,12 @@ describe('PracticeScreen Integration', () => {
     await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
     
     // Stepper buttons should not be visible yet
-    expect(screen.queryByTestId('btn-show-grading')).toBeNull();
     expect(screen.queryByText('How did this feel?')).toBeNull();
 
     // Flip Card (trigger flip to back)
     fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
 
-    // Step 2: Reveal State
-    // "Rate Recall" (grading trigger button) is visible
-    await waitFor(() => expect(screen.getByTestId('btn-show-grading')).toBeTruthy());
-    // Rating options/bar are still hidden
-    expect(screen.queryByText('How did this feel?')).toBeNull();
-
-    // Click "Rate Recall" button to show rating options
-    fireEvent.press(screen.getByTestId('btn-show-grading'));
-
-    // Step 3: Grading State
-    // Rating bar options should now be visible
+    // Step 2: Grading State (rating bar options should now be visible immediately)
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
     expect(screen.getByText('Good')).toBeTruthy();
 

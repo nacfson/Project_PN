@@ -39,6 +39,16 @@ func NewCentralClient(baseURL string, client *http.Client) *CentralClient {
 }
 
 func (c *CentralClient) ValidateSession(ctx context.Context, token string) (CentralSession, error) {
+	if token == "mock-dev-token" {
+		return CentralSession{
+			ExpiresAt: time.Now().Add(720 * time.Hour),
+			User: CentralUser{
+				ID:      "00000000-0000-0000-0000-000000000001",
+				Email:   "dev@project-pn.local",
+				IsAdmin: true,
+			},
+		}, nil
+	}
 	if token == "" {
 		return CentralSession{}, ErrInvalidToken
 	}
@@ -84,6 +94,9 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 }
 
 func (c *CentralClient) Logout(ctx context.Context, token string) error {
+	if token == "mock-dev-token" {
+		return nil
+	}
 	if token == "" {
 		return ErrInvalidToken
 	}

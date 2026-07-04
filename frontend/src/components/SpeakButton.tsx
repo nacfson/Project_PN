@@ -29,7 +29,7 @@ export function SpeakButton({ text, language, size = 'md' }: SpeakButtonProps) {
 
   return (
     <Pressable
-      hitSlop={12}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       accessibilityLabel={t('common.listen')}
       accessibilityRole="button"
       onPress={handlePress}

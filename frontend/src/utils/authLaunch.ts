@@ -2,25 +2,18 @@ import { Linking, Platform } from 'react-native';
 
 export function extractTokenFromUrl(urlStr: string): string | null {
   try {
-    let absoluteUrl = urlStr;
-    if (!urlStr.includes(':/')) {
-      absoluteUrl = `http://localhost/${urlStr.replace(/^[?#]/, '')}`;
+    // 1. Look for '?token=...' or '&token=...'
+    const searchMatch = urlStr.match(/[?&]token=([^&#]+)/);
+    if (searchMatch) {
+      return decodeURIComponent(searchMatch[1]);
     }
-    const url = new URL(absoluteUrl);
-    
-    let token = url.searchParams.get('token');
-    if (token) {
-      return token;
-    }
-    
-    if (url.hash.includes('token=')) {
-      const hashQuery = url.hash.split('?')[1];
-      if (hashQuery) {
-        const hashParams = new URLSearchParams(hashQuery);
-        token = hashParams.get('token');
-        if (token) {
-          return token;
-        }
+    // 2. Look for '#...token=...' inside the hash segment (e.g. #/dashboard?token=...)
+    const hashIndex = urlStr.indexOf('#');
+    if (hashIndex !== -1) {
+      const hashPart = urlStr.substring(hashIndex);
+      const hashMatch = hashPart.match(/[?&]token=([^&#]+)/);
+      if (hashMatch) {
+        return decodeURIComponent(hashMatch[1]);
       }
     }
     return null;

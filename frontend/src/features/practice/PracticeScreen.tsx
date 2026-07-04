@@ -137,8 +137,11 @@ export function PracticeScreen() {
   const statusRef = useRef(status);
 
   const toggleFlip = () => {
+    if (cardMode === 'typing' && !isFlipped) {
+      return;
+    }
     setIsFlipped(true);
-    setPracticeState('reveal');
+    setPracticeState('grading');
   };
 
   useEffect(() => {
@@ -150,6 +153,68 @@ export function PracticeScreen() {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  useEffect(() => {
+    if (status !== 'active') return;
+    slideAnim.setValue(80);
+    opacityAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [currentIndex, status, slideAnim, opacityAnim]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || status !== 'active') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if (!isFlipped) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (cardMode === 'flashcard') {
+            toggleFlip();
+          } else {
+            if (userAnswer.trim().length > 0) {
+              revealAnswer(false);
+            } else {
+              revealAnswer(true);
+            }
+          }
+        }
+      } else {
+        if (e.key === '1') {
+          e.preventDefault();
+          selectGrade('again');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          selectGrade('hard');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          selectGrade('good');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          selectGrade('easy');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [status, isFlipped, cardMode, userAnswer]);
 
   const resetCardInteraction = useCallback(() => {
     cardStartedAtRef.current = Date.now();
@@ -190,7 +255,7 @@ export function PracticeScreen() {
   useFocusEffect(
     useCallback(() => {
       const currentStatus = statusRef.current;
-      if (currentStatus !== 'active' && currentStatus !== 'success' && currentStatus !== 'submitting') {
+      if (currentStatus !== 'active' && currentStatus !== 'submitting') {
         loadDueItems();
       }
     }, [loadDueItems])
@@ -283,43 +348,7 @@ export function PracticeScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
 
-    if (reduced) {
-      confirmGrade(score);
-      setShowFeedback(false);
-      slideAnim.setValue(0);
-      opacityAnim.setValue(1);
-      return;
-    }
-
-    setShowFeedback(true);
-
-    Animated.parallel([
-      Animated.spring(slideAnim, {
-        toValue: -500,
-        useNativeDriver: true,
-      }),
-      Animated.spring(opacityAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      confirmGrade(score);
-      setShowFeedback(false);
-      slideAnim.setValue(500);
-
-      Animated.parallel([
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          ...motion.spring.bouncy,
-          useNativeDriver: true,
-        }),
-        Animated.spring(opacityAnim, {
-          toValue: 1,
-          ...motion.spring.bouncy,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    });
+    confirmGrade(score);
   };
 
   const confirmGrade = (overrideScore?: number) => {
@@ -425,7 +454,7 @@ export function PracticeScreen() {
     }
     setResponseTimeMs(Date.now() - cardStartedAtRef.current);
     setIsFlipped(true);
-    setPracticeState('reveal');
+    setPracticeState('grading');
   };
 
   if (status === 'loading_due' || status === 'loading_repeat') {
@@ -564,7 +593,13 @@ export function PracticeScreen() {
   }
 
   const currentItem = queue[currentIndex];
-  if (!currentItem) return null;
+  if (!currentItem) {
+    return (
+      <Screen padded>
+        <LoadingState message={t('practice.syncing')} />
+      </Screen>
+    );
+  }
 
   const examplesList = currentItem.examples || [];
   const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
@@ -699,41 +734,9 @@ export function PracticeScreen() {
               isPreviouslyFailed={isPreviouslyFailed}
               onFlip={toggleFlip}
             />
-            {showFeedback && (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  {
-                    backgroundColor: colors.surfaceContainer,
-                    opacity: 0.95,
-                    borderRadius: 16,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10,
-                  },
-                ]}
-              >
-                <Icon name="checkmark-circle-outline" size="xl" color={colors.primary} />
-                <Text variant="title" bold style={{ marginTop: spacing.sm }} color="primary">
-                  {t('practice.saved')}
-                </Text>
-              </View>
-            )}
           </Animated.View>
 
-          {isFlipped && practiceState === 'reveal' && (
-            <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
-              <Button
-                testID="btn-show-grading"
-                label={t('practice.showRatingOptions')}
-                iconRight="arrow-forward"
-                onPress={() => setPracticeState('grading')}
-                style={{ width: '100%' }}
-              />
-            </View>
-          )}
-
-          {isFlipped && practiceState === 'grading' && (
+          {isFlipped && (
             <Card
               glass={true}
               style={[
@@ -827,6 +830,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     gap: 10,
+    zIndex: 999,
   },
   answerInput: {
     width: '100%',
