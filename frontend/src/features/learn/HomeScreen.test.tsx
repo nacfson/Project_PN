@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { HomeScreen } from './HomeScreen';
 import { AppLanguageProvider } from '../../i18n';
@@ -65,5 +65,15 @@ describe('HomeScreen', () => {
     expect(screen.getByTestId('hero-bento-card')).toBeTruthy();
     expect(screen.getByTestId('xp-progress-orb')).toBeTruthy();
     expect(screen.getByTestId('forecast-spline-chart')).toBeTruthy();
+  });
+
+  it('renders interactive forecast tooltip on node selection', async () => {
+    await render(<HomeScreen />, { wrapper: Wrapper });
+    expect(screen.queryByTestId('forecast-tooltip')).toBeNull();
+    const firstNode = screen.getByTestId('forecast-node-0');
+    fireEvent.press(firstNode);
+    await waitFor(() => {
+      expect(screen.getByTestId('forecast-tooltip')).toBeTruthy();
+    });
   });
 });

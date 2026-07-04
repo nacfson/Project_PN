@@ -130,11 +130,75 @@ function MasteryBreakdown({
   );
 }
 
+function ForecastTooltip({
+  day,
+  index,
+  colors,
+  spacing,
+  radii,
+  t,
+  onClose,
+}: {
+  day: StatsSummary['forecast'][number];
+  index: number;
+  colors: any;
+  spacing: any;
+  radii: any;
+  t: any;
+  onClose: () => void;
+}) {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      tension: 120,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [index, scaleAnim]);
+
+  const formattedDate = new Date(day.date).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  return (
+    <Animated.View
+      testID="forecast-tooltip"
+      style={[
+        styles.tooltipContainer,
+        {
+          backgroundColor: colors.surfaceContainerHigh,
+          borderColor: colors.outlineVariant,
+          borderRadius: radii.md,
+          padding: spacing.sm,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
+      <View style={styles.tooltipHeader}>
+        <Text variant="caption" bold style={{ color: colors.onSurface }}>
+          {index === 0 ? `${t('home.forecastToday')} (${formattedDate})` : formattedDate}
+        </Text>
+        <Pressable onPress={onClose} hitSlop={8} testID="tooltip-close-btn">
+          <Text variant="caption" color="muted" style={{ paddingLeft: spacing.xs, fontSize: 12 }}>✕</Text>
+        </Pressable>
+      </View>
+      <Text variant="caption" style={{ color: colors.primary, marginTop: 2 }}>
+        {day.count} {day.count === 1 ? 'review' : 'reviews'} scheduled
+      </Text>
+    </Animated.View>
+  );
+}
+
 function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
   const { colors, spacing, radii, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
   const maxCount = Math.max(1, ...forecast.map((day) => day.count));
   const animValues = useRef<Animated.Value[]>([]);
+  const [activeNodeIndex, setActiveNodeIndex] = useState<number | null>(null);
 
   if (animValues.current.length !== forecast.length) {
     animValues.current = forecast.map(() => new Animated.Value(0));
@@ -161,13 +225,30 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
   }, [forecast, reduced, motion.spring.bouncy]);
 
   return (
-    <View style={{ gap: spacing.sm }} testID="forecast-spline-chart">
-      <View style={[styles.forecastChart, { gap: spacing.xs }]}>
+    <View style={{ gap: spacing.sm, position: 'relative' }} testID="forecast-spline-chart">
+      {activeNodeIndex !== null && forecast[activeNodeIndex] && (
+        <ForecastTooltip
+          day={forecast[activeNodeIndex]}
+          index={activeNodeIndex}
+          colors={colors}
+          spacing={spacing}
+          radii={radii}
+          t={t}
+          onClose={() => setActiveNodeIndex(null)}
+        />
+      )}
+      <View style={[styles.forecastChart, { gap: spacing.xs, marginTop: activeNodeIndex !== null ? 24 : 0 }]}>
         {forecast.map((day, index) => {
           const height = Math.max(4, Math.round((day.count / maxCount) * 72));
           const isToday = index === 0;
+          const isSelected = activeNodeIndex === index;
           return (
-            <View key={day.date} style={styles.forecastColumn}>
+            <Pressable
+              key={day.date}
+              style={[styles.forecastColumn, isSelected && { transform: [{ scale: 1.05 }] }]}
+              onPress={() => setActiveNodeIndex(isSelected ? null : index)}
+              testID={`forecast-node-${index}`}
+            >
               <Animated.View
                 style={[
                   styles.splineDot,
@@ -179,9 +260,9 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
                         scale: animValues.current[index]
                           ? animValues.current[index].interpolate({
                               inputRange: [0, 1],
-                              outputRange: [0.1, 1],
+                              outputRange: [0.1, isSelected ? 1.3 : 1],
                             })
-                          : 1,
+                          : isSelected ? 1.3 : 1,
                       },
                     ],
                   },
@@ -199,14 +280,14 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
                       : height,
                     borderRadius: radii.sm,
                     backgroundColor: isToday ? colors.primary : colors.secondary,
-                    opacity: day.count === 0 ? 0.15 : 0.6,
+                    opacity: isSelected ? 0.95 : day.count === 0 ? 0.15 : 0.6,
                   },
                 ]}
               />
               <Text variant="caption" color="muted" style={styles.forecastLabel}>
                 {index === 0 ? t('home.forecastToday') : String(index + 1)}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </View>
@@ -680,6 +761,23 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  tooltipContainer: {
+    position: 'absolute',
+    top: -56,
+    left: '5%',
+    right: '5%',
+    borderWidth: 1,
+    shadowColor: 'rgba(0, 0, 0, 0.25)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    zIndex: 100,
+  },
+  tooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   forecastChart: {
     flexDirection: 'row',
