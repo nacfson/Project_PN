@@ -282,7 +282,7 @@ export function Flashcard({
   const currentHeight = Math.max(320, isFlipped ? backHeight : frontHeight);
 
   return (
-    <View style={[styles.container, { height: currentHeight }]}>
+    <View testID="flashcard-3d-wrapper" style={[styles.container, { height: currentHeight }]}>
       <Animated.View
         style={[
           styles.cardContainer,

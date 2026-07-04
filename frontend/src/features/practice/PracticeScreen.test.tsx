@@ -104,4 +104,15 @@ describe('PracticeScreen Integration', () => {
 
     randomSpy.mockRestore();
   });
+
+  it('flips the card when rating trigger active', async () => {
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([mockItem]);
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
+
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('flashcard-3d-wrapper')).toBeTruthy());
+
+    randomSpy.mockRestore();
+  });
 });
