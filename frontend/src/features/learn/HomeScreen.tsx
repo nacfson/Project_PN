@@ -298,49 +298,164 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
   );
 }
 
-function XpProgressOrb({ xpToday, dailyGoalXP }: { xpToday: number; dailyGoalXP: number }) {
-  const { colors, spacing, radii } = useTheme();
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+function XpDetailsBubble({
+  percent,
+  remaining,
+  colors,
+  spacing,
+  radii,
+}: {
+  percent: number;
+  remaining: number;
+  colors: any;
+  spacing: any;
+  radii: any;
+}) {
+  const scaleBubble = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    const animation = Animated.loop(
+    Animated.spring(scaleBubble, {
+      toValue: 1,
+      tension: 160,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [scaleBubble]);
+
+  return (
+    <Animated.View
+      testID="xp-details-bubble"
+      style={[
+        styles.xpBubbleContainer,
+        {
+          backgroundColor: colors.surfaceContainerHighest,
+          borderColor: colors.outlineVariant,
+          borderRadius: radii.md,
+          padding: spacing.sm,
+          transform: [{ scale: scaleBubble }],
+        },
+      ]}
+    >
+      <Text variant="caption" bold style={{ color: colors.onSurface }}>
+        {percent >= 100 ? 'Daily goal complete! 🌟' : 'Daily Goal Progress'}
+      </Text>
+      <Text variant="caption" color="muted" style={{ marginTop: 2, textAlign: 'center' }}>
+        {percent >= 100
+          ? 'Keep learning to level up further.'
+          : `${remaining} XP remaining to reach daily target.`}
+      </Text>
+    </Animated.View>
+  );
+}
+
+function XpProgressOrb({ xpToday, dailyGoalXP }: { xpToday: number; dailyGoalXP: number }) {
+  const { colors, spacing, radii, reduced } = useTheme();
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [showDetails, setShowDetails] = useState(false);
+
+  useEffect(() => {
+    const rotate = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
         duration: 10000,
         useNativeDriver: true,
       })
     );
-    animation.start();
-    return () => animation.stop();
+    rotate.start();
+    return () => rotate.stop();
   }, [rotateAnim]);
+
+  useEffect(() => {
+    if (reduced) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [pulseAnim, reduced]);
+
+  useEffect(() => {
+    if (showDetails) {
+      const timer = setTimeout(() => setShowDetails(false), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [showDetails]);
 
   const rotation = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
+  const handlePress = () => {
+    if (reduced) {
+      setShowDetails((prev) => !prev);
+      return;
+    }
+    setShowDetails(true);
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 180, friction: 6, useNativeDriver: true }),
+    ]).start();
+  };
+
   const percent = Math.min(100, Math.round((xpToday / dailyGoalXP) * 100));
+  const remaining = Math.max(0, dailyGoalXP - xpToday);
 
   return (
-    <Card glass={true} testID="xp-progress-orb" style={styles.orbCard}>
-      <Text variant="title" bold style={{ marginBottom: spacing.xs }}>XP Progress</Text>
-      <View style={styles.orbContainer}>
-        <View style={[styles.orbOuterRing, { borderColor: colors.primary }]}>
-          <Animated.View style={[styles.orbGlass, { transform: [{ rotate: rotation }] }]}>
-            <LinearGradient
-              colors={[colors.primary, colors.accent]}
-              style={styles.orbGlow}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          </Animated.View>
-          <View style={styles.orbInnerContent}>
-            <Text variant="headline" bold style={{ color: colors.text }}>{percent}%</Text>
-            <Text variant="caption" color="muted">{xpToday} / {dailyGoalXP} XP</Text>
+    <Pressable onPress={handlePress} style={{ width: '100%' }}>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }], width: '100%' }}>
+        <Card glass={true} testID="xp-progress-orb" style={[styles.orbCard, { position: 'relative' }]}>
+          <Text variant="title" bold style={{ marginBottom: spacing.xs }}>XP Progress</Text>
+          <View style={styles.orbContainer}>
+            <Animated.View
+              style={[
+                styles.orbOuterRing,
+                {
+                  borderColor: colors.primary,
+                  transform: [{ scale: pulseAnim }],
+                },
+              ]}
+            >
+              <Animated.View style={[styles.orbGlass, { transform: [{ rotate: rotation }] }]}>
+                <LinearGradient
+                  colors={[colors.primary, colors.accent]}
+                  style={styles.orbGlow}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+              </Animated.View>
+              <View style={styles.orbInnerContent}>
+                <Text variant="headline" bold style={{ color: colors.text }}>{percent}%</Text>
+                <Text variant="caption" color="muted">{xpToday} / {dailyGoalXP} XP</Text>
+              </View>
+            </Animated.View>
           </View>
-        </View>
-      </View>
-    </Card>
+
+          {showDetails && (
+            <XpDetailsBubble
+              percent={percent}
+              remaining={remaining}
+              colors={colors}
+              spacing={spacing}
+              radii={radii}
+            />
+          )}
+        </Card>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -850,6 +965,20 @@ const styles = StyleSheet.create({
     flex: 1.2,
     minWidth: 320,
     gap: 16,
+  },
+  xpBubbleContainer: {
+    position: 'absolute',
+    bottom: -64,
+    left: '5%',
+    right: '5%',
+    borderWidth: 1,
+    shadowColor: 'rgba(0, 0, 0, 0.2)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    zIndex: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   orbCard: {
     padding: 16,

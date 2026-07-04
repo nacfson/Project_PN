@@ -76,4 +76,14 @@ describe('HomeScreen', () => {
       expect(screen.getByTestId('forecast-tooltip')).toBeTruthy();
     });
   });
+
+  it('renders interactive XP progress details bubble on orb press', async () => {
+    await render(<HomeScreen />, { wrapper: Wrapper });
+    expect(screen.queryByTestId('xp-details-bubble')).toBeNull();
+    const orb = screen.getByTestId('xp-progress-orb');
+    fireEvent.press(orb);
+    await waitFor(() => {
+      expect(screen.getByTestId('xp-details-bubble')).toBeTruthy();
+    });
+  });
 });
