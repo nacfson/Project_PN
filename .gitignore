@@ -29,6 +29,7 @@ xcuserdata/
 .build/
 .swiftpm/
 Packages/
+!packages/
 Package.resolved
 
 # CocoaPods
