@@ -3,24 +3,63 @@ package migrations
 import (
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
-func TestLatestMigrationFilesExistAndAreNonEmpty(t *testing.T) {
+func latestMigrationVersion(t *testing.T) (uint, string) {
+	t.Helper()
 	migrationsDir := repoPath(t, "db", "migrations")
-	files := []string{
-		"000018_user_languages_perf_idx.up.sql",
-		"000018_user_languages_perf_idx.down.sql",
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		t.Fatalf("read migrations dir: %v", err)
 	}
 
-	for _, name := range files {
-		path := filepath.Join(migrationsDir, name)
+	var (
+		maxVersion uint
+		latestName string
+	)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+		versionStr := strings.SplitN(name, "_", 2)[0]
+		version, err := strconv.ParseUint(versionStr, 10, 32)
+		if err != nil {
+			t.Fatalf("invalid migration filename %q: %v", name, err)
+		}
+		if v := uint(version); v > maxVersion {
+			maxVersion = v
+			latestName = name
+		}
+	}
+	if maxVersion == 0 {
+		t.Fatal("no migration files found")
+	}
+	return maxVersion, latestName
+}
+
+func TestLatestMigrationFilesExistAndAreNonEmpty(t *testing.T) {
+	_, latestName := latestMigrationVersion(t)
+	migrationsDir := repoPath(t, "db", "migrations")
+	latestBase := strings.TrimSuffix(latestName, ".up.sql")
+	files := []string{
+		filepath.Join(migrationsDir, latestName),
+		filepath.Join(migrationsDir, latestBase+".down.sql"),
+	}
+
+	for _, path := range files {
 		info, err := os.Stat(path)
 		if err != nil {
-			t.Fatalf("stat %s: %v", name, err)
+			t.Fatalf("stat %s: %v", filepath.Base(path), err)
 		}
 		if info.Size() == 0 {
-			t.Fatalf("migration %s is empty", name)
+			t.Fatalf("migration %s is empty", filepath.Base(path))
 		}
 	}
 }
@@ -47,7 +86,8 @@ func TestLatestMigrationAppliesCleanly(t *testing.T) {
 	if dirty {
 		t.Fatal("migration is dirty")
 	}
-	if version != 18 {
-		t.Fatalf("expected migration version 18, got %d", version)
+	expectedVersion, _ := latestMigrationVersion(t)
+	if version != expectedVersion {
+		t.Fatalf("expected migration version %d, got %d", expectedVersion, version)
 	}
 }

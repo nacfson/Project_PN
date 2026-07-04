@@ -27,7 +27,6 @@ export function EditLanguagePairScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [hasDataError, setHasDataError] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -51,12 +50,10 @@ export function EditLanguagePairScreen() {
 
   const toggleTarget = (code: string) => {
     setSelectedTarget(code);
-    setHasDataError(false);
   };
 
   const toggleDisplay = (code: string) => {
     setSelectedDisplay(code);
-    setHasDataError(false);
   };
 
   const hasChanges = selectedTarget !== targetLanguage || selectedDisplay !== displayLanguage;
@@ -68,7 +65,6 @@ export function EditLanguagePairScreen() {
     }
     setSaving(true);
     setError(undefined);
-    setHasDataError(false);
     try {
       await updateLanguagePair(targetLanguage, selectedTarget, selectedDisplay);
       refresh();
@@ -77,8 +73,6 @@ export function EditLanguagePairScreen() {
       const message = err instanceof Error ? err.message : String(err);
       if (message.toLowerCase().includes('already exists') || (err instanceof ApiError && err.status === 409)) {
         setError(t('settings.languagePairAlreadyExists'));
-      } else if (message.toLowerCase().includes('has learning data')) {
-        setHasDataError(true);
       } else {
         setError(message);
       }
@@ -138,22 +132,6 @@ export function EditLanguagePairScreen() {
             ))}
           </View>
         </Card>
-
-        {hasDataError ? (
-          <Card variant="outlined" style={{ gap: spacing.sm }}>
-            <Text variant="body" color="danger">
-              {t('settings.languagePairHasDataTitle')}
-            </Text>
-            <Text variant="caption" color="muted">
-              {t('settings.languagePairHasDataMessage')}
-            </Text>
-            <Button
-              label={t('settings.languagePairRemoveAndAdd')}
-              variant="tonal"
-              onPress={() => navigation.navigate('LanguagePairs')}
-            />
-          </Card>
-        ) : null}
 
         {error ? (
           <Text variant="caption" color="danger">{error}</Text>

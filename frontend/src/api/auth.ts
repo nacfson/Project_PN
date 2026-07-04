@@ -48,6 +48,7 @@ export async function logout(): Promise<void> {
   try {
     await logoutApi();
   } finally {
+    clearLanguageOptionsCache();
     await sessionStorage.removeToken();
   }
 }

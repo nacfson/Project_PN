@@ -8,6 +8,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Button, EmptyState, Input, Text } from '../ui';
 import type { PosFilter } from '../types';
 
+import { useActiveTargetLanguage } from '../hooks/useActiveTargetLanguage';
+
 export function ManualAddScreen() {
   const { spacing } = useTheme();
   const { t } = useAppLanguage();
@@ -15,6 +17,7 @@ export function ManualAddScreen() {
   const [pos, setPos] = useState<PosFilter>('Any');
   const [added, setAdded] = useState<string[]>([]);
   const { enqueue, statusOf } = useAddQueue();
+  const { targetLanguage } = useActiveTargetLanguage();
 
   const submit = () => {
     const trimmed = word.trim();
@@ -22,7 +25,7 @@ export function ManualAddScreen() {
       return;
     }
 
-    enqueue(trimmed, pos);
+    enqueue(trimmed, pos, undefined, targetLanguage ?? undefined);
     setAdded((prev) => [trimmed, ...prev.filter((entry) => entry !== trimmed)]);
     setWord('');
   };

@@ -22,6 +22,7 @@ export interface AddJob {
   text: string;
   pos: PosFilter;
   deckId?: string;
+  languageCode?: string;
   status: AddJobStatus;
   error?: string;
   wordSenseId?: string;
@@ -31,8 +32,8 @@ interface AddQueueContextValue {
   jobs: AddJob[];
   pendingCount: number;
   dismissedIds: Set<string>;
-  enqueue: (text: string, pos: PosFilter, deckId?: string) => void;
-  enqueueMany: (texts: string[], pos: PosFilter, deckId?: string) => void;
+  enqueue: (text: string, pos: PosFilter, deckId?: string, languageCode?: string) => void;
+  enqueueMany: (texts: string[], pos: PosFilter, deckId?: string, languageCode?: string) => void;
   statusOf: (text: string) => WordStatus;
   dismiss: (id: string) => void;
 }
@@ -87,6 +88,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
           const response = await lookupWord(next.text, {
             partOfSpeech: next.pos,
             displayLanguageCode: DEFAULT_DEFINITION_LANGUAGE_CODE,
+            languageCode: next.languageCode,
           });
           const match = bestMatch(response.sense_options);
           if (!match) {
@@ -113,7 +115,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   }, [runWorker]);
 
   const enqueue = useCallback(
-    (text: string, pos: PosFilter, deckId?: string) => {
+    (text: string, pos: PosFilter, deckId?: string, languageCode?: string) => {
       const trimmed = text.trim();
       if (trimmed.length === 0) {
         return;
@@ -124,6 +126,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
         text: trimmed,
         pos,
         deckId,
+        languageCode,
         status: 'queued',
       };
 
@@ -138,7 +141,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
   );
 
   const enqueueMany = useCallback(
-    (texts: string[], pos: PosFilter, deckId?: string) => {
+    (texts: string[], pos: PosFilter, deckId?: string, languageCode?: string) => {
       const trimmed = texts.map((text) => text.trim()).filter((text) => text.length > 0);
       if (trimmed.length === 0) {
         return;
@@ -149,6 +152,7 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
         text,
         pos,
         deckId,
+        languageCode,
         status: 'queued' as const,
       }));
 

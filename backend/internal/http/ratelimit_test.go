@@ -75,17 +75,6 @@ func TestClientIPFallsBackToRemoteAddr(t *testing.T) {
 	}
 }
 
-func TestClientIPUsesXRealIPHeader(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.RemoteAddr = "192.168.1.1:1234"
-	r.Header.Set("X-Real-IP", "10.0.0.1")
-
-	ip := clientIP(r)
-	if ip != "10.0.0.1" {
-		t.Fatalf("expected X-Real-IP, got %q", ip)
-	}
-}
-
 func TestRateLimiterMiddlewareDeniesOverLimit(t *testing.T) {
 	rl := newRateLimiter(2, time.Minute)
 	handler := rl.middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -70,4 +70,19 @@ describe('useAddQueue deck-aware', () => {
       );
     });
   });
+
+  it('passes languageCode to lookupWord when provided', async () => {
+    const { lookupWord } = require('../api/words');
+    const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
+
+    await act(() => {
+      result.current.enqueue('hello', 'Any', 'deck-123', 'zh');
+    });
+
+    await waitFor(() => {
+      expect(lookupWord).toHaveBeenCalledWith('hello', expect.objectContaining({
+        languageCode: 'zh',
+      }));
+    });
+  });
 });
