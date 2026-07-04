@@ -355,6 +355,7 @@ export function HomeScreen() {
 
   const flameScale = useRef(new Animated.Value(1)).current;
   const bookScale = useRef(new Animated.Value(1)).current;
+  const heroScale = useRef(new Animated.Value(1)).current;
 
   const fetchHomeData = useCallback((activeRef?: { current: boolean }) => {
     return Promise.all([getStatsSummary(), me()])
@@ -427,6 +428,22 @@ export function HomeScreen() {
     });
   }, [reduced, motion, navigation, bookScale]);
 
+  const handlePressHero = useCallback(() => {
+    if (reduced) {
+      navigation.navigate('Practice');
+      return;
+    }
+    heroScale.setValue(motion.scale.press);
+    Animated.spring(heroScale, {
+      toValue: 1.0,
+      tension: motion.spring.bouncy.tension,
+      friction: motion.spring.bouncy.friction,
+      useNativeDriver: true,
+    }).start(() => {
+      navigation.navigate('Practice');
+    });
+  }, [reduced, motion, navigation, heroScale]);
+
   const dueCount = stats?.due_today ?? null;
   const hasDue = dueCount !== null && dueCount > 0;
   const streakDays = stats?.review_streak_days ?? 0;
@@ -444,9 +461,6 @@ export function HomeScreen() {
     { key: 'bentoIndigo', label: 'Indigo Glow' },
     { key: 'bentoSunset', label: 'Sunset Gold' },
     { key: 'bentoLight', label: 'Light Mode' },
-    { key: 'cyberpunk', label: 'Cyberpunk' },
-    { key: 'minimalist', label: 'Minimalist' },
-    { key: 'brutalist', label: 'Brutalist' },
   ];
 
   const renderLoading = () => (
@@ -547,62 +561,67 @@ export function HomeScreen() {
         ) : (
           <View testID="bento-grid-container" style={[styles.bentoContainer, { gap: spacing.md }]}>
             <View style={styles.bentoColumnLeft}>
-              <CinematicCard
-                elevated
-                testID="hero-bento-card"
-                onPress={() => navigation.navigate('Practice')}
-                style={[styles.heroCard, { padding: 0, overflow: 'hidden', borderColor: 'transparent', borderRadius: radii.xl }]}
-                revealActions={
-                  <Icon name="arrow-forward" size="md" color="#ffffff" />
-                }
+              <AnimatedPressable
+                style={{ transform: [{ scale: heroScale }] }}
+                onPress={handlePressHero}
+                accessibilityRole="button"
               >
-                <LinearGradient
-                  colors={[colors.primary, colors.accent]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{ padding: 20 }}
+                <CinematicCard
+                  elevated
+                  testID="hero-bento-card"
+                  style={[styles.heroCard, { padding: 0, overflow: 'hidden', borderColor: 'transparent', borderRadius: radii.xl }]}
+                  revealActions={
+                    <Icon name="arrow-forward" size="md" color="#ffffff" />
+                  }
                 >
-                  <View style={styles.row}>
-                    <View style={styles.heroTitleRow}>
-                      <View style={[styles.heroIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                        <Icon name={hasDue ? 'school' : 'checkmark-circle'} size="lg" color="#ffffff" />
+                  <LinearGradient
+                    colors={[colors.primary, colors.accent]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ padding: 20 }}
+                  >
+                    <View style={styles.row}>
+                      <View style={styles.heroTitleRow}>
+                        <View style={[styles.heroIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+                          <Icon name={hasDue ? 'school' : 'checkmark-circle'} size="lg" color="#ffffff" />
+                        </View>
+                        <View>
+                          <Text variant="caption" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                            {t('home.wordsDue')}
+                          </Text>
+                          <Text variant="title" style={{ color: '#ffffff' }} bold>
+                            {dueCount === null ? '...' : t('home.startReview', { count: dueCount })}
+                          </Text>
+                        </View>
                       </View>
-                      <View>
-                        <Text variant="caption" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                          {t('home.wordsDue')}
-                        </Text>
-                        <Text variant="title" style={{ color: '#ffffff' }} bold>
-                          {dueCount === null ? '...' : t('home.startReview', { count: dueCount })}
-                        </Text>
-                      </View>
+                      <Badge
+                        label={dueCount === null ? '...' : String(dueCount)}
+                        variant={hasDue ? 'primary' : 'success'}
+                      />
                     </View>
-                    <Badge
-                      label={dueCount === null ? '...' : String(dueCount)}
-                      variant={hasDue ? 'primary' : 'success'}
-                    />
-                  </View>
 
-                  {dueCount === null ? (
-                    <Text style={{ color: '#ffffff', marginTop: spacing.md }}>{t('home.checkingDue')}</Text>
-                  ) : hasDue ? (
-                    <Button
-                      label={t('home.startReview', { count: dueCount })}
-                      iconRight="arrow-forward"
-                      variant="secondary"
-                      onPress={() => navigation.navigate('Practice')}
-                      style={{ marginTop: spacing.md }}
-                    />
-                  ) : (
-                    <Button
-                      label={t('home.previewPractice')}
-                      variant="secondary"
-                      iconRight="arrow-forward"
-                      onPress={() => navigation.navigate('Practice')}
-                      style={{ marginTop: spacing.md }}
-                    />
-                  )}
-                </LinearGradient>
-              </CinematicCard>
+                    {dueCount === null ? (
+                      <Text style={{ color: '#ffffff', marginTop: spacing.md }}>{t('home.checkingDue')}</Text>
+                    ) : hasDue ? (
+                      <Button
+                        label={t('home.startReview', { count: dueCount })}
+                        iconRight="arrow-forward"
+                        variant="secondary"
+                        onPress={handlePressHero}
+                        style={{ marginTop: spacing.md }}
+                      />
+                    ) : (
+                      <Button
+                        label={t('home.previewPractice')}
+                        variant="secondary"
+                        iconRight="arrow-forward"
+                        onPress={handlePressHero}
+                        style={{ marginTop: spacing.md }}
+                      />
+                    )}
+                  </LinearGradient>
+                </CinematicCard>
+              </AnimatedPressable>
 
               <XpProgressOrb xpToday={xpToday} dailyGoalXP={dailyGoalXP} />
             </View>
