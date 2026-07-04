@@ -166,7 +166,7 @@ export function Flashcard({
       ) : (
         <>
           <Text variant="caption" color="muted" style={styles.promptLabel}>
-            {t('practice.recallPrompt')}
+            {t('practice.typePrompt')}
           </Text>
           <Text variant="title" bold style={styles.definitionText}>
             {item.definition}

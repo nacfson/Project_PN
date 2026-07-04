@@ -664,7 +664,7 @@ export function PracticeScreen() {
       />
       <View style={[styles.revealActions, { gap: spacing.sm }]}>
         <Button
-          label={t('practice.revealAnswer')}
+          label={t('practice.checkAnswer')}
           disabled={trimmedAnswer.length === 0}
           style={styles.revealButton}
           onPress={() => revealAnswer(false)}
