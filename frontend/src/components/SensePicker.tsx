@@ -7,6 +7,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Text } from '../ui';
 import type { PartOfSpeech, SenseOption } from '../types';
 import { bestMatch } from '../utils/senses';
+import { renderFormattedSentence } from '../utils/text';
 
 const CONCRETE_POS: PartOfSpeech[] = [
   'noun',
@@ -151,7 +152,7 @@ export function SensePicker({
                     </Text>
                     {(option.examples ?? []).length > 0 && (
                       <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
-                        &ldquo;{(option.examples ?? [])[0].sentence}&rdquo;
+                        &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, query)}&rdquo;
                       </Text>
                     )}
                   </Card>

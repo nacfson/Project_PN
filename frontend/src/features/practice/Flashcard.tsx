@@ -15,6 +15,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Icon, Text } from '../../ui';
 import type { DueItem } from '../../types';
 import { SpeakButton } from '../../components/SpeakButton';
+import { renderFormattedSentence, renderBoldMarkdown } from '../../utils/text';
 
 interface FlashcardProps {
   item: DueItem;
@@ -25,30 +26,6 @@ interface FlashcardProps {
   userAnswer: string;
   isPreviouslyFailed: boolean;
   onFlip: () => void;
-}
-
-function highlightWordInSentence(sentence: string, word: string): ReactNode[] {
-  if (!sentence || !word) return [sentence];
-  const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const regex = new RegExp(`\\b${escaped}[a-zA-Z]*\\b`, 'gi');
-  const parts: ReactNode[] = [];
-  let lastIndex = 0;
-  sentence.replace(regex, (match, offset) => {
-    if (offset > lastIndex) {
-      parts.push(sentence.slice(lastIndex, offset));
-    }
-    parts.push(
-      <Text key={`match-${offset}`} bold>
-        {match}
-      </Text>
-    );
-    lastIndex = offset + match.length;
-    return match;
-  });
-  if (lastIndex < sentence.length) {
-    parts.push(sentence.slice(lastIndex));
-  }
-  return parts;
 }
 
 function uniqueText(value: string | null | undefined, original: string | null | undefined) {
@@ -266,11 +243,11 @@ export function Flashcard({
               {t('practice.exampleLabel')}
             </Text>
             <Text variant="body" style={styles.exampleSentence}>
-              &ldquo;{highlightWordInSentence(example.sentence, item.normalized_text)}&rdquo;
+              &ldquo;{renderFormattedSentence(example.sentence, item.normalized_text)}&rdquo;
             </Text>
             {localizedExample && (
               <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-                {localizedExample}
+                {renderBoldMarkdown(localizedExample)}
               </Text>
             )}
           </View>

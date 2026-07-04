@@ -10,6 +10,7 @@ import { SpeakButton } from '../../components/SpeakButton';
 import { listDecks, moveItemsToDeck } from '../../api/decks';
 import type { Deck } from '../../types';
 import { MoveToDeckModal } from './MoveToDeckModal';
+import { renderFormattedSentence, renderBoldMarkdown } from '../../utils/text';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
 
@@ -128,10 +129,10 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
                     },
                   ]}
                 >
-                  <Text variant="body">{example.sentence}</Text>
+                  <Text variant="body">{renderFormattedSentence(example.sentence, item.word)}</Text>
                   {example.localized_translation && (
                     <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                      {example.localized_translation}
+                      {renderBoldMarkdown(example.localized_translation)}
                     </Text>
                   )}
                 </View>
