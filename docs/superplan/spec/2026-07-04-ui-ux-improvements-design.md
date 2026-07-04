@@ -47,6 +47,15 @@ export const visualVariations = {
     accentOrangeGlow: 'rgba(249, 115, 22, 0.3)',
     glassBlur: 24,
   },
+  bentoLight: {
+    background: '#f4f5f7',
+    surface: 'rgba(255, 255, 255, 0.72)',
+    border: 'rgba(0, 0, 0, 0.04)',
+    primaryGlow: 'rgba(59, 130, 246, 0.1)',
+    accentPink: '#db2777',
+    accentPinkGlow: 'rgba(219, 39, 119, 0.15)',
+    glassBlur: 24,
+  },
   cyberpunk: {
     background: '#060913',
     surface: 'rgba(20, 30, 55, 0.45)',
