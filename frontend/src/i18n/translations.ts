@@ -240,6 +240,7 @@ export const en = {
   'settings.removeLanguagePairConfirm': 'Remove',
   'settings.loadLanguageOptionsFailed': 'Could not load language options.',
   'settings.languagePairRequired': 'Please select both a learning language and a definition language.',
+  'settings.languagePairAlreadyExists': 'A language pair with this learning language already exists.',
 
   'language.en': 'English',
   'language.ko': '한국어',
@@ -546,6 +547,7 @@ export const ko: Record<TranslationKey, string> = {
   'settings.removeLanguagePairConfirm': '제거',
   'settings.loadLanguageOptionsFailed': '언어 옵션을 불러오지 못했습니다.',
   'settings.languagePairRequired': '학습 언어와 정의 언어를 모두 선택하세요.',
+  'settings.languagePairAlreadyExists': '이 학습 언어를 사용하는 언어 쌍이 이미 존재합니다.',
 
   'language.en': 'English',
   'language.ko': '한국어',

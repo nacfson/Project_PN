@@ -71,7 +71,9 @@ export function EditLanguagePairScreen() {
       navigation.goBack();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (typeof message === 'string' && message.toLowerCase().includes('has learning data')) {
+      if (message.toLowerCase().includes('already exists') || (err as any)?.status === 409) {
+        setError(t('settings.languagePairAlreadyExists'));
+      } else if (message.toLowerCase().includes('has learning data')) {
         setHasDataError(true);
       } else {
         setError(message);
@@ -108,6 +110,7 @@ export function EditLanguagePairScreen() {
             {targetOptions.map((code) => (
               <Button
                 key={code}
+                testID={`target-language-${code}`}
                 label={languageLabel(code)}
                 variant={selectedTarget === code ? 'primary' : 'tonal'}
                 onPress={() => toggleTarget(code)}
