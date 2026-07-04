@@ -206,3 +206,25 @@ func TestUpdateLanguagePairConflict(t *testing.T) {
 		t.Fatalf("update conflict: expected 409, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestSetActiveLanguageInvalid(t *testing.T) {
+	router, token := testUserRouter(t)
+
+	req := authRequest(t, http.MethodPatch, "/api/user/languages/INVALID/active", "", token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("set active invalid: expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRemoveLanguageInvalid(t *testing.T) {
+	router, token := testUserRouter(t)
+
+	req := authRequest(t, http.MethodDelete, "/api/user/languages/INVALID", "", token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("remove invalid: expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}

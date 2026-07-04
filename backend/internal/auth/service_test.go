@@ -97,6 +97,14 @@ func TestResolveTargetLangRejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestRemoveUserLanguageRejectsInvalid(t *testing.T) {
+	s := New(nil, Options{AllowedTargetLangs: []string{"en", "ja"}})
+	err := s.RemoveUserLanguage(context.Background(), "any-user-id", "<script>")
+	if !errors.Is(err, ErrInvalidTargetLang) {
+		t.Fatalf("expected invalid target language, got %v", err)
+	}
+}
+
 func repoPath(t *testing.T, parts ...string) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

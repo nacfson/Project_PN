@@ -24,9 +24,11 @@ jest.mock('../api/words', () => ({
   lookupWord: jest.fn().mockResolvedValue({ sense_options: [] }),
 }));
 
+let focusCallback: (() => void) | null = null;
+
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
-  useFocusEffect: jest.fn(),
+  useFocusEffect: jest.fn((cb: any) => { focusCallback = cb; }),
 }));
 
 const mockedListDecks = jest.mocked(decksApi.listDecks);
@@ -51,6 +53,7 @@ const esDecks = [
 
 describe('AddScreen', () => {
   beforeEach(() => {
+    focusCallback = null;
     mockUseActiveTargetLanguage.mockReturnValue({
       targetLanguage: 'en',
       displayLanguage: 'ko',
@@ -128,5 +131,35 @@ describe('AddScreen', () => {
     await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
     expect(mockedListDecks).toHaveBeenLastCalledWith('es');
     expect(screen.queryByText('No deck')).toBeNull();
+  });
+
+  it('refreshes language on focus only when the threshold has passed', async () => {
+    const refresh = jest.fn();
+    mockUseActiveTargetLanguage.mockReturnValue({
+      targetLanguage: 'en',
+      displayLanguage: 'ko',
+      loading: false,
+      error: null,
+      refresh,
+    });
+
+    const dateSpy = jest.spyOn(Date, 'now');
+    dateSpy.mockReturnValue(1000);
+
+    await render(<AddScreen />, { wrapper: Wrapper });
+    expect(focusCallback).not.toBeNull();
+
+    focusCallback!();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    dateSpy.mockReturnValue(2000);
+    focusCallback!();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    dateSpy.mockReturnValue(40000);
+    focusCallback!();
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    dateSpy.mockRestore();
   });
 });

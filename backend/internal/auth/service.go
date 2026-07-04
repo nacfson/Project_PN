@@ -320,7 +320,7 @@ func (s *Service) UpdateUserLanguage(ctx context.Context, userID, oldTargetLang,
 		return ErrTargetLanguageExists
 	}
 
-	_, err = tx.Exec(ctx, `
+	ct, err := tx.Exec(ctx, `
 		update user_languages
 		set target_language = $3, display_language = $4, updated_at = now()
 		where user_id = $1::uuid and target_language = $2
@@ -331,6 +331,9 @@ func (s *Service) UpdateUserLanguage(ctx context.Context, userID, oldTargetLang,
 		}
 		return fmt.Errorf("auth: update user language: %w", err)
 	}
+	if ct.RowsAffected() == 0 {
+		return ErrLanguageNotFound
+	}
 
 	return tx.Commit(ctx)
 }
@@ -338,6 +341,11 @@ func (s *Service) UpdateUserLanguage(ctx context.Context, userID, oldTargetLang,
 // RemoveUserLanguage deletes a learning pair. If it was active, the oldest
 // remaining pair becomes active.
 func (s *Service) RemoveUserLanguage(ctx context.Context, userID, targetLang string) error {
+	targetLang, err := s.resolveTargetLang(targetLang)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("auth: begin tx: %w", err)

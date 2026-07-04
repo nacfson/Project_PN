@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { listDecks } from '../api/decks';
 import { CaptureSection } from '../features/add/CaptureSection';
@@ -10,6 +11,9 @@ import { useAddQueue } from '../hooks/useAddQueue';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from '../ui';
+import { DEFAULT_LANGUAGE_CODE } from '../config';
+
+const LAST_REFRESH_THRESHOLD_MS = 30_000;
 
 export function AddScreen() {
   const { colors, spacing } = useTheme();
@@ -55,6 +59,18 @@ export function AddScreen() {
     refreshLanguage();
     setDeckRetryTick((tick) => tick + 1);
   }, [refreshLanguage]);
+
+  const lastRefreshRef = useRef<number | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const last = lastRefreshRef.current;
+      const now = Date.now();
+      if (!last || now - last > LAST_REFRESH_THRESHOLD_MS) {
+        lastRefreshRef.current = now;
+        refreshLanguage();
+      }
+    }, [refreshLanguage]),
+  );
 
   const hasPendingJobs = pendingCount > 0;
 
@@ -109,10 +125,10 @@ export function AddScreen() {
 
         <View style={{ gap: spacing.lg }}>
           {selectedDeckId && activeTab === 'passage' && (
-            <CaptureSection selectedDeckId={selectedDeckId} targetLanguage={targetLanguage ?? ''} />
+            <CaptureSection selectedDeckId={selectedDeckId} targetLanguage={targetLanguage || DEFAULT_LANGUAGE_CODE} />
           )}
           {selectedDeckId && activeTab === 'manual' && (
-            <ManualAddSection selectedDeckId={selectedDeckId} targetLanguage={targetLanguage ?? ''} />
+            <ManualAddSection selectedDeckId={selectedDeckId} targetLanguage={targetLanguage || DEFAULT_LANGUAGE_CODE} />
           )}
         </View>
       </ScrollView>

@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { LanguageProvider, useLanguage } from './LanguageContext';
+import { setActiveUserLanguage } from '../api/userLanguages';
 import type { UserLanguage } from '../types/auth';
 
 const mockGetUserLanguages = jest.fn();
@@ -46,6 +47,20 @@ describe('LanguageContext', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.targetLanguage).toBe('es');
     expect(result.current.displayLanguage).toBe('en');
+  });
+
+  it('sets context error without throwing when setActive fails', async () => {
+    mockGetUserLanguages.mockResolvedValue([
+      makeLanguage({ target_language: 'en', display_language: 'ko', is_active: true }),
+    ]);
+    const { result } = await renderHook(() => useLanguage(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    (setActiveUserLanguage as jest.Mock).mockRejectedValueOnce(new Error('activation failed'));
+    await act(async () => {
+      await result.current.setActive('ja');
+    });
+    await waitFor(() => expect(result.current.error).toBe('activation failed'));
   });
 
   it('surfaces fetch errors', async () => {
