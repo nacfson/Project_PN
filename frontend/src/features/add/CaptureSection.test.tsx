@@ -29,7 +29,7 @@ describe('CaptureSection', () => {
   });
 
   it('renders the passage capture form with only Step 1 visible initially', async () => {
-    await render(<CaptureSection selectedDeckId="deck-123" />, { wrapper: Wrapper });
+    await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
 
     expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy();
     expect(screen.getByText('From a passage')).toBeTruthy();
@@ -40,7 +40,7 @@ describe('CaptureSection', () => {
   });
 
   it('shows Step 2 (tappable words) only when text is entered', async () => {
-    await render(<CaptureSection selectedDeckId="deck-123" />, { wrapper: Wrapper });
+    await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
 
     expect(screen.queryByText('Tap words to select')).toBeNull();
 
@@ -54,7 +54,7 @@ describe('CaptureSection', () => {
   });
 
   it('shows Step 3 (POS, selected chips, Add button) only when at least one word is selected', async () => {
-    await render(<CaptureSection selectedDeckId="deck-123" />, { wrapper: Wrapper });
+    await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
 
     fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'fox dog');
     await waitFor(() => expect(screen.getByText('fox')).toBeTruthy());
@@ -71,6 +71,6 @@ describe('CaptureSection', () => {
 
     // Perform enqueue
     fireEvent.press(screen.getByText('Add selected (1)'));
-    expect(enqueueMany).toHaveBeenCalledWith(['fox'], 'Any', 'deck-123');
+    expect(enqueueMany).toHaveBeenCalledWith(['fox'], 'Any', 'deck-123', 'en');
   });
 });

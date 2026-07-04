@@ -12,7 +12,7 @@ import type { PosFilter } from '../../types';
 
 const UNDO_DURATION_MS = 3000;
 
-export function CaptureSection({ selectedDeckId }: { selectedDeckId: string }) {
+export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDeckId: string; targetLanguage: string }) {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [passage, setPassage] = useState('');
@@ -61,7 +61,7 @@ export function CaptureSection({ selectedDeckId }: { selectedDeckId: string }) {
       return;
     }
     void recordCapturedWords(words);
-    enqueueMany(words, pos, selectedDeckId);
+    enqueueMany(words, pos, selectedDeckId, targetLanguage);
   };
 
   const selectedList = Array.from(selected);
