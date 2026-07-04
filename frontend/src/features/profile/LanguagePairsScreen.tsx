@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -6,14 +6,10 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import {
-  getUserLanguages,
-  removeUserLanguage,
-  setActiveUserLanguage,
-} from '../../api/userLanguages';
-import { me } from '../../api/auth';
+import { removeUserLanguage } from '../../api/userLanguages';
+import { useLanguage } from '../../contexts/LanguageContext';
 import type { UserLanguage } from '../../types/auth';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
@@ -24,38 +20,15 @@ export function LanguagePairsScreen() {
   const { colors, spacing } = useTheme();
   const { t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
-  const [pairs, setPairs] = useState<UserLanguage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { languages, loading, error, refresh, setActive } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTarget, setActiveTarget] = useState<string | undefined>();
-
-  const fetchPairs = useCallback(async () => {
-    try {
-      const response = await getUserLanguages();
-      setPairs(response);
-      setActiveTarget(response.find((p) => p.is_active)?.target_language);
-    } catch {
-      setPairs([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchPairs().finally(() => setLoading(false));
-  }, [fetchPairs]);
-
-  useFocusEffect(
-    useCallback(() => {
-      void fetchPairs();
-    }, [fetchPairs]),
-  );
 
   const handleSetActive = async (targetLanguage: string) => {
-    if (targetLanguage === activeTarget) return;
+    const currentActive = languages.find((p) => p.is_active)?.target_language;
+    if (targetLanguage === currentActive) return;
     setRefreshing(true);
     try {
-      await setActiveUserLanguage(targetLanguage);
-      await me();
-      await fetchPairs();
+      await setActive(targetLanguage);
     } finally {
       setRefreshing(false);
     }
@@ -76,7 +49,7 @@ export function LanguagePairsScreen() {
             setRefreshing(true);
             try {
               await removeUserLanguage(pair.target_language);
-              await fetchPairs();
+              await refresh();
             } finally {
               setRefreshing(false);
             }
@@ -101,6 +74,17 @@ export function LanguagePairsScreen() {
     );
   }
 
+  if (error) {
+    return (
+      <Screen padded>
+        <View style={{ gap: spacing.md }}>
+          <Text variant="body" color="danger">{error}</Text>
+          <Button label={t('common.retry')} onPress={refresh} />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen padded>
       <ScrollView
@@ -121,7 +105,7 @@ export function LanguagePairsScreen() {
         )}
 
         <View style={{ gap: spacing.md }}>
-          {pairs.length === 0 ? (
+          {languages.length === 0 ? (
             <Card variant="outlined">
               <Text variant="body" color="muted" style={{ textAlign: 'center' }}>
                 {t('settings.noLanguagePairs')}
@@ -129,7 +113,7 @@ export function LanguagePairsScreen() {
             </Card>
           ) : (
             <StaggeredList>
-              {pairs.map((pair) => (
+              {languages.map((pair) => (
                 <Card key={pair.target_language} variant="filled">
                   <View style={styles.row}>
                     <Pressable
@@ -161,7 +145,7 @@ export function LanguagePairsScreen() {
                     <View style={styles.actions}>
                       <Pressable
                         onPress={() => handleEdit(pair)}
-                        style={({ pressed }) => [
+                        style={({ pressed }: { pressed: boolean }) => [
                           styles.actionButton,
                           { opacity: pressed ? 0.6 : 1 },
                         ]}
@@ -171,7 +155,7 @@ export function LanguagePairsScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() => handleRemove(pair)}
-                        style={({ pressed }) => [
+                        style={({ pressed }: { pressed: boolean }) => [
                           styles.actionButton,
                           { opacity: pressed ? 0.6 : 1 },
                         ]}

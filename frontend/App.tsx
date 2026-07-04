@@ -6,6 +6,7 @@ import { me } from './src/api/auth';
 import { onboardingStorage, sessionStorage } from './src/api/storage';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
 import { AppLanguageProvider } from './src/i18n';
+import { LanguageProvider } from './src/contexts/LanguageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -39,9 +40,11 @@ function LoadingScreen() {
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   return (
-    <AddQueueProvider>
-      <RootNavigator onLogout={onLogout} />
-    </AddQueueProvider>
+    <LanguageProvider>
+      <AddQueueProvider>
+        <RootNavigator onLogout={onLogout} />
+      </AddQueueProvider>
+    </LanguageProvider>
   );
 }
 
