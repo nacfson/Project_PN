@@ -174,3 +174,35 @@ func TestUpdateLanguagePairTargetLanguage(t *testing.T) {
 		t.Fatalf("expected ja/ko pair after update, got %+v", listResp.Languages)
 	}
 }
+
+func TestUpdateLanguagePairNotFound(t *testing.T) {
+	router, token := testUserRouter(t)
+
+	body := `{"new_target_language":"fr","display_language":"ko"}`
+	req := authRequest(t, http.MethodPatch, "/api/user/languages/xx", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("update not-found: expected 404, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateLanguagePairConflict(t *testing.T) {
+	router, token := testUserRouter(t)
+
+	addBody := `{"target_language":"ja","display_language":"ko","set_active":false}`
+	addReq := authRequest(t, http.MethodPost, "/api/user/languages", addBody, token)
+	addRec := httptest.NewRecorder()
+	router.ServeHTTP(addRec, addReq)
+	if addRec.Code != http.StatusCreated {
+		t.Fatalf("add language: expected 201, got %d body=%s", addRec.Code, addRec.Body.String())
+	}
+
+	body := `{"new_target_language":"ja","display_language":"ko"}`
+	req := authRequest(t, http.MethodPatch, "/api/user/languages/en", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("update conflict: expected 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
