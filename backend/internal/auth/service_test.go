@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -86,6 +87,14 @@ func TestEnsureCentralUser(t *testing.T) {
 
 func uniqueEmail(prefix string) string {
 	return prefix + "@example.com"
+}
+
+func TestResolveTargetLangRejectsInvalid(t *testing.T) {
+	s := New(nil, Options{AllowedTargetLangs: []string{"en", "ja"}})
+	_, err := s.resolveTargetLang("<script>")
+	if !errors.Is(err, ErrInvalidTargetLang) {
+		t.Fatalf("expected invalid target language, got %v", err)
+	}
 }
 
 func repoPath(t *testing.T, parts ...string) string {

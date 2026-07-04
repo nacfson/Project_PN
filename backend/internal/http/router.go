@@ -37,6 +37,8 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 
+	languageMutateRL := newRateLimiter(30, time.Minute).middleware
+
 	if len(deps.AllowedOrigins) > 0 {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
@@ -69,12 +71,16 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Route("/api/user", func(userRouter chi.Router) {
 			userRouter.Use(authMW)
 			userRouter.Get("/languages", uh.listLanguages)
-			userRouter.Post("/languages", uh.addLanguage)
-			userRouter.Patch("/languages/{target_language}", uh.updateLanguagePair)
-			userRouter.Patch("/languages/{target_language}/active", uh.setActiveLanguage)
-			userRouter.Delete("/languages/{target_language}", uh.removeLanguage)
 			userRouter.Get("/ui-language", uh.getUILanguage)
-			userRouter.Put("/ui-language", uh.setUILanguage)
+
+			userRouter.Group(func(mutate chi.Router) {
+				mutate.Use(languageMutateRL)
+				mutate.Post("/languages", uh.addLanguage)
+				mutate.Patch("/languages/{target_language}", uh.updateLanguagePair)
+				mutate.Patch("/languages/{target_language}/active", uh.setActiveLanguage)
+				mutate.Delete("/languages/{target_language}", uh.removeLanguage)
+				mutate.Put("/ui-language", uh.setUILanguage)
+			})
 		})
 	}
 

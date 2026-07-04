@@ -1,6 +1,19 @@
 package auth
 
-import "time"
+import (
+	"errors"
+	"regexp"
+	"time"
+)
+
+var languageCodePattern = regexp.MustCompile(`^[a-z]{2,3}$`)
+
+func validateLanguageCode(code string) error {
+	if !languageCodePattern.MatchString(code) {
+		return errors.New("language code must be 2-3 lowercase letters")
+	}
+	return nil
+}
 
 // LanguagePair represents a target/definition language combination.
 type LanguagePair struct {

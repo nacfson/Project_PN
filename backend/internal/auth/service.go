@@ -82,6 +82,9 @@ func (s *Service) resolveTargetLang(requested string) (string, error) {
 	if requested == "" {
 		return s.defaultTargetLang, nil
 	}
+	if err := validateLanguageCode(requested); err != nil {
+		return "", ErrInvalidTargetLang
+	}
 	if len(s.allowedTargetLangs) > 0 && !contains(s.allowedTargetLangs, requested) {
 		return "", ErrInvalidTargetLang
 	}
@@ -95,6 +98,9 @@ func (s *Service) resolveDefinitionLang(requested string) (string, error) {
 	if requested == "" {
 		return s.defaultDefinitionLang, nil
 	}
+	if err := validateLanguageCode(requested); err != nil {
+		return "", ErrInvalidDefinitionLang
+	}
 	if len(s.allowedDefinitionLangs) > 0 && !contains(s.allowedDefinitionLangs, requested) {
 		return "", ErrInvalidDefinitionLang
 	}
@@ -107,6 +113,9 @@ func (s *Service) resolveUILang(requested string) (string, error) {
 	}
 	if requested == "" {
 		return s.defaultUILang, nil
+	}
+	if err := validateLanguageCode(requested); err != nil {
+		return "", ErrInvalidUILang
 	}
 	if len(s.allowedUILangs) > 0 && !contains(s.allowedUILangs, requested) {
 		return "", ErrInvalidUILang
