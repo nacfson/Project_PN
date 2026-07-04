@@ -1,0 +1,1 @@
+drop index if exists user_languages_user_id_created_at_idx;

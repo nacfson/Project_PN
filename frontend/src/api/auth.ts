@@ -8,8 +8,18 @@ import {
 } from './client';
 import { sessionStorage } from './storage';
 
+let languageOptionsCache: Promise<LanguageOptionsResponse> | null = null;
+let languageOptionsCacheTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 export async function getLanguageOptions(): Promise<LanguageOptionsResponse> {
-  return getLanguageOptionsApi();
+  const now = Date.now();
+  if (languageOptionsCache && now - languageOptionsCacheTime < CACHE_TTL_MS) {
+    return languageOptionsCache;
+  }
+  languageOptionsCache = getLanguageOptionsApi();
+  languageOptionsCacheTime = now;
+  return languageOptionsCache;
 }
 
 export async function login(email: string, password: string): Promise<SessionResponse> {
