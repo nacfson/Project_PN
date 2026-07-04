@@ -9,7 +9,7 @@ import { getStatsSummary } from '../../api/stats';
 import { useAppLanguage } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
 import type { StatsSummary } from '../../types';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useTheme, type ThemeVariation } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, ErrorState, Icon, Screen, Text } from '../../ui';
 import { SkeletonCard } from '../../ui/SkeletonCard';
 import { StaggeredList } from '../../ui/StaggeredList';
@@ -161,13 +161,32 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
   }, [forecast, reduced, motion.spring.bouncy]);
 
   return (
-    <View style={{ gap: spacing.sm }}>
+    <View style={{ gap: spacing.sm }} testID="forecast-spline-chart">
       <View style={[styles.forecastChart, { gap: spacing.xs }]}>
         {forecast.map((day, index) => {
           const height = Math.max(4, Math.round((day.count / maxCount) * 72));
           const isToday = index === 0;
           return (
             <View key={day.date} style={styles.forecastColumn}>
+              <Animated.View
+                style={[
+                  styles.splineDot,
+                  {
+                    backgroundColor: isToday ? colors.accent : colors.primary,
+                    opacity: animValues.current[index] || 1,
+                    transform: [
+                      {
+                        scale: animValues.current[index]
+                          ? animValues.current[index].interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.1, 1],
+                            })
+                          : 1,
+                      },
+                    ],
+                  },
+                ]}
+              />
               <Animated.View
                 style={[
                   styles.forecastBar,
@@ -180,7 +199,7 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
                       : height,
                     borderRadius: radii.sm,
                     backgroundColor: isToday ? colors.primary : colors.secondary,
-                    opacity: day.count === 0 ? 0.25 : 1,
+                    opacity: day.count === 0 ? 0.15 : 0.6,
                   },
                 ]}
               />
@@ -198,8 +217,54 @@ function ForecastChart({ forecast }: { forecast: StatsSummary['forecast'] }) {
   );
 }
 
+function XpProgressOrb({ xpToday, dailyGoalXP }: { xpToday: number; dailyGoalXP: number }) {
+  const { colors, spacing, radii } = useTheme();
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 10000,
+        useNativeDriver: true,
+      })
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [rotateAnim]);
+
+  const rotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const percent = Math.min(100, Math.round((xpToday / dailyGoalXP) * 100));
+
+  return (
+    <Card glass={true} testID="xp-progress-orb" style={styles.orbCard}>
+      <Text variant="title" bold style={{ marginBottom: spacing.xs }}>XP Progress</Text>
+      <View style={styles.orbContainer}>
+        <View style={[styles.orbOuterRing, { borderColor: colors.primary }]}>
+          <Animated.View style={[styles.orbGlass, { transform: [{ rotate: rotation }] }]}>
+            <LinearGradient
+              colors={[colors.primary, colors.accent]}
+              style={styles.orbGlow}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+          </Animated.View>
+          <View style={styles.orbInnerContent}>
+            <Text variant="headline" bold style={{ color: colors.text }}>{percent}%</Text>
+            <Text variant="caption" color="muted">{xpToday} / {dailyGoalXP} XP</Text>
+          </View>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
 export function HomeScreen() {
-  const { colors, spacing, motion, reduced } = useTheme();
+  const { colors, spacing, radii, motion, reduced, variation, setVariation } = useTheme();
   const { t } = useAppLanguage();
   const navigation = useNavigation<NavigationProp>();
   const [displayName, setDisplayName] = useState('Learner');
@@ -294,6 +359,15 @@ export function HomeScreen() {
     ? Object.values(stats.stage_counts).reduce((sum, count) => sum + count, 0)
     : null;
 
+  const variations: { key: ThemeVariation; label: string }[] = [
+    { key: 'bentoIndigo', label: 'Indigo Glow' },
+    { key: 'bentoSunset', label: 'Sunset Gold' },
+    { key: 'bentoLight', label: 'Light Mode' },
+    { key: 'cyberpunk', label: 'Cyberpunk' },
+    { key: 'minimalist', label: 'Minimalist' },
+    { key: 'brutalist', label: 'Brutalist' },
+  ];
+
   const renderLoading = () => (
     <View style={{ gap: spacing.lg }}>
       <SkeletonCard lines={2} />
@@ -319,13 +393,13 @@ export function HomeScreen() {
       }
     >
       <View style={{ gap: spacing.lg }}>
-          <View style={{ gap: spacing.xs }}>
+        <View style={styles.headerRow}>
+          <View style={{ gap: spacing.xs, flex: 1 }}>
             <Text variant="caption" color="muted">
               {t('home.greeting', { name: displayName })}
             </Text>
             <Text variant="headline">{t('home.subtitle')}</Text>
           </View>
-
           <Button
             label={t('add.addWord')}
             iconLeft="add"
@@ -333,28 +407,70 @@ export function HomeScreen() {
             onPress={() => navigation.navigate('Add')}
             accessibilityLabel={t('add.addWord')}
           />
+        </View>
 
-          {stats && streakAtRisk && hasDue ? (
-            <Card glass={true} style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
-              <Text style={{ color: colors.warning }}>
-                {t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })}
-              </Text>
-            </Card>
-          ) : null}
+        <View style={{ gap: spacing.xs }}>
+          <Text variant="caption" color="muted" style={{ paddingHorizontal: 4 }}>
+            Theme Variations
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.switcherContent, { gap: spacing.sm }]}
+            style={styles.switcherScroll}
+          >
+            {variations.map((v) => (
+              <Pressable
+                key={v.key}
+                onPress={() => setVariation(v.key)}
+                style={[
+                  styles.switcherChip,
+                  {
+                    backgroundColor: variation === v.key ? colors.primary : colors.surfaceGlass,
+                    borderColor: colors.outlineVariant,
+                    borderRadius: radii.md,
+                    paddingVertical: spacing.xs + 2,
+                    paddingHorizontal: spacing.md,
+                  }
+                ]}
+              >
+                <Text
+                  style={{
+                    color: variation === v.key ? colors.onPrimary : colors.textMuted,
+                    fontSize: 12,
+                    fontWeight: '600',
+                  }}
+                >
+                  {v.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
 
-          {statsError ? (
-            <ErrorState
-              message={t('home.statsLoadFailed')}
-              onRetry={handleRetry}
-            />
-          ) : !stats ? (
-            renderLoading()
-          ) : (
-            <StaggeredList style={{ gap: spacing.lg }}>
+        {stats && streakAtRisk && hasDue ? (
+          <Card glass={true} style={{ borderColor: colors.warning, borderWidth: 1, gap: spacing.sm }}>
+            <Text style={{ color: colors.warning }}>
+              {t('home.streakAtRisk', { count: dueCount ?? 0, days: streakDays })}
+            </Text>
+          </Card>
+        ) : null}
+
+        {statsError ? (
+          <ErrorState
+            message={t('home.statsLoadFailed')}
+            onRetry={handleRetry}
+          />
+        ) : !stats ? (
+          renderLoading()
+        ) : (
+          <View testID="bento-grid-container" style={[styles.bentoContainer, { gap: spacing.md }]}>
+            <View style={styles.bentoColumnLeft}>
               <CinematicCard
                 elevated
+                testID="hero-bento-card"
                 onPress={() => navigation.navigate('Practice')}
-                style={[styles.heroCard, { padding: 0, overflow: 'hidden', borderColor: 'transparent' }]}
+                style={[styles.heroCard, { padding: 0, overflow: 'hidden', borderColor: 'transparent', borderRadius: radii.xl }]}
                 revealActions={
                   <Icon name="arrow-forward" size="md" color="#ffffff" />
                 }
@@ -407,6 +523,10 @@ export function HomeScreen() {
                 </LinearGradient>
               </CinematicCard>
 
+              <XpProgressOrb xpToday={xpToday} dailyGoalXP={dailyGoalXP} />
+            </View>
+
+            <View style={styles.bentoColumnRight}>
               <View style={[styles.statsGrid, { gap: spacing.md }]}>
                 <AnimatedPressable
                   style={{ flex: 1, transform: [{ scale: flameScale }] }}
@@ -417,7 +537,7 @@ export function HomeScreen() {
                     <View style={[styles.statIconCircle, { backgroundColor: colors.tertiaryContainer }]}>
                       <Icon name="flame" size="md" color={colors.tertiary} />
                     </View>
-                    <View style={{ gap: spacing.xs }}>
+                    <View style={{ gap: spacing.xs, flex: 1 }}>
                       {stats ? (
                         <CountUpText target={streakDays} variant="title" bold />
                       ) : (
@@ -454,7 +574,7 @@ export function HomeScreen() {
                     <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryContainer }]}>
                       <Icon name="book" size="md" color={colors.secondary} />
                     </View>
-                    <View style={{ gap: spacing.xs }}>
+                    <View style={{ gap: spacing.xs, flex: 1 }}>
                       {totalWords !== null ? (
                         <CountUpText target={totalWords} variant="title" bold />
                       ) : (
@@ -468,46 +588,24 @@ export function HomeScreen() {
                 </AnimatedPressable>
               </View>
 
-              <Card glass={true} style={{ gap: spacing.sm, padding: spacing.lg }}>
-                <View style={styles.row}>
-                  <Text variant="title">{t('home.xpToday')}</Text>
-                  <Text variant="caption" color="primary" bold>
-                    {Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))}%
-                  </Text>
-                </View>
-                <AnimatedProgressBar percent={Math.min(100, Math.round((xpToday / dailyGoalXP) * 100))} />
-                <Text variant="caption" color="muted">
-                  <CountUpText target={xpToday} variant="caption" color="muted" /> / {dailyGoalXP} XP
-                </Text>
+              <Card glass={true} style={{ gap: spacing.md, padding: spacing.lg }}>
+                <Text variant="title">{t('home.forecastTitle')}</Text>
+                <ForecastChart forecast={stats.forecast} />
               </Card>
 
               <Card glass={true} style={{ gap: spacing.md, padding: spacing.lg }}>
                 <Text variant="title">{t('home.progressTitle')}</Text>
-                {statsError ? (
-                  <Text color="muted">{t('home.statsLoadFailed')}</Text>
-                ) : stats ? (
-                  <>
-                    <View style={{ gap: spacing.xs }}>
-                      <Text variant="caption" color="muted">
-                        {t('home.masteryTitle')}
-                      </Text>
-                      <MasteryBreakdown stageCounts={stats.stage_counts} />
-                    </View>
-
-                    <View style={{ gap: spacing.xs }}>
-                      <Text variant="caption" color="muted">
-                        {t('home.forecastTitle')}
-                      </Text>
-                      <ForecastChart forecast={stats.forecast} />
-                    </View>
-                  </>
-                ) : (
-                  <Text color="muted">{t('home.checkingDue')}</Text>
-                )}
+                <View style={{ gap: spacing.xs }}>
+                  <Text variant="caption" color="muted">
+                    {t('home.masteryTitle')}
+                  </Text>
+                  <MasteryBreakdown stageCounts={stats.stage_counts} />
+                </View>
               </Card>
-            </StaggeredList>
-          )}
-        </View>
+            </View>
+          </View>
+        )}
+      </View>
     </Screen>
   );
 }
@@ -601,5 +699,88 @@ const styles = StyleSheet.create({
   forecastLabel: {
     fontSize: 10,
     textAlign: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  switcherScroll: {
+    flexGrow: 0,
+  },
+  switcherContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  switcherChip: {
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bentoContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: '100%',
+  },
+  bentoColumnLeft: {
+    flex: 1,
+    minWidth: 280,
+    gap: 16,
+  },
+  bentoColumnRight: {
+    flex: 1.2,
+    minWidth: 320,
+    gap: 16,
+  },
+  orbCard: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+  },
+  orbOuterRing: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  orbGlass: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbGlow: {
+    width: '120%',
+    height: '120%',
+    opacity: 0.18,
+    borderRadius: 90,
+  },
+  orbInnerContent: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
   },
 });

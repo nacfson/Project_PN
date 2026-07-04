@@ -5,14 +5,36 @@ import { HomeScreen } from './HomeScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 
-jest.mock('../../api/auth', () => ({ me: jest.fn() }));
-jest.mock('../../api/stats', () => ({ getStatsSummary: jest.fn() }));
+jest.mock('../../api/auth', () => ({
+  me: jest.fn().mockResolvedValue({ email: 'Learner@example.com' })
+}));
+jest.mock('../../api/stats', () => ({
+  getStatsSummary: jest.fn().mockResolvedValue({
+    due_today: 5,
+    review_streak_days: 3,
+    daily_goal_xp: 200,
+    reviews_today: 10,
+    streak_at_risk: false,
+    vacation_mode_active: false,
+    streak_freeze_tokens: 1,
+    longest_streak_days: 10,
+    stage_counts: { new: 2, learning: 3, recognized: 5, recalled: 4, usable: 2, mastered: 1 },
+    forecast: [
+      { date: '2026-07-04', count: 5 },
+      { date: '2026-07-05', count: 3 }
+    ]
+  })
+}));
 
 const mockNavigate = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate }),
-  useFocusEffect: jest.fn(),
+  useFocusEffect: (cb: () => void) => {
+    require('react').useEffect(() => {
+      cb();
+    }, [cb]);
+  },
 }));
 
 function Wrapper({ children }: { children: ReactNode }) {
@@ -35,5 +57,13 @@ describe('HomeScreen', () => {
     await render(<HomeScreen />, { wrapper: Wrapper });
     // The greeting text is rendered with the default display name "Learner"
     expect(screen.getByText('Hello, Learner')).toBeTruthy();
+  });
+
+  it('renders Bento grid widget elements', async () => {
+    await render(<HomeScreen />, { wrapper: Wrapper });
+    expect(screen.getByTestId('bento-grid-container')).toBeTruthy();
+    expect(screen.getByTestId('hero-bento-card')).toBeTruthy();
+    expect(screen.getByTestId('xp-progress-orb')).toBeTruthy();
+    expect(screen.getByTestId('forecast-spline-chart')).toBeTruthy();
   });
 });
