@@ -313,28 +313,6 @@ export const visualVariations = {
     accentPink: '#db2777',
     accentPinkGlow: 'rgba(219, 39, 119, 0.15)',
     glassBlur: 24,
-  },
-  cyberpunk: {
-    background: '#060913',
-    surface: 'rgba(20, 30, 55, 0.45)',
-    border: 'rgba(255, 255, 255, 0.08)',
-    primaryGlow: 'rgba(79, 106, 255, 0.4)',
-    accentGlow: 'rgba(0, 255, 204, 0.4)',
-    glassBlur: 16,
-  },
-  minimalist: {
-    background: '#0d0d0e',
-    surface: '#18181c',
-    border: '#27272c',
-    primaryGlow: 'transparent',
-    accentGlow: 'transparent',
-    glassBlur: 0,
-  },
-  brutalist: {
-    background: '#0c0f1d',
-    surface: '#19213f',
-    border: '#ffffff', // Thick solid white borders (2px)
-    shadow: '6px 6px 0px #000000',
   }
 };
 

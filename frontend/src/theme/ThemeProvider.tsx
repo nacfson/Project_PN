@@ -21,10 +21,17 @@ import {
   Inter_800ExtraBold,
 } from '@expo-google-fonts/inter';
 
-export type ThemeVariation = 'bentoIndigo' | 'bentoSunset' | 'bentoLight' | 'cyberpunk' | 'minimalist' | 'brutalist';
+export type ThemeVariation = 'bentoIndigo' | 'bentoSunset' | 'bentoLight';
+
+const variationModes: Record<ThemeVariation, ThemeMode> = {
+  bentoLight: 'light',
+  bentoIndigo: 'dark',
+  bentoSunset: 'dark',
+};
 
 function getColorsForTheme(mode: ThemeMode, variation: ThemeVariation) {
-  const base = colorsFor(mode);
+  const targetMode = variationModes[variation];
+  const base = colorsFor(targetMode);
   const varOverrides = visualVariations[variation];
   
   if (!varOverrides) return base;
@@ -57,10 +64,18 @@ function getColorsForTheme(mode: ThemeMode, variation: ThemeVariation) {
     overrides.accent = '#00ffcc';
   }
 
-  return {
+  const merged = {
     ...base,
     ...overrides,
   };
+
+  // Re-propagate overrides to legacy text and border color aliases
+  merged.text = merged.onSurface;
+  merged.textMuted = merged.onSurfaceVariant;
+  merged.textInverse = merged.inverseOnSurface;
+  merged.border = merged.outlineVariant;
+
+  return merged;
 }
 
 interface ThemeContextValue extends Theme {

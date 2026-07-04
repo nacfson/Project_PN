@@ -63,11 +63,9 @@ describe('Theme Tokens Upgrade', () => {
     expect(darkColors.outlineVariant).toBe('#2A3048');
   });
 
-  it('should export bentoIndigo, bentoSunset, and bentoLight visualVariations', () => {
+  it('should export only bentoIndigo, bentoSunset, and bentoLight visualVariations', () => {
     expect(visualVariations).toBeDefined();
-    expect(visualVariations.bentoIndigo).toBeDefined();
-    expect(visualVariations.bentoSunset).toBeDefined();
-    expect(visualVariations.bentoLight).toBeDefined();
+    expect(Object.keys(visualVariations)).toEqual(['bentoIndigo', 'bentoSunset', 'bentoLight']);
     expect(visualVariations.bentoIndigo.background).toBe('#07070a');
     expect(visualVariations.bentoSunset.background).toBe('#0f0a0a');
     expect(visualVariations.bentoLight.background).toBe('#f4f5f7');
