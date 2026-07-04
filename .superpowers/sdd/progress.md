@@ -9,6 +9,6 @@ Branch: feat/language-pair-sync
 - [x] Task 1: Sync shared DTOs with backend (commits 08dd506b..6d3f698d, review clean)
 - [x] Task 2: Backend support target language change (commits eb105aa5..93bd8c6e, review clean)
 - [x] Task 3: Frontend EditLanguagePairScreen sync (commits d9754458..d82eda71, review clean)
-- [x] Task 4: Global active language state
-- [ ] Task 5: Backend security hardening
-- [ ] Task 6: Performance optimizations
+- [x] Task 4: Global active language state (commits 4b5fe3cb..96f12909, review clean)
+- [x] Task 5: Backend security hardening (commits ea9fbba9, review clean)
+- [x] Task 6: Performance optimizations (commits b7cd520c, review clean)

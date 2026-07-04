@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError } from '../../api/client';
 import { getLanguageOptions } from '../../api/auth';
 import { updateLanguagePair } from '../../api/userLanguages';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { SUPPORTED_LANGUAGES } from '../../config';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -16,6 +17,7 @@ export function EditLanguagePairScreen() {
   const { t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
   const route = useRoute<RouteProp<SettingsStackParamList, 'EditLanguagePair'>>();
+  const { refresh } = useLanguage();
   const { targetLanguage, displayLanguage } = route.params;
 
   const [targetOptions, setTargetOptions] = useState<string[]>([]);
@@ -69,6 +71,7 @@ export function EditLanguagePairScreen() {
     setHasDataError(false);
     try {
       await updateLanguagePair(targetLanguage, selectedTarget, selectedDisplay);
+      refresh();
       navigation.goBack();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

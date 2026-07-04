@@ -36,11 +36,7 @@ func (rl *rateLimiter) allow(ip string) bool {
 	}
 
 	if len(recent) >= rl.limit {
-		if len(recent) == 0 {
-			delete(rl.visitors, ip)
-		} else {
-			rl.visitors[ip] = recent
-		}
+		rl.visitors[ip] = recent
 		return false
 	}
 
@@ -60,7 +56,7 @@ func stripPort(addr string) string {
 func clientIP(r *http.Request) string {
 	ip, err := keyByRealIP(r)
 	if err == nil && ip != "" {
-		return ip
+		return stripPort(ip)
 	}
 	return stripPort(r.RemoteAddr)
 }

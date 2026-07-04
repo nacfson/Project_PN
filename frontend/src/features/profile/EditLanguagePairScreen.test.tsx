@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { EditLanguagePairScreen } from './EditLanguagePairScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
+import { LanguageProvider } from '../../contexts/LanguageContext';
 import { ApiError } from '../../api/client';
 import { clearLanguageOptionsCache } from '../../api/auth';
 
@@ -23,16 +24,20 @@ jest.mock('../../api/auth', () => ({
   }),
 }));
 
+const mockGetUserLanguages = jest.fn().mockResolvedValue([]);
 const mockUpdateLanguagePair = jest.fn();
 jest.mock('../../api/userLanguages', () => ({
   __esModule: true,
+  getUserLanguages: () => mockGetUserLanguages(),
   updateLanguagePair: (...args: any[]) => mockUpdateLanguagePair(...args),
 }));
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
     <AppLanguageProvider>
-      <ThemeProvider>{children}</ThemeProvider>
+      <LanguageProvider>
+        <ThemeProvider>{children}</ThemeProvider>
+      </LanguageProvider>
     </AppLanguageProvider>
   );
 }
@@ -42,6 +47,7 @@ describe('EditLanguagePairScreen', () => {
     jest.clearAllMocks();
     clearLanguageOptionsCache();
     mockUpdateLanguagePair.mockResolvedValue(undefined);
+    mockGetUserLanguages.mockResolvedValue([]);
   });
 
   it('calls updateLanguagePair with new target and display language on save', async () => {

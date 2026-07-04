@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ApiError } from '../../api/client';
 import { getLanguageOptions } from '../../api/auth';
 import { addUserLanguage } from '../../api/userLanguages';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { SUPPORTED_LANGUAGES } from '../../config';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -14,6 +16,7 @@ export function AddLanguagePairScreen() {
   const { colors, spacing } = useTheme();
   const { t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
+  const { refresh } = useLanguage();
   const [targetOptions, setTargetOptions] = useState<string[]>([]);
   const [displayOptions, setDisplayOptions] = useState<string[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<string | undefined>();
@@ -66,10 +69,15 @@ export function AddLanguagePairScreen() {
     setError(undefined);
     try {
       await addUserLanguage(selectedTarget, selectedDisplay, setActive);
+      refresh();
       navigation.goBack();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      if (message.toLowerCase().includes('already exists') || (err instanceof ApiError && err.status === 409)) {
+        setError(t('settings.languagePairAlreadyExists'));
+      } else {
+        setError(message);
+      }
     } finally {
       setSaving(false);
     }

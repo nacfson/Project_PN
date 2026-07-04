@@ -26,12 +26,6 @@ export async function setActiveUserLanguage(targetLanguage: string): Promise<voi
   await patchJson<void>(`/api/user/languages/${targetLanguage}/active`, {});
 }
 
-export async function updateDisplayLanguage(targetLanguage: string, displayLanguage: string): Promise<void> {
-  await patchJson<void>(`/api/user/languages/${targetLanguage}`, {
-    display_language: displayLanguage,
-  });
-}
-
 export async function updateLanguagePair(
   targetLanguage: string,
   newTargetLanguage: string,

@@ -20,7 +20,7 @@ export function LanguagePairsScreen() {
   const { colors, spacing } = useTheme();
   const { t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
-  const { languages, loading, error, refresh, setActive } = useLanguage();
+  const { languages, loading, isRefreshing, error, refresh, setActive } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleSetActive = async (targetLanguage: string) => {
@@ -72,7 +72,7 @@ export function LanguagePairsScreen() {
     });
   };
 
-  if (loading) {
+  if (loading && languages.length === 0) {
     return (
       <Screen padded>
         <LoadingState />
@@ -104,7 +104,7 @@ export function LanguagePairsScreen() {
           </Text>
         </View>
 
-        {refreshing && (
+        {(refreshing || isRefreshing) && (
           <View style={{ alignItems: 'center' }}>
             <Text variant="caption" color="muted">{t('app.loading')}</Text>
           </View>
