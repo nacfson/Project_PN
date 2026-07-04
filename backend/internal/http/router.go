@@ -70,7 +70,7 @@ func NewRouter(deps Dependencies) http.Handler {
 			userRouter.Use(authMW)
 			userRouter.Get("/languages", uh.listLanguages)
 			userRouter.Post("/languages", uh.addLanguage)
-			userRouter.Patch("/languages/{target_language}", uh.updateDisplayLanguage)
+			userRouter.Patch("/languages/{target_language}", uh.updateLanguagePair)
 			userRouter.Patch("/languages/{target_language}/active", uh.setActiveLanguage)
 			userRouter.Delete("/languages/{target_language}", uh.removeLanguage)
 			userRouter.Get("/ui-language", uh.getUILanguage)

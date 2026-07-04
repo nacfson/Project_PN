@@ -8,7 +8,6 @@ import (
 	"os"
 	"testing"
 
-
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
@@ -140,5 +139,38 @@ func TestUILanguageEndpoints(t *testing.T) {
 	router.ServeHTTP(putRec, putReq)
 	if putRec.Code != http.StatusNoContent {
 		t.Fatalf("set ui language: expected 204, got %d body=%s", putRec.Code, putRec.Body.String())
+	}
+}
+
+func TestUpdateLanguagePairTargetLanguage(t *testing.T) {
+	router, token := testUserRouter(t)
+
+	// Change the target language from "en" to "ja", keep display "ko".
+	body := `{"new_target_language":"ja","display_language":"ko"}`
+	req := authRequest(t, http.MethodPatch, "/api/user/languages/en", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("update target language: expected 204, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	listReq := authRequest(t, http.MethodGet, "/api/user/languages", "", token)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	var listResp userLanguagesResponse
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	var jaFound bool
+	for _, l := range listResp.Languages {
+		if l.TargetLanguage == "en" {
+			t.Fatalf("old target language en should no longer exist")
+		}
+		if l.TargetLanguage == "ja" && l.DisplayLanguage == "ko" {
+			jaFound = true
+		}
+	}
+	if !jaFound {
+		t.Fatalf("expected ja/ko pair after update, got %+v", listResp.Languages)
 	}
 }

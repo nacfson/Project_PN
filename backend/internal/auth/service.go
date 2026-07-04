@@ -55,8 +55,6 @@ func New(pool *pgxpool.Pool, opts Options) *Service {
 	}
 }
 
-
-
 func (s *Service) LanguageOptions() LanguageOptions {
 	return LanguageOptions{
 		Defaults: LanguagePair{
@@ -115,8 +113,6 @@ func (s *Service) resolveUILang(requested string) (string, error) {
 	}
 	return requested, nil
 }
-
-
 
 // GetUserLanguages returns every learning pair for a user, ordered by creation.
 func (s *Service) GetUserLanguages(ctx context.Context, userID string) ([]UserLanguage, error) {
@@ -259,9 +255,13 @@ func (s *Service) SetActiveUserLanguage(ctx context.Context, userID, targetLang 
 	return tx.Commit(ctx)
 }
 
-// UpdateUserLanguageDisplayLang changes the display language for an existing target.
-func (s *Service) UpdateUserLanguageDisplayLang(ctx context.Context, userID, targetLang, displayLang string) error {
-	targetLang, err := s.resolveTargetLang(targetLang)
+// UpdateUserLanguage changes the target language and/or display language of an existing pair.
+func (s *Service) UpdateUserLanguage(ctx context.Context, userID, oldTargetLang, newTargetLang, displayLang string) error {
+	oldTargetLang, err := s.resolveTargetLang(oldTargetLang)
+	if err != nil {
+		return err
+	}
+	newTargetLang, err = s.resolveTargetLang(newTargetLang)
 	if err != nil {
 		return err
 	}
@@ -270,15 +270,54 @@ func (s *Service) UpdateUserLanguageDisplayLang(ctx context.Context, userID, tar
 		return err
 	}
 
-	_, err = s.pool.Exec(ctx, `
-		update user_languages
-		set display_language = $3, updated_at = now()
-		where user_id = $1::uuid and target_language = $2
-	`, userID, targetLang, displayLang)
-	if err != nil {
-		return fmt.Errorf("auth: update display language: %w", err)
+	if oldTargetLang == newTargetLang {
+		_, err = s.pool.Exec(ctx, `
+			update user_languages
+			set display_language = $3, updated_at = now()
+			where user_id = $1::uuid and target_language = $2
+		`, userID, oldTargetLang, displayLang)
+		if err != nil {
+			return fmt.Errorf("auth: update display language: %w", err)
+		}
+		return nil
 	}
-	return nil
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("auth: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var exists bool
+	if err := tx.QueryRow(ctx, `
+		select exists(select 1 from user_languages where user_id = $1::uuid and target_language = $2)
+	`, userID, oldTargetLang).Scan(&exists); err != nil {
+		return fmt.Errorf("auth: check old target language: %w", err)
+	}
+	if !exists {
+		return ErrLanguageNotFound
+	}
+
+	var targetExists bool
+	if err := tx.QueryRow(ctx, `
+		select exists(select 1 from user_languages where user_id = $1::uuid and target_language = $2)
+	`, userID, newTargetLang).Scan(&targetExists); err != nil {
+		return fmt.Errorf("auth: check new target language: %w", err)
+	}
+	if targetExists {
+		return ErrTargetLanguageExists
+	}
+
+	_, err = tx.Exec(ctx, `
+		update user_languages
+		set target_language = $3, display_language = $4, updated_at = now()
+		where user_id = $1::uuid and target_language = $2
+	`, userID, oldTargetLang, newTargetLang, displayLang)
+	if err != nil {
+		return fmt.Errorf("auth: update user language: %w", err)
+	}
+
+	return tx.Commit(ctx)
 }
 
 // RemoveUserLanguage deletes a learning pair. If it was active, the oldest

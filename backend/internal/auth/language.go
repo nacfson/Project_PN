@@ -18,11 +18,11 @@ type AllowedLanguages struct {
 
 // LanguageOptions is the public contract for GET /api/auth/language-options.
 type LanguageOptions struct {
-	Defaults LanguagePair     `json:"defaults"`
-	Allowed  AllowedLanguages `json:"allowed"`
-	Forced   LanguagePair     `json:"forced"`
-	UIDefaults string         `json:"ui_defaults"`
-	UIForced   string         `json:"ui_forced"`
+	Defaults   LanguagePair     `json:"defaults"`
+	Allowed    AllowedLanguages `json:"allowed"`
+	Forced     LanguagePair     `json:"forced"`
+	UIDefaults string           `json:"ui_defaults"`
+	UIForced   string           `json:"ui_forced"`
 }
 
 // UserLanguage is one learning pair stored for a user.

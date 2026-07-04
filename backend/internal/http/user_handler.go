@@ -24,8 +24,9 @@ type addUserLanguageRequest struct {
 	SetActive       bool   `json:"set_active"`
 }
 
-type updateDisplayLanguageRequest struct {
-	DisplayLanguage string `json:"display_language"`
+type updateLanguagePairRequest struct {
+	NewTargetLanguage string `json:"new_target_language"`
+	DisplayLanguage   string `json:"display_language"`
 }
 
 type uiLanguageResponse struct {
@@ -72,14 +73,14 @@ func (h *userHandler) addLanguage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, ul)
 }
 
-func (h *userHandler) updateDisplayLanguage(w http.ResponseWriter, r *http.Request) {
+func (h *userHandler) updateLanguagePair(w http.ResponseWriter, r *http.Request) {
 	targetLang := chi.URLParam(r, "target_language")
 	if targetLang == "" {
 		writeError(w, http.StatusBadRequest, "target_language is required")
 		return
 	}
 
-	var req updateDisplayLanguageRequest
+	var req updateLanguagePairRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
@@ -88,8 +89,11 @@ func (h *userHandler) updateDisplayLanguage(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "display_language is required")
 		return
 	}
+	if req.NewTargetLanguage == "" {
+		req.NewTargetLanguage = targetLang
+	}
 
-	if err := h.svc.UpdateUserLanguageDisplayLang(r.Context(), userIDFromRequest(r), targetLang, req.DisplayLanguage); err != nil {
+	if err := h.svc.UpdateUserLanguage(r.Context(), userIDFromRequest(r), targetLang, req.NewTargetLanguage, req.DisplayLanguage); err != nil {
 		h.writeUserError(w, err)
 		return
 	}
@@ -161,6 +165,8 @@ func (h *userHandler) writeUserError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid ui language")
 	case errors.Is(err, auth.ErrLanguageNotFound):
 		writeError(w, http.StatusNotFound, "language not found")
+	case errors.Is(err, auth.ErrTargetLanguageExists):
+		writeError(w, http.StatusConflict, "target language already exists")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
