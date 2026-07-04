@@ -205,3 +205,8 @@ export interface LanguageOptionsResponse {
   ui_defaults: string;
   ui_forced: string;
 }
+
+export interface UpdateLanguagePairRequest {
+  new_target_language: string;
+  display_language: string;
+}

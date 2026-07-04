@@ -1,8 +1,9 @@
 import React, { ReactNode } from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { EditLanguagePairScreen } from './EditLanguagePairScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
+import { ApiError } from '../../api/client';
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -50,11 +51,28 @@ describe('EditLanguagePairScreen', () => {
       expect(screen.getByText('Save').props.accessibilityState?.disabled).not.toBe(true)
     );
 
-    await act(async () => {
-      fireEvent.press(screen.getByText('Save'));
-    });
+    fireEvent.press(screen.getByText('Save'));
 
+    await waitFor(() => expect(mockGoBack).toHaveBeenCalled());
     expect(mockUpdateLanguagePair).toHaveBeenCalledWith('en', 'ja', 'ko');
-    expect(mockGoBack).toHaveBeenCalled();
+  });
+
+  it('shows already exists message when updateLanguagePair rejects with 409', async () => {
+    mockUpdateLanguagePair.mockRejectedValue(new ApiError(409, 'target language already exists'));
+    render(<EditLanguagePairScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByTestId('target-language-ja')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('target-language-ja'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Save').props.accessibilityState?.disabled).not.toBe(true)
+    );
+
+    fireEvent.press(screen.getByText('Save'));
+
+    await waitFor(() =>
+      expect(screen.getByText('A language pair with this learning language already exists.')).toBeTruthy()
+    );
+    expect(mockGoBack).not.toHaveBeenCalled();
   });
 });

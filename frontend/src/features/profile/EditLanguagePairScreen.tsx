@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ApiError } from '../../api/client';
 import { getLanguageOptions } from '../../api/auth';
 import { updateLanguagePair } from '../../api/userLanguages';
 import { SUPPORTED_LANGUAGES } from '../../config';
@@ -71,7 +72,7 @@ export function EditLanguagePairScreen() {
       navigation.goBack();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.toLowerCase().includes('already exists') || (err as any)?.status === 409) {
+      if (message.toLowerCase().includes('already exists') || (err instanceof ApiError && err.status === 409)) {
         setError(t('settings.languagePairAlreadyExists'));
       } else if (message.toLowerCase().includes('has learning data')) {
         setHasDataError(true);
