@@ -1,9 +1,16 @@
-# Superplan Guidelines for Claude Code
+# Project PN Developer Guidelines
 
-## Workflow Stages
-You MUST follow the Superplan workflow for all developmental steps:
+## Build & Test Commands
+Run these commands from the `frontend` directory:
+- Start Expo Metro Bundler: `npm run start`
+- Run Web version: `npm run web`
+- Run Desktop Developer version (Tauri): `npm run desktop:dev`
+- Build Desktop version: `npm run desktop:build`
+- Run Test Suite: `npm run test`
+- Run Tests in Watch mode: `npm run test:watch`
 
-1. **Brainstorming & Spec**: Before writing code, refine the design and save specifications under `docs/superplan/spec/YYYY-MM-DD-<topic>-design.md`.
-2. **Planning**: Create a step-by-step checklist plan under `docs/superplan/plan/YYYY-MM-DD-<topic>-plan.md` before implementing.
-3. **Memory Logging**: At the end of any significant session (consensus on architecture, debugging fix, or task completion), save context summaries to `docs/superplan/memory/YYYY-MM-DD-<topic>-memory.md`.
-4. **Deprecation Logging**: If any code, function, file, or API pattern is deprecated, track it in `docs/superplan/deprecated/YYYY-MM-DD-<topic>.md`.
+## UI/UX Guidelines
+- **Responsive Layouts**: Design screens using Flexbox layouts adapting to both mobile screen aspect ratios and desktop window sizes (default: 1000x720).
+- **Theme Variables**: Reference design tokens from `frontend/src/theme/tokens.ts` for styling. Avoid hardcoded values.
+- **Input Styling**: Utilize the shared `Input` component under `frontend/src/ui/Input.tsx` for form fields.
+- **Translations**: Always register user-facing UI copy in both English (`en`) and Korean (`ko`) in `frontend/src/i18n/translations.ts`.
