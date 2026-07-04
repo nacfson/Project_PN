@@ -195,6 +195,7 @@ export interface LanguagePair {
 export interface AllowedLanguages {
   target_languages: string[];
   definition_languages: string[];
+  ui_languages: string[];
 }
 
 export interface LanguageOptionsResponse {

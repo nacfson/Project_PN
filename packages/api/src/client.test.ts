@@ -38,13 +38,14 @@ test('tries fallback URLs', async () => {
   expect(global.fetch).toHaveBeenLastCalledWith('http://second/test', expect.any(Object));
 });
 
-import type { MeResponse, LanguageOptionsResponse } from './types';
+import type { MeResponse, LanguageOptionsResponse, AllowedLanguages } from './types';
 
 type AssertKeys<T, K extends keyof T> = K;
 
 // If backend adds/renames fields, these lines will fail to compile.
 type _Me = AssertKeys<MeResponse, 'id' | 'email' | 'email_verified' | 'native_language' | 'target_language' | 'active_language' | 'ui_language'>;
 type _LangOpts = AssertKeys<LanguageOptionsResponse, 'defaults' | 'allowed' | 'forced' | 'ui_defaults' | 'ui_forced'>;
+type _Allowed = AssertKeys<AllowedLanguages, 'target_languages' | 'definition_languages' | 'ui_languages'>;
 
 describe('DTO shape', () => {
   it('MeResponse includes active_language and ui_language', () => {
@@ -65,5 +66,16 @@ describe('DTO shape', () => {
       ui_language: 'ko',
     };
     expect(me.active_language.is_active).toBe(true);
+  });
+
+  it('AllowedLanguages includes target_languages, definition_languages, and ui_languages', () => {
+    const allowed: AllowedLanguages = {
+      target_languages: ['en', 'ko'],
+      definition_languages: ['ko', 'en'],
+      ui_languages: ['ko', 'en'],
+    };
+    expect(allowed.target_languages).toEqual(['en', 'ko']);
+    expect(allowed.definition_languages).toEqual(['ko', 'en']);
+    expect(allowed.ui_languages).toEqual(['ko', 'en']);
   });
 });
