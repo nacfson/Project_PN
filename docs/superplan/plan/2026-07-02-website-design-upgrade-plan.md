@@ -1,6 +1,6 @@
 # Premium Apple-Style UI/UX Design Upgrade Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Overhaul the Project PN React Native/Expo frontend design from standard purple MD3 to a premium Apple-style blue-indigo glassmorphism experience, with Inter typography and scroll-driven collapsed navigation headers and hideable tab bar.
 
@@ -56,7 +56,7 @@ graph TD
 - Updates `typography.sizes` and `typography.fontFamily` to Inter.
 - Updates `shadows` to use primary-tinted shadows in light mode.
 
-- [ ] **Step 1: Write a failing test for theme colors and typography**
+- [x] **Step 1: Write a failing test for theme colors and typography**
   Create/Modify the test file `frontend/src/theme/tokens.test.ts` to assert the presence of new tokens and properties:
   ```typescript
   import { colorsFor, typography, shadows } from './tokens';
@@ -78,11 +78,11 @@ graph TD
   });
   ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `npm run test` (inside frontend directory)
   Expected: FAIL (missing `surfaceGlass`, incorrect colors/fonts)
 
-- [ ] **Step 3: Modify `src/theme/tokens.ts`**
+- [x] **Step 3: Modify `src/theme/tokens.ts`**
   Apply the following modifications to `frontend/src/theme/tokens.ts`:
   ```diff
   -  primary: '#7c5cbf',
@@ -225,7 +225,7 @@ graph TD
      },
    ```
 
-- [ ] **Step 4: Update `src/theme/ThemeProvider.tsx` to load Inter Font**
+- [x] **Step 4: Update `src/theme/ThemeProvider.tsx` to load Inter Font**
   Modify font loading configuration in `frontend/src/theme/ThemeProvider.tsx`:
   ```diff
   // Include standard weights in the Font loading Hook
@@ -239,7 +239,7 @@ graph TD
   });
   ```
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
   Run: `npm run test`
   Verify: PASS
   Commit:
@@ -262,7 +262,7 @@ graph TD
 - `Card` supports a `glass` prop to render frosted backgrounds on iOS/Web/Android.
 - `Button` scales down to `0.95` and supports a `pill` border radius.
 
-- [ ] **Step 1: Write a failing test for core UI primitives**
+- [x] **Step 1: Write a failing test for core UI primitives**
   Write tests in `frontend/src/ui/Card.test.tsx` to assert new props:
   ```typescript
   import { render } from '@testing-library/react-native';
@@ -280,11 +280,11 @@ graph TD
   });
   ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `npm run test`
   Expected: FAIL
 
-- [ ] **Step 3: Modify `src/ui/Text.tsx`**
+- [x] **Step 3: Modify `src/ui/Text.tsx`**
   Replace variant styling with token references:
   ```diff
   const variantStyles = StyleSheet.create({
@@ -303,7 +303,7 @@ graph TD
   });
   ```
 
-- [ ] **Step 4: Modify `src/ui/Card.tsx`**
+- [x] **Step 4: Modify `src/ui/Card.tsx`**
   Support `glass` layout with platform-aware backdrops:
   ```diff
   // Add expo-blur imports at top
@@ -350,7 +350,7 @@ graph TD
   );
   ```
 
-- [ ] **Step 5: Modify `src/ui/Button.tsx`**
+- [x] **Step 5: Modify `src/ui/Button.tsx`**
   Update snappy scaling and support `pill`:
   ```diff
   const handlePressIn = () => {
@@ -369,7 +369,7 @@ graph TD
   const buttonRadius = pill ? radii.full : radii.lg;
   ```
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
   Run: `npm run test`
   Verify: PASS
   Commit:
@@ -389,7 +389,7 @@ graph TD
 - `Screen` accepts a scroll container and manages collapsible titles.
 - `MainTabs` updates bottom navigation to animate out on scroll down.
 
-- [ ] **Step 1: Implement Scroll Observer in `Screen.tsx`**
+- [x] **Step 1: Implement Scroll Observer in `Screen.tsx`**
   Modify `frontend/src/ui/Screen.tsx` to export scroll position derivatives using Reanimated:
   ```typescript
   import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
@@ -410,7 +410,7 @@ graph TD
   }
   ```
 
-- [ ] **Step 2: Add Sliding Pill Indicator to `MainTabs.tsx`**
+- [x] **Step 2: Add Sliding Pill Indicator to `MainTabs.tsx`**
   Add Reanimated horizontal indicator behind tab bar:
   ```typescript
   // MainTabs.tsx
@@ -423,7 +423,7 @@ graph TD
   });
   ```
 
-- [ ] **Step 3: Run verification and commit**
+- [x] **Step 3: Run verification and commit**
   Run: `npm run build:web` or verify local dev server
   Commit:
   ```bash
