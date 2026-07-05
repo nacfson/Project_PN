@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Project PN",
+  "version": "1.0.0",
+  "permissions": ["contextMenus", "activeTab", "storage", "scripting"],
+  "host_permissions": [],
+  "externally_connectable": {
+    "matches": [
+      "https://app.projectpn.com/*",
+      "http://localhost:8081/*"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

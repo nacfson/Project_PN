@@ -33,6 +33,17 @@ describe('useLearningItems', () => {
     );
   });
 
+  it('passes languageCode to listLearningItems', async () => {
+    mockedListLearningItems.mockResolvedValue({ items: [], next_cursor: null });
+
+    const { result } = await renderHook(() => useLearningItems('', undefined, true, 'zh'), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(mockedListLearningItems).toHaveBeenCalledWith(
+      expect.objectContaining({ languageCode: 'zh' }),
+    );
+  });
+
   it('passes deckId to listLearningItems', async () => {
     mockedListLearningItems.mockResolvedValue({ items: [], next_cursor: null });
 

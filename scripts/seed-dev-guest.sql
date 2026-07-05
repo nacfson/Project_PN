@@ -24,26 +24,18 @@
   DO $$ BEGIN RAISE EXCEPTION 'seed-dev-guest.sql guard failed: IS_LOCAL not set'; END $$;
 \endif
 
--- Plain token: local-dev-guest
--- Hash = lower(hex(sha256('local-dev-guest')))
-\set token_hash '3d0d4e8359b96a65bf38b50287b0d9df6ecdfd757d1211ae8b354cbc3f910b9c'
 
 -- 1. Mark the seeded dev user as email-verified.
 update users
 set email_verified_at = now()
 where id = '00000000-0000-0000-0000-000000000001';
 
--- 2. Create or refresh a long-lived guest session.
-insert into sessions (user_id, token_hash, expires_at)
+-- 2. Link the local dev guest identity under central authentication mapping.
+insert into user_identities (user_id, provider, provider_subject, email_at_provider)
 values (
     '00000000-0000-0000-0000-000000000001',
-    :'token_hash',
-    now() + interval '30 days'
+    'nacfson',
+    '00000000-0000-0000-0000-000000000001',
+    'dev@project-pn.local'
 )
-on conflict (token_hash) do update set expires_at = excluded.expires_at;
-
--- 3. Clean up expired sessions for the guest user to keep the table tidy.
-delete from sessions
-where user_id = '00000000-0000-0000-0000-000000000001'
-  and expires_at < now()
-  and token_hash <> :'token_hash';
+on conflict (provider, provider_subject) do nothing;

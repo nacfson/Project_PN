@@ -48,6 +48,9 @@ fastlane/test_output
 
 # Flutter (if added later)
 .dart_tool/
+
+# Node.js
+node_modules/
 .flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
