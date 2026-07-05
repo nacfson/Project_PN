@@ -46,6 +46,10 @@ describe('authLaunch utils', () => {
       expect(extractTokenFromUrl('http://localhost:8081/#/dashboard?token=xyz_token')).toBe('xyz_token');
     });
 
+    it('extracts #token= from raw hash fragment (auth server style)', () => {
+      expect(extractTokenFromUrl('projectpn://auth#token=hash_raw_token')).toBe('hash_raw_token');
+    });
+
     it('returns null if token is not present', () => {
       expect(extractTokenFromUrl('http://localhost:8081/#/dashboard?foo=bar')).toBeNull();
     });

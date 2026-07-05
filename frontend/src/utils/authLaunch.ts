@@ -2,20 +2,24 @@ import { Linking, Platform } from 'react-native';
 
 export function extractTokenFromUrl(urlStr: string): string | null {
   try {
-    // 1. Look for '?token=...' or '&token=...'
-    const searchMatch = urlStr.match(/[?&]token=([^&#]+)/);
+    // Split into the part before # and the hash fragment.
+    const hashIndex = urlStr.indexOf('#');
+    const beforeHash = hashIndex === -1 ? urlStr : urlStr.substring(0, hashIndex);
+    const hashPart = hashIndex === -1 ? '' : urlStr.substring(hashIndex + 1);
+
+    // 1. Look for '?token=...' or '&token=...' in the query string (before #).
+    const searchMatch = beforeHash.match(/[?&]token=([^&#]+)/);
     if (searchMatch) {
       return decodeURIComponent(searchMatch[1]);
     }
-    // 2. Look for '#...token=...' inside the hash segment (e.g. #/dashboard?token=...)
-    const hashIndex = urlStr.indexOf('#');
-    if (hashIndex !== -1) {
-      const hashPart = urlStr.substring(hashIndex);
-      const hashMatch = hashPart.match(/[?&]token=([^&#]+)/);
-      if (hashMatch) {
-        return decodeURIComponent(hashMatch[1]);
-      }
+
+    // 2. Look for 'token=...' inside the hash fragment.
+    //    Supports '#/dashboard?token=...' and the raw '#token=...' style used by the central auth server.
+    const hashMatch = hashPart.match(/(?:^|[?&])token=([^&#]+)/);
+    if (hashMatch) {
+      return decodeURIComponent(hashMatch[1]);
     }
+
     return null;
   } catch {
     return null;
