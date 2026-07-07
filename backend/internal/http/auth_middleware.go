@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"strings"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 )
 
-func authMiddleware(svc *auth.Service, central *auth.CentralClient) func(http.Handler) http.Handler {
+func authMiddleware(svc *auth.Service, central *auth.CentralClient, logger admin.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := bearerToken(r)
@@ -21,6 +22,7 @@ func authMiddleware(svc *auth.Service, central *auth.CentralClient) func(http.Ha
 			}
 			session, err := central.ValidateSession(r.Context(), token)
 			if err != nil {
+				logger.Logf("AUTH_FAILURE", "session validation failed from %s: %v", r.RemoteAddr, err)
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
@@ -34,11 +36,14 @@ func authMiddleware(svc *auth.Service, central *auth.CentralClient) func(http.Ha
 	}
 }
 
-func requireVerified() func(http.Handler) http.Handler {
+func requireVerified(logger admin.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user, ok := userFromContext(r.Context())
 			if !ok || !user.IsEmailVerified() {
+				if ok {
+					logger.Logf("VERIFY_REQUIRED", "%s requested %s %s but email is not verified", user.Email, r.Method, r.URL.Path)
+				}
 				writeError(w, http.StatusForbidden, "email verification required")
 				return
 			}

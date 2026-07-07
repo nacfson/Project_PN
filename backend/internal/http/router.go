@@ -55,8 +55,8 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
-		authMW = authMiddleware(deps.Auth, deps.CentralAuth)
-		ah := &authHandler{svc: deps.Auth}
+		authMW = authMiddleware(deps.Auth, deps.CentralAuth, deps.AdminLogger)
+		ah := &authHandler{svc: deps.Auth, logger: deps.AdminLogger}
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
 			authRouter.Get("/language-options", ah.languageOptions)
@@ -64,7 +64,7 @@ func NewRouter(deps Dependencies) http.Handler {
 			authRouter.Group(func(protected chi.Router) {
 				protected.Use(authMW)
 				protected.Get("/me", ah.me)
-				protected.Post("/logout", centralLogout(deps.CentralAuth))
+				protected.Post("/logout", centralLogout(deps.CentralAuth, deps.AdminLogger))
 			})
 		})
 
@@ -91,7 +91,7 @@ func NewRouter(deps Dependencies) http.Handler {
 			api.Group(func(protected chi.Router) {
 				if deps.Auth != nil {
 					protected.Use(authMW)
-					protected.Use(requireVerified())
+					protected.Use(requireVerified(deps.AdminLogger))
 				}
 				protected.Post("/words/lookup", wh.lookup)
 				protected.Get("/learning-items", wh.listLearningItems)
