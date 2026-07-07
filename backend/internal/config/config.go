@@ -30,6 +30,8 @@ const (
 
 	defaultDevExtensionID  = ""
 	defaultProdExtensionID = ""
+
+	defaultAdminLogPath = "/var/log/project-pn/admin.log"
 )
 
 type Config struct {
@@ -66,6 +68,8 @@ type Config struct {
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
 	ExpoAccessToken            string
+
+	AdminLogPath string
 }
 
 func Load() Config {
@@ -105,6 +109,8 @@ func Load() Config {
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
 		ExpoAccessToken:            os.Getenv("EXPO_ACCESS_TOKEN"),
+
+		AdminLogPath: envOrDefault("ADMIN_LOG_PATH", defaultAdminLogPath),
 	}
 }
 
