@@ -1,39 +1,47 @@
 package admin
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 )
 
+// requestRecorder records a single HTTP request for metrics.
+type requestRecorder interface {
+	RecordRequest(statusCode int, latencyMs int64, userID string)
+}
+
 // HTTPLoggingMiddleware records request metrics and logs 5xx responses.
 // A nil logger is treated as a no-op logger; a nil collector skips metrics collection.
-func HTTPLoggingMiddleware(logger Logger, collector *MetricsCollector, userIDFromRequest func(*http.Request) string) func(http.Handler) http.Handler {
+func HTTPLoggingMiddleware(logger Logger, collector requestRecorder, userIDFromRequest func(*http.Request) string) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = NoopLogger{}
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				if rec := recover(); rec != nil {
-					return
-				}
-			}()
-
 			start := time.Now()
 			ww := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 			next.ServeHTTP(ww, r)
 
-			latencyMs := time.Since(start).Milliseconds()
-			userID := ""
-			if userIDFromRequest != nil {
-				userID = userIDFromRequest(r)
-			}
-			if collector != nil {
-				collector.RecordRequest(ww.statusCode, latencyMs, userID)
-			}
-			if ww.statusCode >= 500 {
-				logger.Logf("ERROR", "%s %s returned %d in %dms", r.Method, r.URL.Path, ww.statusCode, latencyMs)
-			}
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						slog.Error("admin: panic in HTTP logging middleware post-handler", "recover", rec)
+					}
+				}()
+
+				latencyMs := time.Since(start).Milliseconds()
+				userID := ""
+				if userIDFromRequest != nil {
+					userID = userIDFromRequest(r)
+				}
+				if collector != nil {
+					collector.RecordRequest(ww.statusCode, latencyMs, userID)
+				}
+				if ww.statusCode >= 500 {
+					logger.Logf("ERROR", "%s %s returned %d in %dms", r.Method, r.URL.Path, ww.statusCode, latencyMs)
+				}
+			}()
 		})
 	}
 }
