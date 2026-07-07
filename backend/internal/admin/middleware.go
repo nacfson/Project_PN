@@ -6,9 +6,19 @@ import (
 )
 
 // HTTPLoggingMiddleware records request metrics and logs 5xx responses.
+// A nil logger is treated as a no-op logger; a nil collector skips metrics collection.
 func HTTPLoggingMiddleware(logger Logger, collector *MetricsCollector, userIDFromRequest func(*http.Request) string) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = NoopLogger{}
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					return
+				}
+			}()
+
 			start := time.Now()
 			ww := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 			next.ServeHTTP(ww, r)
@@ -18,7 +28,9 @@ func HTTPLoggingMiddleware(logger Logger, collector *MetricsCollector, userIDFro
 			if userIDFromRequest != nil {
 				userID = userIDFromRequest(r)
 			}
-			collector.RecordRequest(ww.statusCode, latencyMs, userID)
+			if collector != nil {
+				collector.RecordRequest(ww.statusCode, latencyMs, userID)
+			}
 			if ww.statusCode >= 500 {
 				logger.Logf("ERROR", "%s %s returned %d in %dms", r.Method, r.URL.Path, ww.statusCode, latencyMs)
 			}

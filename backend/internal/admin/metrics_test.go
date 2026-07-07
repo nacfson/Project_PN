@@ -10,7 +10,7 @@ type fakeLogger struct {
 }
 
 func (f *fakeLogger) Log(category, message string) {
-	f.logs = append(f.logs, category+": "+message)
+	f.logs = append(f.logs, "["+category+"] "+message)
 }
 
 func (f *fakeLogger) Logf(category, format string, args ...interface{}) {
@@ -31,7 +31,7 @@ func TestMetricsCollector_Flush(t *testing.T) {
 	if len(logger.logs) != 1 {
 		t.Fatalf("expected 1 log, got %d", len(logger.logs))
 	}
-	expected := "METRICS: last 60s: 3 requests, 1 errors, avg latency 60ms, 2 active users"
+	expected := "[METRICS] last 60s: 3 requests, 1 errors, avg latency 60ms, 2 active users"
 	if logger.logs[0] != expected {
 		t.Fatalf("expected %q, got %q", expected, logger.logs[0])
 	}

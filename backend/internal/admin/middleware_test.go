@@ -30,11 +30,11 @@ func TestHTTPLoggingMiddleware_Logs5xxAndRecordsMetrics(t *testing.T) {
 	if len(logger.logs) != 2 {
 		t.Fatalf("expected 2 logs, got %d: %v", len(logger.logs), logger.logs)
 	}
-	if !contains(logger.logs[0], "ERROR") {
-		t.Fatalf("expected ERROR log, got %s", logger.logs[0])
+	if !contains(logger.logs[0], "[ERROR]") {
+		t.Fatalf("expected [ERROR] log, got %s", logger.logs[0])
 	}
-	if !contains(logger.logs[1], "METRICS") {
-		t.Fatalf("expected METRICS log, got %s", logger.logs[1])
+	if !contains(logger.logs[1], "[METRICS]") {
+		t.Fatalf("expected [METRICS] log, got %s", logger.logs[1])
 	}
 }
 
