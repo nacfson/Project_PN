@@ -32,7 +32,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 
-	if deps.AdminLogger != nil && deps.MetricsCollector != nil {
+	if _, isNoop := deps.AdminLogger.(admin.NoopLogger); !isNoop && deps.AdminLogger != nil && deps.MetricsCollector != nil {
 		r.Use(admin.HTTPLoggingMiddleware(deps.AdminLogger, deps.MetricsCollector, func(r *http.Request) string {
 			return userIDFromRequest(r)
 		}))

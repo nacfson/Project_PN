@@ -3,6 +3,7 @@ package admin
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -48,7 +49,9 @@ func (l *FileLogger) Log(category, message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	ts := time.Now().UTC().Format(time.RFC3339)
-	_, _ = fmt.Fprintf(l.w, "%s [%s] %s\n", ts, category, message)
+	if _, err := fmt.Fprintf(l.w, "%s [%s] %s\n", ts, category, message); err != nil {
+		slog.Error("admin log: failed to write audit log", "error", err, "category", category)
+	}
 }
 
 func (l *FileLogger) Logf(category, format string, args ...interface{}) {

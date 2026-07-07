@@ -121,7 +121,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		return LookupResult{}, err
 	}
 
-	options, err := s.persistEntries(ctx, langCode, defLangCode, normalized, result.Entries)
+	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries)
 	if err != nil {
 		return LookupResult{}, err
 	}
@@ -161,7 +161,7 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 	if err != nil {
 		return LookupResult{}, err
 	}
-	options, err := s.persistEntries(ctx, langCode, defLangCode, normalized, result.Entries)
+	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries)
 	if err != nil {
 		return LookupResult{}, err
 	}
@@ -834,7 +834,7 @@ func (s *Service) cacheTranslateResult(ctx context.Context, displayLang string, 
 
 // persistEntries inserts enrich entries (words + senses + examples) and returns
 // the resulting sense options.
-func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, normalized string, entries []enrich.Entry) ([]SenseOption, error) {
+func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangCode, normalized string, entries []enrich.Entry) ([]SenseOption, error) {
 	if len(entries) == 0 {
 		return nil, ErrNoSenses
 	}
@@ -847,6 +847,12 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 
 	seen := map[string]bool{}
 	var wordIDs []string
+	type addedWord struct {
+		wordID string
+		lemma  string
+		pos    string
+	}
+	var addedWords []addedWord
 	for _, entry := range entries {
 		pos := strings.ToLower(strings.TrimSpace(entry.PartOfSpeech))
 		if pos == "" || len(entry.Senses) == 0 {
@@ -854,6 +860,7 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 		}
 
 		var wordID string
+		lemma := firstNonEmpty(entry.Lemma, normalized)
 		err := tx.QueryRow(ctx,
 			`insert into words (language_code, lemma, normalized_text, part_of_speech, pronunciation)
 			 values ($1, $2, $3, $4, $5)
@@ -861,7 +868,7 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 			 do update set pronunciation = coalesce(nullif(excluded.pronunciation, ''), words.pronunciation),
 			               updated_at = now()
 			 returning id::text`,
-			langCode, firstNonEmpty(entry.Lemma, normalized), normalized, pos, nullString(entry.Pronunciation),
+			langCode, lemma, normalized, pos, nullString(entry.Pronunciation),
 		).Scan(&wordID)
 		if err != nil {
 			return nil, fmt.Errorf("words: upsert word: %w", err)
@@ -873,6 +880,7 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 		if !seen[wordID] {
 			seen[wordID] = true
 			wordIDs = append(wordIDs, wordID)
+			addedWords = append(addedWords, addedWord{wordID: wordID, lemma: lemma, pos: pos})
 		}
 	}
 
@@ -884,10 +892,8 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 		return nil, err
 	}
 
-	for _, wordID := range wordIDs {
-		var lemma, langCode, pos string
-		_ = s.pool.QueryRow(ctx, `select lemma, language_code, part_of_speech from words where id = $1::uuid`, wordID).Scan(&lemma, &langCode, &pos)
-		s.logf("ADD_WORD", "created word '%s' (%s, %s)", lemma, langCode, pos)
+	for _, w := range addedWords {
+		s.logf("ADD_WORD", "user %s created word '%s' (%s, %s)", userID, w.lemma, langCode, w.pos)
 	}
 
 	options, err := loadSenseOptions(ctx, s.pool, wordIDs, defLangCode)
