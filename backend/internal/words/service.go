@@ -860,6 +860,7 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 		}
 
 		var wordID string
+		var inserted bool
 		lemma := firstNonEmpty(entry.Lemma, normalized)
 		err := tx.QueryRow(ctx,
 			`insert into words (language_code, lemma, normalized_text, part_of_speech, pronunciation)
@@ -867,9 +868,9 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 			 on conflict (language_code, normalized_text, part_of_speech)
 			 do update set pronunciation = coalesce(nullif(excluded.pronunciation, ''), words.pronunciation),
 			               updated_at = now()
-			 returning id::text`,
+			 returning id::text, xmax = 0 as inserted`,
 			langCode, lemma, normalized, pos, nullString(entry.Pronunciation),
-		).Scan(&wordID)
+		).Scan(&wordID, &inserted)
 		if err != nil {
 			return nil, fmt.Errorf("words: upsert word: %w", err)
 		}
@@ -880,7 +881,9 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 		if !seen[wordID] {
 			seen[wordID] = true
 			wordIDs = append(wordIDs, wordID)
-			addedWords = append(addedWords, addedWord{wordID: wordID, lemma: lemma, pos: pos})
+			if inserted {
+				addedWords = append(addedWords, addedWord{wordID: wordID, lemma: lemma, pos: pos})
+			}
 		}
 	}
 
