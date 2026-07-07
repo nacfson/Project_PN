@@ -73,7 +73,7 @@ func (h *deckHandler) createDeck(w http.ResponseWriter, r *http.Request) {
 		h.writeDeckError(w, err)
 		return
 	}
-	h.logf("DECK_CREATED", "%s created deck '%s' (%s)", userIDFromRequest(r), deck.Name, deck.TargetLanguage)
+	h.logf("DECK_CREATED", "%s created deck '%s' (%s)", userIdentifierFromRequest(r), deck.Name, deck.TargetLanguage)
 	writeJSON(w, http.StatusCreated, deck)
 }
 

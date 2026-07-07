@@ -48,6 +48,18 @@ func (f *fakeLogger) has(category, substr string) bool {
 	return false
 }
 
+func (f *fakeLogger) count(category, substr string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, l := range f.lines {
+		if l.Category == category && strings.Contains(l.Message, substr) {
+			n++
+		}
+	}
+	return n
+}
+
 func (f *fakeLogger) entries() []logLine {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -268,5 +280,40 @@ func TestLookupLogsAddWord(t *testing.T) {
 
 	if !logger.has("ADD_WORD", lemma) {
 		t.Fatalf("expected ADD_WORD log containing %q, got %+v", lemma, logger.entries())
+	}
+}
+
+func TestLookupAddWordNoDuplicateLog(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	logger := &fakeLogger{}
+	lemma := fmt.Sprintf("addworddup%d", time.Now().UnixNano())
+	enricher := &stubEnricher{
+		enrichResult: enrich.Result{
+			NormalizedText: lemma,
+			Entries: []enrich.Entry{
+				{
+					Lemma:        lemma,
+					PartOfSpeech: "noun",
+					Senses: []enrich.Sense{
+						{Definition: "a test word"},
+					},
+				},
+			},
+		},
+	}
+	svc := New(pool, enricher, logger, "", "en", "ko")
+
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+		t.Fatalf("first lookup failed: %v", err)
+	}
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+		t.Fatalf("second lookup failed: %v", err)
+	}
+
+	if count := logger.count("ADD_WORD", lemma); count != 1 {
+		t.Fatalf("expected exactly one ADD_WORD log containing %q, got %d", lemma, count)
 	}
 }

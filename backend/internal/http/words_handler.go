@@ -121,7 +121,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	h.logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIDFromRequest(r), item.WordSenseID)
+	h.logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIdentifierFromRequest(r), item.WordSenseID)
 	writeJSON(w, http.StatusCreated, item)
 }
 

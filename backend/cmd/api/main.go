@@ -33,6 +33,7 @@ func main() {
 	if err != nil {
 		slog.Warn("admin logger disabled", "error", err)
 	}
+	defer adminLogger.Close()
 	metricsCollector := admin.NewMetricsCollector()
 
 	metricsCtx, stopMetrics := context.WithCancel(ctx)
