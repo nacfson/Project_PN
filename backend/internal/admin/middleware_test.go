@@ -93,31 +93,6 @@ func TestHTTPLoggingMiddleware_NilCollector(t *testing.T) {
 	}
 }
 
-type panicCollector struct{}
-
-func (panicCollector) RecordRequest(int, int64, string) {
-	panic("collector panic")
-}
-
-func TestHTTPLoggingMiddleware_PanickingCollector(t *testing.T) {
-	logger := &fakeLogger{}
-	mw := HTTPLoggingMiddleware(logger, panicCollector{}, nil)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rec.Code)
-	}
-	if len(logger.logs) != 0 {
-		t.Fatalf("expected no logs after collector panic, got %v", logger.logs)
-	}
-}
-
 type panicLogger struct{}
 
 func (panicLogger) Log(string, string)                   {}

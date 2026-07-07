@@ -6,14 +6,9 @@ import (
 	"time"
 )
 
-// requestRecorder records a single HTTP request for metrics.
-type requestRecorder interface {
-	RecordRequest(statusCode int, latencyMs int64, userID string)
-}
-
 // HTTPLoggingMiddleware records request metrics and logs 5xx responses.
 // A nil logger is treated as a no-op logger; a nil collector skips metrics collection.
-func HTTPLoggingMiddleware(logger Logger, collector requestRecorder, userIDFromRequest func(*http.Request) string) func(http.Handler) http.Handler {
+func HTTPLoggingMiddleware(logger Logger, collector *MetricsCollector, userIDFromRequest func(*http.Request) string) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = NoopLogger{}
 	}
