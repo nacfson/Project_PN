@@ -8,8 +8,54 @@ import (
 	"sync"
 	"testing"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 )
+
+// logLine captures a single admin log entry.
+type logLine struct {
+	Category string
+	Message  string
+}
+
+// fakeLogger implements admin.Logger and records every emitted log line.
+type fakeLogger struct {
+	mu    sync.Mutex
+	lines []logLine
+}
+
+func (f *fakeLogger) Log(category, message string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lines = append(f.lines, logLine{Category: category, Message: message})
+}
+
+func (f *fakeLogger) Logf(category, format string, args ...interface{}) {
+	f.Log(category, fmt.Sprintf(format, args...))
+}
+
+func (f *fakeLogger) Close() error { return nil }
+
+func (f *fakeLogger) has(category, substr string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.lines {
+		if l.Category == category && strings.Contains(l.Message, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *fakeLogger) entries() []logLine {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]logLine, len(f.lines))
+	copy(out, f.lines)
+	return out
+}
+
+var _ admin.Logger = (*fakeLogger)(nil)
 
 var (
 	testSessionTokens = make(map[string]string)

@@ -5,13 +5,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 )
 
 func TestCentralAuthMiddleware_RejectsProxyHeaders(t *testing.T) {
 	svc := &auth.Service{}
 	central := auth.NewCentralClient("http://unused.invalid", nil)
-	mw := authMiddleware(svc, central)
+	mw := authMiddleware(svc, central, admin.NoopLogger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.Header.Set("X-User-Id", "00000000-0000-0000-0000-000000000001")
