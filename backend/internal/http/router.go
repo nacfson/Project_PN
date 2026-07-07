@@ -11,16 +11,19 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/words"
 )
 
 type Dependencies struct {
-	DB             *pgxpool.Pool
-	Words          *words.Service
-	Auth           *auth.Service
-	CentralAuth    *auth.CentralClient
-	AllowedOrigins []string
+	DB               *pgxpool.Pool
+	Words            *words.Service
+	Auth             *auth.Service
+	CentralAuth      *auth.CentralClient
+	AllowedOrigins   []string
+	AdminLogger      admin.Logger
+	MetricsCollector *admin.MetricsCollector
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -28,6 +31,12 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+
+	if deps.AdminLogger != nil && deps.MetricsCollector != nil {
+		r.Use(admin.HTTPLoggingMiddleware(deps.AdminLogger, deps.MetricsCollector, func(r *http.Request) string {
+			return userIDFromRequest(r)
+		}))
+	}
 
 	languageMutateRL := newRateLimiter(30, time.Minute).middleware
 

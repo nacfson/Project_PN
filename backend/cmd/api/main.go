@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
@@ -26,6 +27,29 @@ func main() {
 	if cfg.DatabaseURL == "" {
 		slog.Error("DATABASE_URL is required")
 		os.Exit(1)
+	}
+
+	adminLogger, err := admin.NewLogger(cfg.AdminLogPath)
+	if err != nil {
+		slog.Warn("admin logger disabled", "error", err)
+	}
+	metricsCollector := admin.NewMetricsCollector()
+
+	metricsCtx, stopMetrics := context.WithCancel(ctx)
+	defer stopMetrics()
+	if _, ok := adminLogger.(admin.NoopLogger); !ok {
+		go func() {
+			ticker := time.NewTicker(60 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-metricsCtx.Done():
+					return
+				case <-ticker.C:
+					metricsCollector.Flush(adminLogger)
+				}
+			}
+		}()
 	}
 
 	pool, err := db.Open(ctx, cfg.DatabaseURL)
@@ -74,11 +98,13 @@ func main() {
 	server := &http.Server{
 		Addr: cfg.AppAddr,
 		Handler: httpapi.NewRouter(httpapi.Dependencies{
-			DB:             pool,
-			Words:          wordsService,
-			Auth:           authService,
-			CentralAuth:    centralAuth,
-			AllowedOrigins: cfg.AllowedOrigins,
+			DB:               pool,
+			Words:            wordsService,
+			Auth:             authService,
+			CentralAuth:      centralAuth,
+			AllowedOrigins:   cfg.AllowedOrigins,
+			AdminLogger:      adminLogger,
+			MetricsCollector: metricsCollector,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
