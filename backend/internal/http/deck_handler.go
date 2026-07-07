@@ -8,11 +8,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/words"
 )
 
 type deckHandler struct {
-	svc *words.Service
+	svc    *words.Service
+	logger admin.Logger
 }
 
 type createDeckRequest struct {
@@ -65,6 +67,7 @@ func (h *deckHandler) createDeck(w http.ResponseWriter, r *http.Request) {
 		h.writeDeckError(w, err)
 		return
 	}
+	h.logger.Logf("DECK_CREATED", "%s created deck '%s' (%s)", userIDFromRequest(r), deck.Name, deck.TargetLanguage)
 	writeJSON(w, http.StatusCreated, deck)
 }
 

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
@@ -56,13 +57,14 @@ func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
 		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
 	})
 	return router, authSvc
 }

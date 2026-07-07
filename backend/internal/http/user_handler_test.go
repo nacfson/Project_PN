@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
@@ -48,7 +49,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	router := NewRouter(Dependencies{
 		DB:             pool,
@@ -56,6 +57,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 		Auth:           authSvc,
 		CentralAuth:    mockCentralClient(t),
 		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
 	})
 
 	emailAddr := uniqueEmail("user-handler")

@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
@@ -62,13 +63,14 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
 		CentralAuth:    mockCentralClient(t),
 		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
 	})
 
 	emailAddr := uniqueEmail("words-validation")
@@ -171,7 +173,7 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
 	}
-	wordsSvc := words.New(pool, nil, "", "", "")
+	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, "", "", "")
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, otherUser.ID, "en"); err != nil {
 		t.Fatalf("ensure other default deck: %v", err)
 	}
@@ -302,7 +304,7 @@ func TestParseListLearningItemsParamsRejectsInvalidValues(t *testing.T) {
 func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 	t.Parallel()
 
-	svc := words.New(nil, nil, "00000000-0000-0000-0000-000000000001", "en", "ko")
+	svc := words.New(nil, nil, admin.NoopLogger{}, "00000000-0000-0000-0000-000000000001", "en", "ko")
 	authSvc := auth.New(nil, auth.Options{
 		DefaultDefinitionLang: "ko",
 		DefaultTargetLang:     "en",
@@ -311,6 +313,7 @@ func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 		Words:          svc,
 		Auth:           authSvc,
 		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
 	})
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/words/lookup", nil)

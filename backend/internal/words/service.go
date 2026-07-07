@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
 )
 
@@ -44,8 +45,9 @@ type querier interface {
 
 // Service implements the add-word flow over the global cache tables.
 type Service struct {
-	pool     *pgxpool.Pool
-	enricher enrich.Enricher
+	pool        *pgxpool.Pool
+	enricher    enrich.Enricher
+	adminLogger admin.Logger
 
 	DefaultUserID  string
 	TargetLang     string
@@ -57,10 +59,11 @@ type learningItemsCursorPayload struct {
 	ID      string    `json:"id"`
 }
 
-func New(pool *pgxpool.Pool, enricher enrich.Enricher, defaultUserID, targetLang, definitionLang string) *Service {
+func New(pool *pgxpool.Pool, enricher enrich.Enricher, adminLogger admin.Logger, defaultUserID, targetLang, definitionLang string) *Service {
 	return &Service{
 		pool:           pool,
 		enricher:       enricher,
+		adminLogger:    adminLogger,
 		DefaultUserID:  defaultUserID,
 		TargetLang:     targetLang,
 		DefinitionLang: definitionLang,
@@ -108,6 +111,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		POS:                    posHint,
 	})
 	if err != nil {
+		s.adminLogger.Logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
 		return LookupResult{}, err
 	}
 
@@ -872,6 +876,12 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+
+	for _, wordID := range wordIDs {
+		var lemma, langCode, pos string
+		_ = s.pool.QueryRow(ctx, `select lemma, language_code, part_of_speech from words where id = $1::uuid`, wordID).Scan(&lemma, &langCode, &pos)
+		s.adminLogger.Logf("ADD_WORD", "created word '%s' (%s, %s)", lemma, langCode, pos)
 	}
 
 	options, err := loadSenseOptions(ctx, s.pool, wordIDs, defLangCode)

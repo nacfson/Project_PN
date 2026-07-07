@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/words"
 )
@@ -146,7 +147,7 @@ func TestDeckMoveItemsRequiresMatchingLanguage(t *testing.T) {
 		t.Fatalf("add spanish pair: %v", err)
 	}
 
-	svc := words.New(pool, nil, "", "", "")
+	svc := words.New(pool, nil, admin.NoopLogger{}, "", "", "")
 	if _, err := svc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
 		t.Fatalf("ensure english default deck: %v", err)
 	}

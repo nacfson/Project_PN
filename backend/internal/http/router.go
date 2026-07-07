@@ -86,7 +86,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	}
 
 	if deps.Words != nil {
-		wh := &wordsHandler{svc: deps.Words}
+		wh := &wordsHandler{svc: deps.Words, logger: deps.AdminLogger}
 		r.Route("/api", func(api chi.Router) {
 			api.Group(func(protected chi.Router) {
 				if deps.Auth != nil {
@@ -112,7 +112,7 @@ func NewRouter(deps Dependencies) http.Handler {
 				sh := &statsHandler{svc: deps.Words}
 				protected.Get("/stats/summary", sh.getStatsSummary)
 
-				dh := &deckHandler{svc: deps.Words}
+				dh := &deckHandler{svc: deps.Words, logger: deps.AdminLogger}
 				protected.Get("/decks", dh.listDecks)
 				protected.Post("/decks", dh.createDeck)
 				protected.Patch("/decks/{deck_id}", dh.renameDeck)

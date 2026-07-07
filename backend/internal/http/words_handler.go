@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
 	"project-pn/internal/words"
 )
@@ -23,7 +24,8 @@ var validReviewActivityTypes = map[string]struct{}{
 }
 
 type wordsHandler struct {
-	svc *words.Service
+	svc    *words.Service
+	logger admin.Logger
 }
 
 type lookupRequest struct {
@@ -113,6 +115,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
+	h.logger.Logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIDFromRequest(r), item.WordSenseID)
 	writeJSON(w, http.StatusCreated, item)
 }
 

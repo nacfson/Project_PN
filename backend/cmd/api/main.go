@@ -93,7 +93,7 @@ func main() {
 	}
 	centralAuth = auth.NewCentralClient(centralAuthURL, nil)
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
-	wordsService := words.New(pool, enricher, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsService := words.New(pool, enricher, adminLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,
