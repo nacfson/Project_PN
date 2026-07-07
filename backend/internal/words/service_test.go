@@ -2,10 +2,74 @@ package words
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"project-pn/internal/admin"
+	"project-pn/internal/enrich"
 )
+
+// logLine captures a single admin log entry.
+type logLine struct {
+	Category string
+	Message  string
+}
+
+// fakeLogger implements admin.Logger and records every emitted log line.
+type fakeLogger struct {
+	mu    sync.Mutex
+	lines []logLine
+}
+
+func (f *fakeLogger) Log(category, message string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lines = append(f.lines, logLine{Category: category, Message: message})
+}
+
+func (f *fakeLogger) Logf(category, format string, args ...interface{}) {
+	f.Log(category, fmt.Sprintf(format, args...))
+}
+
+func (f *fakeLogger) Close() error { return nil }
+
+func (f *fakeLogger) has(category, substr string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.lines {
+		if l.Category == category && strings.Contains(l.Message, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *fakeLogger) entries() []logLine {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]logLine, len(f.lines))
+	copy(out, f.lines)
+	return out
+}
+
+var _ admin.Logger = (*fakeLogger)(nil)
+
+type stubEnricher struct {
+	enrichResult enrich.Result
+	enrichErr    error
+}
+
+func (s *stubEnricher) Enrich(_ context.Context, _ enrich.Request) (enrich.Result, error) {
+	return s.enrichResult, s.enrichErr
+}
+
+func (s *stubEnricher) Translate(_ context.Context, _ enrich.TranslateRequest) (enrich.TranslateResult, error) {
+	return enrich.TranslateResult{}, nil
+}
 
 func TestListLearningItemsPopulatesDeckAndReviewDetails(t *testing.T) {
 	pool := deckTestPool(t)
@@ -153,5 +217,56 @@ func TestLearningItemsTranslations(t *testing.T) {
 
 	if foundDueItem.LocalizedDefinition != expectedTranslation {
 		t.Errorf("GetDueReviewItems: expected LocalizedDefinition %q, got %q", expectedTranslation, foundDueItem.LocalizedDefinition)
+	}
+}
+
+func TestLookupLogsEnrichFail(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	logger := &fakeLogger{}
+	svc := New(pool, &stubEnricher{enrichErr: errors.New("enricher down")}, logger, "", "en", "ko")
+
+	lemma := fmt.Sprintf("enrichfail%d", time.Now().UnixNano())
+	_, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil)
+	if err == nil {
+		t.Fatal("expected enrich failure")
+	}
+
+	if !logger.has("ENRICH_FAIL", lemma) {
+		t.Fatalf("expected ENRICH_FAIL log containing %q, got %+v", lemma, logger.entries())
+	}
+}
+
+func TestLookupLogsAddWord(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	logger := &fakeLogger{}
+	lemma := fmt.Sprintf("addword%d", time.Now().UnixNano())
+	enricher := &stubEnricher{
+		enrichResult: enrich.Result{
+			NormalizedText: lemma,
+			Entries: []enrich.Entry{
+				{
+					Lemma:        lemma,
+					PartOfSpeech: "noun",
+					Senses: []enrich.Sense{
+						{Definition: "a test word"},
+					},
+				},
+			},
+		},
+	}
+	svc := New(pool, enricher, logger, "", "en", "ko")
+
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+		t.Fatalf("lookup failed: %v", err)
+	}
+
+	if !logger.has("ADD_WORD", lemma) {
+		t.Fatalf("expected ADD_WORD log containing %q, got %+v", lemma, logger.entries())
 	}
 }

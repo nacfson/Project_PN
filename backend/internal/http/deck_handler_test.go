@@ -182,6 +182,22 @@ func TestDeckMoveItemsRequiresMatchingLanguage(t *testing.T) {
 	}
 }
 
+func TestCreateDeckLogsDeckCreated(t *testing.T) {
+	logger := &fakeLogger{}
+	router, token, _, _ := validationRouterWithLogger(t, logger)
+
+	req := authRequest(t, http.MethodPost, "/api/decks", `{"name":"Logged Deck","target_language":"en"}`, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	if !logger.has("DECK_CREATED", "Logged Deck") {
+		t.Fatalf("expected DECK_CREATED log containing %q, got %+v", "Logged Deck", logger.entries())
+	}
+}
+
 func insertDeckFixtureWord(t *testing.T, pool *pgxpool.Pool, lemma string) string {
 	t.Helper()
 	ctx := context.Background()

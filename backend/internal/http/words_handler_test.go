@@ -28,6 +28,10 @@ func validationRouter(t *testing.T) (http.Handler, string) {
 }
 
 func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool, *auth.Service) {
+	return validationRouterWithLogger(t, admin.NoopLogger{})
+}
+
+func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler, string, *pgxpool.Pool, *auth.Service) {
 	t.Helper()
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -63,14 +67,14 @@ func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), logger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
 		CentralAuth:    mockCentralClient(t),
 		AllowedOrigins: []string{"http://localhost:8081"},
-		AdminLogger:    admin.NoopLogger{},
+		AdminLogger:    logger,
 	})
 
 	emailAddr := uniqueEmail("words-validation")
@@ -135,6 +139,23 @@ func TestAddLearningItemRequiresWordSenseID(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected %d for missing word_sense_id, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestAddLearningItemLogsAddItem(t *testing.T) {
+	logger := &fakeLogger{}
+	router, token, pool, _ := validationRouterWithLogger(t, logger)
+
+	senseID := insertDeckFixtureWord(t, pool, "logadditem")
+	req := authRequest(t, http.MethodPost, "/api/learning-items", `{"word_sense_id":"`+senseID+`"}`, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	if !logger.has("ADD_ITEM", senseID) {
+		t.Fatalf("expected ADD_ITEM log containing %q, got %+v", senseID, logger.entries())
 	}
 }
 

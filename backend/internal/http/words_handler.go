@@ -28,6 +28,12 @@ type wordsHandler struct {
 	logger admin.Logger
 }
 
+func (h *wordsHandler) logf(category, format string, args ...interface{}) {
+	if h.logger != nil {
+		h.logger.Logf(category, format, args...)
+	}
+}
+
 type lookupRequest struct {
 	Text                   string  `json:"text"`
 	LanguageCode           string  `json:"language_code"`
@@ -115,7 +121,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	h.logger.Logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIDFromRequest(r), item.WordSenseID)
+	h.logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIDFromRequest(r), item.WordSenseID)
 	writeJSON(w, http.StatusCreated, item)
 }
 

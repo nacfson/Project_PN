@@ -17,6 +17,12 @@ type deckHandler struct {
 	logger admin.Logger
 }
 
+func (h *deckHandler) logf(category, format string, args ...interface{}) {
+	if h.logger != nil {
+		h.logger.Logf(category, format, args...)
+	}
+}
+
 type createDeckRequest struct {
 	Name           string `json:"name"`
 	TargetLanguage string `json:"target_language"`
@@ -67,7 +73,7 @@ func (h *deckHandler) createDeck(w http.ResponseWriter, r *http.Request) {
 		h.writeDeckError(w, err)
 		return
 	}
-	h.logger.Logf("DECK_CREATED", "%s created deck '%s' (%s)", userIDFromRequest(r), deck.Name, deck.TargetLanguage)
+	h.logf("DECK_CREATED", "%s created deck '%s' (%s)", userIDFromRequest(r), deck.Name, deck.TargetLanguage)
 	writeJSON(w, http.StatusCreated, deck)
 }
 

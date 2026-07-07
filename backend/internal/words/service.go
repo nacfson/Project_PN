@@ -54,6 +54,12 @@ type Service struct {
 	DefinitionLang string
 }
 
+func (s *Service) logf(category, format string, args ...interface{}) {
+	if s.adminLogger != nil {
+		s.adminLogger.Logf(category, format, args...)
+	}
+}
+
 type learningItemsCursorPayload struct {
 	AddedAt time.Time `json:"added_at"`
 	ID      string    `json:"id"`
@@ -111,7 +117,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		POS:                    posHint,
 	})
 	if err != nil {
-		s.adminLogger.Logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
+		s.logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
 		return LookupResult{}, err
 	}
 
@@ -881,7 +887,7 @@ func (s *Service) persistEntries(ctx context.Context, langCode, defLangCode, nor
 	for _, wordID := range wordIDs {
 		var lemma, langCode, pos string
 		_ = s.pool.QueryRow(ctx, `select lemma, language_code, part_of_speech from words where id = $1::uuid`, wordID).Scan(&lemma, &langCode, &pos)
-		s.adminLogger.Logf("ADD_WORD", "created word '%s' (%s, %s)", lemma, langCode, pos)
+		s.logf("ADD_WORD", "created word '%s' (%s, %s)", lemma, langCode, pos)
 	}
 
 	options, err := loadSenseOptions(ctx, s.pool, wordIDs, defLangCode)
