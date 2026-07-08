@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '../../navigation/MainTabs';
@@ -17,6 +18,7 @@ import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AnimatedProgressBar, Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, Text } from '../../ui';
 import type { Rating } from '../../ui';
+import { TabBarScrollContext } from '../../ui/Screen';
 import { isTauri } from '../../utils/platform';
 import {
   getDueLearningItems,
@@ -104,6 +106,9 @@ export function decideCardMode(item: DueItem): CardMode {
 export function PracticeScreen() {
   const { colors, spacing, radii, shadows, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
+  const insets = useSafeAreaInsets();
+  const scrollContext = useContext(TabBarScrollContext);
+  const tabBarHeight = 60 + insets.bottom;
   const cardStartedAtRef = useRef(Date.now());
   const navigation = useNavigation<NavigationProp>();
 
@@ -134,6 +139,7 @@ export function PracticeScreen() {
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
   const answerInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const statusRef = useRef(status);
 
   const toggleFlip = () => {
@@ -215,6 +221,22 @@ export function PracticeScreen() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [status, isFlipped, cardMode, userAnswer]);
+
+  // Hide tab bar while the typing answer bar is visible to maximize screen space
+  const showAnswerBarForTabHide = status === 'active' && cardMode === 'typing' && !isFlipped;
+  useEffect(() => {
+    if (!scrollContext) return;
+    if (showAnswerBarForTabHide) {
+      scrollContext.tabBarTranslateY.value = 100;
+    } else {
+      scrollContext.tabBarTranslateY.value = 0;
+    }
+    return () => {
+      if (scrollContext) {
+        scrollContext.tabBarTranslateY.value = 0;
+      }
+    };
+  }, [showAnswerBarForTabHide, scrollContext]);
 
   const resetCardInteraction = useCallback(() => {
     cardStartedAtRef.current = Date.now();
@@ -626,7 +648,7 @@ export function PracticeScreen() {
   const blankedSentence = example ? getBlankedSentence(example.sentence, currentItem.normalized_text) : '';
 
   const showAnswerBar = cardMode === 'typing' && !isFlipped;
-  const answerBarHeight = 144;
+  const answerBarHeight = 144 + tabBarHeight;
 
   const answerBar = showAnswerBar ? (
     <Card
@@ -635,7 +657,8 @@ export function PracticeScreen() {
         styles.answerBar,
         {
           borderTopColor: colors.outlineVariant,
-          paddingBottom: spacing.lg,
+          paddingBottom: spacing.lg + insets.bottom,
+          bottom: 0,
         },
       ]}
     >
@@ -653,6 +676,11 @@ export function PracticeScreen() {
         autoFocus
         returnKeyType="done"
         onSubmitEditing={() => revealAnswer(false)}
+        onFocus={() => {
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 300);
+        }}
         style={[
           styles.answerInput,
           {
@@ -684,13 +712,16 @@ export function PracticeScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : 0}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[
             styles.scroll,
             showAnswerBar && { paddingBottom: answerBarHeight + spacing.md },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           <View style={[styles.progressHeader, { gap: spacing.sm }]}>
             <View style={styles.progressTextRow}>
