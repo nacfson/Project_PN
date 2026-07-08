@@ -92,14 +92,14 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
 
 export function decideCardMode(item: DueItem): CardMode {
   const flashcardProbabilityByStage: Record<string, number> = {
-    new: 0,
-    learning: 0,
-    recognized: 0.5,
-    recalled: 0.7,
-    usable: 0.85,
-    mastered: 0.95,
+    new: 1,
+    learning: 1,
+    recognized: 1,
+    recalled: 1,
+    usable: 1,
+    mastered: 1,
   };
-  const flashcardProbability = flashcardProbabilityByStage[item.learning_stage] ?? 0;
+  const flashcardProbability = flashcardProbabilityByStage[item.learning_stage] ?? 1;
   return Math.random() < flashcardProbability ? 'flashcard' : 'typing';
 }
 

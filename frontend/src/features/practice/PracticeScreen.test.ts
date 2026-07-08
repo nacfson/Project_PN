@@ -27,37 +27,10 @@ function itemWithStage(stage: string): DueItem {
 }
 
 describe('decideCardMode', () => {
-  const randomSpy = jest.spyOn(Math, 'random');
-
-  afterEach(() => {
-    randomSpy.mockReset();
-  });
-
-  afterAll(() => {
-    randomSpy.mockRestore();
-  });
-
-  it('always uses typing for new and learning stages', () => {
-    randomSpy.mockReturnValue(0);
-
-    expect(decideCardMode(itemWithStage('new'))).toBe('typing');
-    expect(decideCardMode(itemWithStage('learning'))).toBe('typing');
-  });
-
-  it('uses stage-weighted flashcard probabilities', () => {
-    randomSpy.mockReturnValue(0.49);
-    expect(decideCardMode(itemWithStage('recognized'))).toBe('flashcard');
-
-    randomSpy.mockReturnValue(0.5);
-    expect(decideCardMode(itemWithStage('recognized'))).toBe('typing');
-
-    randomSpy.mockReturnValue(0.69);
-    expect(decideCardMode(itemWithStage('recalled'))).toBe('flashcard');
-
-    randomSpy.mockReturnValue(0.84);
-    expect(decideCardMode(itemWithStage('usable'))).toBe('flashcard');
-
-    randomSpy.mockReturnValue(0.94);
-    expect(decideCardMode(itemWithStage('mastered'))).toBe('flashcard');
+  it('always uses flashcard for all stages (input quiz / typing mode deprecated)', () => {
+    const stages = ['new', 'learning', 'recognized', 'recalled', 'usable', 'mastered'];
+    for (const stage of stages) {
+      expect(decideCardMode(itemWithStage(stage))).toBe('flashcard');
+    }
   });
 });
