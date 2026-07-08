@@ -11,7 +11,7 @@ import type { PosFilter } from '../types';
 import { useActiveTargetLanguage } from '../hooks/useActiveTargetLanguage';
 
 export function ManualAddScreen() {
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
@@ -31,7 +31,7 @@ export function ManualAddScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
         <View style={{ gap: spacing.sm }}>
           <Text variant="label" color="muted">

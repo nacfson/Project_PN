@@ -195,7 +195,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
 
   return (
     <TabBarScrollContext.Provider value={{ tabBarTranslateY }}>
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
         <QueueBanner />
         <Tab.Navigator
           tabBar={(props) => <CustomTabBar {...props} />}

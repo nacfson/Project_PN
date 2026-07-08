@@ -258,6 +258,6 @@ log "starting remote compose stack with BACKEND_IMAGE=${IMAGE_REF}"
 ssh "$DEPLOY_HOST" "cd ${REMOTE_DIR} && BACKEND_IMAGE='${IMAGE_REF}' docker compose --env-file .env up -d"
 
 log "checking remote /readyz"
-ssh "$DEPLOY_HOST" "curl -fsS http://127.0.0.1/readyz"
+ssh "$DEPLOY_HOST" "curl -fsS http://127.0.0.1:53412/readyz"
 
 log "deployed ${IMAGE_REF}"

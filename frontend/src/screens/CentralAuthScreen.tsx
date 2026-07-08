@@ -22,7 +22,7 @@ export function CentralAuthScreen({ onTokenReceived }: CentralAuthScreenProps) {
       const authUrl = `${CENTRAL_AUTH_URL}/login?rd=${encodeURIComponent(redirectUrl)}`;
       
       if (Platform.OS === 'web') {
-        await Linking.openURL(authUrl);
+        window.location.href = authUrl;
       } else {
         const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
         if (result.type === 'success') {

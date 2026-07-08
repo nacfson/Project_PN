@@ -257,6 +257,34 @@ For automatic host-level restart, add a systemd service or cron `@reboot` entry.
 
 ---
 
+## Port 80 occupied by host-level nginx or host-networked containers during SSL setup
+
+**Cause:** Nginx processes running on the host system or in other Docker containers using `network_mode: host` are occupying port 80. Standard `docker compose stop` or systemd service checks will not free port 80, preventing Certbot from binding to it.
+
+**Fix:** Identify the conflicting PIDs using `ss` or `lsof` and map them to their corresponding Docker container (or stop/kill them if they are host processes):
+
+1. Find the host PIDs listening on port 80:
+   ```bash
+   sudo ss -tulpn | grep :80
+   ```
+2. Check if a PID belongs to a Docker container by querying container PIDs:
+   ```bash
+   docker ps -q | xargs docker inspect --format '{{.State.Pid}} {{.Name}}'
+   ```
+3. If it belongs to a container, stop it:
+   ```bash
+   docker stop <container_id>
+   ```
+4. If it is a host process (e.g. standalone host nginx), stop or kill it:
+   ```bash
+   sudo nginx -s stop || sudo kill -9 <pid>
+   ```
+5. Run Certbot and restart the services afterwards.
+
+A helper script automating this is located at `scripts/setup-ssl.sh`.
+
+---
+
 ## Useful Debug Commands
 
 ```sh

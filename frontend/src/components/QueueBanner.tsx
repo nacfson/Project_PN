@@ -1,9 +1,59 @@
+import React, { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon, Text } from '../ui';
-import { useAddQueue } from '../hooks/useAddQueue';
+import { useAddQueue, type AddJob } from '../hooks/useAddQueue';
+
+interface ToastItemProps {
+  job: AddJob;
+  dismiss: (id: string) => void;
+}
+
+function ToastItem({ job, dismiss }: ToastItemProps) {
+  const { colors, radii } = useTheme();
+  const { t } = useAppLanguage();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      dismiss(job.id);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [job.id, dismiss]);
+
+  return (
+    <View
+      style={[
+        styles.banner,
+        {
+          borderRadius: radii.md,
+          backgroundColor: job.status === 'done' ? colors.successSurface : colors.dangerSurface,
+          borderColor: job.status === 'done' ? colors.successBorder : colors.dangerBorder,
+        },
+      ]}
+    >
+      <Icon
+        name={job.status === 'done' ? 'checkmark-circle' : 'alert-circle'}
+        size="md"
+        color={job.status === 'done' ? colors.success : colors.danger}
+      />
+      <Text variant="body" style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }} numberOfLines={2}>
+        {job.status === 'done'
+          ? t('queue.added', { text: job.text })
+          : t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}
+      </Text>
+      <Pressable
+        onPress={() => dismiss(job.id)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t('queue.dismiss')}
+      >
+        <Icon name="close" size="md" color={job.status === 'done' ? colors.success : colors.danger} />
+      </Pressable>
+    </View>
+  );
+}
 
 export function QueueBanner() {
   const { colors, radii, spacing } = useTheme();
@@ -22,7 +72,15 @@ export function QueueBanner() {
   return (
     <SafeAreaView
       edges={['top', 'left', 'right']}
-      style={[styles.container, { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, gap: spacing.sm }]}
+      style={[
+        styles.container,
+        {
+          paddingHorizontal: spacing.xl,
+          paddingBottom: spacing.sm,
+          gap: spacing.sm,
+          backgroundColor: colors.background,
+        },
+      ]}
     >
       {pendingCount > 0 && (
         <View
@@ -43,36 +101,7 @@ export function QueueBanner() {
       )}
 
       {toasts.map((job) => (
-        <View
-          key={job.id}
-          style={[
-            styles.banner,
-            {
-              borderRadius: radii.md,
-              backgroundColor: job.status === 'done' ? colors.successSurface : colors.dangerSurface,
-              borderColor: job.status === 'done' ? colors.successBorder : colors.dangerBorder,
-            },
-          ]}
-        >
-          <Icon
-            name={job.status === 'done' ? 'checkmark-circle' : 'alert-circle'}
-            size="md"
-            color={job.status === 'done' ? colors.success : colors.danger}
-          />
-          <Text variant="body" style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }} numberOfLines={2}>
-            {job.status === 'done'
-              ? t('queue.added', { text: job.text })
-              : t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}
-          </Text>
-          <Pressable
-            onPress={() => dismiss(job.id)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('queue.dismiss')}
-          >
-            <Icon name="close" size="md" color={job.status === 'done' ? colors.success : colors.danger} />
-          </Pressable>
-        </View>
+        <ToastItem key={job.id} job={job} dismiss={dismiss} />
       ))}
     </SafeAreaView>
   );
