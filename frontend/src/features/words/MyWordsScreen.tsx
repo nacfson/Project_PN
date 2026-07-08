@@ -448,32 +448,6 @@ export function MyWordsScreen() {
     );
   };
 
-  if (!languageLoading && languageError) {
-    return (
-      <Screen title={t('words.title')} padded>
-        <View style={{ gap: spacing.md, flex: 1 }}>
-          <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
-        </View>
-      </Screen>
-    );
-  }
-
-  if (!languageLoading && !targetLanguage) {
-    return (
-      <Screen title={t('words.title')} padded>
-        <View style={{ gap: spacing.md, flex: 1 }}>
-          <EmptyState
-            icon="language-outline"
-            title={t('words.noLanguagePairTitle')}
-            message={t('words.noLanguagePairMessage')}
-            actionLabel={t('words.noLanguagePairAction')}
-            onAction={() => navigation.navigate('Settings', { screen: 'LanguagePairs' })}
-          />
-        </View>
-      </Screen>
-    );
-  }
-
   const ListHeaderComponent = useMemo(() => {
     return (
       <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
@@ -539,6 +513,32 @@ export function MyWordsScreen() {
     spacing.sm,
     t,
   ]);
+
+  if (!languageLoading && languageError) {
+    return (
+      <Screen title={t('words.title')} padded>
+        <View style={{ gap: spacing.md, flex: 1 }}>
+          <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!languageLoading && !targetLanguage) {
+    return (
+      <Screen title={t('words.title')} padded>
+        <View style={{ gap: spacing.md, flex: 1 }}>
+          <EmptyState
+            icon="language-outline"
+            title={t('words.noLanguagePairTitle')}
+            message={t('words.noLanguagePairMessage')}
+            actionLabel={t('words.noLanguagePairAction')}
+            onAction={() => navigation.navigate('Settings', { screen: 'LanguagePairs' })}
+          />
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <>
