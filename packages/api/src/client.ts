@@ -86,7 +86,7 @@ async function fetchWithFallback(path: string, init: RequestInit): Promise<Respo
       const fetchImpl = getConfig().fetchImpl ?? fetch;
       
       const isLastWorking = baseUrl === lastWorkingBaseUrl;
-      const timeoutMs = isLastWorking ? 15000 : 3500;
+      const timeoutMs = isLastWorking ? 15000 : 6500;
       
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), timeoutMs);
