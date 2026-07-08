@@ -6,7 +6,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://124.59.225.59:53412"
+        "EXPO_PUBLIC_API_BASE_URL": "http://124.59.225.59:53412",
+        "EXPO_PUBLIC_API_FALLBACK_URLS": "http://192.168.219.100:53412"
       },
       "ios": {
         "distribution": "store"

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // API base URL resolution per platform.
 // - EXPO_PUBLIC_API_BASE_URL always wins and should be set for native/Tauri builds.
@@ -33,6 +34,15 @@ function resolveApiBaseUrl(): string {
   const origin = browserOrigin();
   if (Platform.OS === 'web' && origin && !isLocalOrigin(origin)) {
     return origin;
+  }
+
+  // Detect the packager/bundler host IP in development
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:${DEFAULT_PORT}`;
+    }
   }
 
   return Platform.select({

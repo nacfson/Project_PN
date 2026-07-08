@@ -9,9 +9,10 @@ import { extractTokenFromUrl } from '../utils/authLaunch';
 
 interface CentralAuthScreenProps {
   onTokenReceived?: () => void;
+  connectionError?: string | null;
 }
 
-export function CentralAuthScreen({ onTokenReceived }: CentralAuthScreenProps) {
+export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralAuthScreenProps) {
   const { colors, spacing } = useTheme();
   const [busy, setBusy] = useState(false);
 
@@ -52,6 +53,23 @@ export function CentralAuthScreen({ onTokenReceived }: CentralAuthScreenProps) {
             A word is global, but memory is personal.
           </Text>
         </View>
+
+        {connectionError && (
+          <View style={[styles.errorBanner, { backgroundColor: colors.dangerSurface, borderColor: colors.dangerBorder }]}>
+            <Icon name="alert-circle-outline" size="md" color={colors.danger} />
+            <View style={styles.errorContent}>
+              <Text style={[styles.errorTitle, { color: colors.danger }]}>
+                Could not connect to the backend server.
+              </Text>
+              {__DEV__ && (
+                <Text style={[styles.errorDetail, { color: colors.textMuted }]}>
+                  {connectionError}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
         <Text variant="body" color="muted" style={[styles.desc, { marginVertical: spacing.md }]}>
           Sign in securely using Nacfson Cloud to synchronize your personal vocabulary lists, reviews, and spaced repetition progress across devices.
         </Text>
@@ -71,4 +89,26 @@ const styles = StyleSheet.create({
   card: { width: '100%', maxWidth: 400, alignItems: 'center', padding: 24 },
   header: { alignItems: 'center', gap: 8 },
   desc: { textAlign: 'center', fontSize: 14, lineHeight: 20 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    gap: 8,
+    width: '100%',
+  },
+  errorContent: {
+    flex: 1,
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorDetail: {
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.8,
+  },
 });

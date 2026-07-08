@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -51,7 +51,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 function AppContent() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const { colors, mode } = useTheme();
+
+  const authStateRef = useRef<AuthState>('loading');
+  useEffect(() => {
+    authStateRef.current = authState;
+  }, [authState]);
 
   useEffect(() => {
     let active = true;
@@ -68,15 +74,32 @@ function AppContent() {
     const token = await sessionStorage.getToken();
     if (!token) {
       setAuthState('unauthenticated');
+      setConnectionError(null);
       return;
     }
     try {
       await me();
       setAuthState('authenticated');
-    } catch (err) {
+      setConnectionError(null);
+    } catch (err: any) {
       console.error('checkAuth failed:', err);
-      await sessionStorage.removeToken();
-      setAuthState('unauthenticated');
+      if (err && err.status === 401) {
+        await sessionStorage.removeToken();
+        setAuthState('unauthenticated');
+        setConnectionError(null);
+      } else {
+        // Keep the token saved.
+        // If we are currently unauthenticated, we show the error banner.
+        // If we are loading (app startup with a token), we go to authenticated to keep them logged in.
+        const current = authStateRef.current;
+        if (current === 'unauthenticated') {
+          setConnectionError(err.message || 'Could not connect to the backend server.');
+          setAuthState('unauthenticated');
+        } else {
+          setAuthState('authenticated');
+          setConnectionError(null);
+        }
+      }
     }
   }, []);
 
@@ -147,7 +170,10 @@ function AppContent() {
           edges={['top', 'right', 'bottom', 'left']}
           style={[styles.safe, { backgroundColor: colors.background }]}
         >
-          <CentralAuthScreen onTokenReceived={checkAuth} />
+          <CentralAuthScreen 
+            onTokenReceived={checkAuth} 
+            connectionError={connectionError}
+          />
         </SafeAreaView>
       )}
     </>
