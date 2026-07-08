@@ -57,18 +57,14 @@ function AppContent() {
   const authStateRef = useRef<AuthState>('loading');
   useEffect(() => {
     authStateRef.current = authState;
-    console.log('[AppContent] authState changed:', authState);
   }, [authState]);
 
   useEffect(() => {
-    console.log('[AppContent] onboarding check started');
     let active = true;
     onboardingStorage.getCompleted().then((completed) => {
-      console.log('[AppContent] onboarding completed status:', completed);
       if (!active) return;
       setOnboardingCompleted(completed);
-    }).catch(err => {
-      console.error('[AppContent] onboarding check failed:', err);
+    }).catch(() => {
       if (active) setOnboardingCompleted(false);
     });
     return () => {
@@ -77,22 +73,17 @@ function AppContent() {
   }, []);
 
   const checkAuth = useCallback(async () => {
-    console.log('[AppContent] checkAuth started');
     try {
       const token = await sessionStorage.getToken();
-      console.log('[AppContent] token retrieved:', token ? 'exists' : 'null');
       if (!token) {
         setAuthState('unauthenticated');
         setConnectionError(null);
         return;
       }
-      console.log('[AppContent] calling me()');
       await me();
-      console.log('[AppContent] me() succeeded');
       setAuthState('authenticated');
       setConnectionError(null);
     } catch (err: any) {
-      console.log('[AppContent] checkAuth caught error:', err);
       if (err && err.status === 401) {
         await sessionStorage.removeToken();
         setAuthState('unauthenticated');
@@ -100,7 +91,6 @@ function AppContent() {
       } else {
         // Keep the token saved.
         const current = authStateRef.current;
-        console.log('[AppContent] connection issue, current authState:', current);
         if (current === 'unauthenticated') {
           setConnectionError(err.message || 'Could not connect to the backend server.');
           setAuthState('unauthenticated');
@@ -114,18 +104,14 @@ function AppContent() {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      console.log('[AppContent] initializeAuth started');
       try {
         const incomingToken = await parseTokenFromLaunchUrl();
-        console.log('[AppContent] incomingToken parsed:', incomingToken ? 'exists' : 'null');
         if (incomingToken) {
           await sessionStorage.setToken(incomingToken);
           notifyExtension(incomingToken);
         }
         await checkAuth();
-        console.log('[AppContent] initializeAuth finished checkAuth');
-      } catch (err) {
-        console.error('[AppContent] initializeAuth failed:', err);
+      } catch {
         setAuthState('unauthenticated');
       }
     };
