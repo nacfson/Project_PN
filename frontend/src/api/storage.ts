@@ -131,6 +131,47 @@ function createSecureThemeModeStorage(): ThemeModeStorage {
 export const themeModeStorage: ThemeModeStorage =
   Platform.OS === 'web' ? createWebThemeModeStorage() : createSecureThemeModeStorage();
 
+const THEME_VARIATION_KEY = 'project_pn_theme_variation';
+
+export interface ThemeVariationStorage {
+  getVariation(): Promise<string | null>;
+  setVariation(variation: string): Promise<void>;
+}
+
+function createWebThemeVariationStorage(): ThemeVariationStorage {
+  return {
+    async getVariation() {
+      if (typeof localStorage === 'undefined') {
+        return null;
+      }
+      return localStorage.getItem(THEME_VARIATION_KEY);
+    },
+    async setVariation(variation) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(THEME_VARIATION_KEY, variation);
+      }
+    },
+  };
+}
+
+function createSecureThemeVariationStorage(): ThemeVariationStorage {
+  return {
+    async getVariation() {
+      try {
+        return await SecureStore.getItemAsync(THEME_VARIATION_KEY);
+      } catch {
+        return null;
+      }
+    },
+    async setVariation(variation) {
+      await SecureStore.setItemAsync(THEME_VARIATION_KEY, variation);
+    },
+  };
+}
+
+export const themeVariationStorage: ThemeVariationStorage =
+  Platform.OS === 'web' ? createWebThemeVariationStorage() : createSecureThemeVariationStorage();
+
 const ONBOARDING_KEY = 'project_pn_onboarding_completed';
 
 export interface OnboardingStorage {

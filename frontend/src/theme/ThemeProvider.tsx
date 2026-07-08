@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useColorScheme } from 'react-native';
-import { themeModeStorage } from '../api/storage';
+import { themeModeStorage, themeVariationStorage } from '../api/storage';
 import { themeFor, colorsFor, visualVariations, type Theme, type ThemeMode } from './tokens';
 import * as motion from './motion';
 import { useReducedMotion } from './motion';
@@ -94,7 +94,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() =>
     systemColorScheme === 'dark' ? 'dark' : 'light',
   );
-  const [variation, setVariation] = useState<ThemeVariation>('bentoIndigo');
+  const [variation, setVariationState] = useState<ThemeVariation>('bentoIndigo');
   const reduced = useReducedMotion();
   const [fontsLoaded] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -114,6 +114,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setModeState(systemColorScheme);
       }
     });
+    themeVariationStorage.getVariation().then((stored) => {
+      if (!active) return;
+      if (stored === 'bentoIndigo' || stored === 'bentoSunset' || stored === 'bentoLight') {
+        setVariationState(stored as ThemeVariation);
+      }
+    });
     return () => {
       active = false;
     };
@@ -128,6 +134,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const next = mode === 'dark' ? 'light' : 'dark';
     setMode(next);
   }, [mode, setMode]);
+
+  const setVariation = useCallback((nextVar: ThemeVariation) => {
+    setVariationState(nextVar);
+    void themeVariationStorage.setVariation(nextVar);
+  }, []);
 
   const value = useMemo(() => {
     const baseTheme = themeFor(mode);
