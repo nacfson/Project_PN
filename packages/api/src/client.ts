@@ -6,6 +6,7 @@ export interface ApiConfig {
 }
 
 let config: ApiConfig | undefined;
+let lastWorkingBaseUrl: string | undefined;
 
 export function configureApi(c: ApiConfig): void {
   config = c;
@@ -71,13 +72,39 @@ async function parseResponse(response: Response): Promise<unknown> {
 
 async function fetchWithFallback(path: string, init: RequestInit): Promise<Response> {
   const errors: string[] = [];
-  for (const baseUrl of getConfig().baseUrls) {
+  
+  const urls = [...getConfig().baseUrls];
+  if (lastWorkingBaseUrl && urls.includes(lastWorkingBaseUrl)) {
+    const index = urls.indexOf(lastWorkingBaseUrl);
+    urls.splice(index, 1);
+    urls.unshift(lastWorkingBaseUrl);
+  }
+
+  for (const baseUrl of urls) {
+    let timeoutId: any;
     try {
       const fetchImpl = getConfig().fetchImpl ?? fetch;
-      return await fetchImpl(`${baseUrl}${path}`, init);
+      
+      const isLastWorking = baseUrl === lastWorkingBaseUrl;
+      const timeoutMs = isLastWorking ? 15000 : 3500;
+      
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      const response = await fetchImpl(`${baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+      });
+      
+      lastWorkingBaseUrl = baseUrl;
+      return response;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${baseUrl}: ${message}`);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }
   throw new Error(`All API endpoints failed: ${errors.join('; ')}`);
