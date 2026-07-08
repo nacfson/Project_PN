@@ -70,6 +70,31 @@ async function parseResponse(response: Response): Promise<unknown> {
   return text.length > 0 ? (JSON.parse(text) as unknown) : null;
 }
 
+async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error('Request timed out'));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      fetchImpl(url, init),
+      timeoutPromise
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 async function fetchWithFallback(path: string, init: RequestInit): Promise<Response> {
   const errors: string[] = [];
   
@@ -81,30 +106,24 @@ async function fetchWithFallback(path: string, init: RequestInit): Promise<Respo
   }
 
   for (const baseUrl of urls) {
-    let timeoutId: any;
     try {
       const fetchImpl = getConfig().fetchImpl ?? fetch;
       
       const isLastWorking = baseUrl === lastWorkingBaseUrl;
       const timeoutMs = isLastWorking ? 15000 : 6500;
       
-      const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-      
-      const response = await fetchImpl(`${baseUrl}${path}`, {
-        ...init,
-        signal: controller.signal,
-      });
+      const response = await fetchWithTimeout(
+        fetchImpl,
+        `${baseUrl}${path}`,
+        init,
+        timeoutMs
+      );
       
       lastWorkingBaseUrl = baseUrl;
       return response;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${baseUrl}: ${message}`);
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
     }
   }
   throw new Error(`All API endpoints failed: ${errors.join('; ')}`);
