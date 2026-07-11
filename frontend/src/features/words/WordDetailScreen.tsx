@@ -10,7 +10,7 @@ import { SpeakButton } from '../../components/SpeakButton';
 import { listDecks, moveItemsToDeck } from '../../api/decks';
 import type { Deck } from '../../types';
 import { MoveToDeckModal } from './MoveToDeckModal';
-import { renderFormattedSentence, renderBoldMarkdown } from '../../utils/text';
+import { renderFormattedSentence, renderBoldMarkdown, getPosColor, getPosBadgeVariant } from '../../utils/text';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
 
@@ -29,6 +29,7 @@ function formatDate(iso: string, locale: string): string {
 export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const { item } = route.params;
   const { colors, spacing } = useTheme();
+  const posColor = getPosColor(item.part_of_speech, colors);
   const { t, language } = useAppLanguage();
   const insets = useSafeAreaInsets();
 
@@ -93,7 +94,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
       >
         <View style={[styles.header, { gap: spacing.sm, marginBottom: spacing.md }]}>
           <View style={[styles.row, { gap: spacing.md }]}>
-            <Text variant="headline" bold style={styles.flex}>
+            <Text variant="headline" bold style={[styles.flex, { color: posColor }]}>
               {item.lemma}
             </Text>
             <SpeakButton language={item.language_code} text={item.lemma} />
@@ -106,7 +107,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
         </View>
 
         <View style={[styles.badgeRow, { gap: spacing.sm, marginBottom: spacing.lg }]}>
-          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant="default" />
+          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
           {cefrLabel && <Badge label={cefrLabel} variant="info" />}
         </View>
@@ -129,10 +130,10 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
                     },
                   ]}
                 >
-                  <Text variant="body">{renderFormattedSentence(example.sentence, item.word)}</Text>
+                  <Text variant="body">{renderFormattedSentence(example.sentence, item.word, posColor)}</Text>
                   {example.localized_translation && (
                     <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                      {renderBoldMarkdown(example.localized_translation)}
+                      {renderBoldMarkdown(example.localized_translation, posColor)}
                     </Text>
                   )}
                 </View>

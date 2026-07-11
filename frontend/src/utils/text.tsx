@@ -1,7 +1,8 @@
 import React, { ReactNode } from 'react';
 import { Text } from '../ui/Text';
+import type { Colors } from '../theme/tokens';
 
-export function highlightWordInSentence(sentence: string, word: string): ReactNode[] {
+export function highlightWordInSentence(sentence: string, word: string, highlightColor?: string): ReactNode[] {
   if (!sentence || !word) return [sentence];
   const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
   const regex = new RegExp(`\\b${escaped}[a-zA-Z]*\\b`, 'gi');
@@ -12,7 +13,7 @@ export function highlightWordInSentence(sentence: string, word: string): ReactNo
       parts.push(sentence.slice(lastIndex, offset));
     }
     parts.push(
-      <Text key={`match-${offset}`} bold>
+      <Text key={`match-${offset}`} bold style={highlightColor ? { color: highlightColor } : undefined}>
         {match}
       </Text>
     );
@@ -25,7 +26,7 @@ export function highlightWordInSentence(sentence: string, word: string): ReactNo
   return parts;
 }
 
-export function renderBoldMarkdown(text: string | null | undefined): ReactNode[] {
+export function renderBoldMarkdown(text: string | null | undefined, highlightColor?: string): ReactNode[] {
   if (!text) return [];
   const parts: ReactNode[] = [];
   const regex = /\*\*([^*]+)\*\*/g;
@@ -42,7 +43,7 @@ export function renderBoldMarkdown(text: string | null | undefined): ReactNode[]
     }
     
     parts.push(
-      <Text key={`bold-${matchIndex}`} bold>
+      <Text key={`bold-${matchIndex}`} bold style={highlightColor ? { color: highlightColor } : undefined}>
         {innerText}
       </Text>
     );
@@ -57,10 +58,42 @@ export function renderBoldMarkdown(text: string | null | undefined): ReactNode[]
   return parts;
 }
 
-export function renderFormattedSentence(sentence: string, word: string): ReactNode[] {
+export function renderFormattedSentence(sentence: string, word: string, highlightColor?: string): ReactNode[] {
   if (!sentence) return [];
   if (sentence.includes('**')) {
-    return renderBoldMarkdown(sentence);
+    return renderBoldMarkdown(sentence, highlightColor);
   }
-  return highlightWordInSentence(sentence, word);
+  return highlightWordInSentence(sentence, word, highlightColor);
+}
+
+export function getPosColor(pos: string | null | undefined, colors: Colors): string {
+  if (!pos) return colors.primary;
+  switch (pos.toLowerCase()) {
+    case 'noun':
+      return colors.info;
+    case 'verb':
+      return colors.success;
+    case 'adjective':
+      return colors.warning;
+    case 'adverb':
+      return colors.primary;
+    default:
+      return colors.secondary;
+  }
+}
+
+export function getPosBadgeVariant(pos: string | null | undefined): 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info' {
+  if (!pos) return 'default';
+  switch (pos.toLowerCase()) {
+    case 'noun':
+      return 'info';
+    case 'verb':
+      return 'success';
+    case 'adjective':
+      return 'warning';
+    case 'adverb':
+      return 'primary';
+    default:
+      return 'default';
+  }
 }

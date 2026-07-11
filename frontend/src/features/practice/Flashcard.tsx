@@ -15,7 +15,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Icon, Text } from '../../ui';
 import type { DueItem } from '../../types';
 import { SpeakButton } from '../../components/SpeakButton';
-import { renderFormattedSentence, renderBoldMarkdown } from '../../utils/text';
+import { renderFormattedSentence, renderBoldMarkdown, getPosColor, getPosBadgeVariant } from '../../utils/text';
 
 interface FlashcardProps {
   item: DueItem;
@@ -131,11 +131,16 @@ export function Flashcard({
     onFlip();
   };
 
+  const posColor = getPosColor(item.part_of_speech, colors);
+  const badgeVariant = getPosBadgeVariant(item.part_of_speech);
+
   const cardStyle = {
     backgroundColor: colors.surfaceContainerLow,
     borderRadius: radii.xxl,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
+    borderTopWidth: 4,
+    borderTopColor: posColor,
     ...shadows.md,
   };
   const localizedDefinition = uniqueText(item.localized_definition, item.definition);
@@ -144,12 +149,12 @@ export function Flashcard({
   const renderFront = () => (
     <View style={styles.cardContent}>
       <View onLayout={handleFrontLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
+        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant={badgeVariant} />
         {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
         {cardMode === 'flashcard' ? (
           <>
             <View style={[styles.wordRow, { gap: spacing.sm }]}>
-              <Text variant="headline" style={styles.wordText}>
+              <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
                 {item.lemma}
               </Text>
               <SpeakButton language={item.language_code} text={item.lemma} />
@@ -192,10 +197,10 @@ export function Flashcard({
   const renderBack = () => (
     <View style={styles.cardContent}>
       <View onLayout={handleBackLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant="primary" />
+        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant={badgeVariant} />
         {cardMode === 'typing' && (
           <View style={[styles.wordRow, { gap: spacing.sm }]}>
-            <Text variant="headline" style={styles.wordText}>
+            <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
               {item.lemma}
             </Text>
             <SpeakButton language={item.language_code} text={item.lemma} />
@@ -243,11 +248,11 @@ export function Flashcard({
               {t('practice.exampleLabel')}
             </Text>
             <Text variant="body" style={styles.exampleSentence}>
-              &ldquo;{renderFormattedSentence(example.sentence, item.normalized_text)}&rdquo;
+              &ldquo;{renderFormattedSentence(example.sentence, item.normalized_text, posColor)}&rdquo;
             </Text>
             {localizedExample && (
               <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-                {renderBoldMarkdown(localizedExample)}
+                {renderBoldMarkdown(localizedExample, posColor)}
               </Text>
             )}
           </View>

@@ -22,6 +22,7 @@ import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
 import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
 import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from '../../api/decks';
+import { getPosBadgeVariant } from '../../utils/text';
 import { DeckCanvas } from './DeckCanvas';
 import { DeckFormModal } from './DeckFormModal';
 import { MoveToDeckModal } from './MoveToDeckModal';
@@ -381,7 +382,7 @@ export function MyWordsScreen() {
           <Icon name="chevron-forward" size="md" />
         </View>
         <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm, flexWrap: 'wrap' }]}>
-          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant="default" />
+          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
           {item.deck_name ? (
             <Badge label={`📁 ${item.deck_name}`} variant="default" />
