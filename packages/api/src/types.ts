@@ -47,6 +47,7 @@ export interface LookupRequest {
   part_of_speech?: string;
   word_id?: string;
   force?: boolean;
+  source_context?: string;
 }
 
 export interface LookupResponse {
