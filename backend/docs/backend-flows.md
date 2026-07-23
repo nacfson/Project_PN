@@ -60,10 +60,10 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 3. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path loads canonical `word_senses` and `examples`, left-joining `sense_translations` and `example_translations` for the requested `display_language_code` (legacy requests may still send `definition_language_code`).
 4. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading.
 5. If translations are still missing (enricher unconfigured or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
-6. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, and (optional) POS.
-7. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with canonical target-language definitions and display-language translation blocks.
-7. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
-8. App reloads the affected senses (joined with localized translations and examples) and returns the result.
+6. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, optional POS, and optional `source_context` (steers which distinct senses to generate).
+7. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with **mutually distinct** senses and **exactly one** example sentence per sense, plus display-language translation blocks.
+8. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
+9. App reloads the affected senses (joined with localized translations and examples). When `source_context` is present, sense options are stable-sorted by descending token Jaccard similarity against the context (no senses are dropped).
 
 The enricher is optional. If both primary (or legacy `ENRICH_BASE_URL`) and fallback base URLs are empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
 
@@ -71,11 +71,29 @@ The enricher is optional. If both primary (or legacy `ENRICH_BASE_URL`) and fall
 
 This is the `POST /api/words/lookup` path with `force: true`, used when the user sees the cached options and none of them match:
 
-1. App receives `force: true` plus either a concrete `word_id` or a concrete `part_of_speech`. `force + part_of_speech=Any + word_id=nil` is rejected as ambiguous (HTTP 400).
+1. App receives `force: true` plus either a concrete `word_id` or a concrete `part_of_speech`. `force + part_of_speech=Any + word_id=nil` is rejected as ambiguous (HTTP 400). Optional `source_context` is forwarded to the enricher.
 2. If a `word_id` is given, app loads the word's existing definitions (ordered by `meaning_order`) and asks the enricher to return one additional sense.
 3. If no `word_id` is given (a concrete POS is guaranteed by step 1), app loads existing definitions for the `(language_code, normalized_text, part_of_speech)` identity and asks the enricher for one additional sense.
 4. In a single transaction, app appends the new senses to the matching `words` row(s) using `appendSenses` (continuing `meaning_order`), storing canonical text plus translation rows for the requesting display language.
 5. App ensures any missing on-demand translations for the display language, reloads the affected senses, and returns them.
+
+## Change-Meaning Flow
+
+`PATCH /api/learning-items/{id}` with body `{ "word_sense_id": "...", "display_language_code": "..." }`:
+
+1. Load the learning item by `id` + authenticated `user_id` (404 if missing).
+2. Verify the new sense exists and belongs to the same `word_id` as the current sense (422 otherwise).
+3. Ensure display-language translations as on add.
+4. If another **active** card already has `(user_id, new_word_sense_id)`, return HTTP 409 `sense_already_in_learning_set`.
+5. Update `user_word_senses.word_sense_id` only. Do **not** modify `review_states`.
+
+## Retranslate-Senses Command
+
+One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds every (or selected) `words` row's sense set:
+
+1. Enrich with empty `Existing` (fresh distinct senses, one example each).
+2. Insert new senses, auto-match each learner card via token Jaccard on definition + localized gloss, resolve conflicts (higher `review_count`, else earlier `added_at`; archive losers), then delete old sense IDs.
+3. Flags: `-limit N`, `-word-id UUID`, `-dry-run`, `-continue-on-error`.
 
 ## Review Flow
 
@@ -134,7 +152,8 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | `POST /api/words/lookup` (no `force`) | Lookup | `words.Service.Lookup` |
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |
-| `POST /api/learning-items` | Add-Word (steps 5-6) | `words.Service.AddLearningItem` |
+| `POST /api/learning-items` | Add-Word (steps 5-6); accepts optional `source_context` | `words.Service.AddLearningItem` |
+| `PATCH /api/learning-items/{id}` | Change meaning (swap `word_sense_id`, keep schedule) | `words.Service.ChangeLearningItemSense` |
 | `GET /api/reviews/due` | Due Review List | `words.Service.GetDueReviewItems` |
 | `POST /api/reviews/batch` | Review | `words.Service.RecordBatchReviewAttempts` |
 | `POST /api/reviews/optimize-weights` | FSRS Weight Optimization | `words.Service.OptimizeWeights` |

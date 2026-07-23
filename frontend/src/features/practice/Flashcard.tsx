@@ -233,7 +233,7 @@ export function Flashcard({
           <Text variant="caption" color="muted">
             {t('practice.definitionLabel')}
           </Text>
-          <Text variant="body" style={styles.backDefinitionText}>
+          <Text variant="title" style={styles.backDefinitionText}>
             {item.definition}
           </Text>
           {localizedDefinition && (

@@ -577,9 +577,12 @@ constraint examples_difficulty_level_valid
 Rules:
 
 - Examples should be sense-specific, not only word-specific.
+- **Exactly one `examples` row per `word_sense_id`** (unique index `examples_one_per_sense_uidx`). Steady-state enrich and the one-shot `retranslate-senses` command must not insert multiple examples per sense.
 - Example sentences are stored once in the word's target language.
 - Localized sentence translations (with optional `**...**` highlight markers) live in `example_translations`.
 - `cloze_text` and `cloze_answer` are optional MVP fields for fill-in-the-blank exercises.
+
+One-time catalog rebuild: run `cmd/retranslate-senses` after deploying the one-example enricher so existing multi-example / near-duplicate sense sets are replaced and learner cards are auto-matched onto the new senses.
 
 ## example_translations
 
