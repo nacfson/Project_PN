@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
 	"project-pn/internal/words"
@@ -127,6 +129,35 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, item)
 }
 
+type changeLearningItemSenseRequest struct {
+	WordSenseID         string `json:"word_sense_id"`
+	DisplayLanguageCode string `json:"display_language_code"`
+}
+
+func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Request) {
+	itemID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if itemID == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req changeLearningItemSenseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if strings.TrimSpace(req.WordSenseID) == "" {
+		writeError(w, http.StatusBadRequest, "word_sense_id is required")
+		return
+	}
+
+	item, err := h.svc.ChangeLearningItemSense(r.Context(), userIDFromRequest(r), itemID, req.WordSenseID, req.DisplayLanguageCode)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
 func (h *wordsHandler) listLearningItems(w http.ResponseWriter, r *http.Request) {
 	params, err := parseListLearningItemsParams(r)
 	if err != nil {
@@ -184,6 +215,12 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, words.ErrSenseNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "word sense not found")
+	case errors.Is(err, words.ErrLearningItemNotFound):
+		writeError(w, http.StatusNotFound, "learning item not found")
+	case errors.Is(err, words.ErrSenseConflict):
+		writeError(w, http.StatusConflict, "sense_already_in_learning_set")
+	case errors.Is(err, words.ErrSenseWrongWord):
+		writeError(w, http.StatusUnprocessableEntity, "word sense does not belong to the same word")
 	case errors.Is(err, words.ErrTranslationUnavailable):
 		writeError(w, http.StatusUnprocessableEntity, "localized translation unavailable for this word sense")
 	case errors.Is(err, words.ErrForceAmbiguous):

@@ -96,6 +96,7 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Post("/words/lookup", wh.lookup)
 				protected.Get("/learning-items", wh.listLearningItems)
 				protected.Post("/learning-items", wh.addLearningItem)
+				protected.Patch("/learning-items/{id}", wh.changeLearningItemSense)
 				protected.Get("/reviews/due", wh.getDueReviewItems)
 				protected.Post("/reviews/batch", wh.recordBatchReviewAttempts)
 				protected.Post("/reviews/optimize-weights", wh.optimizeWeights)

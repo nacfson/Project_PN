@@ -34,6 +34,9 @@ var (
 	ErrDeckNameExists            = errors.New("words: deck name already exists")
 	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
 	ErrInvalidTargetLang         = errors.New("words: invalid target language")
+	ErrLearningItemNotFound      = errors.New("words: learning item not found")
+	ErrSenseConflict             = errors.New("words: sense_already_in_learning_set")
+	ErrSenseWrongWord            = errors.New("words: sense belongs to a different word")
 )
 
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -334,6 +337,123 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 	if err := tx.Commit(ctx); err != nil {
 		return LearningItem{}, err
+	}
+	return item, nil
+}
+
+// ChangeLearningItemSense swaps word_sense_id on an existing learning item
+// without touching review_states. Rejects cross-word senses and active conflicts.
+func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, newWordSenseID, displayLangCode string) (LearningItem, error) {
+	itemID = strings.TrimSpace(itemID)
+	newWordSenseID = strings.TrimSpace(newWordSenseID)
+	if itemID == "" {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if newWordSenseID == "" {
+		return LearningItem{}, ErrSenseNotFound
+	}
+
+	var currentSenseID, currentWordID string
+	err := s.pool.QueryRow(ctx, `
+		select uws.word_sense_id::text, ws.word_id::text
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
+		itemID, userID,
+	).Scan(&currentSenseID, &currentWordID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
+	}
+
+	if currentSenseID == newWordSenseID {
+		return s.loadLearningItem(ctx, userID, itemID)
+	}
+
+	var newWordID, wordLang string
+	err = s.pool.QueryRow(ctx, `
+		select w.id::text, w.language_code
+		from word_senses ws
+		join words w on w.id = ws.word_id
+		where ws.id = $1::uuid`,
+		newWordSenseID,
+	).Scan(&newWordID, &wordLang)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrSenseNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: verify new sense: %w", err)
+	}
+	if newWordID != currentWordID {
+		return LearningItem{}, ErrSenseWrongWord
+	}
+
+	displayLang, err := s.resolveDisplayLang(ctx, userID, displayLangCode)
+	if err != nil {
+		return LearningItem{}, err
+	}
+	if displayLang != wordLang {
+		if _, err := s.ensureTranslationsForWord(ctx, []string{newWordID}, displayLang); err != nil {
+			return LearningItem{}, err
+		}
+		var hasTranslation bool
+		if err := s.pool.QueryRow(ctx, `
+			select exists(
+				select 1 from sense_translations
+				where word_sense_id = $1::uuid and language_code = $2
+			)`, newWordSenseID, displayLang,
+		).Scan(&hasTranslation); err != nil {
+			return LearningItem{}, fmt.Errorf("words: verify translation: %w", err)
+		}
+		if !hasTranslation {
+			return LearningItem{}, ErrTranslationUnavailable
+		}
+	}
+
+	var conflict bool
+	if err := s.pool.QueryRow(ctx, `
+		select exists(
+			select 1 from user_word_senses
+			where user_id = $1::uuid
+			  and word_sense_id = $2::uuid
+			  and archived_at is null
+			  and id <> $3::uuid
+		)`, userID, newWordSenseID, itemID,
+	).Scan(&conflict); err != nil {
+		return LearningItem{}, fmt.Errorf("words: check sense conflict: %w", err)
+	}
+	if conflict {
+		return LearningItem{}, ErrSenseConflict
+	}
+
+	if _, err := s.pool.Exec(ctx, `
+		update user_word_senses
+		set word_sense_id = $1::uuid, updated_at = now()
+		where id = $2::uuid and user_id = $3::uuid`,
+		newWordSenseID, itemID, userID,
+	); err != nil {
+		return LearningItem{}, fmt.Errorf("words: change sense: %w", err)
+	}
+
+	return s.loadLearningItem(ctx, userID, itemID)
+}
+
+func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (LearningItem, error) {
+	var item LearningItem
+	err := s.pool.QueryRow(ctx, `
+		select uws.id::text, uws.word_sense_id::text, uws.learning_stage, rs.due_at
+		from user_word_senses uws
+		join review_states rs on rs.user_word_sense_id = uws.id
+		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
+		itemID, userID,
+	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.DueAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
 	}
 	return item, nil
 }

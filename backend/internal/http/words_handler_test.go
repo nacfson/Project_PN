@@ -269,6 +269,71 @@ func TestAddLearningItemPersistsSourceContext(t *testing.T) {
 	}
 }
 
+func TestChangeMeaningConflictReturns409(t *testing.T) {
+	router, token, pool, authSvc := validationRouterWithPool(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("change-meaning")
+	// Re-ensure to get user id matching token from validationRouter — use latest user.
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + strings.TrimPrefix(token, "token-"),
+		Email: strings.TrimPrefix(token, "token-"),
+	})
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	_ = emailAddr
+
+	lemma := "chgmean" + time.Now().Format("150405.000000")
+	var wordID, senseA, senseB string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', $1, $1, 'verb') returning id::text
+	`, lemma).Scan(&wordID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'a', 1) returning id::text
+	`, wordID).Scan(&senseA); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'b', 2) returning id::text
+	`, wordID).Scan(&senseB); err != nil {
+		t.Fatal(err)
+	}
+	for _, sid := range []string{senseA, senseB} {
+		if _, err := pool.Exec(ctx, `
+			insert into sense_translations (word_sense_id, language_code, definition)
+			values ($1::uuid, 'ko', '번역')
+		`, sid); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg := config.Load()
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	itemA, err := wordsSvc.AddLearningItem(ctx, user.ID, senseA, "ko", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wordsSvc.AddLearningItem(ctx, user.ID, senseB, "ko", "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"word_sense_id":"` + senseB + `","display_language_code":"ko"}`
+	req := authRequest(t, http.MethodPatch, "/api/learning-items/"+itemA.ID, body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "sense_already_in_learning_set") {
+		t.Fatalf("expected conflict code in body, got %s", rec.Body.String())
+	}
+}
+
 func TestLookupRejectsEmptyText(t *testing.T) {
 	router, token := validationRouter(t)
 
