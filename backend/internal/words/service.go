@@ -245,8 +245,9 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 // AddLearningItem creates the personal user_word_senses + review_states rows
 // for the given concrete word sense (idempotent). If deckID is empty, the item
 // is placed in the default deck for the word's language.
-func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID string) (LearningItem, error) {
+func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID, sourceContext string) (LearningItem, error) {
 	wordSenseID = strings.TrimSpace(wordSenseID)
+	sourceContext = strings.TrimSpace(sourceContext)
 	if wordSenseID == "" {
 		return LearningItem{}, ErrSenseNotFound
 	}
@@ -307,11 +308,14 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 	var item LearningItem
 	err = tx.QueryRow(ctx,
-		`insert into user_word_senses (user_id, word_sense_id, deck_id)
-		 values ($1::uuid, $2::uuid, $3::uuid)
-		 on conflict (user_id, word_sense_id) do update set updated_at = now()
+		`insert into user_word_senses (user_id, word_sense_id, deck_id, source_context)
+		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''))
+		 on conflict (user_id, word_sense_id) do update set
+		   deck_id = excluded.deck_id,
+		   source_context = coalesce(nullif(excluded.source_context, ''), user_word_senses.source_context),
+		   updated_at = now()
 		 returning id::text, word_sense_id::text, learning_stage`,
-		userID, wordSenseID, deckID,
+		userID, wordSenseID, deckID, sourceContext,
 	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage)
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)

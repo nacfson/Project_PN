@@ -217,6 +217,58 @@ func TestLookupAcceptsSourceContext(t *testing.T) {
 	}
 }
 
+func TestAddLearningItemPersistsSourceContext(t *testing.T) {
+	router, token, pool, _ := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	lemma := "chargectx" + time.Now().Format("150405.000000")
+	var senseID string
+	err := pool.QueryRow(ctx, `
+		with w as (
+			insert into words (language_code, lemma, normalized_text, part_of_speech)
+			values ('en', $1, $1, 'verb')
+			returning id
+		)
+		insert into word_senses (word_id, definition, meaning_order)
+		select id, 'to store energy', 1 from w
+		returning id::text
+	`, lemma).Scan(&senseID)
+	if err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '충전하다')
+	`, senseID); err != nil {
+		t.Fatalf("insert translation: %v", err)
+	}
+
+	body := `{"word_sense_id":"` + senseID + `","display_language_code":"ko","source_context":"Charge it overnight."}`
+	req := authRequest(t, http.MethodPost, "/api/learning-items", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var item words.LearningItem
+	if err := json.NewDecoder(rec.Body).Decode(&item); err != nil {
+		t.Fatalf("decode item: %v", err)
+	}
+
+	var got *string
+	err = pool.QueryRow(ctx,
+		`select source_context from user_word_senses where id=$1::uuid`,
+		item.ID,
+	).Scan(&got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || *got != "Charge it overnight." {
+		t.Fatalf("source_context=%v", got)
+	}
+}
+
 func TestLookupRejectsEmptyText(t *testing.T) {
 	router, token := validationRouter(t)
 

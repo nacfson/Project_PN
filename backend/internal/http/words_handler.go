@@ -56,6 +56,7 @@ type addLearningItemRequest struct {
 	WordSenseID         string `json:"word_sense_id"`
 	DisplayLanguageCode string `json:"display_language_code"`
 	DeckID              string `json:"deck_id"`
+	SourceContext       string `json:"source_context"`
 }
 
 func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +118,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID)
+	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID, req.SourceContext)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
