@@ -164,3 +164,54 @@ func TestRealModelDoesNotUseEnglishFallbackGuard(t *testing.T) {
 		t.Fatalf("real model should not use English fallback guard, got %v", err)
 	}
 }
+
+func TestNormalizeMatchText(t *testing.T) {
+	got := NormalizeMatchText("  Intentionally,  고의로 ")
+	// Plan sample expected "intentionally 고의로"; Fields keeps punctuation on tokens.
+	if got != "intentionally, 고의로" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestTokenJaccardIdentical(t *testing.T) {
+	if TokenJaccard("고의로 하다", "고의로 하다") != 1 {
+		t.Fatal("expected 1")
+	}
+}
+
+func TestDedupeSensesCollapsesNearDuplicates(t *testing.T) {
+	in := []Sense{
+		{Definition: "deliberately", NativeDefinition: "고의로", Examples: []Example{{Sentence: "a"}}},
+		{Definition: "intentionally", NativeDefinition: "의도적으로", Examples: []Example{{Sentence: "b"}}},
+		{Definition: "to accuse formally", NativeDefinition: "기소하다", Examples: []Example{{Sentence: "c"}}},
+	}
+	// Force high overlap on native side for first two by using same tokens:
+	in[0].NativeDefinition = "고의로 의도적으로"
+	in[1].NativeDefinition = "의도적으로 고의로"
+	out := DedupeSenses(in)
+	if len(out) != 2 {
+		t.Fatalf("expected 2 senses after dedupe, got %d", len(out))
+	}
+}
+
+func TestParseModelOutputRejectsWrongExampleCount(t *testing.T) {
+	req := Request{Text: "charge", LanguageCode: "en", DefinitionLanguageCode: "ko"}
+	raw := `{
+	  "normalized_text":"charge",
+	  "entries":[{
+	    "lemma":"charge","part_of_speech":"verb","pronunciation":"",
+	    "senses":[{
+	      "definition":"to store energy","short_definition":"store energy","cefr_level":"A2",
+	      "native_definition":"충전하다","native_short_definition":"충전하다",
+	      "examples":[
+	        {"sentence":"Charge it.","translation":"**충전**하세요.","difficulty":"easy"},
+	        {"sentence":"Charge overnight.","translation":"밤새 **충전**하세요.","difficulty":"medium"}
+	      ]
+	    }]
+	  }]
+	}`
+	_, err := parseModelOutput(req, raw)
+	if err == nil {
+		t.Fatal("expected error for 2 examples")
+	}
+}

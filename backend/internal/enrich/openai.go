@@ -279,6 +279,7 @@ func parseModelOutput(req Request, content string) (Result, error) {
 					sense.NativeShortDefinition = nativeShort
 				}
 			}
+			var keptExamples []Example
 			for _, ex := range s.Examples {
 				sentence := strings.TrimSpace(ex.Sentence)
 				if sentence == "" {
@@ -292,21 +293,27 @@ func parseModelOutput(req Request, content string) (Result, error) {
 				if !ValidTranslation(req.DefinitionLanguageCode, sentence, translation) {
 					translation = ""
 				}
-				sense.Examples = append(sense.Examples, Example{
+				keptExamples = append(keptExamples, Example{
 					Sentence:    sentence,
 					Translation: translation,
 					Difficulty:  difficulty,
 				})
 			}
+			// Exactly one example per sense; skip invalid senses.
+			if len(keptExamples) != 1 {
+				continue
+			}
+			sense.Examples = keptExamples[:1]
 			e.Senses = append(e.Senses, sense)
 		}
+		e.Senses = DedupeSenses(e.Senses)
 		if len(e.Senses) > 0 {
 			result.Entries = append(result.Entries, e)
 		}
 	}
 
 	if len(result.Entries) == 0 {
-		return Result{}, errors.New("enrich: model returned no usable senses")
+		return Result{}, fmt.Errorf("%w: model returned no usable senses", ErrInvalidOutput)
 	}
 	return result, nil
 }

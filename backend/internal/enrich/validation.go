@@ -69,3 +69,69 @@ func isJapanese(r rune) bool {
 func isHanOnly(r rune) bool {
 	return unicode.Is(unicode.Han, r)
 }
+
+// NormalizeMatchText lowercases and collapses whitespace for similarity matching.
+func NormalizeMatchText(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	fields := strings.Fields(s)
+	return strings.Join(fields, " ")
+}
+
+// TokenJaccard returns Jaccard similarity of whitespace tokens after NormalizeMatchText.
+func TokenJaccard(a, b string) float64 {
+	ta := strings.Fields(NormalizeMatchText(a))
+	tb := strings.Fields(NormalizeMatchText(b))
+	if len(ta) == 0 && len(tb) == 0 {
+		return 1
+	}
+	if len(ta) == 0 || len(tb) == 0 {
+		return 0
+	}
+	setA := map[string]struct{}{}
+	for _, t := range ta {
+		setA[t] = struct{}{}
+	}
+	inter := 0
+	setB := map[string]struct{}{}
+	for _, t := range tb {
+		setB[t] = struct{}{}
+		if _, ok := setA[t]; ok {
+			inter++
+		}
+	}
+	union := len(setA) + len(setB) - inter
+	if union == 0 {
+		return 0
+	}
+	return float64(inter) / float64(union)
+}
+
+func sensesNearDuplicate(a, b Sense) bool {
+	if TokenJaccard(a.Definition, b.Definition) >= 0.8 {
+		return true
+	}
+	if a.NativeDefinition != "" && b.NativeDefinition != "" &&
+		TokenJaccard(a.NativeDefinition, b.NativeDefinition) >= 0.8 {
+		return true
+	}
+	return false
+}
+
+// DedupeSenses keeps the first of each near-dup cluster (Jaccard ≥ 0.8 on
+// definition or native definition).
+func DedupeSenses(senses []Sense) []Sense {
+	out := make([]Sense, 0, len(senses))
+	for _, s := range senses {
+		dup := false
+		for _, kept := range out {
+			if sensesNearDuplicate(s, kept) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			out = append(out, s)
+		}
+	}
+	return out
+}
