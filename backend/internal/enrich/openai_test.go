@@ -215,7 +215,7 @@ func TestDedupeSensesCollapsesNearDuplicates(t *testing.T) {
 	}
 }
 
-func TestParseModelOutputRejectsWrongExampleCount(t *testing.T) {
+func TestParseModelOutputKeepsFirstWhenMultipleExamples(t *testing.T) {
 	req := Request{Text: "charge", LanguageCode: "en", DefinitionLanguageCode: "ko"}
 	raw := `{
 	  "normalized_text":"charge",
@@ -231,8 +231,34 @@ func TestParseModelOutputRejectsWrongExampleCount(t *testing.T) {
 	    }]
 	  }]
 	}`
+	result, err := parseModelOutput(req, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Entries) != 1 || len(result.Entries[0].Senses) != 1 {
+		t.Fatalf("expected one usable sense, got %+v", result)
+	}
+	ex := result.Entries[0].Senses[0].Examples
+	if len(ex) != 1 || ex[0].Sentence != "Charge it." {
+		t.Fatalf("expected first example kept, got %+v", ex)
+	}
+}
+
+func TestParseModelOutputRejectsSenseWithNoExamples(t *testing.T) {
+	req := Request{Text: "charge", LanguageCode: "en", DefinitionLanguageCode: "ko"}
+	raw := `{
+	  "normalized_text":"charge",
+	  "entries":[{
+	    "lemma":"charge","part_of_speech":"verb","pronunciation":"",
+	    "senses":[{
+	      "definition":"to store energy","short_definition":"store energy","cefr_level":"A2",
+	      "native_definition":"충전하다","native_short_definition":"충전하다",
+	      "examples":[]
+	    }]
+	  }]
+	}`
 	_, err := parseModelOutput(req, raw)
 	if err == nil {
-		t.Fatal("expected error for 2 examples")
+		t.Fatal("expected error when all senses lack examples")
 	}
 }

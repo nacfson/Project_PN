@@ -299,8 +299,9 @@ func parseModelOutput(req Request, content string) (Result, error) {
 					Difficulty:  difficulty,
 				})
 			}
-			// Exactly one example per sense; skip invalid senses.
-			if len(keptExamples) != 1 {
+			// Exactly one example per sense. Models often still return 3–5;
+			// keep the first usable sentence rather than discarding the sense.
+			if len(keptExamples) == 0 {
 				continue
 			}
 			sense.Examples = keptExamples[:1]
@@ -414,7 +415,8 @@ const systemPrompt = `You are a precise bilingual lexicographer. ` +
       ]
     }
   ]
-}`
+}
+Each sense MUST include exactly one object in "examples" (length 1).`
 
 const translateSystemPrompt = `You are a precise bilingual lexicographer. ` +
 	`You return ONLY a single JSON object, no prose, no markdown fences. ` +
