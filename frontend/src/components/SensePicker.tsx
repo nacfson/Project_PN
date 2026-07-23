@@ -150,6 +150,12 @@ export function SensePicker({
                     <Text variant="body" style={{ marginTop: spacing.xs }}>
                       {option.definition}
                     </Text>
+                    {option.localized_definition &&
+                      option.localized_definition !== option.definition && (
+                        <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
+                          {option.localized_definition}
+                        </Text>
+                      )}
                     {(option.examples ?? []).length > 0 && (
                       <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
                         &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, query)}&rdquo;

@@ -1,66 +1,146 @@
-import React, { ReactNode } from 'react';
+import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
-import { AddQueueProvider } from '../../hooks/useAddQueue';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import { ManualAddSection } from './ManualAddSection';
+import { addLearningItem, lookupWord } from '../../api/words';
 
 jest.mock('../../api/words', () => ({
-  addLearningItem: jest.fn().mockResolvedValue(undefined),
-  lookupWord: jest.fn().mockResolvedValue({ sense_options: [] }),
+  addLearningItem: jest.fn().mockResolvedValue({ id: 'item-1', word_sense_id: 'sense-1' }),
+  lookupWord: jest.fn().mockResolvedValue({
+    sense_options: [
+      {
+        word_id: 'w1',
+        word_sense_id: 'sense-1',
+        language_code: 'en',
+        lemma: 'charge',
+        normalized_text: 'charge',
+        part_of_speech: 'verb',
+        pronunciation: null,
+        display_language_code: 'ko',
+        definition: 'to store energy',
+        short_definition: 'store energy',
+        localized_definition: '충전하다',
+        localized_short_definition: '충전하다',
+        cefr_level: 'A2',
+        meaning_order: 1,
+        examples: [{ sentence: 'Charge it overnight.', difficulty: null, localized_translation: null }],
+      },
+    ],
+  }),
 }));
 
-function Wrapper({ children }: { children: ReactNode }) {
-  return (
+jest.mock('@expo-google-fonts/inter', () => ({
+  useFonts: () => [true],
+  Inter_400Regular: 'Inter_400Regular',
+  Inter_500Medium: 'Inter_500Medium',
+  Inter_600SemiBold: 'Inter_600SemiBold',
+  Inter_700Bold: 'Inter_700Bold',
+  Inter_800ExtraBold: 'Inter_800ExtraBold',
+}));
+
+jest.mock('../../components/SensePicker', () => {
+  const ReactLocal = require('react');
+  const { Pressable, Text, View } = require('react-native');
+  return {
+    SensePicker: ({
+      visible,
+      options,
+      onConfirm,
+    }: {
+      visible: boolean;
+      options: Array<{ word_sense_id: string; definition: string }>;
+      onConfirm: (id: string) => void;
+    }) => {
+      if (!visible) return null;
+      return ReactLocal.createElement(
+        View,
+        { testID: 'sense-picker-mock' },
+        options.map((o: { word_sense_id: string; definition: string }) =>
+          ReactLocal.createElement(
+            Pressable,
+            { key: o.word_sense_id, onPress: () => onConfirm(o.word_sense_id) },
+            ReactLocal.createElement(Text, null, o.definition),
+          ),
+        ),
+      );
+    },
+  };
+});
+
+async function renderSection() {
+  return render(
     <AppLanguageProvider>
       <ThemeProvider>
-        <AddQueueProvider>{children}</AddQueueProvider>
+        <ManualAddSection selectedDeckId="deck-123" targetLanguage="en" />
       </ThemeProvider>
-    </AppLanguageProvider>
+    </AppLanguageProvider>,
   );
 }
 
 describe('ManualAddSection', () => {
-  it('disables add when input is empty', async () => {
-    await render(<ManualAddSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
-
-    const addButton = screen.getByText('Add Word');
-    expect(addButton).toBeDisabled();
+  beforeEach(() => {
+    (lookupWord as jest.Mock).mockClear();
+    (addLearningItem as jest.Mock).mockClear();
   });
 
-  it('wraps the input in a flex container that can shrink so the add button is not pushed out of bounds', async () => {
-    await render(<ManualAddSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
-
-    const inputWrapper = screen.getByTestId('manual-add-input-wrapper');
-    expect(inputWrapper).toHaveStyle({ flex: 1, minWidth: 0 });
+  it('disables find when input is empty', async () => {
+    await renderSection();
+    expect(screen.getByText('Find my sense')).toBeDisabled();
   });
 
-  it('enqueues a word with the selected deck', async () => {
-    await render(<ManualAddSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
+  it('wraps the word input for layout', async () => {
+    await renderSection();
+    expect(screen.getByTestId('manual-add-input-wrapper')).toBeTruthy();
+  });
 
-    fireEvent.changeText(screen.getByPlaceholderText('Type a word'), 'hello');
-    fireEvent.press(screen.getByText('Add Word'));
+  it('looks up with sourceContext and confirms selected sense', async () => {
+    await renderSection();
 
-    expect(screen.getByPlaceholderText('Type a word').props.value).toBe('');
+    const wordInput = screen.getByPlaceholderText('Type a word');
+    fireEvent.changeText(wordInput, 'charge');
+    await waitFor(() => expect(wordInput.props.value).toBe('charge'));
+
+    const contextInput = screen.getByPlaceholderText(/Optional sentence/);
+    fireEvent.changeText(contextInput, 'Charge the battery overnight.');
+    await waitFor(() => expect(contextInput.props.value).toBe('Charge the battery overnight.'));
+
+    fireEvent.press(screen.getByText('Find my sense'));
+
+    await waitFor(() => {
+      expect(lookupWord).toHaveBeenCalledWith(
+        'charge',
+        expect.objectContaining({
+          sourceContext: 'Charge the battery overnight.',
+          languageCode: 'en',
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('to store energy')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByText('to store energy'));
+
+    await waitFor(() => {
+      expect(addLearningItem).toHaveBeenCalledWith(
+        'sense-1',
+        expect.any(String),
+        'deck-123',
+        'Charge the battery overnight.',
+      );
+    });
   });
 
   it('validates fields on blur', async () => {
-    await render(<ManualAddSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
+    await renderSection();
 
     const input = screen.getByPlaceholderText('Type a word');
-    
-    // Type numbers (invalid word)
     fireEvent.changeText(input, 'hello123');
-    
-    // Wait for text to settle in the input field
     await waitFor(() => {
       expect(input.props.value).toBe('hello123');
     });
-
-    // Now trigger blur
     fireEvent(input, 'blur');
-
-    // Should display validation error text
     await waitFor(() => {
       expect(screen.getByText('Please enter a valid word.')).toBeTruthy();
     });

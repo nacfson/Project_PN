@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PosSelector } from '../../components/PosSelector';
-import { WordChip } from '../../components/WordChip';
-import { useAddQueue } from '../../hooks/useAddQueue';
+import { SensePicker } from '../../components/SensePicker';
+import { useSenseFlow } from '../../hooks/useSenseFlow';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Input, Text } from '../../ui';
@@ -17,10 +17,30 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
+  const [context, setContext] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
-  const { enqueue, statusOf, jobs } = useAddQueue();
+
+  const {
+    pickerVisible,
+    query,
+    options,
+    generating,
+    error,
+    lookup,
+    forceExisting,
+    forceWithPos,
+    confirm,
+    close,
+  } = useSenseFlow({
+    onAdded: () => {
+      setWord('');
+      setContext('');
+      setValidationError(null);
+      setTouched(false);
+    },
+  });
 
   const handleBlur = () => {
     setTouched(true);
@@ -48,7 +68,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
     }
   };
 
-  const submit = () => {
+  const findSense = () => {
     const trimmed = word.trim();
     if (trimmed.length === 0) {
       setValidationError(t('add.wordRequired'));
@@ -58,25 +78,8 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
       setValidationError(t('add.validationInvalidWord'));
       return;
     }
-    enqueue(trimmed, pos, selectedDeckId, targetLanguage);
-    setWord('');
-    setValidationError(null);
-    setTouched(false);
+    void lookup(trimmed, pos, context.trim() || undefined, targetLanguage, selectedDeckId);
   };
-
-  const recentJobs = useMemo(() => {
-    const seen = new Set<string>();
-    return jobs
-      .filter((job) => job.deckId === selectedDeckId)
-      .slice()
-      .reverse()
-      .filter((job) => {
-        if (seen.has(job.text)) return false;
-        seen.add(job.text);
-        return true;
-      })
-      .slice(0, 10);
-  }, [jobs, selectedDeckId]);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surfaceContainerLow, borderRadius: 16, padding: spacing.lg }]}>
@@ -84,27 +87,39 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         {t('add.addOneWord')}
       </Text>
 
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
-        <View style={{ flex: 1, minWidth: 0 }} testID="manual-add-input-wrapper">
-          <Input
-            value={word}
-            onChangeText={handleChangeText}
-            onBlur={handleBlur}
-            error={!!validationError}
-            helperText={validationError || undefined}
-            placeholder={t('add.wordPlaceholder')}
-            autoCapitalize="none"
-            autoCorrect={false}
-            onSubmitEditing={submit}
-            returnKeyType="search"
-            onClear={() => {
-              setWord('');
-              setValidationError(null);
-              setTouched(false);
-            }}
-          />
-        </View>
-        <Button label={t('add.addWord')} onPress={submit} disabled={word.trim().length === 0} />
+      <View style={{ marginBottom: spacing.md }} testID="manual-add-input-wrapper">
+        <Input
+          value={word}
+          onChangeText={handleChangeText}
+          onBlur={handleBlur}
+          error={!!validationError}
+          helperText={validationError || undefined}
+          placeholder={t('add.wordPlaceholder')}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onSubmitEditing={findSense}
+          returnKeyType="search"
+          onClear={() => {
+            setWord('');
+            setValidationError(null);
+            setTouched(false);
+          }}
+        />
+      </View>
+
+      <View style={{ marginBottom: spacing.md }}>
+        <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
+          {t('add.contextLabel')}
+        </Text>
+        <Input
+          value={context}
+          onChangeText={setContext}
+          placeholder={t('add.contextPlaceholder')}
+          multiline
+          numberOfLines={3}
+          style={{ minHeight: 72 }}
+          onClear={() => setContext('')}
+        />
       </View>
 
       <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
@@ -112,16 +127,26 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         <PosSelector value={pos} onChange={setPos} />
       </View>
 
-      {recentJobs.length > 0 && (
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="label" color="muted">{t('add.added')}</Text>
-          <View style={styles.chipRow}>
-            {recentJobs.map((job) => (
-              <WordChip key={job.id} word={job.text} status={statusOf(job.text)} />
-            ))}
-          </View>
-        </View>
-      )}
+      <Button
+        label={t('add.findMySense')}
+        onPress={findSense}
+        disabled={word.trim().length === 0 || generating}
+        loading={generating}
+      />
+
+      <SensePicker
+        visible={pickerVisible}
+        query={query}
+        options={options}
+        generating={generating}
+        errorMessage={error}
+        onConfirm={(wordSenseId) => {
+          void confirm(wordSenseId, selectedDeckId, context.trim() || undefined);
+        }}
+        onForceExisting={forceExisting}
+        onForceWithPos={forceWithPos}
+        onClose={close}
+      />
     </View>
   );
 }
@@ -129,10 +154,5 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
 const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
 });
