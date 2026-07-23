@@ -165,6 +165,27 @@ func TestRealModelDoesNotUseEnglishFallbackGuard(t *testing.T) {
 	}
 }
 
+func TestBuildUserPromptIncludesContextAndOneExample(t *testing.T) {
+	prompt := buildUserPrompt(Request{
+		Text:                   "charge",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+		SourceContext:          "Please charge it overnight before the trip.",
+	})
+	if !strings.Contains(prompt, "Please charge it overnight") {
+		t.Fatal("expected source context in prompt")
+	}
+	if strings.Contains(prompt, "3-5 distinct example") {
+		t.Fatal("old multi-example instruction still present")
+	}
+	if !strings.Contains(prompt, "exactly one example") {
+		t.Fatal("expected one-example instruction")
+	}
+	if !strings.Contains(strings.ToLower(prompt), "distinct") {
+		t.Fatal("expected distinct-sense instruction")
+	}
+}
+
 func TestNormalizeMatchText(t *testing.T) {
 	got := NormalizeMatchText("  Intentionally,  고의로 ")
 	// Plan sample expected "intentionally 고의로"; Fields keeps punctuation on tokens.

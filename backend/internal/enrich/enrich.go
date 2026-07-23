@@ -51,6 +51,9 @@ type Request struct {
 	// Existing lists already-stored sense definitions so the model can
 	// return a genuinely new sense for the forced-generation path.
 	Existing []string
+	// SourceContext is an optional sentence/situation that steers which
+	// distinct sense(s) to generate. Empty means no extra steering.
+	SourceContext string
 }
 
 // TranslateExampleInput is a target-language example sentence to translate.

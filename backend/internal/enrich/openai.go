@@ -456,7 +456,13 @@ func buildUserPrompt(req Request) string {
 		}
 	}
 
-	b.WriteString("Provide 3-5 distinct example sentences per sense spanning difficulty labelled easy, medium, and hard. Write a clear short_definition with no length limit.")
+	if ctx := strings.TrimSpace(req.SourceContext); ctx != "" {
+		fmt.Fprintf(&b, "Source context (where the learner saw this word): %q\n", ctx)
+		b.WriteString("Prioritize senses that fit that context; still return other clearly distinct common senses for the lemma.\n")
+	}
+
+	b.WriteString("Provide mutually distinct senses (different intents); do not emit near-synonym gloss pairs as separate senses.\n")
+	b.WriteString("Provide exactly one example sentence per sense. Write a clear short_definition with no length limit.")
 	return b.String()
 }
 
