@@ -99,6 +99,10 @@ export const en = {
   'words.moveToDeck': 'Move to deck',
   'words.moveToDeckTitle': 'Move to deck',
   'words.moveToDeckFailed': 'Could not move items.',
+  'words.changeMeaning': 'Change meaning',
+  'words.changeMeaningTitle': 'Choose a different meaning',
+  'words.changeMeaningConfirm': 'Save meaning',
+  'words.senseConflict': 'That meaning is already in your learning set.',
   'words.noOtherDecks': 'No other decks available.',
   'words.lastReviewed': 'Reviewed {time}',
 
@@ -410,6 +414,10 @@ export const ko: Record<TranslationKey, string> = {
   'words.moveToDeck': '덱으로 이동',
   'words.moveToDeckTitle': '덱으로 이동',
   'words.moveToDeckFailed': '항목을 이동하지 못했습니다.',
+  'words.changeMeaning': '의미 변경',
+  'words.changeMeaningTitle': '다른 의미 선택',
+  'words.changeMeaningConfirm': '의미 저장',
+  'words.senseConflict': '이미 학습 중인 의미입니다.',
   'words.noOtherDecks': '이동할 수 있는 다른 덱이 없습니다.',
   'words.lastReviewed': '최근 복습: {time}',
 

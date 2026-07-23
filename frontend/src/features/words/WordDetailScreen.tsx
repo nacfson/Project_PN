@@ -8,8 +8,9 @@ import type { WordsStackParamList } from '../../navigation/WordsStack';
 import { Badge, Button, Card, Screen, Text } from '../../ui';
 import { SpeakButton } from '../../components/SpeakButton';
 import { listDecks, moveItemsToDeck } from '../../api/decks';
-import type { Deck } from '../../types';
+import type { Deck, LearningItemListItem } from '../../types';
 import { MoveToDeckModal } from './MoveToDeckModal';
+import { ChangeMeaningSheet } from './ChangeMeaningSheet';
 import { renderFormattedSentence, renderBoldMarkdown, getPosColor, getPosBadgeVariant } from '../../utils/text';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
@@ -27,7 +28,8 @@ function formatDate(iso: string, locale: string): string {
 }
 
 export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
-  const { item } = route.params;
+  const { item: routeItem } = route.params;
+  const [item, setItem] = useState<LearningItemListItem>(routeItem);
   const { colors, spacing } = useTheme();
   const posColor = getPosColor(item.part_of_speech, colors);
   const { t, language } = useAppLanguage();
@@ -38,6 +40,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [changeMeaningOpen, setChangeMeaningOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -186,11 +189,18 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
         </Card>
 
         <Button
+          label={t('words.changeMeaning')}
+          variant="outline"
+          onPress={() => setChangeMeaningOpen(true)}
+          style={{ marginTop: spacing.md }}
+        />
+
+        <Button
           label={t('words.moveToDeck')}
           variant="tonal"
           iconLeft="folder-open-outline"
           onPress={() => setMoveModalOpen(true)}
-          style={{ marginTop: spacing.md }}
+          style={{ marginTop: spacing.sm }}
         />
 
         <MoveToDeckModal
@@ -201,6 +211,13 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           onSelect={handleMove}
           isLoading={moveLoading || decksLoading}
           error={moveError}
+        />
+
+        <ChangeMeaningSheet
+          visible={changeMeaningOpen}
+          item={item}
+          onClose={() => setChangeMeaningOpen(false)}
+          onChanged={setItem}
         />
       </ScrollView>
     </Screen>
