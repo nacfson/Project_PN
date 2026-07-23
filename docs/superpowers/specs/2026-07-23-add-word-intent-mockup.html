@@ -1,0 +1,500 @@
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --ink: #12141a;
+    --muted: #5c6478;
+    --line: #e2e5ee;
+    --primary: #4f6aff;
+    --primary-soft: #e8edff;
+    --ok: #0f7a4c;
+    --ok-soft: #e6f6ee;
+    --radius: 14px;
+    --shadow: 0 10px 30px rgba(18, 20, 26, 0.06);
+    --font: "Avenir Next", "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 12% -10%, #dfe7ff 0%, transparent 42%),
+      radial-gradient(circle at 90% 0%, #eef2f8 0%, transparent 35%),
+      var(--bg);
+  }
+
+  .shell {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-size: 28px;
+    line-height: 1.15;
+    margin: 0 0 8px;
+    font-weight: 700;
+  }
+
+  .lede {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .steps {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .step-pill {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 6px;
+    border-radius: 999px;
+    background: #e9ecf3;
+    color: var(--muted);
+  }
+
+  .step-pill.active {
+    background: var(--primary);
+    color: white;
+  }
+
+  .step-pill.done {
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+    margin: -2px 0 8px;
+  }
+
+  input, textarea, select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font: inherit;
+    font-size: 15px;
+    background: #fbfbfd;
+    color: var(--ink);
+    outline: none;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 106, 255, 0.15);
+    background: white;
+  }
+
+  textarea { min-height: 96px; resize: vertical; }
+
+  .field { margin-bottom: 14px; }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .row > * { flex: 1; }
+
+  .btn {
+    appearance: none;
+    border: none;
+    border-radius: 12px;
+    padding: 13px 16px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    width: 100%;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .actions .btn-ghost { flex: 0 0 auto; }
+  .actions .btn-primary { flex: 1; }
+
+  .lang-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-soft);
+    border-radius: 999px;
+    padding: 6px 10px;
+    margin-bottom: 14px;
+  }
+
+  .sense {
+    width: 100%;
+    text-align: left;
+    border: 1.5px solid var(--line);
+    background: #fbfbfd;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.12s;
+  }
+
+  .sense:hover { border-color: #c5cee8; transform: translateY(-1px); }
+
+  .sense.selected {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+
+  .sense-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .pos {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .match {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ok);
+    background: var(--ok-soft);
+    border-radius: 999px;
+    padding: 3px 8px;
+  }
+
+  .target-def {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.35;
+    margin: 0 0 4px;
+  }
+
+  .native-def {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .example {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #d7dbe7;
+    font-size: 13px;
+    color: #334;
+    line-height: 1.4;
+  }
+
+  .example em {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .note {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .confirm-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    background: #fbfbfd;
+  }
+
+  .confirm-card h2 {
+    margin: 0 0 4px;
+    font-size: 22px;
+  }
+
+  .locked {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ok);
+    background: var(--ok-soft);
+    border-radius: 999px;
+    padding: 6px 10px;
+  }
+
+  .hidden { display: none; }
+
+  .footer-note {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+
+<div class="shell">
+  <div class="eyebrow">Add Words · mockup</div>
+  <h1>Lock the meaning you meant</h1>
+  <p class="lede">
+    Paste the context first. Pick one sense from the list. Practice will keep that target meaning.
+  </p>
+
+  <div class="steps" aria-hidden="true">
+    <div class="step-pill active" id="pill-1">1 · Context</div>
+    <div class="step-pill" id="pill-2">2 · Select</div>
+    <div class="step-pill" id="pill-3">3 · Save</div>
+  </div>
+
+  <!-- Step 1 -->
+  <section class="panel" id="step-1">
+    <div class="lang-chip">Learning <strong>EN</strong> · Display KO</div>
+
+    <div class="field">
+      <label for="word">Word</label>
+      <input id="word" value="charge" autocomplete="off" />
+    </div>
+
+    <div class="field">
+      <label for="context">Where you saw it</label>
+      <p class="hint">One sentence or situation — this steers which meanings appear.</p>
+      <textarea id="context">Please charge it overnight before the trip.</textarea>
+    </div>
+
+    <div class="field">
+      <label for="pos">Part of speech (optional)</label>
+      <select id="pos">
+        <option>Any</option>
+        <option selected>Verb</option>
+        <option>Noun</option>
+        <option>Adjective</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="find-btn" type="button">Find my sense</button>
+    <p class="footer-note">No free-form editing of definitions — only select from the list.</p>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="panel hidden" id="step-2">
+    <div class="lang-chip">Target definition first · KO gloss secondary</div>
+
+    <p class="hint" style="margin-bottom:12px">
+      Ranked for your context. New global senses may appear; pick exactly one.
+    </p>
+
+    <button type="button" class="sense selected" data-sense="electric" aria-pressed="true">
+      <div class="sense-top">
+        <span class="pos">verb</span>
+        <span class="match">Best match</span>
+      </div>
+      <p class="target-def">to store electrical energy in a battery or device</p>
+      <p class="native-def">배터리나 기기에 전기를 충전하다</p>
+      <div class="example">“Please <em>charge</em> it overnight before the trip.”</div>
+    </button>
+
+    <button type="button" class="sense" data-sense="payment" aria-pressed="false">
+      <div class="sense-top">
+        <span class="pos">verb</span>
+      </div>
+      <p class="target-def">to ask someone to pay a particular amount of money</p>
+      <p class="native-def">요금·대가를 청구하다</p>
+      <div class="example">“They <em>charge</em> $20 for delivery.”</div>
+    </button>
+
+    <button type="button" class="sense" data-sense="accuse" aria-pressed="false">
+      <div class="sense-top">
+        <span class="pos">verb</span>
+      </div>
+      <p class="target-def">to accuse someone officially of a crime</p>
+      <p class="native-def">공식적으로 기소하다</p>
+      <div class="example">“He was <em>charged</em> with theft.”</div>
+    </button>
+
+    <p class="note">None fit? Go back and refine the context — the server can add another global sense, then you select it.</p>
+
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="back-1">Back</button>
+      <button class="btn btn-primary" type="button" id="continue-2">Use this meaning</button>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="panel hidden" id="step-3">
+    <div class="lang-chip">Card locked to selected sense</div>
+
+    <div class="confirm-card">
+      <h2 id="confirm-word">charge</h2>
+      <p class="pos" style="margin:0 0 10px">verb · Default deck</p>
+      <p class="target-def" id="confirm-target">to store electrical energy in a battery or device</p>
+      <p class="native-def" id="confirm-native">배터리나 기기에 전기를 충전하다</p>
+      <div class="locked">Locked for practice — won’t switch meanings later</div>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <label>Saved context (provenance only)</label>
+      <p class="native-def" id="confirm-context" style="margin:0">Please charge it overnight before the trip.</p>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="back-2">Back</button>
+      <button class="btn btn-primary" type="button" id="save-btn">Add to deck</button>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="step-done">
+    <div class="locked" style="margin-top:0">Added</div>
+    <h2 style="margin:12px 0 6px;font-size:22px">Your intention is saved</h2>
+    <p class="lede" style="margin-bottom:0">
+      Quizzes will use this target sense. Native gloss stays secondary in corrections.
+    </p>
+    <div class="actions">
+      <button class="btn btn-primary" type="button" id="reset-btn">Add another word</button>
+    </div>
+  </section>
+</div>
+
+<script>
+  const senses = {
+    electric: {
+      target: "to store electrical energy in a battery or device",
+      native: "배터리나 기기에 전기를 충전하다"
+    },
+    payment: {
+      target: "to ask someone to pay a particular amount of money",
+      native: "요금·대가를 청구하다"
+    },
+    accuse: {
+      target: "to accuse someone officially of a crime",
+      native: "공식적으로 기소하다"
+    }
+  };
+
+  let selected = "electric";
+  let step = 1;
+
+  const panels = {
+    1: document.getElementById("step-1"),
+    2: document.getElementById("step-2"),
+    3: document.getElementById("step-3"),
+    done: document.getElementById("step-done")
+  };
+
+  const pills = [
+    document.getElementById("pill-1"),
+    document.getElementById("pill-2"),
+    document.getElementById("pill-3")
+  ];
+
+  function show(next) {
+    step = next;
+    Object.entries(panels).forEach(([key, el]) => {
+      el.classList.toggle("hidden", String(key) !== String(next));
+    });
+    pills.forEach((pill, i) => {
+      const n = i + 1;
+      pill.classList.toggle("active", next === n);
+      pill.classList.toggle("done", typeof next === "number" && next > n || next === "done");
+    });
+    if (next === "done") {
+      pills.forEach((p) => {
+        p.classList.add("done");
+        p.classList.remove("active");
+      });
+    }
+  }
+
+  function syncConfirm() {
+    const word = document.getElementById("word").value.trim() || "charge";
+    const ctx = document.getElementById("context").value.trim();
+    const s = senses[selected];
+    document.getElementById("confirm-word").textContent = word;
+    document.getElementById("confirm-target").textContent = s.target;
+    document.getElementById("confirm-native").textContent = s.native;
+    document.getElementById("confirm-context").textContent = ctx || "—";
+  }
+
+  document.getElementById("find-btn").addEventListener("click", () => show(2));
+  document.getElementById("back-1").addEventListener("click", () => show(1));
+  document.getElementById("back-2").addEventListener("click", () => show(2));
+  document.getElementById("continue-2").addEventListener("click", () => {
+    syncConfirm();
+    show(3);
+  });
+  document.getElementById("save-btn").addEventListener("click", () => show("done"));
+  document.getElementById("reset-btn").addEventListener("click", () => show(1));
+
+  document.querySelectorAll(".sense").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".sense").forEach((b) => {
+        b.classList.remove("selected");
+        b.setAttribute("aria-pressed", "false");
+      });
+      btn.classList.add("selected");
+      btn.setAttribute("aria-pressed", "true");
+      selected = btn.dataset.sense;
+    });
+  });
+</script>
