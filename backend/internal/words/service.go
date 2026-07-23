@@ -78,8 +78,9 @@ func New(pool *pgxpool.Pool, enricher enrich.Enricher, adminLogger admin.Logger,
 
 // Lookup returns sense options for a word. POS may be nil ("Any" -> all parts
 // of speech) or a concrete value. On a full cache miss it enriches once and
-// persists the result before returning.
-func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
+// persists the result before returning. Optional sourceContext steers enrich
+// and ranks cache-hit sense options without dropping any.
+func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCode, sourceContext string, pos *string) (LookupResult, error) {
 	var err error
 	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
 	if err != nil {
@@ -89,6 +90,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	if normalized == "" {
 		return LookupResult{}, fmt.Errorf("words: empty lookup text")
 	}
+	sourceContext = strings.TrimSpace(sourceContext)
 
 	wordIDs, err := s.findWordIDs(ctx, s.pool, langCode, normalized, pos)
 	if err != nil {
@@ -103,6 +105,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		if err != nil {
 			return LookupResult{}, err
 		}
+		rankSenseOptions(options, sourceContext)
 		return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 	}
 
@@ -115,6 +118,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		LanguageCode:           langCode,
 		DefinitionLanguageCode: defLangCode,
 		POS:                    posHint,
+		SourceContext:          sourceContext,
 	})
 	if err != nil {
 		s.logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
@@ -125,25 +129,27 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	if err != nil {
 		return LookupResult{}, err
 	}
+	rankSenseOptions(options, sourceContext)
 	return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 }
 
 // ForceGenerate is the "none of these match" path. It appends a new sense and
 // returns the refreshed options for the affected word(s).
-func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *string, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
+func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *string, text, langCode, defLangCode, sourceContext string, pos *string) (LookupResult, error) {
 	var err error
 	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
 	if err != nil {
 		return LookupResult{}, err
 	}
 	normalized := normalize(text)
+	sourceContext = strings.TrimSpace(sourceContext)
 
 	if wordID == nil && (pos == nil || normalize(*pos) == "" || strings.EqualFold(*pos, "any")) {
 		return LookupResult{}, ErrForceAmbiguous
 	}
 
 	if wordID != nil {
-		return s.forceUnderWord(ctx, *wordID, defLangCode)
+		return s.forceUnderWord(ctx, *wordID, defLangCode, sourceContext)
 	}
 
 	posValue := strings.ToLower(strings.TrimSpace(*pos))
@@ -157,6 +163,7 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 		DefinitionLanguageCode: defLangCode,
 		POS:                    posValue,
 		Existing:               existing,
+		SourceContext:          sourceContext,
 	})
 	if err != nil {
 		return LookupResult{}, err
@@ -165,10 +172,11 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 	if err != nil {
 		return LookupResult{}, err
 	}
+	rankSenseOptions(options, sourceContext)
 	return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 }
 
-func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string) (LookupResult, error) {
+func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourceContext string) (LookupResult, error) {
 	var langCode, lemma, normalized, pos string
 	err := s.pool.QueryRow(ctx,
 		`select language_code, lemma, normalized_text, part_of_speech from words where id = $1::uuid`,
@@ -192,6 +200,7 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 		DefinitionLanguageCode: defLangCode,
 		POS:                    pos,
 		Existing:               existing,
+		SourceContext:          strings.TrimSpace(sourceContext),
 	})
 	if err != nil {
 		return LookupResult{}, err
@@ -229,6 +238,7 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 	if err != nil {
 		return LookupResult{}, err
 	}
+	rankSenseOptions(options, sourceContext)
 	return LookupResult{Query: normalized, NormalizedText: normalized, SenseOptions: options}, nil
 }
 

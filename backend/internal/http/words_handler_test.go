@@ -118,6 +118,105 @@ func TestLookupRejectsForceWithoutPosOrWordID(t *testing.T) {
 	}
 }
 
+type recordingEnricher struct {
+	lastReq enrich.Request
+}
+
+func (r *recordingEnricher) Enrich(_ context.Context, req enrich.Request) (enrich.Result, error) {
+	r.lastReq = req
+	lemma := req.Text
+	return enrich.Result{
+		NormalizedText: lemma,
+		Entries: []enrich.Entry{{
+			Lemma:        lemma,
+			PartOfSpeech: "verb",
+			Senses: []enrich.Sense{{
+				Definition:            "to store energy",
+				ShortDefinition:       "store energy",
+				NativeDefinition:      "충전하다",
+				NativeShortDefinition: "충전하다",
+				Examples: []enrich.Example{{
+					Sentence:    "Charge it overnight.",
+					Translation: "밤새 **충전**하세요.",
+				}},
+			}},
+		}},
+	}, nil
+}
+
+func (r *recordingEnricher) Translate(_ context.Context, _ enrich.TranslateRequest) (enrich.TranslateResult, error) {
+	return enrich.TranslateResult{}, nil
+}
+
+func TestLookupAcceptsSourceContext(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for words handler HTTP tests")
+	}
+
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+	if err := migrations.Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration: %v", err)
+	}
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, sense_translations CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
+	cfg := config.Load()
+	authSvc := auth.New(pool, auth.Options{
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		DefaultUILang:          cfg.UILang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		AllowedUILangs:         cfg.AllowedUILangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		ForceUILang:            cfg.ForceUILang,
+	})
+	recEnricher := &recordingEnricher{}
+	wordsSvc := words.New(pool, recEnricher, admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	router := NewRouter(Dependencies{
+		DB:             pool,
+		Words:          wordsSvc,
+		Auth:           authSvc,
+		CentralAuth:    mockCentralClient(t),
+		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
+	})
+
+	emailAddr := uniqueEmail("lookup-context")
+	token := "token-" + emailAddr
+	registerTestToken(token, emailAddr)
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
+		t.Fatalf("ensure deck: %v", err)
+	}
+
+	body := `{"text":"charge","source_context":"Charge the battery overnight.","language_code":"en","display_language_code":"ko"}`
+	req := authRequest(t, http.MethodPost, "/api/words/lookup", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if recEnricher.lastReq.SourceContext != "Charge the battery overnight." {
+		t.Fatalf("enricher SourceContext=%q", recEnricher.lastReq.SourceContext)
+	}
+}
+
 func TestLookupRejectsEmptyText(t *testing.T) {
 	router, token := validationRouter(t)
 

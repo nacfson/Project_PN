@@ -29,7 +29,7 @@ func (s *Service) PreviewAnkiImport(ctx context.Context, userID string, req Anki
 			Back:  back,
 		}
 
-		lookupResult, err := s.Lookup(ctx, userID, front, langCode, defLangCode, nil)
+		lookupResult, err := s.Lookup(ctx, userID, front, langCode, defLangCode, "", nil)
 		if err != nil {
 			// If lookup failed entirely, treat as a new word the user can try to add.
 			item.Status = ImportStatusNewWord
@@ -210,7 +210,7 @@ func (s *Service) createWordAndSenseFromAnki(ctx context.Context, userID, langCo
 	normalized := normalize(front)
 
 	// First try the enricher so we get a proper POS, examples, and canonical data.
-	lookupResult, err := s.Lookup(ctx, userID, front, langCode, defLangCode, nil)
+	lookupResult, err := s.Lookup(ctx, userID, front, langCode, defLangCode, "", nil)
 	if err == nil && len(lookupResult.SenseOptions) > 0 {
 		matched := findBestMatchingSense(lookupResult.SenseOptions, back)
 		if matched != nil {

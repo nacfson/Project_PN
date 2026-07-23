@@ -241,7 +241,7 @@ func TestLookupLogsEnrichFail(t *testing.T) {
 	svc := New(pool, &stubEnricher{enrichErr: errors.New("enricher down")}, logger, "", "en", "ko")
 
 	lemma := fmt.Sprintf("enrichfail%d", time.Now().UnixNano())
-	_, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil)
+	_, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil)
 	if err == nil {
 		t.Fatal("expected enrich failure")
 	}
@@ -274,7 +274,7 @@ func TestLookupLogsAddWord(t *testing.T) {
 	}
 	svc := New(pool, enricher, logger, "", "en", "ko")
 
-	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("lookup failed: %v", err)
 	}
 
@@ -306,10 +306,10 @@ func TestLookupAddWordNoDuplicateLog(t *testing.T) {
 	}
 	svc := New(pool, enricher, logger, "", "en", "ko")
 
-	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("first lookup failed: %v", err)
 	}
-	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("second lookup failed: %v", err)
 	}
 

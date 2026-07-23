@@ -42,6 +42,7 @@ type lookupRequest struct {
 	PartOfSpeech           string  `json:"part_of_speech"`
 	WordID                 *string `json:"word_id"`
 	Force                  bool    `json:"force"`
+	SourceContext          string  `json:"source_context"`
 }
 
 func (req lookupRequest) displayLang() string {
@@ -90,9 +91,9 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
 			return
 		}
-		result, err = h.svc.ForceGenerate(r.Context(), userID, wordID, req.Text, req.LanguageCode, displayLang, pos)
+		result, err = h.svc.ForceGenerate(r.Context(), userID, wordID, req.Text, req.LanguageCode, displayLang, req.SourceContext, pos)
 	} else {
-		result, err = h.svc.Lookup(r.Context(), userID, req.Text, req.LanguageCode, displayLang, pos)
+		result, err = h.svc.Lookup(r.Context(), userID, req.Text, req.LanguageCode, displayLang, req.SourceContext, pos)
 	}
 	if err != nil {
 		h.writeServiceError(w, err)
