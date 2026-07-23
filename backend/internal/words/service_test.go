@@ -99,7 +99,7 @@ func TestListLearningItemsPopulatesDeckAndReviewDetails(t *testing.T) {
 	// 2. Insert a word and add it to the custom deck using a unique lemma
 	lemma := fmt.Sprintf("tddword%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "en", customDeck.ID)
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "en", customDeck.ID, "")
 	if err != nil {
 		t.Fatalf("failed to add learning item: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestLearningItemsTranslations(t *testing.T) {
 	senseID := insertDeckFixtureWord(t, pool, lemma)
 
 	// Add learning item
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
 	if err != nil {
 		t.Fatalf("failed to add learning item: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestLookupLogsEnrichFail(t *testing.T) {
 	svc := New(pool, &stubEnricher{enrichErr: errors.New("enricher down")}, logger, "", "en", "ko")
 
 	lemma := fmt.Sprintf("enrichfail%d", time.Now().UnixNano())
-	_, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil)
+	_, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil)
 	if err == nil {
 		t.Fatal("expected enrich failure")
 	}
@@ -274,7 +274,7 @@ func TestLookupLogsAddWord(t *testing.T) {
 	}
 	svc := New(pool, enricher, logger, "", "en", "ko")
 
-	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("lookup failed: %v", err)
 	}
 
@@ -306,10 +306,10 @@ func TestLookupAddWordNoDuplicateLog(t *testing.T) {
 	}
 	svc := New(pool, enricher, logger, "", "en", "ko")
 
-	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("first lookup failed: %v", err)
 	}
-	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", nil); err != nil {
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("second lookup failed: %v", err)
 	}
 

@@ -118,6 +118,222 @@ func TestLookupRejectsForceWithoutPosOrWordID(t *testing.T) {
 	}
 }
 
+type recordingEnricher struct {
+	lastReq enrich.Request
+}
+
+func (r *recordingEnricher) Enrich(_ context.Context, req enrich.Request) (enrich.Result, error) {
+	r.lastReq = req
+	lemma := req.Text
+	return enrich.Result{
+		NormalizedText: lemma,
+		Entries: []enrich.Entry{{
+			Lemma:        lemma,
+			PartOfSpeech: "verb",
+			Senses: []enrich.Sense{{
+				Definition:            "to store energy",
+				ShortDefinition:       "store energy",
+				NativeDefinition:      "충전하다",
+				NativeShortDefinition: "충전하다",
+				Examples: []enrich.Example{{
+					Sentence:    "Charge it overnight.",
+					Translation: "밤새 **충전**하세요.",
+				}},
+			}},
+		}},
+	}, nil
+}
+
+func (r *recordingEnricher) Translate(_ context.Context, _ enrich.TranslateRequest) (enrich.TranslateResult, error) {
+	return enrich.TranslateResult{}, nil
+}
+
+func TestLookupAcceptsSourceContext(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for words handler HTTP tests")
+	}
+
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+	if err := migrations.Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration: %v", err)
+	}
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, sense_translations CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
+	cfg := config.Load()
+	authSvc := auth.New(pool, auth.Options{
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		DefaultUILang:          cfg.UILang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		AllowedUILangs:         cfg.AllowedUILangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		ForceUILang:            cfg.ForceUILang,
+	})
+	recEnricher := &recordingEnricher{}
+	wordsSvc := words.New(pool, recEnricher, admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	router := NewRouter(Dependencies{
+		DB:             pool,
+		Words:          wordsSvc,
+		Auth:           authSvc,
+		CentralAuth:    mockCentralClient(t),
+		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
+	})
+
+	emailAddr := uniqueEmail("lookup-context")
+	token := "token-" + emailAddr
+	registerTestToken(token, emailAddr)
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + emailAddr,
+		Email: emailAddr,
+	})
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
+		t.Fatalf("ensure deck: %v", err)
+	}
+
+	body := `{"text":"charge","source_context":"Charge the battery overnight.","language_code":"en","display_language_code":"ko"}`
+	req := authRequest(t, http.MethodPost, "/api/words/lookup", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if recEnricher.lastReq.SourceContext != "Charge the battery overnight." {
+		t.Fatalf("enricher SourceContext=%q", recEnricher.lastReq.SourceContext)
+	}
+}
+
+func TestAddLearningItemPersistsSourceContext(t *testing.T) {
+	router, token, pool, _ := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	lemma := "chargectx" + time.Now().Format("150405.000000")
+	var senseID string
+	err := pool.QueryRow(ctx, `
+		with w as (
+			insert into words (language_code, lemma, normalized_text, part_of_speech)
+			values ('en', $1, $1, 'verb')
+			returning id
+		)
+		insert into word_senses (word_id, definition, meaning_order)
+		select id, 'to store energy', 1 from w
+		returning id::text
+	`, lemma).Scan(&senseID)
+	if err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '충전하다')
+	`, senseID); err != nil {
+		t.Fatalf("insert translation: %v", err)
+	}
+
+	body := `{"word_sense_id":"` + senseID + `","display_language_code":"ko","source_context":"Charge it overnight."}`
+	req := authRequest(t, http.MethodPost, "/api/learning-items", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var item words.LearningItem
+	if err := json.NewDecoder(rec.Body).Decode(&item); err != nil {
+		t.Fatalf("decode item: %v", err)
+	}
+
+	var got *string
+	err = pool.QueryRow(ctx,
+		`select source_context from user_word_senses where id=$1::uuid`,
+		item.ID,
+	).Scan(&got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || *got != "Charge it overnight." {
+		t.Fatalf("source_context=%v", got)
+	}
+}
+
+func TestChangeMeaningConflictReturns409(t *testing.T) {
+	router, token, pool, authSvc := validationRouterWithPool(t)
+	ctx := context.Background()
+	emailAddr := uniqueEmail("change-meaning")
+	// Re-ensure to get user id matching token from validationRouter — use latest user.
+	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+		ID:    "central-" + strings.TrimPrefix(token, "token-"),
+		Email: strings.TrimPrefix(token, "token-"),
+	})
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	_ = emailAddr
+
+	lemma := "chgmean" + time.Now().Format("150405.000000")
+	var wordID, senseA, senseB string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', $1, $1, 'verb') returning id::text
+	`, lemma).Scan(&wordID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'a', 1) returning id::text
+	`, wordID).Scan(&senseA); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'b', 2) returning id::text
+	`, wordID).Scan(&senseB); err != nil {
+		t.Fatal(err)
+	}
+	for _, sid := range []string{senseA, senseB} {
+		if _, err := pool.Exec(ctx, `
+			insert into sense_translations (word_sense_id, language_code, definition)
+			values ($1::uuid, 'ko', '번역')
+		`, sid); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg := config.Load()
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	itemA, err := wordsSvc.AddLearningItem(ctx, user.ID, senseA, "ko", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wordsSvc.AddLearningItem(ctx, user.ID, senseB, "ko", "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"word_sense_id":"` + senseB + `","display_language_code":"ko"}`
+	req := authRequest(t, http.MethodPatch, "/api/learning-items/"+itemA.ID, body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "sense_already_in_learning_set") {
+		t.Fatalf("expected conflict code in body, got %s", rec.Body.String())
+	}
+}
+
 func TestLookupRejectsEmptyText(t *testing.T) {
 	router, token := validationRouter(t)
 

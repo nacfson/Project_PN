@@ -164,3 +164,101 @@ func TestRealModelDoesNotUseEnglishFallbackGuard(t *testing.T) {
 		t.Fatalf("real model should not use English fallback guard, got %v", err)
 	}
 }
+
+func TestBuildUserPromptIncludesContextAndOneExample(t *testing.T) {
+	prompt := buildUserPrompt(Request{
+		Text:                   "charge",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+		SourceContext:          "Please charge it overnight before the trip.",
+	})
+	if !strings.Contains(prompt, "Please charge it overnight") {
+		t.Fatal("expected source context in prompt")
+	}
+	if strings.Contains(prompt, "3-5 distinct example") {
+		t.Fatal("old multi-example instruction still present")
+	}
+	if !strings.Contains(prompt, "exactly one example") {
+		t.Fatal("expected one-example instruction")
+	}
+	if !strings.Contains(strings.ToLower(prompt), "distinct") {
+		t.Fatal("expected distinct-sense instruction")
+	}
+}
+
+func TestNormalizeMatchText(t *testing.T) {
+	got := NormalizeMatchText("  Intentionally,  고의로 ")
+	// Plan sample expected "intentionally 고의로"; Fields keeps punctuation on tokens.
+	if got != "intentionally, 고의로" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestTokenJaccardIdentical(t *testing.T) {
+	if TokenJaccard("고의로 하다", "고의로 하다") != 1 {
+		t.Fatal("expected 1")
+	}
+}
+
+func TestDedupeSensesCollapsesNearDuplicates(t *testing.T) {
+	in := []Sense{
+		{Definition: "deliberately", NativeDefinition: "고의로", Examples: []Example{{Sentence: "a"}}},
+		{Definition: "intentionally", NativeDefinition: "의도적으로", Examples: []Example{{Sentence: "b"}}},
+		{Definition: "to accuse formally", NativeDefinition: "기소하다", Examples: []Example{{Sentence: "c"}}},
+	}
+	// Force high overlap on native side for first two by using same tokens:
+	in[0].NativeDefinition = "고의로 의도적으로"
+	in[1].NativeDefinition = "의도적으로 고의로"
+	out := DedupeSenses(in)
+	if len(out) != 2 {
+		t.Fatalf("expected 2 senses after dedupe, got %d", len(out))
+	}
+}
+
+func TestParseModelOutputKeepsFirstWhenMultipleExamples(t *testing.T) {
+	req := Request{Text: "charge", LanguageCode: "en", DefinitionLanguageCode: "ko"}
+	raw := `{
+	  "normalized_text":"charge",
+	  "entries":[{
+	    "lemma":"charge","part_of_speech":"verb","pronunciation":"",
+	    "senses":[{
+	      "definition":"to store energy","short_definition":"store energy","cefr_level":"A2",
+	      "native_definition":"충전하다","native_short_definition":"충전하다",
+	      "examples":[
+	        {"sentence":"Charge it.","translation":"**충전**하세요.","difficulty":"easy"},
+	        {"sentence":"Charge overnight.","translation":"밤새 **충전**하세요.","difficulty":"medium"}
+	      ]
+	    }]
+	  }]
+	}`
+	result, err := parseModelOutput(req, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Entries) != 1 || len(result.Entries[0].Senses) != 1 {
+		t.Fatalf("expected one usable sense, got %+v", result)
+	}
+	ex := result.Entries[0].Senses[0].Examples
+	if len(ex) != 1 || ex[0].Sentence != "Charge it." {
+		t.Fatalf("expected first example kept, got %+v", ex)
+	}
+}
+
+func TestParseModelOutputRejectsSenseWithNoExamples(t *testing.T) {
+	req := Request{Text: "charge", LanguageCode: "en", DefinitionLanguageCode: "ko"}
+	raw := `{
+	  "normalized_text":"charge",
+	  "entries":[{
+	    "lemma":"charge","part_of_speech":"verb","pronunciation":"",
+	    "senses":[{
+	      "definition":"to store energy","short_definition":"store energy","cefr_level":"A2",
+	      "native_definition":"충전하다","native_short_definition":"충전하다",
+	      "examples":[]
+	    }]
+	  }]
+	}`
+	_, err := parseModelOutput(req, raw)
+	if err == nil {
+		t.Fatal("expected error when all senses lack examples")
+	}
+}

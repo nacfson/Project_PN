@@ -74,6 +74,22 @@ describe('Flashcard', () => {
     expect(screen.getAllByText(baseItem.definition)).toHaveLength(1);
   });
 
+  it('renders target definition above localized gloss on the back', async () => {
+    await renderCard({
+      definition: 'to store energy',
+      localized_definition: '충전하다',
+    });
+
+    const target = screen.getByText('to store energy');
+    const gloss = screen.getByText('충전하다');
+    expect(target).toBeTruthy();
+    expect(gloss).toBeTruthy();
+    // Target uses title variant (primary); gloss uses muted body.
+    expect(target.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ fontSize: expect.any(Number) })]),
+    );
+  });
+
   it('does not render duplicate localized example text', async () => {
     await renderCard();
 

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
 	"project-pn/internal/words"
@@ -42,6 +44,7 @@ type lookupRequest struct {
 	PartOfSpeech           string  `json:"part_of_speech"`
 	WordID                 *string `json:"word_id"`
 	Force                  bool    `json:"force"`
+	SourceContext          string  `json:"source_context"`
 }
 
 func (req lookupRequest) displayLang() string {
@@ -55,6 +58,7 @@ type addLearningItemRequest struct {
 	WordSenseID         string `json:"word_sense_id"`
 	DisplayLanguageCode string `json:"display_language_code"`
 	DeckID              string `json:"deck_id"`
+	SourceContext       string `json:"source_context"`
 }
 
 func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
@@ -90,9 +94,9 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
 			return
 		}
-		result, err = h.svc.ForceGenerate(r.Context(), userID, wordID, req.Text, req.LanguageCode, displayLang, pos)
+		result, err = h.svc.ForceGenerate(r.Context(), userID, wordID, req.Text, req.LanguageCode, displayLang, req.SourceContext, pos)
 	} else {
-		result, err = h.svc.Lookup(r.Context(), userID, req.Text, req.LanguageCode, displayLang, pos)
+		result, err = h.svc.Lookup(r.Context(), userID, req.Text, req.LanguageCode, displayLang, req.SourceContext, pos)
 	}
 	if err != nil {
 		h.writeServiceError(w, err)
@@ -116,13 +120,42 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID)
+	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID, req.SourceContext)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
 	h.logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIdentifierFromRequest(r), item.WordSenseID)
 	writeJSON(w, http.StatusCreated, item)
+}
+
+type changeLearningItemSenseRequest struct {
+	WordSenseID         string `json:"word_sense_id"`
+	DisplayLanguageCode string `json:"display_language_code"`
+}
+
+func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Request) {
+	itemID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if itemID == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	var req changeLearningItemSenseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if strings.TrimSpace(req.WordSenseID) == "" {
+		writeError(w, http.StatusBadRequest, "word_sense_id is required")
+		return
+	}
+
+	item, err := h.svc.ChangeLearningItemSense(r.Context(), userIDFromRequest(r), itemID, req.WordSenseID, req.DisplayLanguageCode)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (h *wordsHandler) listLearningItems(w http.ResponseWriter, r *http.Request) {
@@ -182,6 +215,12 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, words.ErrSenseNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "word sense not found")
+	case errors.Is(err, words.ErrLearningItemNotFound):
+		writeError(w, http.StatusNotFound, "learning item not found")
+	case errors.Is(err, words.ErrSenseConflict):
+		writeError(w, http.StatusConflict, "sense_already_in_learning_set")
+	case errors.Is(err, words.ErrSenseWrongWord):
+		writeError(w, http.StatusUnprocessableEntity, "word sense does not belong to the same word")
 	case errors.Is(err, words.ErrTranslationUnavailable):
 		writeError(w, http.StatusUnprocessableEntity, "localized translation unavailable for this word sense")
 	case errors.Is(err, words.ErrForceAmbiguous):

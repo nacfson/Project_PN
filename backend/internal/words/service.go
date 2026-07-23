@@ -34,6 +34,9 @@ var (
 	ErrDeckNameExists            = errors.New("words: deck name already exists")
 	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
 	ErrInvalidTargetLang         = errors.New("words: invalid target language")
+	ErrLearningItemNotFound      = errors.New("words: learning item not found")
+	ErrSenseConflict             = errors.New("words: sense_already_in_learning_set")
+	ErrSenseWrongWord            = errors.New("words: sense belongs to a different word")
 )
 
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -78,8 +81,9 @@ func New(pool *pgxpool.Pool, enricher enrich.Enricher, adminLogger admin.Logger,
 
 // Lookup returns sense options for a word. POS may be nil ("Any" -> all parts
 // of speech) or a concrete value. On a full cache miss it enriches once and
-// persists the result before returning.
-func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
+// persists the result before returning. Optional sourceContext steers enrich
+// and ranks cache-hit sense options without dropping any.
+func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCode, sourceContext string, pos *string) (LookupResult, error) {
 	var err error
 	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
 	if err != nil {
@@ -89,6 +93,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	if normalized == "" {
 		return LookupResult{}, fmt.Errorf("words: empty lookup text")
 	}
+	sourceContext = strings.TrimSpace(sourceContext)
 
 	wordIDs, err := s.findWordIDs(ctx, s.pool, langCode, normalized, pos)
 	if err != nil {
@@ -103,6 +108,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		if err != nil {
 			return LookupResult{}, err
 		}
+		rankSenseOptions(options, sourceContext)
 		return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 	}
 
@@ -115,6 +121,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		LanguageCode:           langCode,
 		DefinitionLanguageCode: defLangCode,
 		POS:                    posHint,
+		SourceContext:          sourceContext,
 	})
 	if err != nil {
 		s.logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
@@ -125,25 +132,27 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	if err != nil {
 		return LookupResult{}, err
 	}
+	rankSenseOptions(options, sourceContext)
 	return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 }
 
 // ForceGenerate is the "none of these match" path. It appends a new sense and
 // returns the refreshed options for the affected word(s).
-func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *string, text, langCode, defLangCode string, pos *string) (LookupResult, error) {
+func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *string, text, langCode, defLangCode, sourceContext string, pos *string) (LookupResult, error) {
 	var err error
 	langCode, defLangCode, err = s.fillLangs(ctx, userID, langCode, defLangCode)
 	if err != nil {
 		return LookupResult{}, err
 	}
 	normalized := normalize(text)
+	sourceContext = strings.TrimSpace(sourceContext)
 
 	if wordID == nil && (pos == nil || normalize(*pos) == "" || strings.EqualFold(*pos, "any")) {
 		return LookupResult{}, ErrForceAmbiguous
 	}
 
 	if wordID != nil {
-		return s.forceUnderWord(ctx, *wordID, defLangCode)
+		return s.forceUnderWord(ctx, *wordID, defLangCode, sourceContext)
 	}
 
 	posValue := strings.ToLower(strings.TrimSpace(*pos))
@@ -157,6 +166,7 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 		DefinitionLanguageCode: defLangCode,
 		POS:                    posValue,
 		Existing:               existing,
+		SourceContext:          sourceContext,
 	})
 	if err != nil {
 		return LookupResult{}, err
@@ -165,10 +175,11 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 	if err != nil {
 		return LookupResult{}, err
 	}
+	rankSenseOptions(options, sourceContext)
 	return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
 }
 
-func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string) (LookupResult, error) {
+func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourceContext string) (LookupResult, error) {
 	var langCode, lemma, normalized, pos string
 	err := s.pool.QueryRow(ctx,
 		`select language_code, lemma, normalized_text, part_of_speech from words where id = $1::uuid`,
@@ -192,6 +203,7 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 		DefinitionLanguageCode: defLangCode,
 		POS:                    pos,
 		Existing:               existing,
+		SourceContext:          strings.TrimSpace(sourceContext),
 	})
 	if err != nil {
 		return LookupResult{}, err
@@ -229,14 +241,16 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode string
 	if err != nil {
 		return LookupResult{}, err
 	}
+	rankSenseOptions(options, sourceContext)
 	return LookupResult{Query: normalized, NormalizedText: normalized, SenseOptions: options}, nil
 }
 
 // AddLearningItem creates the personal user_word_senses + review_states rows
 // for the given concrete word sense (idempotent). If deckID is empty, the item
 // is placed in the default deck for the word's language.
-func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID string) (LearningItem, error) {
+func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID, sourceContext string) (LearningItem, error) {
 	wordSenseID = strings.TrimSpace(wordSenseID)
+	sourceContext = strings.TrimSpace(sourceContext)
 	if wordSenseID == "" {
 		return LearningItem{}, ErrSenseNotFound
 	}
@@ -297,11 +311,14 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 	var item LearningItem
 	err = tx.QueryRow(ctx,
-		`insert into user_word_senses (user_id, word_sense_id, deck_id)
-		 values ($1::uuid, $2::uuid, $3::uuid)
-		 on conflict (user_id, word_sense_id) do update set updated_at = now()
+		`insert into user_word_senses (user_id, word_sense_id, deck_id, source_context)
+		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''))
+		 on conflict (user_id, word_sense_id) do update set
+		   deck_id = excluded.deck_id,
+		   source_context = coalesce(nullif(excluded.source_context, ''), user_word_senses.source_context),
+		   updated_at = now()
 		 returning id::text, word_sense_id::text, learning_stage`,
-		userID, wordSenseID, deckID,
+		userID, wordSenseID, deckID, sourceContext,
 	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage)
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
@@ -320,6 +337,123 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 	if err := tx.Commit(ctx); err != nil {
 		return LearningItem{}, err
+	}
+	return item, nil
+}
+
+// ChangeLearningItemSense swaps word_sense_id on an existing learning item
+// without touching review_states. Rejects cross-word senses and active conflicts.
+func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, newWordSenseID, displayLangCode string) (LearningItem, error) {
+	itemID = strings.TrimSpace(itemID)
+	newWordSenseID = strings.TrimSpace(newWordSenseID)
+	if itemID == "" {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if newWordSenseID == "" {
+		return LearningItem{}, ErrSenseNotFound
+	}
+
+	var currentSenseID, currentWordID string
+	err := s.pool.QueryRow(ctx, `
+		select uws.word_sense_id::text, ws.word_id::text
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
+		itemID, userID,
+	).Scan(&currentSenseID, &currentWordID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
+	}
+
+	if currentSenseID == newWordSenseID {
+		return s.loadLearningItem(ctx, userID, itemID)
+	}
+
+	var newWordID, wordLang string
+	err = s.pool.QueryRow(ctx, `
+		select w.id::text, w.language_code
+		from word_senses ws
+		join words w on w.id = ws.word_id
+		where ws.id = $1::uuid`,
+		newWordSenseID,
+	).Scan(&newWordID, &wordLang)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrSenseNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: verify new sense: %w", err)
+	}
+	if newWordID != currentWordID {
+		return LearningItem{}, ErrSenseWrongWord
+	}
+
+	displayLang, err := s.resolveDisplayLang(ctx, userID, displayLangCode)
+	if err != nil {
+		return LearningItem{}, err
+	}
+	if displayLang != wordLang {
+		if _, err := s.ensureTranslationsForWord(ctx, []string{newWordID}, displayLang); err != nil {
+			return LearningItem{}, err
+		}
+		var hasTranslation bool
+		if err := s.pool.QueryRow(ctx, `
+			select exists(
+				select 1 from sense_translations
+				where word_sense_id = $1::uuid and language_code = $2
+			)`, newWordSenseID, displayLang,
+		).Scan(&hasTranslation); err != nil {
+			return LearningItem{}, fmt.Errorf("words: verify translation: %w", err)
+		}
+		if !hasTranslation {
+			return LearningItem{}, ErrTranslationUnavailable
+		}
+	}
+
+	var conflict bool
+	if err := s.pool.QueryRow(ctx, `
+		select exists(
+			select 1 from user_word_senses
+			where user_id = $1::uuid
+			  and word_sense_id = $2::uuid
+			  and archived_at is null
+			  and id <> $3::uuid
+		)`, userID, newWordSenseID, itemID,
+	).Scan(&conflict); err != nil {
+		return LearningItem{}, fmt.Errorf("words: check sense conflict: %w", err)
+	}
+	if conflict {
+		return LearningItem{}, ErrSenseConflict
+	}
+
+	if _, err := s.pool.Exec(ctx, `
+		update user_word_senses
+		set word_sense_id = $1::uuid, updated_at = now()
+		where id = $2::uuid and user_id = $3::uuid`,
+		newWordSenseID, itemID, userID,
+	); err != nil {
+		return LearningItem{}, fmt.Errorf("words: change sense: %w", err)
+	}
+
+	return s.loadLearningItem(ctx, userID, itemID)
+}
+
+func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (LearningItem, error) {
+	var item LearningItem
+	err := s.pool.QueryRow(ctx, `
+		select uws.id::text, uws.word_sense_id::text, uws.learning_stage, rs.due_at
+		from user_word_senses uws
+		join review_states rs on rs.user_word_sense_id = uws.id
+		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
+		itemID, userID,
+	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.DueAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
 	}
 	return item, nil
 }

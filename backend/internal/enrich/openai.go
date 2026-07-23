@@ -279,6 +279,7 @@ func parseModelOutput(req Request, content string) (Result, error) {
 					sense.NativeShortDefinition = nativeShort
 				}
 			}
+			var keptExamples []Example
 			for _, ex := range s.Examples {
 				sentence := strings.TrimSpace(ex.Sentence)
 				if sentence == "" {
@@ -292,21 +293,28 @@ func parseModelOutput(req Request, content string) (Result, error) {
 				if !ValidTranslation(req.DefinitionLanguageCode, sentence, translation) {
 					translation = ""
 				}
-				sense.Examples = append(sense.Examples, Example{
+				keptExamples = append(keptExamples, Example{
 					Sentence:    sentence,
 					Translation: translation,
 					Difficulty:  difficulty,
 				})
 			}
+			// Exactly one example per sense. Models often still return 3–5;
+			// keep the first usable sentence rather than discarding the sense.
+			if len(keptExamples) == 0 {
+				continue
+			}
+			sense.Examples = keptExamples[:1]
 			e.Senses = append(e.Senses, sense)
 		}
+		e.Senses = DedupeSenses(e.Senses)
 		if len(e.Senses) > 0 {
 			result.Entries = append(result.Entries, e)
 		}
 	}
 
 	if len(result.Entries) == 0 {
-		return Result{}, errors.New("enrich: model returned no usable senses")
+		return Result{}, fmt.Errorf("%w: model returned no usable senses", ErrInvalidOutput)
 	}
 	return result, nil
 }
@@ -407,7 +415,8 @@ const systemPrompt = `You are a precise bilingual lexicographer. ` +
       ]
     }
   ]
-}`
+}
+Each sense MUST include exactly one object in "examples" (length 1).`
 
 const translateSystemPrompt = `You are a precise bilingual lexicographer. ` +
 	`You return ONLY a single JSON object, no prose, no markdown fences. ` +
@@ -449,7 +458,13 @@ func buildUserPrompt(req Request) string {
 		}
 	}
 
-	b.WriteString("Provide 3-5 distinct example sentences per sense spanning difficulty labelled easy, medium, and hard. Write a clear short_definition with no length limit.")
+	if ctx := strings.TrimSpace(req.SourceContext); ctx != "" {
+		fmt.Fprintf(&b, "Source context (where the learner saw this word): %q\n", ctx)
+		b.WriteString("Prioritize senses that fit that context; still return other clearly distinct common senses for the lemma.\n")
+	}
+
+	b.WriteString("Provide mutually distinct senses (different intents); do not emit near-synonym gloss pairs as separate senses.\n")
+	b.WriteString("Provide exactly one example sentence per sense. Write a clear short_definition with no length limit.")
 	return b.String()
 }
 
