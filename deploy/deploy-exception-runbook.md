@@ -66,13 +66,45 @@ curl http://124.59.225.59:53412/healthz
 ```
 
 If it works from outside but fails from inside the LAN, the rule is correct and
-the router simply lacks NAT hairpin support. Continue using the public IP for
-external access and use the LAN IP or the Cloudflare tunnel for local testing.
+the router simply lacks NAT hairpin support. Do **not** bake a second LAN API URL
+into the phone app (that causes sequential fallback delays off Wi‑Fi).
+
+**Preferred fix for Cause 2 (intranet + single client URL):** use LAN split DNS
+so `pn.nacfson.cloud` resolves to `192.168.219.100` on home Wi‑Fi and to the
+public IP on the internet. Native builds use only
+`EXPO_PUBLIC_API_BASE_URL=https://pn.nacfson.cloud`. See
+`deploy/NETWORK_SETUP.md` (Frontend Base URLs → Intranet via split DNS).
+
+For ad-hoc local testing only, you may still curl the LAN IP directly:
+
+```sh
+curl http://192.168.219.100:53412/healthz
+```
 
 If `http://124.59.225.59/` shows a router admin page such as
 `/etc/intro.asp`, public port `80` is still terminating at the router. Use the
 custom staging port `53412` and make sure the forwarding rule targets
 `192.168.219.100:53412`.
+
+---
+
+## iOS app shows `All API endpoints failed: http://localhost:8080`
+
+**Cause:** The JS bundle baked `localhost:8080`. Common when building from Xcode
+without `NODE_ENV=production` (Expo then loads only `.env.local` / `.env`) or when
+`.env.local` / an empty `.env.production.local` overrides the production URL.
+
+**Fix:**
+
+1. Confirm `frontend/ios/.xcode.env` exports `NODE_ENV=production` and
+   `EXPO_PUBLIC_API_BASE_URL=https://pn.nacfson.cloud`.
+2. Do not set `EXPO_PUBLIC_API_BASE_URL=` (empty) in `.env.production.local`.
+3. Use Xcode scheme **Release** on a physical device; Clean Build Folder; delete
+   the old app; Run again.
+4. Verify the embedded bundle (see `deploy/NETWORK_SETUP.md` → Build iOS from Xcode).
+
+Debug + Metro on a physical phone must not use `http://localhost:8080` in
+`.env.local` — that host is the phone itself.
 
 ---
 

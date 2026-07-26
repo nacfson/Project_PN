@@ -59,14 +59,27 @@ Default resolution (`frontend/src/config.ts`):
 
 | Platform | API base |
 |----------|----------|
-| Web / Tauri / iOS simulator | `http://localhost:8080` |
+| Web (hosted) | `window.location.origin` when env unset |
+| Web / Tauri local dev | `http://localhost:8080` (or `.env.local`) |
 | Android emulator | `http://10.0.2.2:8080` |
-| Physical device | Host LAN IP |
+| iOS/Android **Release** | `https://pn.nacfson.cloud` (single URL; intranet via split DNS) |
+| Physical device **Debug**/Metro | Must set a reachable URL in `.env.local` — never `localhost` on a real phone |
 
-Override for physical devices:
+Production phone / Xcode Release — see `.cursor/skills/build-ios-xcode/SKILL.md` and
+`deploy/NETWORK_SETUP.md`. Do **not** bake `EXPO_PUBLIC_API_FALLBACK_URLS` with LAN IPs
+into release builds.
+
+Override for local physical-device debug against a LAN API:
 
 ```sh
 EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8080 npm start
+```
+
+Or point Metro at production:
+
+```sh
+# frontend/.env.local
+EXPO_PUBLIC_API_BASE_URL=https://pn.nacfson.cloud
 ```
 
 Backend CORS defaults already allow `http://localhost:8081`, `http://localhost:19006`, and Tauri origins (`backend/docs/go-backend-setup.md`).

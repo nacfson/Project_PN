@@ -53,7 +53,7 @@ services:
       FORCE_TARGET_LANG: ${FORCE_TARGET_LANG:-}
       FORCE_DEFINITION_LANG: ${FORCE_DEFINITION_LANG:-}
     extra_hosts:
-      - "auth.nacfson.cloud:192.168.219.100"
+      - "auth.nacfson.cloud:192.168.219.120"
     depends_on:
       migrate:
         condition: service_completed_successfully
