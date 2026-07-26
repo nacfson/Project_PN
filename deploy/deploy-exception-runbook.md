@@ -1,12 +1,12 @@
 # Project PN Deploy Exception Runbook
 
-Common failures when deploying or running Project PN on `zlUbuntu`, with causes
+Common failures when deploying or running Project PN on `wlUbuntu`, with causes
 and fixes.
 
 Run all server-side commands via SSH:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 ```
 
@@ -21,7 +21,7 @@ not the remote server.
 
 ```sh
 # Same LAN
-curl http://192.168.219.100:53412/healthz
+curl http://192.168.219.120:53412/healthz
 curl http://192.168.219.109:53412/healthz
 
 # Public internet
@@ -31,14 +31,14 @@ curl http://124.59.225.59:53412/healthz
 To test directly on the server:
 
 ```sh
-ssh zlUbuntu 'curl http://localhost:53412/healthz'
+ssh wlUbuntu 'curl http://localhost:53412/healthz'
 ```
 
 ---
 
 ## Connection refused on public IP
 
-**Cause 1:** The router is not forwarding WAN port `53412` to `zlUbuntu`.
+**Cause 1:** The router is not forwarding WAN port `53412` to `wlUbuntu`.
 If the router UI shows an internal/private port range, it must also be
 `53412-53412`; do not leave it as `22-22`, which forwards the public request to
 SSH instead of Project PN.
@@ -53,7 +53,7 @@ port-forward rule is correct and works for real external users.
 ```text
 Protocol:              TCP
 External/WAN port:     53412-53412
-Internal/LAN IP:       192.168.219.100
+Internal/LAN IP:       192.168.219.120
 Internal/private port: 53412-53412
 Status:                ON / enabled
 ```
@@ -70,7 +70,7 @@ the router simply lacks NAT hairpin support. Do **not** bake a second LAN API UR
 into the phone app (that causes sequential fallback delays off Wi‑Fi).
 
 **Preferred fix for Cause 2 (intranet + single client URL):** use LAN split DNS
-so `pn.nacfson.cloud` resolves to `192.168.219.100` on home Wi‑Fi and to the
+so `pn.nacfson.cloud` resolves to `192.168.219.120` on home Wi‑Fi and to the
 public IP on the internet. Native builds use only
 `EXPO_PUBLIC_API_BASE_URL=https://pn.nacfson.cloud`. See
 `deploy/NETWORK_SETUP.md` (Frontend Base URLs → Intranet via split DNS).
@@ -78,13 +78,13 @@ public IP on the internet. Native builds use only
 For ad-hoc local testing only, you may still curl the LAN IP directly:
 
 ```sh
-curl http://192.168.219.100:53412/healthz
+curl http://192.168.219.120:53412/healthz
 ```
 
 If `http://124.59.225.59/` shows a router admin page such as
 `/etc/intro.asp`, public port `80` is still terminating at the router. Use the
 custom staging port `53412` and make sure the forwarding rule targets
-`192.168.219.100:53412`.
+`192.168.219.120:53412`.
 
 ---
 
@@ -115,7 +115,7 @@ Debug + Metro on a physical phone must not use `http://localhost:8080` in
 **Fix:** Edit the remote `.env` and restart the API:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 grep ALLOWED_ORIGINS .env
 ```
@@ -123,14 +123,14 @@ grep ALLOWED_ORIGINS .env
 Expected for intranet + public access + Tauri desktop:
 
 ```env
-ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
+ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.120:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
 ```
 
 If it is wrong, update it and restart:
 
 ```sh
 # Use sed or a text editor
-sed -i 's|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost|' .env
+sed -i 's|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.120:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost|' .env
 docker compose up -d --no-deps api nginx
 ```
 
@@ -143,7 +143,7 @@ docker compose up -d --no-deps api nginx
 **Fix:** Check logs and status:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose ps
 docker compose logs --tail 100 api
@@ -180,7 +180,7 @@ If you do not know the old password and the data is disposable, remove the
 volume (destructive):
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose down -v
 docker compose up -d
@@ -204,8 +204,8 @@ ls -la dist/index.html
 Then redeploy or upload:
 
 ```sh
-scp -r frontend/dist/. zlUbuntu:~/project-pn/deploy/web/
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose up -d --force-recreate nginx'
+scp -r frontend/dist/. wlUbuntu:~/project-pn/deploy/web/
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose up -d --force-recreate nginx'
 ```
 
 ---
@@ -214,7 +214,7 @@ ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose up -d --force-recreate ng
 
 **Cause:** nginx port 443 needs `certs/fullchain.pem` and `certs/privkey.pem`.
 
-**Fix:** On `zlUbuntu`:
+**Fix:** On `wlUbuntu`:
 
 ```sh
 cd ~/project-pn/deploy
@@ -238,7 +238,7 @@ For staging over HTTP, use port `53412` instead of `443`.
 **Fix:** Force recreate the nginx container:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose up -d --force-recreate nginx
 ls -la web/index.html
@@ -253,7 +253,7 @@ ls -la web/index.html
 **Fix:** Update and restart API:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 grep -E 'APP_PUBLIC_URL|WEB_APP_PUBLIC_URL' .env
 ```
@@ -280,7 +280,7 @@ docker compose up -d --no-deps api
 after a Docker daemon restart. If the host reboots, start manually:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose up -d
 ```

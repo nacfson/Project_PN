@@ -1,6 +1,6 @@
 # Project_PN Network Setup
 
-Current deployment configuration for the Project PN web app and backend API on `zlUbuntu`.
+Current deployment configuration for the Project PN web app and backend API on `wlUbuntu`.
 
 The frontend is a static Expo web bundle served by nginx. API routes are proxied to the Go backend.
 
@@ -10,8 +10,7 @@ The frontend is a static Expo web bundle served by nginx. API routes are proxied
 |---|---|---|
 | Public IP | `124.59.225.59` | WAN |
 | Public API URL | `http://124.59.225.59:53412` | nginx → backend |
-| Intranet (Ethernet) | `192.168.219.100` | `enp0s31f6` |
-| Intranet (Wi-Fi) | `192.168.219.109` | `wlp2s0` |
+| Intranet (Ethernet) | `192.168.219.120` | `enp4s0` |
 
 ## Backend Configuration
 
@@ -19,7 +18,7 @@ File: `~/project-pn/deploy/.env`
 
 ```bash
 APP_PUBLIC_URL=http://124.59.225.59:53412
-ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081
+ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.120:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
 ```
 
 ## Nginx Ports
@@ -35,7 +34,7 @@ Required router port-forwarding rule for public staging:
 ```text
 Protocol:              TCP
 External/WAN port:     53412-53412
-Internal/LAN IP:       192.168.219.100
+Internal/LAN IP:       192.168.219.120
 Internal/private port: 53412-53412
 Status:                ON / enabled
 ```
@@ -128,11 +127,11 @@ xcodebuild -workspace ProjectPN.xcworkspace -scheme ProjectPN \
 Home routers often lack NAT hairpin, so phones on Wi‑Fi cannot reach the WAN IP.
 Support intranet without baking `192.168.219.x` into the app:
 
-1. Give `zlUbuntu` a **static DHCP lease** (e.g. `192.168.219.100`).
+1. Give `wlUbuntu` a **static DHCP lease** (e.g. `192.168.219.120`).
 2. On the LAN DNS (router local DNS, Pi-hole, AdGuard, etc.), add:
 
    ```text
-   pn.nacfson.cloud  →  192.168.219.100
+   pn.nacfson.cloud  →  192.168.219.120
    ```
 
 3. Outside the LAN, public DNS must keep resolving `pn.nacfson.cloud` to the
@@ -143,7 +142,7 @@ Support intranet without baking `192.168.219.x` into the app:
 | Network | `pn.nacfson.cloud` should resolve to |
 |---|---|
 | Cellular / internet | Public IP (443 → nginx/ingress) |
-| Home Wi‑Fi | `192.168.219.100` (LAN DNS override) |
+| Home Wi‑Fi | `192.168.219.120` (LAN DNS override) |
 
 Verify from both networks:
 
@@ -156,7 +155,7 @@ curl -fsS https://pn.nacfson.cloud/healthz
 On Wi‑Fi, confirm the override:
 
 ```bash
-# macOS example — expect 192.168.219.100 when on home LAN
+# macOS example — expect 192.168.219.120 when on home LAN
 dscacheutil -q host -a name pn.nacfson.cloud
 ```
 
@@ -219,11 +218,8 @@ curl http://localhost:53412/ | head
 From another device on the same LAN:
 
 ```bash
-curl http://192.168.219.100:53412/healthz
-curl http://192.168.219.100:53412/ | head
-# or
-curl http://192.168.219.109:53412/healthz
-curl http://192.168.219.109:53412/ | head
+curl http://192.168.219.120:53412/healthz
+curl http://192.168.219.120:53412/ | head
 ```
 
 From public internet:
@@ -234,14 +230,14 @@ curl http://124.59.225.59:53412/ | head
 ```
 
 If `http://124.59.225.59/` opens the router admin page, public port `80` is not
-being forwarded to `zlUbuntu`. For the current staging setup, test the explicit
+being forwarded to `wlUbuntu`. For the current staging setup, test the explicit
 custom port `http://124.59.225.59:53412/` from outside the LAN, such as mobile
 data.
 
 ## Notes
 
 - Intranet IPs can change after router reboot. Set a **static DHCP lease** for
-  `zlUbuntu` and keep the LAN DNS override for `pn.nacfson.cloud` in sync.
+  `wlUbuntu` and keep the LAN DNS override for `pn.nacfson.cloud` in sync.
 - Native release clients use only `https://pn.nacfson.cloud` (no LAN fallback
   URLs). Intranet phones rely on split DNS, not a second baked API base.
 - Current deploy uses `EMAIL_PROVIDER=log` and `REQUIRE_EMAIL_VERIFIED=false`

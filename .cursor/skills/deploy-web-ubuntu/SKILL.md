@@ -2,15 +2,15 @@
 name: deploy-web-ubuntu
 description: >-
   Build and deploy the Project PN web app (Expo Web static bundle + Go backend)
-  to the remote Ubuntu server (zlUbuntu). Use when the user asks to deploy the
-  web app, build and deploy frontend, publish the web build, deploy to zlUbuntu,
+  to the remote Ubuntu server (wlUbuntu). Use when the user asks to deploy the
+  web app, build and deploy frontend, publish the web build, deploy to wlUbuntu,
   or update the Project PN website/server.
 ---
 
-# Deploy Project PN Web to zlUbuntu
+# Deploy Project PN Web to wlUbuntu
 
 Builds the Expo web bundle and the Go backend Docker image locally, then uploads
-both to `zlUbuntu` and starts the Docker Compose stack.
+both to `wlUbuntu` and starts the Docker Compose stack.
 
 ## Prerequisites
 
@@ -19,10 +19,10 @@ Before running the deploy, confirm:
 - [ ] You are on the local Mac with the Project PN repo at `/Users/hyungjuyu/Projects/iOS/Project_PN`.
 - [ ] Docker Desktop is running.
 - [ ] `npm`, `git`, `ssh`, and `scp` are available.
-- [ ] `zlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
+- [ ] `wlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
 - [ ] `deploy/.deploy.env` exists and contains:
   ```env
-  DEPLOY_HOST=zlUbuntu
+  DEPLOY_HOST=wlUbuntu
   DEPLOY_PUBLIC_URL=http://124.59.225.59:53412
   DEPLOY_ACCESS_SCOPE=public
   REMOTE_DIR='~/project-pn/deploy'
@@ -80,10 +80,10 @@ If any step fails, stop and consult `deploy/deploy-exception-runbook.md`.
 
 ### 4. Verify from the server
 
-SSH into `zlUbuntu`:
+SSH into `wlUbuntu`:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose ps
 curl http://localhost:53412/ | head
@@ -100,7 +100,7 @@ Expected:
 From another device on the same LAN:
 
 ```sh
-curl http://192.168.219.100:53412/ | head
+curl http://192.168.219.120:53412/ | head
 curl http://192.168.219.109:53412/ | head
 ```
 
@@ -153,7 +153,7 @@ Copy and check off after deploy:
 ```text
 - [ ] scripts/deploy-remote.sh completed with {"status":"ready"}
 - [ ] curl http://localhost:53412/ returns index.html (on server)
-- [ ] curl http://192.168.219.100:53412/ returns index.html (intranet)
+- [ ] curl http://192.168.219.120:53412/ returns index.html (intranet)
 - [ ] curl http://124.59.225.59:53412/ returns index.html (public)
 - [ ] Browser loads the web app without CORS errors
 - [ ] Login / register works

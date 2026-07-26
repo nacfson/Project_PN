@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# This script runs on zlUbuntu to automate Certbot SSL certificate acquisition.
+# This script runs on wlUbuntu to automate Certbot SSL certificate acquisition.
 set -euo pipefail
 
 log() {

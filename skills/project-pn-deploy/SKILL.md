@@ -2,13 +2,13 @@
 name: project-pn-deploy
 description: >-
   Deploy Project PN's Expo web frontend and Go backend to the remote Ubuntu
-  server (zlUbuntu). Use when the user asks to deploy web/backend changes,
+  server (wlUbuntu). Use when the user asks to deploy web/backend changes,
   publish the web build, update the server, or distribute the full stack.
 ---
 
 # Deploy Project PN Web & Backend Stack
 
-Deploys the Expo web bundle and the Go backend Docker image to `zlUbuntu` by
+Deploys the Expo web bundle and the Go backend Docker image to `wlUbuntu` by
 running `scripts/deploy-remote.sh` and verifying the result.
 
 ## Prerequisites
@@ -17,7 +17,7 @@ Confirm before deploying:
 
 - [ ] You are on the local Mac with the repo at `/Users/hyungjuyu/Projects/iOS/Project_PN`.
 - [ ] Docker Desktop is running.
-- [ ] `zlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
+- [ ] `wlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
 - [ ] `deploy/.deploy.env` exists and contains the correct values for
   `DEPLOY_HOST`, `DEPLOY_PUBLIC_URL`, `DEPLOY_ACCESS_SCOPE`, `REMOTE_DIR`,
   `IMAGE_NAME`, and `PLATFORM`.
@@ -88,7 +88,7 @@ Then return to the repo root and run the deploy script. This ensures the new
 Check the remote stack directly:
 
 ```sh
-ssh zlUbuntu '
+ssh wlUbuntu '
   cd ~/project-pn/deploy &&
   docker compose ps &&
   curl -fsS http://localhost:53412/healthz &&
@@ -101,7 +101,7 @@ Check from the public internet and LAN:
 ```sh
 curl -fsS http://124.59.225.59:53412/healthz
 curl -fsS http://124.59.225.59:53412/ | head
-curl -fsS http://192.168.219.100:53412/ | head
+curl -fsS http://192.168.219.120:53412/ | head
 ```
 
 Expected results:

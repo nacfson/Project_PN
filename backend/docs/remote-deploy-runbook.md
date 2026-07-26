@@ -23,7 +23,7 @@ docker --version
 docker compose version
 ```
 
-The SSH user must be able to run Docker. For public access from outside the intranet, router port-forward public `80/tcp` and `443/tcp` to `zlUbuntu`, and use HTTPS with real certificate files.
+The SSH user must be able to run Docker. For public access from outside the intranet, router port-forward public `80/tcp` and `443/tcp` to `wlUbuntu`, and use HTTPS with real certificate files.
 
 ## Local Deploy Config
 
@@ -36,7 +36,7 @@ cp deploy/.deploy.env.example deploy/.deploy.env
 Example:
 
 ```env
-DEPLOY_HOST=zlUbuntu
+DEPLOY_HOST=wlUbuntu
 DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
 DEPLOY_ACCESS_SCOPE=public
 REMOTE_DIR='~/project-pn/deploy'
@@ -63,7 +63,7 @@ Ubuntu host. Fix that with one of these durable options:
 
 - move the stack to a public cloud host
 - configure router/NAT port-forwarding for both `80/tcp` and `443/tcp` to the
-  Ubuntu host (`zlUbuntu`)
+  Ubuntu host (`wlUbuntu`)
 - run a named Cloudflare Tunnel on a domain you control
 
 For temporary outside-intranet testing only, you can use a Cloudflare
@@ -146,7 +146,7 @@ The generated remote `.env` includes a random `POSTGRES_PASSWORD`, matching `DAT
 From local Mac:
 
 ```sh
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
 curl https://YOUR_PUBLIC_DOMAIN/readyz
 ```
 
@@ -191,8 +191,8 @@ Set `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` and rerun the script.
 Inspect logs:
 
 ```sh
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color api'
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color api'
 ```
 
 ## Safety
