@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Linking, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { CENTRAL_AUTH_URL } from '../config';
+import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
 import { sessionStorage } from '../api/storage';
@@ -14,6 +15,7 @@ interface CentralAuthScreenProps {
 
 export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralAuthScreenProps) {
   const { colors, spacing } = useTheme();
+  const { t } = useAppLanguage();
   const [busy, setBusy] = useState(false);
 
   const handleSignIn = async () => {
@@ -21,7 +23,7 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
     try {
       const redirectUrl = Platform.OS === 'web' ? window.location.origin : 'projectpn://auth';
       const authUrl = `${CENTRAL_AUTH_URL}/login?rd=${encodeURIComponent(redirectUrl)}`;
-      
+
       if (Platform.OS === 'web') {
         window.location.href = authUrl;
       } else {
@@ -48,9 +50,11 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
       <Card elevated style={styles.card}>
         <View style={styles.header}>
           <Icon name="lock-closed" size="lg" color={colors.primary} />
-          <Text variant="heading" style={{ marginTop: spacing.sm }}>Project PN</Text>
+          <Text variant="heading" style={{ marginTop: spacing.sm }}>
+            {t('auth.centralTitle')}
+          </Text>
           <Text color="muted" style={{ textAlign: 'center' }}>
-            A word is global, but memory is personal.
+            {t('auth.centralTagline')}
           </Text>
         </View>
 
@@ -59,7 +63,7 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
             <Icon name="alert-circle-outline" size="md" color={colors.danger} />
             <View style={styles.errorContent}>
               <Text style={[styles.errorTitle, { color: colors.danger }]}>
-                Could not connect to the backend server.
+                {t('auth.connectionFailed')}
               </Text>
               {__DEV__ && (
                 <Text style={[styles.errorDetail, { color: colors.textMuted }]}>
@@ -71,10 +75,10 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
         )}
 
         <Text variant="body" color="muted" style={[styles.desc, { marginVertical: spacing.md }]}>
-          Sign in securely using Nacfson Cloud to synchronize your personal vocabulary lists, reviews, and spaced repetition progress across devices.
+          {t('auth.centralDescription')}
         </Text>
         <Button
-          label="Sign In with Nacfson Cloud"
+          label={t('auth.centralSignIn')}
           loading={busy}
           onPress={handleSignIn}
           style={{ width: '100%' }}

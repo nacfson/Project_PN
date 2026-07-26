@@ -84,7 +84,7 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 ## Authentication
 
-The backend delegates authentication to an external Nacfson Cloud service (`CENTRAL_AUTH_URL`). The client obtains a session token from `auth.nacfson.cloud`, then sends it as `Authorization: Bearer <token>` on every API request. The backend validates each token by calling the central auth server's `GET /api/auth/session` endpoint via `CentralClient.ValidateSession()`.
+The backend delegates authentication to an external Nacfson Cloud service (`CENTRAL_AUTH_URL`). Users sign in with a magic link on `auth.nacfson.cloud`; the client then sends the session token as `Authorization: Bearer <token>` on every API request. The backend validates each token by calling the central auth server's `GET /api/auth/session` endpoint via `CentralClient.ValidateSession()`.
 
 On first contact, `EnsureCentralUser()` provisions a local `users` row (with `user_identities` linking) using the identity returned by the central auth server. Subsequent requests resolve the existing local user via `user_identities(provider='nacfson', provider_subject)`.
 
@@ -92,7 +92,7 @@ Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is document
 
 ## Public Docker Deployment
 
-The public deploy path uses Docker Compose on `zlUbuntu`: PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Forward router ports `80/tcp` and `443/tcp` to `zlUbuntu`, mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
+The public deploy path uses Docker Compose on `wlUbuntu` for PostgreSQL, migrations, the Go API, and staging nginx on `:53412`. Production HTTPS for `https://pn.nacfson.cloud` terminates on **ingress-nginx** (same host) with Let's Encrypt and proxies to Compose `:53412`. Central auth is `https://auth.nacfson.cloud` on the same ingress. Forward router ports `80/tcp` and `443/tcp` to `wlUbuntu` (`192.168.219.120`). Set `APP_PUBLIC_URL=https://pn.nacfson.cloud` and `AUTH_MODE=central`. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
 
 See `backend/docs/go-backend-setup.md` and `backend/docs/remote-deploy-runbook.md` for deployment steps.
 

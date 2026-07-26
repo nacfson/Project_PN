@@ -117,7 +117,7 @@ scripts/start-web-dev.sh --skip-db --skip-migrate
 
 Detailed deployment steps and troubleshooting live in `backend/docs/remote-deploy-runbook.md`.
 
-For a public Docker-only stack on `zlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. The script builds the backend image locally, uploads it to the remote server over SSH/SCP, loads it with Docker, and starts the remote compose stack.
+For a public Docker-only stack on `wlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. The script builds the backend image locally, uploads it to the remote server over SSH/SCP, loads it with Docker, and starts the remote compose stack.
 
 ```sh
 DEPLOY_HOST=user@YOUR_SERVER_IP scripts/deploy-remote.sh
@@ -192,7 +192,7 @@ The backend image contains:
 - Runtime: **`debian:bookworm-slim` + `ca-certificates`** (required for outbound HTTPS to Resend, Google token verification, and enrichment APIs — do not use a scratch/distroless runtime without bundled CA certs)
 - Migrations copied to `/app/db/migrations`
 
-TLS termination is enabled in `deploy/nginx/nginx.conf`. Forward public `80/tcp` and `443/tcp` from the router to `zlUbuntu`, and keep `APP_PUBLIC_URL` / native build `EXPO_PUBLIC_API_BASE_URL` on the same HTTPS domain.
+TLS for production hostnames terminates on **ingress-nginx** (Let's Encrypt via `acme.sh --alpn`). Compose still keeps `deploy/certs/` in sync for local nginx TLS blocks. Forward public `80/tcp` and `443/tcp` from the router to `wlUbuntu` (`192.168.219.120`), and keep `APP_PUBLIC_URL` / native build `EXPO_PUBLIC_API_BASE_URL` on `https://pn.nacfson.cloud`. See `deploy/NETWORK_SETUP.md`.
 
 Local development continues to use `backend/compose.yaml` (PostgreSQL on host port `5433`) and `go run ./cmd/api`.
 

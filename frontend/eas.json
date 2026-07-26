@@ -6,8 +6,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://pn.nacfson.cloud",
-        "EXPO_PUBLIC_API_FALLBACK_URLS": "http://192.168.219.100:53412"
+        "EXPO_PUBLIC_API_BASE_URL": "https://pn.nacfson.cloud"
       },
       "ios": {
         "distribution": "store"

@@ -3,7 +3,6 @@
 export type {
   SessionResponse,
   MeResponse,
-  LoginRequest,
   LanguageOptionsResponse,
   LanguagePair,
   AllowedLanguages,

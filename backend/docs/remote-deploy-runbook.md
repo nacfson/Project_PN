@@ -23,7 +23,7 @@ docker --version
 docker compose version
 ```
 
-The SSH user must be able to run Docker. For public access from outside the intranet, router port-forward public `80/tcp` and `443/tcp` to `zlUbuntu`, and use HTTPS with real certificate files.
+The SSH user must be able to run Docker. For public access from outside the intranet, router port-forward public `80/tcp`, `443/tcp`, and (optional staging) `53412/tcp` to `wlUbuntu` at `192.168.219.120`, and use HTTPS with real certificate files.
 
 ## Local Deploy Config
 
@@ -36,8 +36,8 @@ cp deploy/.deploy.env.example deploy/.deploy.env
 Example:
 
 ```env
-DEPLOY_HOST=zlUbuntu
-DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
+DEPLOY_HOST=wlUbuntu
+DEPLOY_PUBLIC_URL=https://pn.nacfson.cloud
 DEPLOY_ACCESS_SCOPE=public
 REMOTE_DIR='~/project-pn/deploy'
 IMAGE_NAME=project-pn-backend
@@ -63,7 +63,7 @@ Ubuntu host. Fix that with one of these durable options:
 
 - move the stack to a public cloud host
 - configure router/NAT port-forwarding for both `80/tcp` and `443/tcp` to the
-  Ubuntu host (`zlUbuntu`)
+  Ubuntu host (`wlUbuntu`)
 - run a named Cloudflare Tunnel on a domain you control
 
 For temporary outside-intranet testing only, you can use a Cloudflare
@@ -115,9 +115,9 @@ The script:
 - creates remote `.env` when missing
 - preserves any existing remote `.env`
 - optionally rotates an existing Postgres user password when `EXISTING_POSTGRES_PASSWORD` is set
-- requires `certs/fullchain.pem` and `certs/privkey.pem` on the remote server before nginx starts
+- keeps Compose `certs/fullchain.pem` and `certs/privkey.pem` in sync for local nginx (production HTTPS for `pn`/`auth` terminates on ingress-nginx with the same Let's Encrypt material)
 - runs `docker compose --env-file .env up -d`
-- checks `http://127.0.0.1/readyz`
+- checks `http://127.0.0.1:53412/readyz`
 
 Successful output ends with:
 
@@ -146,17 +146,21 @@ The generated remote `.env` includes a random `POSTGRES_PASSWORD`, matching `DAT
 From local Mac:
 
 ```sh
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
-curl https://YOUR_PUBLIC_DOMAIN/readyz
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
+curl -fsS https://pn.nacfson.cloud/readyz
+curl -fsS -o /dev/null -w '%{http_code}\n' https://auth.nacfson.cloud/login
 ```
 
-Expected service state:
+Expected Compose service state:
 
 ```text
 api        Up
-nginx      Up, 0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+nginx      Up, 0.0.0.0:53412->80/tcp
 postgres   Up, healthy
 ```
+
+Production HTTPS for `pn` / `auth` is on host ingress `:443`, not Compose port mappings.
+See `deploy/NETWORK_SETUP.md`.
 
 ## Common Failures
 
@@ -191,8 +195,8 @@ Set `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` and rerun the script.
 Inspect logs:
 
 ```sh
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color api'
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color api'
 ```
 
 ## Safety

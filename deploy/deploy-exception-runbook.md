@@ -1,12 +1,12 @@
 # Project PN Deploy Exception Runbook
 
-Common failures when deploying or running Project PN on `zlUbuntu`, with causes
+Common failures when deploying or running Project PN on `wlUbuntu`, with causes
 and fixes.
 
 Run all server-side commands via SSH:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 ```
 
@@ -21,8 +21,7 @@ not the remote server.
 
 ```sh
 # Same LAN
-curl http://192.168.219.100:53412/healthz
-curl http://192.168.219.109:53412/healthz
+curl http://192.168.219.120:53412/healthz
 
 # Public internet
 curl http://124.59.225.59:53412/healthz
@@ -31,14 +30,14 @@ curl http://124.59.225.59:53412/healthz
 To test directly on the server:
 
 ```sh
-ssh zlUbuntu 'curl http://localhost:53412/healthz'
+ssh wlUbuntu 'curl http://localhost:53412/healthz'
 ```
 
 ---
 
 ## Connection refused on public IP
 
-**Cause 1:** The router is not forwarding WAN port `53412` to `zlUbuntu`.
+**Cause 1:** The router is not forwarding WAN port `53412` to `wlUbuntu`.
 If the router UI shows an internal/private port range, it must also be
 `53412-53412`; do not leave it as `22-22`, which forwards the public request to
 SSH instead of Project PN.
@@ -53,7 +52,7 @@ port-forward rule is correct and works for real external users.
 ```text
 Protocol:              TCP
 External/WAN port:     53412-53412
-Internal/LAN IP:       192.168.219.100
+Internal/LAN IP:       192.168.219.120
 Internal/private port: 53412-53412
 Status:                ON / enabled
 ```
@@ -66,13 +65,45 @@ curl http://124.59.225.59:53412/healthz
 ```
 
 If it works from outside but fails from inside the LAN, the rule is correct and
-the router simply lacks NAT hairpin support. Continue using the public IP for
-external access and use the LAN IP or the Cloudflare tunnel for local testing.
+the router simply lacks NAT hairpin support. Do **not** bake a second LAN API URL
+into the phone app (that causes sequential fallback delays off Wi‑Fi).
+
+**Preferred fix for Cause 2 (intranet + single client URL):** use LAN split DNS
+so `pn.nacfson.cloud` resolves to `192.168.219.120` on home Wi‑Fi and to the
+public IP on the internet. Native builds use only
+`EXPO_PUBLIC_API_BASE_URL=https://pn.nacfson.cloud`. See
+`deploy/NETWORK_SETUP.md` (Frontend Base URLs → Intranet via split DNS).
+
+For ad-hoc local testing only, you may still curl the LAN IP directly:
+
+```sh
+curl http://192.168.219.120:53412/healthz
+```
 
 If `http://124.59.225.59/` shows a router admin page such as
 `/etc/intro.asp`, public port `80` is still terminating at the router. Use the
 custom staging port `53412` and make sure the forwarding rule targets
-`192.168.219.100:53412`.
+`192.168.219.120:53412`.
+
+---
+
+## iOS app shows `All API endpoints failed: http://localhost:8080`
+
+**Cause:** The JS bundle baked `localhost:8080`. Common when building from Xcode
+without `NODE_ENV=production` (Expo then loads only `.env.local` / `.env`) or when
+`.env.local` / an empty `.env.production.local` overrides the production URL.
+
+**Fix:**
+
+1. Confirm `frontend/ios/.xcode.env` exports `NODE_ENV=production` and
+   `EXPO_PUBLIC_API_BASE_URL=https://pn.nacfson.cloud`.
+2. Do not set `EXPO_PUBLIC_API_BASE_URL=` (empty) in `.env.production.local`.
+3. Use Xcode scheme **Release** on a physical device; Clean Build Folder; delete
+   the old app; Run again.
+4. Verify the embedded bundle (see `deploy/NETWORK_SETUP.md` → Build iOS from Xcode).
+
+Debug + Metro on a physical phone must not use `http://localhost:8080` in
+`.env.local` — that host is the phone itself.
 
 ---
 
@@ -83,7 +114,7 @@ custom staging port `53412` and make sure the forwarding rule targets
 **Fix:** Edit the remote `.env` and restart the API:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 grep ALLOWED_ORIGINS .env
 ```
@@ -91,14 +122,14 @@ grep ALLOWED_ORIGINS .env
 Expected for intranet + public access + Tauri desktop:
 
 ```env
-ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
+ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.120:53412,https://pn.nacfson.cloud,http://localhost:8081,tauri://localhost,http://tauri.localhost
 ```
 
 If it is wrong, update it and restart:
 
 ```sh
 # Use sed or a text editor
-sed -i 's|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost|' .env
+sed -i 's|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.120:53412,https://pn.nacfson.cloud,http://localhost:8081,tauri://localhost,http://tauri.localhost|' .env
 docker compose up -d --no-deps api nginx
 ```
 
@@ -111,7 +142,7 @@ docker compose up -d --no-deps api nginx
 **Fix:** Check logs and status:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose ps
 docker compose logs --tail 100 api
@@ -148,7 +179,7 @@ If you do not know the old password and the data is disposable, remove the
 volume (destructive):
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose down -v
 docker compose up -d
@@ -172,30 +203,56 @@ ls -la dist/index.html
 Then redeploy or upload:
 
 ```sh
-scp -r frontend/dist/. zlUbuntu:~/project-pn/deploy/web/
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose up -d --force-recreate nginx'
+scp -r frontend/dist/. wlUbuntu:~/project-pn/deploy/web/
+ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose up -d --force-recreate nginx'
 ```
 
 ---
 
-## TLS / certificate errors on HTTPS
+## TLS / certificate errors on HTTPS (`ERR_CERT_AUTHORITY_INVALID`)
 
-**Cause:** nginx port 443 needs `certs/fullchain.pem` and `certs/privkey.pem`.
+**Production HTTPS** is served by **ingress-nginx** on wlUbuntu `:443` with
+Let's Encrypt secrets (`pn-tls` / `auth-service-tls`). Compose `:53412` is HTTP
+staging only.
 
-**Fix:** On `zlUbuntu`:
+| Symptom | Likely cause |
+|---|---|
+| Issuer `Kubernetes Ingress Controller Fake Certificate` | No Ingress TLS secret for that host, or ingress not synced |
+| Issuer is self-signed / `ERR_CERT_AUTHORITY_INVALID` | cert-manager recreated self-signed over LE; delete `Certificate` and restore LE secret |
+| Redirect loop on `https://pn.nacfson.cloud` | Compose nginx redirected to HTTPS without honoring `X-Forwarded-Proto` |
+| WAN `http://124.59.225.59/` shows router `intro.asp` | Port 80 not forwarded to `192.168.219.120` |
+
+**Check live cert:**
 
 ```sh
-cd ~/project-pn/deploy
-ls -la certs/
+echo | openssl s_client -connect 192.168.219.120:443 -servername pn.nacfson.cloud 2>/dev/null \
+  | openssl x509 -noout -issuer -subject -dates
+# Expect: issuer=... O=Let's Encrypt ...
 ```
 
-If missing, obtain or copy certificates into `deploy/certs/` and restart nginx:
+**Restore LE secrets from acme.sh (on wlUbuntu as root):**
 
 ```sh
-docker compose up -d --force-recreate nginx
+export KUBECONFIG=/etc/kubernetes/admin.conf
+CERT_DIR=/root/.acme.sh/pn.nacfson.cloud
+kubectl -n nacfson-auth delete certificate auth-service-tls --ignore-not-found
+kubectl -n project-pn create secret tls pn-tls \
+  --cert="$CERT_DIR/fullchain.cer" --key="$CERT_DIR/pn.nacfson.cloud.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n nacfson-auth create secret tls auth-service-tls \
+  --cert="$CERT_DIR/fullchain.cer" --key="$CERT_DIR/pn.nacfson.cloud.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n ingress-nginx rollout restart deploy/ingress-nginx-controller
 ```
 
-For staging over HTTP, use port `53412` instead of `443`.
+**Re-issue (needs free host `:443`; scales ingress down temporarily):**
+
+```sh
+acme.sh --issue --alpn -d pn.nacfson.cloud -d auth.nacfson.cloud --force
+bash /root/acme-reload-hook.sh
+```
+
+For HTTP-only staging without TLS, use `http://192.168.219.120:53412`.
 
 ---
 
@@ -206,7 +263,7 @@ For staging over HTTP, use port `53412` instead of `443`.
 **Fix:** Force recreate the nginx container:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose up -d --force-recreate nginx
 ls -la web/index.html
@@ -221,7 +278,7 @@ ls -la web/index.html
 **Fix:** Update and restart API:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 grep -E 'APP_PUBLIC_URL|WEB_APP_PUBLIC_URL' .env
 ```
@@ -229,7 +286,7 @@ grep -E 'APP_PUBLIC_URL|WEB_APP_PUBLIC_URL' .env
 For staging:
 
 ```env
-APP_PUBLIC_URL=http://124.59.225.59:53412
+APP_PUBLIC_URL=https://pn.nacfson.cloud
 ```
 
 Then:
@@ -248,7 +305,7 @@ docker compose up -d --no-deps api
 after a Docker daemon restart. If the host reboots, start manually:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose up -d
 ```

@@ -4,10 +4,10 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
-import { useColorScheme } from 'react-native';
 import { themeModeStorage, themeVariationStorage } from '../api/storage';
 import { themeFor, colorsFor, visualVariations, type Theme, type ThemeMode } from './tokens';
 import * as motion from './motion';
@@ -22,6 +22,7 @@ import {
 } from '@expo-google-fonts/inter';
 
 export type ThemeVariation = 'bentoIndigo' | 'bentoSunset' | 'bentoLight';
+type DarkThemeVariation = 'bentoIndigo' | 'bentoSunset';
 
 const variationModes: Record<ThemeVariation, ThemeMode> = {
   bentoLight: 'light',
@@ -29,11 +30,19 @@ const variationModes: Record<ThemeVariation, ThemeMode> = {
   bentoSunset: 'dark',
 };
 
-function getColorsForTheme(mode: ThemeMode, variation: ThemeVariation) {
+function isThemeVariation(value: string | null): value is ThemeVariation {
+  return value === 'bentoIndigo' || value === 'bentoSunset' || value === 'bentoLight';
+}
+
+function isDarkVariation(value: ThemeVariation): value is DarkThemeVariation {
+  return value === 'bentoIndigo' || value === 'bentoSunset';
+}
+
+function getColorsForTheme(variation: ThemeVariation) {
   const targetMode = variationModes[variation];
   const base = colorsFor(targetMode);
   const varOverrides = visualVariations[variation];
-  
+
   if (!varOverrides) return base;
 
   const overrides: Partial<typeof base> = {};
@@ -90,11 +99,10 @@ interface ThemeContextValue extends Theme {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const systemColorScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>(() =>
-    systemColorScheme === 'dark' ? 'dark' : 'light',
-  );
   const [variation, setVariationState] = useState<ThemeVariation>('bentoIndigo');
+  const variationRef = useRef(variation);
+  variationRef.current = variation;
+  const lastDarkVariationRef = useRef<DarkThemeVariation>('bentoIndigo');
   const reduced = useReducedMotion();
   const [fontsLoaded] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -106,45 +114,76 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    themeModeStorage.getMode().then((stored) => {
-      if (!active) return;
-      if (stored) {
-        setModeState(stored);
-      } else if (systemColorScheme === 'dark' || systemColorScheme === 'light') {
-        setModeState(systemColorScheme);
-      }
-    });
-    themeVariationStorage.getVariation().then((stored) => {
-      if (!active) return;
-      if (stored === 'bentoIndigo' || stored === 'bentoSunset' || stored === 'bentoLight') {
-        setVariationState(stored as ThemeVariation);
-      }
-    });
+    Promise.all([themeModeStorage.getMode(), themeVariationStorage.getVariation()]).then(
+      ([storedMode, storedVariation]) => {
+        if (!active) return;
+
+        // Prefer stored variation. If only mode is stored, map it to a variation.
+        // Otherwise keep the product default (bentoIndigo) — variation drives painted colors.
+        let nextVariation: ThemeVariation = 'bentoIndigo';
+        if (isThemeVariation(storedVariation)) {
+          nextVariation = storedVariation;
+        } else if (storedMode === 'light') {
+          nextVariation = 'bentoLight';
+        } else if (storedMode === 'dark') {
+          nextVariation = 'bentoIndigo';
+        }
+
+        const effectiveMode = variationModes[nextVariation];
+        if (isDarkVariation(nextVariation)) {
+          lastDarkVariationRef.current = nextVariation;
+        }
+        setVariationState(nextVariation);
+
+        // Prefer variation as source of painted colors; rewrite mode if they disagree.
+        if (storedMode !== effectiveMode) {
+          void themeModeStorage.setMode(effectiveMode);
+        }
+      },
+    );
     return () => {
       active = false;
     };
-  }, [systemColorScheme]);
+  }, []);
+
+  const setVariation = useCallback((nextVar: ThemeVariation) => {
+    const nextMode = variationModes[nextVar];
+    if (isDarkVariation(nextVar)) {
+      lastDarkVariationRef.current = nextVar;
+    }
+    setVariationState(nextVar);
+    void themeVariationStorage.setVariation(nextVar);
+    void themeModeStorage.setMode(nextMode);
+  }, []);
 
   const setMode = useCallback((nextMode: ThemeMode) => {
-    setModeState(nextMode);
+    const current = variationRef.current;
+    const nextVariation: ThemeVariation =
+      nextMode === 'light'
+        ? 'bentoLight'
+        : isDarkVariation(current)
+          ? current
+          : lastDarkVariationRef.current;
+    if (isDarkVariation(nextVariation)) {
+      lastDarkVariationRef.current = nextVariation;
+    }
+    setVariationState(nextVariation);
+    void themeVariationStorage.setVariation(nextVariation);
     void themeModeStorage.setMode(nextMode);
   }, []);
 
   const toggleMode = useCallback(() => {
-    const next = mode === 'dark' ? 'light' : 'dark';
-    setMode(next);
-  }, [mode, setMode]);
-
-  const setVariation = useCallback((nextVar: ThemeVariation) => {
-    setVariationState(nextVar);
-    void themeVariationStorage.setVariation(nextVar);
-  }, []);
+    const currentMode = variationModes[variationRef.current];
+    setMode(currentMode === 'dark' ? 'light' : 'dark');
+  }, [setMode]);
 
   const value = useMemo(() => {
-    const baseTheme = themeFor(mode);
-    const customizedColors = getColorsForTheme(mode, variation);
+    const effectiveMode = variationModes[variation];
+    const baseTheme = themeFor(effectiveMode);
+    const customizedColors = getColorsForTheme(variation);
     return {
       ...baseTheme,
+      mode: effectiveMode,
       colors: customizedColors,
       setMode,
       toggleMode,
@@ -153,7 +192,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       variation,
       setVariation,
     };
-  }, [mode, setMode, toggleMode, reduced, variation]);
+  }, [setMode, toggleMode, reduced, variation, setVariation]);
 
   if (!fontsLoaded) {
     return null;

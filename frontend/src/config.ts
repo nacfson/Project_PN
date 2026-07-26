@@ -38,11 +38,17 @@ function resolveApiBaseUrl(): string {
 
   // Detect the packager/bundler host IP in development
   const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
+  if (__DEV__ && hostUri) {
     const host = hostUri.split(':')[0];
     if (host && host !== 'localhost' && host !== '127.0.0.1') {
       return `http://${host}:${DEFAULT_PORT}`;
     }
+  }
+
+  // Release/native must never fall back to localhost (unreachable on device).
+  // Proven failure mode: Xcode embed without EXPO_PUBLIC_* → Platform.select localhost:8080.
+  if (!__DEV__ && (Platform.OS === 'ios' || Platform.OS === 'android')) {
+    return 'https://pn.nacfson.cloud';
   }
 
   return Platform.select({
@@ -75,9 +81,11 @@ function resolveCentralAuthUrl(): string {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+// Production builds use a single URL (https://pn.nacfson.cloud). Intranet vs
+// public is handled by split DNS, not client fallbacks. Fallbacks are local-dev only.
 export const API_BASE_URLS = [
   API_BASE_URL,
-  ...resolveApiFallbackUrls().filter((url) => url !== API_BASE_URL),
+  ...(__DEV__ ? resolveApiFallbackUrls().filter((url) => url !== API_BASE_URL) : []),
 ];
 export const CENTRAL_AUTH_URL = resolveCentralAuthUrl();
 

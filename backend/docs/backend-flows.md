@@ -3,7 +3,7 @@
 ## Central Auth Flow
 
 1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
-2. Nacfson Cloud handles credentials (email/password, OAuth, etc.) and redirects back to the app with a session token in the URL (`?token=` or `#token=`).
+2. Nacfson Cloud sends a magic-link email and, after the user opens the link, redirects back to the app with a session token in the URL (`?token=` or `#token=`).
 3. Client stores the token (`localStorage` on web, `expo-secure-store` on native).
 4. Client sends `Authorization: Bearer <token>` on all protected API requests.
 5. Backend middleware extracts the token and calls `CentralClient.ValidateSession()` (GET `{CENTRAL_AUTH_INTERNAL_URL}/api/auth/session`).
@@ -15,6 +15,8 @@
    - Creates a default `user_languages` entry for new users.
 8. The resolved `auth.User` is stored in request context for downstream handlers.
 9. `POST /api/auth/logout` proxies to the central auth server's `DELETE /api/auth/session`.
+
+Password login is not used. Sign-in is magic-link-only on the central auth service.
 
 ## Add-Word Flow
 

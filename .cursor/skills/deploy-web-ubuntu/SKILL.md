@@ -2,42 +2,46 @@
 name: deploy-web-ubuntu
 description: >-
   Build and deploy the Project PN web app (Expo Web static bundle + Go backend)
-  to the remote Ubuntu server (zlUbuntu). Use when the user asks to deploy the
-  web app, build and deploy frontend, publish the web build, deploy to zlUbuntu,
+  to the remote Ubuntu server (wlUbuntu). Use when the user asks to deploy the
+  web app, build and deploy frontend, publish the web build, deploy to wlUbuntu,
   or update the Project PN website/server.
 ---
 
-# Deploy Project PN Web to zlUbuntu
+# Deploy Project PN Web to wlUbuntu
 
 Builds the Expo web bundle and the Go backend Docker image locally, then uploads
-both to `zlUbuntu` and starts the Docker Compose stack.
+both to `wlUbuntu` and starts the Docker Compose stack.
 
 ## Prerequisites
 
 Before running the deploy, confirm:
 
-- [ ] You are on the local Mac with the Project PN repo at `/Users/hyungjuyu/Projects/iOS/Project_PN`.
+- [ ] You are on the local Mac with the Project PN repo at `/Users/hyungjuyu/Projects/Brain/Project_PN`.
 - [ ] Docker Desktop is running.
 - [ ] `npm`, `git`, `ssh`, and `scp` are available.
-- [ ] `zlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
+- [ ] `wlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
 - [ ] `deploy/.deploy.env` exists and contains:
   ```env
-  DEPLOY_HOST=zlUbuntu
-  DEPLOY_PUBLIC_URL=http://124.59.225.59:53412
+  DEPLOY_HOST=wlUbuntu
+  DEPLOY_PUBLIC_URL=https://pn.nacfson.cloud
   DEPLOY_ACCESS_SCOPE=public
   REMOTE_DIR='~/project-pn/deploy'
   IMAGE_NAME=project-pn-backend
   PLATFORM=linux/amd64
   ```
-- [ ] The remote `~/project-pn/deploy/.env` has the correct `ALLOWED_ORIGINS` and `APP_PUBLIC_URL`.
-- [ ] TLS certs exist at `~/project-pn/deploy/certs/` if you need HTTPS on port 443.
+- [ ] The remote `~/project-pn/deploy/.env` has `AUTH_MODE=central`,
+  `CENTRAL_AUTH_URL=https://auth.nacfson.cloud`,
+  `CENTRAL_AUTH_INTERNAL_URL=http://192.168.219.120:<auth-nodeport>`,
+  `APP_PUBLIC_URL=https://pn.nacfson.cloud`, and matching `ALLOWED_ORIGINS`.
+- [ ] Production HTTPS is on ingress (`pn-tls` / `auth-service-tls` Let's Encrypt).
+  Compose certs under `~/project-pn/deploy/certs/` stay in sync via acme reload hook.
 
 ## Deploy Workflow
 
 Run every step from the repo root:
 
 ```sh
-cd /Users/hyungjuyu/Projects/iOS/Project_PN
+cd /Users/hyungjuyu/Projects/Brain/Project_PN
 ```
 
 ### 1. Review changes
@@ -57,8 +61,8 @@ cat deploy/.deploy.env
 
 Confirm `DEPLOY_PUBLIC_URL` matches the address users will use:
 
-- Staging over HTTP custom port: `http://124.59.225.59:53412`
-- Production HTTPS domain: `https://YOUR_DOMAIN`
+- Production HTTPS domain: `https://pn.nacfson.cloud`
+- Staging over HTTP custom port: `http://192.168.219.120:53412` (LAN only; set `DEPLOY_ACCESS_SCOPE=private` if needed)
 
 ### 3. Run the deploy
 
@@ -80,10 +84,10 @@ If any step fails, stop and consult `deploy/deploy-exception-runbook.md`.
 
 ### 4. Verify from the server
 
-SSH into `zlUbuntu`:
+SSH into `wlUbuntu`:
 
 ```sh
-ssh zlUbuntu
+ssh wlUbuntu
 cd ~/project-pn/deploy
 docker compose ps
 curl http://localhost:53412/ | head
@@ -100,24 +104,25 @@ Expected:
 From another device on the same LAN:
 
 ```sh
-curl http://192.168.219.100:53412/ | head
-curl http://192.168.219.109:53412/ | head
+curl -fsS http://192.168.219.120:53412/healthz
+curl -fsS --resolve pn.nacfson.cloud:443:192.168.219.120 https://pn.nacfson.cloud/readyz
+curl -fsS -o /dev/null -w '%{http_code}\n' --resolve auth.nacfson.cloud:443:192.168.219.120 https://auth.nacfson.cloud/login
 ```
 
 ### 6. Verify from public internet
 
-From outside the LAN:
+From outside the LAN (requires WAN `443` → `192.168.219.120`):
 
 ```sh
-curl http://124.59.225.59:53412/ | head
-curl http://124.59.225.59:53412/healthz
+curl -fsS https://pn.nacfson.cloud/readyz
+curl -fsS -o /dev/null -w '%{http_code}\n' https://auth.nacfson.cloud/login
 ```
 
 ### 7. Browser smoke test
 
-Open the public or intranet URL in a browser:
+Open `https://pn.nacfson.cloud` (central login via `auth.nacfson.cloud`):
 
-1. Register or log in.
+1. Log in with central auth.
 2. Go to the Capture screen.
 3. Paste text and tap a word.
 4. Confirm `POST /api/words/lookup` succeeds.
@@ -135,16 +140,11 @@ EXPO_PUBLIC_API_BASE_URL= npm run web:export
 ```
 
 `EXPO_PUBLIC_API_BASE_URL` is intentionally **empty** so the exported bundle
-resolves API calls from `window.location.origin`. This lets the same bundle work
-on both intranet (`192.168.219.x`) and public (`124.59.225.59`) URLs.
+resolves API calls from `window.location.origin`. The same bundle works on
+`https://pn.nacfson.cloud` and staging `http://192.168.219.120:53412`.
 
-The bundle is uploaded to `~/project-pn/deploy/web/` and served by nginx at `/`.
-nginx proxies these paths to the Go backend:
-
-- `/api/*`
-- `/healthz`
-- `/readyz`
-- `/auth/callback`
+The bundle is uploaded to `~/project-pn/deploy/web/` and served by Compose nginx.
+Production HTTPS is terminated by ingress-nginx and proxied to Compose `:53412`.
 
 ## Verification Checklist
 
@@ -153,10 +153,10 @@ Copy and check off after deploy:
 ```text
 - [ ] scripts/deploy-remote.sh completed with {"status":"ready"}
 - [ ] curl http://localhost:53412/ returns index.html (on server)
-- [ ] curl http://192.168.219.100:53412/ returns index.html (intranet)
-- [ ] curl http://124.59.225.59:53412/ returns index.html (public)
-- [ ] Browser loads the web app without CORS errors
-- [ ] Login / register works
+- [ ] curl https://pn.nacfson.cloud/readyz succeeds (LE cert, not Fake Certificate)
+- [ ] curl https://auth.nacfson.cloud/login returns 200
+- [ ] Browser loads the web app without CORS or cert errors
+- [ ] Central login works
 - [ ] Lookup word and add learning item work
 ```
 
@@ -164,12 +164,13 @@ Copy and check off after deploy:
 
 | Symptom | First Check |
 |---|---|
-| `curl localhost:53412` fails on Mac | Use server IP, not Mac `localhost` |
-| Public IP connection refused | Router port-forward rule for `53412/tcp` |
+| `curl localhost:53412` fails on Mac | Use `192.168.219.120:53412`, not Mac `localhost` |
+| `ERR_CERT_AUTHORITY_INVALID` | See `deploy/deploy-exception-runbook.md` TLS section |
+| Public IP connection refused | Router port-forward `443` (and `80`) to `.120` |
 | CORS error in browser | `ALLOWED_ORIGINS` in remote `.env` |
-| 502 Bad Gateway | `docker compose logs api` on server |
+| 502 Bad Gateway | `docker compose logs api` or `kubectl -n ingress-nginx logs` |
 | Migration password failed | `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` |
 | Old bundle still shown | Force recreate nginx: `docker compose up -d --force-recreate nginx` |
-| Magic link wrong redirect | `APP_PUBLIC_URL` in remote `.env` |
+| Magic link wrong redirect | `APP_PUBLIC_URL=https://pn.nacfson.cloud` in remote `.env` |
 
 For deeper diagnosis, read `deploy/deploy-exception-runbook.md`.

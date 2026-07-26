@@ -158,11 +158,6 @@ export interface DueItem {
   examples: Example[];
 }
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
 export interface SessionResponse {
   token: string;
   expires_at: string;

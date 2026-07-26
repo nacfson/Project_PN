@@ -5,8 +5,8 @@ log() {
   printf '[deploy-k8s] %s\n' "$*"
 }
 
-DEPLOY_HOST="zlUbuntu"
-REGISTRY_URL="192.168.219.100:5000"
+DEPLOY_HOST="wlUbuntu"
+REGISTRY_URL="192.168.219.120:5000"
 NAMESPACE="project-pn"
 
 # Local cleanups

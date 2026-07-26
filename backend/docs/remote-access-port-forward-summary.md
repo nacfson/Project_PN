@@ -2,7 +2,7 @@
 
 ## Goal
 
-Expose the Project PN backend from `zlUbuntu` without using a domain, via the public IP and custom port:
+Expose the Project PN backend from `wlUbuntu` without using a domain, via the public IP and custom port:
 
 ```text
 http://124.59.225.59:53412
@@ -10,8 +10,8 @@ http://124.59.225.59:53412
 
 ## Current Backend Deployment
 
-- Remote host: `zlUbuntu`
-- Backend server LAN IP: `192.168.219.100`
+- Remote host: `wlUbuntu`
+- Backend server LAN IP: `192.168.219.120`
 - Public IP observed during verification: `124.59.225.59`
 - Deployed backend image: `project-pn-backend:c40a607`
 - Nginx is running in Docker and proxies to the Go API.
@@ -20,7 +20,7 @@ The backend is healthy on the server and LAN:
 
 ```text
 http://127.0.0.1:53412/readyz -> {"status":"ready"}
-http://192.168.219.100:53412/readyz -> {"status":"ready"}
+http://192.168.219.120:53412/readyz -> {"status":"ready"}
 ```
 
 ## Server-Side Changes Made
@@ -34,13 +34,13 @@ ports:
   - "443:443"
 ```
 
-This allows `zlUbuntu` to accept requests on host port `53412` and forward them to nginx port `80`.
+This allows `wlUbuntu` to accept requests on host port `53412` and forward them to nginx port `80`.
 
 Remote backend environment was updated to support the public-IP endpoint plus an intranet fallback and a temporary Cloudflare quick tunnel:
 
 ```text
 APP_PUBLIC_URL=http://124.59.225.59:53412
-ALLOWED_ORIGINS=http://124.59.225.59:53412,https://italic-architect-alternatives-months.trycloudflare.com,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
+ALLOWED_ORIGINS=http://124.59.225.59:53412,https://italic-architect-alternatives-months.trycloudflare.com,http://192.168.219.120:53412,https://pn.nacfson.cloud,http://localhost:8081,tauri://localhost,http://tauri.localhost
 ```
 
 The local deploy config (`deploy/.deploy.env`) was also switched to public scope:
@@ -56,7 +56,7 @@ Working:
 
 ```text
 http://127.0.0.1:53412/readyz
-http://192.168.219.100:53412/readyz
+http://192.168.219.120:53412/readyz
 https://italic-architect-alternatives-months.trycloudflare.com/readyz
 ```
 
@@ -70,17 +70,17 @@ The public IP endpoint is configured correctly and works for real external users
 
 ## Internal / NAT Hairpin Note
 
-Testing `http://124.59.225.59:53412` from inside the same LAN (e.g., from this Mac or from `zlUbuntu` itself) may fail with `Connection refused` because the LG U+ home router does not support **NAT hairpin** (a.k.a. NAT loopback / reflection). In that case the router receives a packet destined for its own WAN IP and drops it instead of forwarding it back to the internal host.
+Testing `http://124.59.225.59:53412` from inside the same LAN (e.g., from this Mac or from `wlUbuntu` itself) may fail with `Connection refused` because the LG U+ home router does not support **NAT hairpin** (a.k.a. NAT loopback / reflection). In that case the router receives a packet destined for its own WAN IP and drops it instead of forwarding it back to the internal host.
 
 To verify public access, test from a genuinely external network (mobile hotspot, another location, or an external service). Do not rely on in-LAN curl tests for `124.59.225.59:53412`.
 
 ## Current Workaround
 
-A Cloudflare TryCloudflare quick tunnel is running on `zlUbuntu` and provides temporary public access. The tunnel URL is included in `ALLOWED_ORIGINS` so the same web bundle and API work through it. Quick tunnels are for testing/development only — the URL changes when the tunnel restarts. The public IP (`124.59.225.59:53412`) is the intended stable endpoint once the router rule is in place.
+A Cloudflare TryCloudflare quick tunnel is running on `wlUbuntu` and provides temporary public access. The tunnel URL is included in `ALLOWED_ORIGINS` so the same web bundle and API work through it. Quick tunnels are for testing/development only — the URL changes when the tunnel restarts. The public IP (`124.59.225.59:53412`) is the intended stable endpoint once the router rule is in place.
 
 ## Conclusion
 
-The backend, Docker stack, nginx configuration, and router port-forwarding rule are working correctly on `zlUbuntu`. Public traffic to `124.59.225.59:53412` reaches the Project PN nginx container for external users.
+The backend, Docker stack, nginx configuration, and router port-forwarding rule are working correctly on `wlUbuntu`. Public traffic to `124.59.225.59:53412` reaches the Project PN nginx container for external users.
 
 ## Router Rule Needed
 
@@ -91,7 +91,7 @@ Recommended after the server-side change:
 ```text
 Protocol: TCP
 External/WAN port: 53412-53412
-Internal/LAN IP: 192.168.219.100
+Internal/LAN IP: 192.168.219.120
 Internal/LAN port: 53412-53412
 ```
 
@@ -100,7 +100,7 @@ Alternative, also valid:
 ```text
 Protocol: TCP
 External/WAN port: 53412
-Internal/LAN IP: 192.168.219.100
+Internal/LAN IP: 192.168.219.120
 Internal/LAN port: 80
 ```
 
@@ -108,8 +108,8 @@ Avoid forwarding to:
 
 ```text
 192.168.219.103
-192.168.219.100:53412 before nginx is listening there
-192.168.219.100:22 (this forwards to SSH, not Project PN)
+192.168.219.120:53412 before nginx is listening there
+192.168.219.120:22 (this forwards to SSH, not Project PN)
 UDP-only rules
 disabled or router-admin-reserved rules
 ```
