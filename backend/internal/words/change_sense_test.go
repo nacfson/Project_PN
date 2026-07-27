@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"project-pn/internal/admin"
+	"project-pn/internal/learninglog"
 )
 
 func TestChangeLearningItemSensePreservesReviewCount(t *testing.T) {
 	pool := deckTestPool(t)
 	ctx := context.Background()
-	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, "", "en", "ko")
+	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
 	userID, _ := deckTestUser(t, pool)
 
 	lemma := fmt.Sprintf("chg%d", time.Now().UnixNano())
@@ -80,7 +81,7 @@ func TestChangeLearningItemSensePreservesReviewCount(t *testing.T) {
 func TestChangeLearningItemSenseConflict(t *testing.T) {
 	pool := deckTestPool(t)
 	ctx := context.Background()
-	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, "", "en", "ko")
+	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
 	userID, _ := deckTestUser(t, pool)
 
 	lemma := fmt.Sprintf("conf%d", time.Now().UnixNano())
@@ -129,7 +130,7 @@ func TestChangeLearningItemSenseConflict(t *testing.T) {
 func TestChangeLearningItemSenseRejectsCrossWord(t *testing.T) {
 	pool := deckTestPool(t)
 	ctx := context.Background()
-	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, "", "en", "ko")
+	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
 	userID, _ := deckTestUser(t, pool)
 
 	senseA := insertDeckFixtureWord(t, pool, fmt.Sprintf("crossa%d", time.Now().UnixNano()))

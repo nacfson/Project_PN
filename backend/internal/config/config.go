@@ -70,6 +70,8 @@ type Config struct {
 	ExpoAccessToken            string
 
 	AdminLogPath string
+
+	LearningLogDir string
 }
 
 func Load() Config {
@@ -111,6 +113,8 @@ func Load() Config {
 		ExpoAccessToken:            os.Getenv("EXPO_ACCESS_TOKEN"),
 
 		AdminLogPath: envOrDefault("ADMIN_LOG_PATH", defaultAdminLogPath),
+
+		LearningLogDir: os.Getenv("LEARNING_LOG_DIR"),
 	}
 }
 

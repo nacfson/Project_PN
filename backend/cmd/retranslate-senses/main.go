@@ -14,6 +14,7 @@ import (
 	"project-pn/internal/config"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 	"project-pn/internal/words"
 )
 
@@ -56,7 +57,12 @@ func main() {
 		fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
 	}
 	enricher := enrich.NewFallback(primary, fallback, slog.Default())
-	svc := words.New(pool, enricher, adminLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	learningLogger, err := learninglog.NewLogger(cfg.LearningLogDir)
+	if err != nil {
+		learningLogger = learninglog.NoopLogger{}
+	}
+	defer learningLogger.Close()
+	svc := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	ids, err := listWordIDs(ctx, pool, strings.TrimSpace(wordID), limit)
 	if err != nil {

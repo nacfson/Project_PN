@@ -28,3 +28,19 @@ func TestLoad_AdminLogPathFromEnv(t *testing.T) {
 		t.Fatalf("expected env admin log path, got %q", cfg.AdminLogPath)
 	}
 }
+
+func TestLoad_LearningLogDirDefaultEmpty(t *testing.T) {
+	t.Setenv("LEARNING_LOG_DIR", "")
+	cfg := Load()
+	if cfg.LearningLogDir != "" {
+		t.Fatalf("expected empty learning log dir by default, got %q", cfg.LearningLogDir)
+	}
+}
+
+func TestLoad_LearningLogDirFromEnv(t *testing.T) {
+	t.Setenv("LEARNING_LOG_DIR", "/tmp/pn-learning")
+	cfg := Load()
+	if cfg.LearningLogDir != "/tmp/pn-learning" {
+		t.Fatalf("expected env learning log dir, got %q", cfg.LearningLogDir)
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 )
 
 // logLine captures a single admin log entry.
@@ -238,7 +239,7 @@ func TestLookupLogsEnrichFail(t *testing.T) {
 	ctx := context.Background()
 
 	logger := &fakeLogger{}
-	svc := New(pool, &stubEnricher{enrichErr: errors.New("enricher down")}, logger, "", "en", "ko")
+	svc := New(pool, &stubEnricher{enrichErr: errors.New("enricher down")}, logger, learninglog.NoopLogger{}, "", "en", "ko")
 
 	lemma := fmt.Sprintf("enrichfail%d", time.Now().UnixNano())
 	_, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil)
@@ -272,7 +273,7 @@ func TestLookupLogsAddWord(t *testing.T) {
 			},
 		},
 	}
-	svc := New(pool, enricher, logger, "", "en", "ko")
+	svc := New(pool, enricher, logger, learninglog.NoopLogger{}, "", "en", "ko")
 
 	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("lookup failed: %v", err)
@@ -304,7 +305,7 @@ func TestLookupAddWordNoDuplicateLog(t *testing.T) {
 			},
 		},
 	}
-	svc := New(pool, enricher, logger, "", "en", "ko")
+	svc := New(pool, enricher, logger, learninglog.NoopLogger{}, "", "en", "ko")
 
 	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); err != nil {
 		t.Fatalf("first lookup failed: %v", err)

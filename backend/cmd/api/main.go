@@ -15,6 +15,7 @@ import (
 	"project-pn/internal/config"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 	httpapi "project-pn/internal/http"
 	"project-pn/internal/notify"
 	"project-pn/internal/words"
@@ -35,6 +36,12 @@ func main() {
 	}
 	defer adminLogger.Close()
 	metricsCollector := admin.NewMetricsCollector()
+
+	learningLogger, err := learninglog.NewLogger(cfg.LearningLogDir)
+	if err != nil {
+		slog.Warn("learning logger disabled", "error", err)
+	}
+	defer learningLogger.Close()
 
 	metricsCtx, stopMetrics := context.WithCancel(ctx)
 	defer stopMetrics()
@@ -94,7 +101,7 @@ func main() {
 	}
 	centralAuth = auth.NewCentralClient(centralAuthURL, nil)
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
-	wordsService := words.New(pool, enricher, adminLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,

@@ -8,6 +8,7 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 )
 
 func TestRetranslateWordRemapsAndPreservesReviewState(t *testing.T) {
@@ -46,7 +47,7 @@ func TestRetranslateWordRemapsAndPreservesReviewState(t *testing.T) {
 		t.Fatalf("insert example: %v", err)
 	}
 
-	deckID, err := New(pool, &stubEnricher{}, admin.NoopLogger{}, "", "en", "ko").EnsureDefaultDeck(ctx, userID, "en")
+	deckID, err := New(pool, &stubEnricher{}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko").EnsureDefaultDeck(ctx, userID, "en")
 	if err != nil {
 		t.Fatalf("ensure deck: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestRetranslateWordRemapsAndPreservesReviewState(t *testing.T) {
 			}},
 		},
 	}
-	svc := New(pool, stub, admin.NoopLogger{}, "", "en", "ko")
+	svc := New(pool, stub, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
 
 	if err := svc.RetranslateWord(ctx, wordID); err != nil {
 		t.Fatal(err)

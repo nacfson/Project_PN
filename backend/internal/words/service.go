@@ -17,6 +17,7 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 )
 
 // Sentinel errors mapped to HTTP statuses by the handler layer.
@@ -51,6 +52,7 @@ type Service struct {
 	pool        *pgxpool.Pool
 	enricher    enrich.Enricher
 	adminLogger admin.Logger
+	learningLogger learninglog.Logger
 
 	DefaultUserID  string
 	TargetLang     string
@@ -68,15 +70,23 @@ type learningItemsCursorPayload struct {
 	ID      string    `json:"id"`
 }
 
-func New(pool *pgxpool.Pool, enricher enrich.Enricher, adminLogger admin.Logger, defaultUserID, targetLang, definitionLang string) *Service {
+func New(pool *pgxpool.Pool, enricher enrich.Enricher, adminLogger admin.Logger, learningLogger learninglog.Logger, defaultUserID, targetLang, definitionLang string) *Service {
 	return &Service{
 		pool:           pool,
 		enricher:       enricher,
 		adminLogger:    adminLogger,
+		learningLogger: learningLogger,
 		DefaultUserID:  defaultUserID,
 		TargetLang:     targetLang,
 		DefinitionLang: definitionLang,
 	}
+}
+
+func (s *Service) writeLearningLine(ts time.Time, line string) {
+	if s.learningLogger == nil {
+		return
+	}
+	s.learningLogger.WriteLine(ts, line)
 }
 
 // Lookup returns sense options for a word. POS may be nil ("Any" -> all parts
@@ -310,6 +320,7 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 	defer tx.Rollback(ctx)
 
 	var item LearningItem
+	var inserted bool
 	err = tx.QueryRow(ctx,
 		`insert into user_word_senses (user_id, word_sense_id, deck_id, source_context)
 		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''))
@@ -317,9 +328,9 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 		   deck_id = excluded.deck_id,
 		   source_context = coalesce(nullif(excluded.source_context, ''), user_word_senses.source_context),
 		   updated_at = now()
-		 returning id::text, word_sense_id::text, learning_stage`,
+		 returning id::text, word_sense_id::text, learning_stage, (xmax = 0) as inserted`,
 		userID, wordSenseID, deckID, sourceContext,
-	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage)
+	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &inserted)
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
 	}
@@ -337,6 +348,10 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 	if err := tx.Commit(ctx); err != nil {
 		return LearningItem{}, err
+	}
+
+	if inserted {
+		s.emitLearningItemAdded(ctx, userID, item.ID, wordSenseID, wordLang, displayLang, sourceContext)
 	}
 	return item, nil
 }
@@ -436,6 +451,8 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 	); err != nil {
 		return LearningItem{}, fmt.Errorf("words: change sense: %w", err)
 	}
+
+	s.emitSenseChanged(ctx, userID, itemID, currentSenseID, newWordSenseID, displayLang)
 
 	return s.loadLearningItem(ctx, userID, itemID)
 }

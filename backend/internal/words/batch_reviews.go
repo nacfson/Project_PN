@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"project-pn/internal/learninglog"
 )
 
 // RecordBatchReviewAttempts updates spaced repetition review states and logs attempts atomically in a transaction.
@@ -15,6 +17,12 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 	if len(attempts) == 0 {
 		return BatchReviewResult{XPEarned: 0, Success: true}, nil
 	}
+
+	type pendingLearningLog struct {
+		ts   time.Time
+		line string
+	}
+	var pending []pendingLearningLog
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -34,6 +42,8 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 
 	for _, attempt := range attempts {
 		var uwsID string
+		var wordSenseID string
+		var lemma string
 		var intervalDays int
 		var easeFactor float64
 		var reviewCount int
@@ -48,6 +58,8 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 
 		err = tx.QueryRow(ctx, `
 			select uws.id::text,
+			       uws.word_sense_id::text,
+			       w.normalized_text,
 			       rs.interval_days,
 			       rs.ease_factor,
 			       rs.review_count,
@@ -61,12 +73,16 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 			       rs.last_reviewed_at
 			from user_word_senses uws
 			join review_states rs on rs.user_word_sense_id = uws.id
+			join word_senses ws on ws.id = uws.word_sense_id
+			join words w on w.id = ws.word_id
 			where uws.id = $1::uuid and uws.user_id = $2::uuid
 			  and uws.archived_at is null
 			  and rs.is_suspended = false`,
 			attempt.UserWordSenseID, userID,
 		).Scan(
 			&uwsID,
+			&wordSenseID,
+			&lemma,
 			&intervalDays,
 			&easeFactor,
 			&reviewCount,
@@ -257,6 +273,36 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 		if err != nil {
 			return BatchReviewResult{}, fmt.Errorf("words: bury same-word senses for %s: %w", attempt.UserWordSenseID, err)
 		}
+
+		pending = append(pending, pendingLearningLog{
+			ts: now,
+			line: learninglog.RowReviewAttempted(now, learninglog.ReviewAttemptedParams{
+				UserID:         userID,
+				UWSID:          uwsID,
+				WordSenseID:    wordSenseID,
+				Lemma:          lemma,
+				ActivityType:   attempt.ActivityType,
+				Rating:         reviewRating,
+				IsCorrect:      attempt.IsCorrect,
+				ResponseTimeMs: attempt.ResponseTimeMs,
+				LearningStage:  nextStage,
+				FSRSState:      nextState.State,
+				Difficulty:     learninglog.FormatFloat(nextState.Difficulty),
+				Stability:      learninglog.FormatFloat(nextState.Stability),
+				Leech:          isLeech,
+			}),
+		})
+		if suspendCard {
+			pending = append(pending, pendingLearningLog{
+				ts: now,
+				line: learninglog.RowLearningItemArchived(now, learninglog.LearningItemArchivedParams{
+					UserID:      userID,
+					UWSID:       uwsID,
+					WordSenseID: wordSenseID,
+					Lemma:       lemma,
+				}),
+			})
+		}
 	}
 
 	if err := s.applyStreakReview(ctx, tx, userID, now); err != nil {
@@ -265,6 +311,10 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 
 	if err := tx.Commit(ctx); err != nil {
 		return BatchReviewResult{}, fmt.Errorf("words: commit batch reviews: %w", err)
+	}
+
+	for _, p := range pending {
+		s.writeLearningLine(p.ts, p.line)
 	}
 
 	xpEarned := len(attempts) * 10
