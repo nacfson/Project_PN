@@ -69,3 +69,14 @@ Future expansion tables are listed in `backend/docs/backend-future-scope.md` and
 - After code edits, run the relevant build or validation command when one exists.
 - For documentation-only edits, verify by reading/searching the changed document.
 
+## Cursor Cloud specific instructions
+
+System dependencies (Go 1.26 as the default `go`, Docker Engine + compose plugin, `postgresql-client`, `fuse-overlayfs`) are baked into the VM snapshot. The startup update script only refreshes code deps: `npm install` (root workspaces) and `go -C backend mod download`.
+
+- **Docker is not auto-started** (no systemd in this VM). Before starting Postgres, run `sudo dockerd &` and then `sudo chmod 666 /var/run/docker.sock` (the `docker` group is not applied to the agent's shell session). The daemon is intentionally configured for the `fuse-overlayfs` storage driver with `containerd-snapshotter` disabled (`/etc/docker/daemon.json`); do not "fix" this to overlay2.
+- **Run the full local web stack** with `scripts/start-web-dev.sh` (Postgres :5433 → migrations → guest seed → API :8080 → Expo web :8081). Docker must already be running. Standard per-service commands are in `backend/docs/go-backend-setup.md` and the `frontend/`, `browser-extension/`, `packages/api/` `package.json` scripts.
+- **Backend tests share one Postgres database and must run serially**: `cd backend && go test -p 1 ./...`. The default parallel `go test ./...` deadlocks and hits FK/interference failures across packages. The tests also TRUNCATE seed data (including the migration-seeded dev user `00000000-0000-0000-0000-000000000001`), so after running them reset the DB before using the app: `docker compose -f backend/compose.yaml down -v && docker compose -f backend/compose.yaml up -d`, re-run `go run ./cmd/migrate up`, then `PN_ENV=local ./scripts/seed-dev-guest.sh`.
+- **Local auth**: auth mode is `central`, but the backend hardcodes the dev bearer token `mock-dev-token` (`backend/internal/auth/central_client.go`) which maps to the seeded dev user. To sign into the web UI without the external auth server, open `http://localhost:8081/?token=mock-dev-token`. The `local-dev-guest` token in `scripts/seed-dev-guest.sql` / `docs/dev-test-plan.md` is stale and is NOT accepted by the current middleware.
+- **Word enrichment is disabled by default** (no API key), so `POST /api/words/lookup` returns HTTP 503 on a cache miss. Cache hits still work; seed cached dictionary rows (`words` → `word_senses` → `sense_translations` → `examples` → `example_translations`) for enricher-free end-to-end testing.
+- **Lint**: the repo has no ESLint config. The lint-equivalent checks are `go vet ./...` (backend) and `npm run typecheck` (`browser-extension`, `packages/api`). The frontend has no typecheck/lint script and is validated with `npm test` (jest-expo).
+
