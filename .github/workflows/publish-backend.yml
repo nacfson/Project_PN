@@ -1,0 +1,66 @@
+name: Publish backend image (GHCR)
+
+# Builds the Go backend image and publishes it to GitHub Container Registry
+# (ghcr.io/<owner>/project-pn-backend). Uses the built-in GITHUB_TOKEN, so no
+# personal access token or extra secret is required to publish.
+#
+# The server consumes the published image by setting BACKEND_IMAGE in
+# deploy/.env, e.g. BACKEND_IMAGE=ghcr.io/<owner>/project-pn-backend:latest
+# then running: docker compose --env-file .env pull && up -d
+# See backend/docs/ghcr-deploy.md.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'backend/**'
+      - '.github/workflows/publish-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # github.repository_owner is lowercased for GHCR compatibility.
+          images: ghcr.io/${{ github.repository_owner }}/project-pn-backend
+          tags: |
+            type=sha,format=short
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          # Build for both Intel/AMD and Graviton so the image runs on any EC2 arch.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
