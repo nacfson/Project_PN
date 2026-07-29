@@ -104,22 +104,17 @@ Canonical dictionary text is stored on `word_senses` and `examples`. Localized d
 
 Toggled by environment variables:
 
-- `ENRICH_PRIMARY_BASE_URL` (empty disables primary generation; cache-only lookups still work)
-- `ENRICH_PRIMARY_API_KEY`
-- `ENRICH_PRIMARY_MODEL`
-- `ENRICH_FALLBACK_BASE_URL` (optional fallback base URL tried when primary fails)
-- `ENRICH_FALLBACK_API_KEY`
-- `ENRICH_FALLBACK_MODEL`
-- Legacy `ENRICH_BASE_URL`, `ENRICH_API_KEY`, and `ENRICH_MODEL` remain supported as aliases for the primary slot.
+- `GEMINI_API_KEY` (empty disables generation; cache-only lookups still work)
+- `GEMINI_MODEL` (default `gemini-3.1-flash-lite`, the cheapest Flash-Lite tier)
 
-When no primary or legacy base URL is configured, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; configure ENRICH_PRIMARY_BASE_URL or add the sense manually". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
+The Gemini OpenAI-compatible base URL is hardcoded. Legacy `ENRICH_*` / `ENRICH_PRIMARY_*` key and model aliases are still accepted when `GEMINI_*` is unset.
+
+When `GEMINI_API_KEY` is empty, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; configure GEMINI_API_KEY or add the sense manually". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
 
 For full support across the app's listed target languages (`en`, `ko`, `ja`,
-`zh`, `es`, `fr`, `de`), configure a real multilingual OpenAI-compatible
-model. The local `english-dictionary-fallback-v1` service is a no-key staging
-fallback for English target vocabulary only; it can translate English canonical
-content into display languages, but it must not be treated as multilingual
-dictionary generation.
+`zh`, `es`, `fr`, `de`), Gemini provides multilingual generation. The local
+`english-dictionary-fallback-v1` service remains a no-key staging helper for
+English target vocabulary only in tests; it is not used in production wiring.
 
 ## CORS
 

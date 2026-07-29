@@ -40,8 +40,8 @@ var validPartOfSpeech = map[string]bool{
 	"interjection": true, "determiner": true,
 }
 
-// OpenAIEnricher calls any OpenAI-compatible /chat/completions endpoint
-// (Groq, DeepSeek, Gemini's OpenAI shim, etc.).
+// OpenAIEnricher calls an OpenAI-compatible /chat/completions endpoint.
+// Production wiring uses Gemini's OpenAI shim only.
 type OpenAIEnricher struct {
 	BaseURL string
 	APIKey  string

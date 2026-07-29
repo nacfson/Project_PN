@@ -11,6 +11,11 @@ const (
 	defaultMigrationsPath = "file://db/migrations"
 	// No defaultDatabaseURL — DATABASE_URL must be provided by the environment.
 
+	// Gemini OpenAI-compatible chat-completions base (hardcoded; only key/model are env).
+	GeminiOpenAIBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
+	// Cheapest Flash-Lite tier used as the sample/default model id.
+	defaultGeminiModel = "gemini-3.1-flash-lite"
+
 	defaultUserID         = "00000000-0000-0000-0000-000000000001"
 	defaultTargetLang     = "en"
 	defaultDefinitionLang = "ko"
@@ -39,13 +44,9 @@ type Config struct {
 	DatabaseURL    string
 	MigrationsPath string
 
-	EnrichPrimaryBaseURL string
-	EnrichPrimaryAPIKey  string
-	EnrichPrimaryModel   string
-
-	EnrichFallbackBaseURL string
-	EnrichFallbackAPIKey  string
-	EnrichFallbackModel   string
+	// Gemini-only enrichment (OpenAI-compatible shim). Empty API key disables generation.
+	GeminiAPIKey string
+	GeminiModel  string
 
 	DefaultUserID         string
 	DefaultTargetLang     string
@@ -78,15 +79,20 @@ func Load() Config {
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		MigrationsPath: envOrDefault("MIGRATIONS_PATH", defaultMigrationsPath),
 
-		EnrichPrimaryBaseURL: envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL")),
-		EnrichPrimaryAPIKey:  envOrDefault("ENRICH_PRIMARY_API_KEY", os.Getenv("ENRICH_API_KEY")),
-		EnrichPrimaryModel:   envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL")),
-
-		EnrichFallbackBaseURL: os.Getenv("ENRICH_FALLBACK_BASE_URL"),
-		EnrichFallbackAPIKey:  os.Getenv("ENRICH_FALLBACK_API_KEY"),
-		EnrichFallbackModel:   os.Getenv("ENRICH_FALLBACK_MODEL"),
+		GeminiAPIKey: firstNonEmpty(
+			os.Getenv("GEMINI_API_KEY"),
+			os.Getenv("ENRICH_PRIMARY_API_KEY"),
+			os.Getenv("ENRICH_API_KEY"),
+		),
+		GeminiModel: firstNonEmpty(
+			os.Getenv("GEMINI_MODEL"),
+			os.Getenv("ENRICH_PRIMARY_MODEL"),
+			os.Getenv("ENRICH_MODEL"),
+			defaultGeminiModel,
+		),
 
 		DefaultUserID:          envOrDefault("DEFAULT_USER_ID", defaultUserID),
+
 		DefaultTargetLang:      envOrDefault("DEFAULT_TARGET_LANG", defaultTargetLang),
 		DefaultDefinitionLang:  envOrDefault("DEFAULT_DEFINITION_LANG", defaultDefinitionLang),
 		AllowedTargetLangs:     splitAndTrim(envOrDefault("ALLOWED_TARGET_LANGS", defaultAllowedTargetLangs)),
@@ -143,6 +149,15 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func durationOrDefault(key string, fallback time.Duration) time.Duration {

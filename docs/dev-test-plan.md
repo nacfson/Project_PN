@@ -14,7 +14,7 @@ Test the full local web stack while treating the account/login system as a dev-o
 - `scripts/start-web-dev.sh` is running (PostgreSQL, migrations, Go API, Expo web).
 - Docker Desktop is available and healthy.
 - The dev script overrides `EXPO_PUBLIC_API_BASE_URL` to `http://localhost:8080`, so a stale `frontend/.env` pointing at a deploy server will not break local testing.
-- Word enrichment is optional: lookups return data if cached; otherwise they return 503 unless `ENRICH_BASE_URL` is configured.
+- Word enrichment is optional: lookups return data if cached; otherwise they return 503 unless `GEMINI_API_KEY` is configured.
 
 ---
 
@@ -75,7 +75,7 @@ scripts/start-web-dev.sh --skip-seed
 | 5 | Go to **Words** tab. | The new item appears in the list. |
 | 6 | Tap the item. | `WordDetailScreen` shows target-language example with the word emphasized and the start-language meaning. |
 
-**With enricher disabled**: if the word is not cached, lookup returns an error toast or silent failure per the current implementation. For a stable test, seed a few words/examples first or configure `ENRICH_BASE_URL`.
+**With enricher disabled**: if the word is not cached, lookup returns an error toast or silent failure per the current implementation. For a stable test, seed a few words/examples first or configure `GEMINI_API_KEY`.
 
 ---
 
@@ -257,7 +257,7 @@ where id = (
 | Gap | Workaround |
 |-----|------------|
 | No production guest mode. | Local dev builds auto-log in as the seeded guest; production still requires normal auth. |
-| No seeded vocabulary; enricher may be off. | Seed words/examples manually or configure `ENRICH_BASE_URL`. |
+| No seeded vocabulary; enricher may be off. | Seed words/examples manually or configure `GEMINI_API_KEY`. |
 | New cards are not due immediately. | Backdate `review_states.due_at` in SQL for practice tests. |
 | Email verification is required by middleware. | Mark the dev user as verified in SQL. |
 | Deck CRUD endpoints exist but bulk item-move has no UI. | Move items between decks via the API or SQL for now. |

@@ -89,7 +89,7 @@ Requires Rust + Tauri toolchain: https://tauri.app/start/
 | Symptom | Fix |
 |---------|-----|
 | "Network request failed. Is the backend running?" | Start `go run ./cmd/api`; check `/readyz` |
-| Lookup 503 on unknown words | Set `ENRICH_BASE_URL` + `ENRICH_API_KEY` in backend, or use cached words |
+| Lookup 503 on unknown words | Set `GEMINI_API_KEY` in backend, or use cached words |
 | CORS error in browser | Confirm origin is in backend `ALLOWED_ORIGINS` |
 | Android emulator cannot reach API | Use default `10.0.2.2:8080` or set `EXPO_PUBLIC_API_BASE_URL` |
 | `desktop:dev` fails | Install Tauri prerequisites; ensure port 8081 is free |

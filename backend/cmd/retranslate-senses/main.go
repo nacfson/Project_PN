@@ -50,12 +50,7 @@ func main() {
 	}
 	defer adminLogger.Close()
 
-	primary := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
-	var fallback enrich.Enricher
-	if cfg.EnrichFallbackBaseURL != "" {
-		fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
-	}
-	enricher := enrich.NewFallback(primary, fallback, slog.Default())
+	enricher := enrich.NewOpenAI(config.GeminiOpenAIBaseURL, cfg.GeminiAPIKey, cfg.GeminiModel)
 	svc := words.New(pool, enricher, adminLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	ids, err := listWordIDs(ctx, pool, strings.TrimSpace(wordID), limit)

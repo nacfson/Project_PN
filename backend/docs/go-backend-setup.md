@@ -205,12 +205,8 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `APP_ADDR` | `:8080` | HTTP listen address for `cmd/api`. |
 | `DATABASE_URL` | `postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable` | PostgreSQL connection string used by `db.Open` and the migrate CLI. |
 | `MIGRATIONS_PATH` | `file://db/migrations` | golang-migrate source URL. Resolved relative to the `backend/` working directory. |
-| `ENRICH_PRIMARY_BASE_URL` | empty | Base URL of primary OpenAI-compatible `/chat/completions` endpoint. Empty disables primary generation. (Alias: `ENRICH_BASE_URL`) |
-| `ENRICH_PRIMARY_API_KEY` | empty | Bearer token for the primary enricher. (Alias: `ENRICH_API_KEY`) |
-| `ENRICH_PRIMARY_MODEL` | empty | Model name passed to the primary enricher. (Alias: `ENRICH_MODEL`) |
-| `ENRICH_FALLBACK_BASE_URL` | empty | Optional fallback OpenAI-compatible `/chat/completions` endpoint (e.g. DeepSeek). |
-| `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the fallback enricher. |
-| `ENRICH_FALLBACK_MODEL` | empty | Model name passed to the fallback enricher (e.g. `deepseek-v4-flash`). |
+| `GEMINI_API_KEY` | empty | Google AI Studio / Gemini API key. Empty disables generation (cache-only lookups still work). Legacy aliases: `ENRICH_PRIMARY_API_KEY`, `ENRICH_API_KEY`. |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Gemini model id (cheapest Flash-Lite tier by default). Legacy aliases: `ENRICH_PRIMARY_MODEL`, `ENRICH_MODEL`. |
 | `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from the bearer session, not this env var. |
 | `DEFAULT_TARGET_LANG` | `en` | Default `target_language` on register when omitted; fallback when a request omits `language_code`. |
 | `DEFAULT_DEFINITION_LANG` | `ko` | Default `native_language` on register when omitted; fallback when a request omits `definition_language_code`. |
@@ -223,11 +219,10 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 
 ## Enrichment
 
-The `Enricher` interface lives in `internal/enrich/`. The current implementation (`OpenAIEnricher`) calls any OpenAI-compatible chat-completions endpoint (Groq, DeepSeek, Gemini's OpenAI shim, OpenAI, etc.).
+The `Enricher` interface lives in `internal/enrich/`. Production wiring uses Gemini only via Google's OpenAI-compatible chat-completions shim (`https://generativelanguage.googleapis.com/v1beta/openai`). The base URL is hardcoded; operators set `GEMINI_API_KEY` and optionally `GEMINI_MODEL` (default `gemini-3.1-flash-lite`).
 
-- Primary/Legacy Base URL empty → if both `ENRICH_PRIMARY_BASE_URL` and `ENRICH_BASE_URL` are empty, primary enrichment is skipped. If fallback is also unconfigured, `Enrich` returns `ErrNotConfigured`. The lookup endpoint returns HTTP 503 "word enrichment is not available; configure ENRICH_PRIMARY_BASE_URL or add the sense manually" on a cache miss. Cache hits are unaffected.
-- Primary or fallback set → enrichment runs synchronously inside the request, attempting primary first and falling back to secondary on failure. The result is persisted in the same transaction as the cache write.
-- Model string is required when a corresponding base URL is configured.
+- Empty `GEMINI_API_KEY` → `Enrich` returns `ErrNotConfigured`. The lookup endpoint returns HTTP 503 "word enrichment is not available; configure GEMINI_API_KEY or add the sense manually" on a cache miss. Cache hits are unaffected.
+- Key set → enrichment runs synchronously inside the request. The result is persisted in the same transaction as the cache write.
 
 Enrichment is currently in-request and synchronous. A background queue is future scope (see `backend/docs/backend-future-scope.md`).
 

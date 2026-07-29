@@ -238,7 +238,7 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, enrich.ErrUnsupportedLanguage):
 		writeError(w, http.StatusServiceUnavailable, "multilingual enrichment provider required for this target language")
 	case errors.Is(err, enrich.ErrNotConfigured), errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
-		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually")
+		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; configure GEMINI_API_KEY or add the sense manually")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
