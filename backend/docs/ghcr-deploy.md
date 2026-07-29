@@ -76,6 +76,56 @@ The `web/` bundle, `nginx/nginx.conf`, and `compose.yaml` still need to reach th
 server (via `scripts/deploy-ghcr.sh`, `scp`, or a `git pull` on the server); GHCR
 only carries the backend image.
 
+## Self-updating instance (pull-based: fix → GHCR → instance updates itself)
+
+This is the recommended flow when you do **not** want to hand SSH keys to CI or
+an agent. The instance polls the registry and redeploys itself whenever a new
+image is published:
+
+1. A `fix` is merged → the `publish-backend.yml` workflow pushes a new
+   `ghcr.io/nacfson/project-pn-backend:latest` (and `sha-…`) image.
+2. A systemd timer on the instance runs `deploy/self-update.sh`, which does
+   `docker compose pull && up -d` and only restarts when the image digest
+   changed. Compose runs the one-shot `migrate` before `api`, so schema
+   migrations are applied on every update.
+
+Set up once on the server:
+
+```sh
+cd ~/project-pn/deploy
+
+# Point the stack at the GHCR image.
+grep -q '^BACKEND_IMAGE=' .env \
+  && sed -i 's|^BACKEND_IMAGE=.*|BACKEND_IMAGE=ghcr.io/nacfson/project-pn-backend:latest|' .env \
+  || echo 'BACKEND_IMAGE=ghcr.io/nacfson/project-pn-backend:latest' >> .env
+
+# Only needed if the GHCR package is private:
+# echo "$CR_PAT" | docker login ghcr.io -u nacfson --password-stdin
+
+chmod +x self-update.sh
+
+# Install the timer (edit User/paths in the unit files for your distro/user).
+sudo cp systemd/project-pn-update.service systemd/project-pn-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now project-pn-update.timer
+```
+
+Check it:
+
+```sh
+systemctl list-timers project-pn-update.timer
+journalctl -u project-pn-update.service -n 50 --no-pager
+```
+
+Notes:
+- The timer polls (default every ~3 min). For a moving `latest` tag this is the
+  simplest event-free approach; tune `OnUnitActiveSec` in the `.timer`.
+- Watchtower is an alternative, but it swaps the `api` container in place and
+  does **not** run the compose `migrate` step, so the timer + `compose up -d`
+  approach is preferred for this stack.
+- For credential-free pulls (no PAT on the box at all), switch the registry to
+  ECR and give the EC2 instance an IAM role — see the notes below.
+
 ## Notes / gotchas
 
 - **Architecture** must match the server CPU. The Actions workflow builds both
