@@ -141,7 +141,10 @@ EXISTING_POSTGRES_PASSWORD=old-password
 REMOTE_DIR=~/project-pn/deploy
 IMAGE_NAME=project-pn-backend
 IMAGE_TAG=$(git rev-parse --short HEAD)
-PLATFORM=linux/amd64
+USE_GHCR=1
+GHCR_OWNER=nacfson
+GHCR_IMAGE=project-pn-backend
+PLATFORMS=linux/amd64,linux/arm64
 ```
 
 For an internet-facing deploy, use a public domain or public IP and set
@@ -184,7 +187,19 @@ docker compose --env-file .env up -d
 curl https://YOUR_PUBLIC_DOMAIN/readyz
 ```
 
-The primary deployment path does not require GHCR. `scripts/deploy-remote.sh` loads both `project-pn-backend:<git-short-sha>` and `project-pn-backend:latest` on the server, then supplies `BACKEND_IMAGE=project-pn-backend:<git-short-sha>` when it starts Docker Compose remotely.
+The primary deployment path publishes a multi-arch backend image
+(`linux/amd64,linux/arm64`) to `ghcr.io/nacfson/project-pn-backend`, then the
+remote server pulls that image and starts Compose with
+`BACKEND_IMAGE=ghcr.io/nacfson/project-pn-backend:<git-short-sha>`.
+
+To publish without a full deploy:
+
+```sh
+GHCR_TOKEN=... scripts/push-ghcr.sh
+```
+
+Legacy tarball deploy remains available with `USE_GHCR=0` (single-arch
+`docker save` / `scp` / `docker load`).
 
 The backend image contains:
 

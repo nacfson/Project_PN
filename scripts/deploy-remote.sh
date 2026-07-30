@@ -15,10 +15,18 @@ Optional environment variables:
   REMOTE_DIR=~/project-pn/deploy
   IMAGE_NAME=project-pn-backend
   IMAGE_TAG=<git-short-sha>
-  PLATFORM=linux/amd64
+  USE_GHCR=1                         # default: push/pull multi-arch via GHCR
+  GHCR_OWNER=nacfson
+  GHCR_IMAGE=project-pn-backend
+  PLATFORMS=linux/amd64,linux/arm64
+  GHCR_TOKEN=<pat with write:packages> # also used for remote docker login if private
+  PLATFORM=linux/amd64                # only used when USE_GHCR=0 (legacy tarball)
 
-The script builds the backend image locally, uploads it over SSH/SCP,
-loads it on the remote server, and runs Docker Compose there.
+Default path (USE_GHCR=1): builds a multi-arch image, pushes to GHCR, then
+the remote server pulls that image and starts Compose.
+
+Legacy path (USE_GHCR=0): builds locally, uploads a tarball over SCP, and
+docker load on the remote server.
 USAGE
 }
 
@@ -94,6 +102,10 @@ DEPLOY_HOST="${DEPLOY_HOST:-}"
 REMOTE_DIR="${REMOTE_DIR:-~/project-pn/deploy}"
 IMAGE_NAME="${IMAGE_NAME:-project-pn-backend}"
 PLATFORM="${PLATFORM:-linux/amd64}"
+USE_GHCR="${USE_GHCR:-1}"
+GHCR_OWNER="${GHCR_OWNER:-nacfson}"
+GHCR_IMAGE="${GHCR_IMAGE:-project-pn-backend}"
+PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 DEPLOY_ACCESS_SCOPE="${DEPLOY_ACCESS_SCOPE:-private}"
 
 [[ -n "$DEPLOY_HOST" ]] || die "DEPLOY_HOST is required, for example DEPLOY_HOST=user@server-ip"
@@ -109,18 +121,31 @@ if [[ "$DEPLOY_ACCESS_SCOPE" == "public" ]]; then
     die "DEPLOY_ACCESS_SCOPE=public requires DEPLOY_PUBLIC_URL to be a publicly reachable domain or IP, got ${DEPLOY_PUBLIC_URL}"
   fi
 fi
+case "$USE_GHCR" in
+  1|0) ;;
+  *) die "USE_GHCR must be 1 or 0" ;;
+esac
 
 require_cmd docker
 require_cmd git
-require_cmd gzip
 require_cmd openssl
 require_cmd scp
 require_cmd ssh
 require_cmd npm
+if [[ "$USE_GHCR" == "0" ]]; then
+  require_cmd gzip
+fi
 
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
-IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
-LATEST_REF="${IMAGE_NAME}:latest"
+LOCAL_IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
+LOCAL_LATEST_REF="${IMAGE_NAME}:latest"
+GHCR_IMAGE_REF="ghcr.io/${GHCR_OWNER}/${GHCR_IMAGE}:${IMAGE_TAG}"
+GHCR_LATEST_REF="ghcr.io/${GHCR_OWNER}/${GHCR_IMAGE}:latest"
+if [[ "$USE_GHCR" == "1" ]]; then
+  IMAGE_REF="$GHCR_IMAGE_REF"
+else
+  IMAGE_REF="$LOCAL_IMAGE_REF"
+fi
 TARBALL="${TMPDIR:-/tmp}/${IMAGE_NAME}-${IMAGE_TAG}.tar.gz"
 REMOTE_TARBALL="/tmp/${IMAGE_NAME}-${IMAGE_TAG}.tar.gz"
 GENERATED_ENV=""
@@ -133,18 +158,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log "building ${IMAGE_REF} for ${PLATFORM}"
-docker build --platform "$PLATFORM" -t "$IMAGE_REF" -f backend/Dockerfile backend
+if [[ "$USE_GHCR" == "1" ]]; then
+  log "publishing multi-arch image to GHCR (${PLATFORMS})"
+  PLATFORMS="$PLATFORMS" IMAGE_TAG="$IMAGE_TAG" \
+    GHCR_OWNER="$GHCR_OWNER" GHCR_IMAGE="$GHCR_IMAGE" \
+    scripts/push-ghcr.sh
+else
+  log "building ${IMAGE_REF} for ${PLATFORM} (legacy tarball path)"
+  docker build --platform "$PLATFORM" -t "$IMAGE_REF" -f backend/Dockerfile backend
 
-SAVE_REFS=("$IMAGE_REF")
-if [[ "$IMAGE_REF" != "$LATEST_REF" ]]; then
-  log "tagging ${LATEST_REF}"
-  docker tag "$IMAGE_REF" "$LATEST_REF"
-  SAVE_REFS+=("$LATEST_REF")
+  SAVE_REFS=("$IMAGE_REF")
+  if [[ "$IMAGE_REF" != "$LOCAL_LATEST_REF" ]]; then
+    log "tagging ${LOCAL_LATEST_REF}"
+    docker tag "$IMAGE_REF" "$LOCAL_LATEST_REF"
+    SAVE_REFS+=("$LOCAL_LATEST_REF")
+  fi
+
+  log "saving image to ${TARBALL}"
+  docker save "${SAVE_REFS[@]}" | gzip > "$TARBALL"
 fi
-
-log "saving image to ${TARBALL}"
-docker save "${SAVE_REFS[@]}" | gzip > "$TARBALL"
 
 log "building frontend web bundle"
 (
@@ -159,15 +191,27 @@ log "building frontend web bundle"
 log "creating remote deploy directories on ${DEPLOY_HOST}:${REMOTE_DIR}"
 ssh "$DEPLOY_HOST" "mkdir -p ${REMOTE_DIR}/nginx ${REMOTE_DIR}/certs ${REMOTE_DIR}/web"
 
-log "uploading compose files, web bundle, and image"
+log "uploading compose files and web bundle"
 scp deploy/compose.yaml "$DEPLOY_HOST:${REMOTE_DIR}/compose.yaml"
 scp deploy/.env.example "$DEPLOY_HOST:${REMOTE_DIR}/.env.example"
 scp deploy/nginx/nginx.conf "$DEPLOY_HOST:${REMOTE_DIR}/nginx/nginx.conf"
 scp -r frontend/dist/. "$DEPLOY_HOST:${REMOTE_DIR}/web/"
-scp "$TARBALL" "$DEPLOY_HOST:${REMOTE_TARBALL}"
 
-log "loading image on remote server"
-ssh "$DEPLOY_HOST" "docker load -i ${REMOTE_TARBALL} && rm -f ${REMOTE_TARBALL}"
+if [[ "$USE_GHCR" == "1" ]]; then
+  log "pulling ${IMAGE_REF} on remote server"
+  GHCR_TOKEN_VALUE="${GHCR_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
+  if [[ -n "$GHCR_TOKEN_VALUE" ]]; then
+    log "logging remote docker into ghcr.io"
+    printf '%s\n' "$GHCR_TOKEN_VALUE" | ssh "$DEPLOY_HOST" "docker login ghcr.io -u $(printf '%q' "${GHCR_USERNAME:-$GHCR_OWNER}") --password-stdin >/dev/null"
+  fi
+  ssh "$DEPLOY_HOST" "docker pull $(printf '%q' "$IMAGE_REF")"
+  # Also tag :latest on the server for compose defaults / rollback convenience.
+  ssh "$DEPLOY_HOST" "docker tag $(printf '%q' "$IMAGE_REF") $(printf '%q' "$GHCR_LATEST_REF")"
+else
+  log "uploading and loading image tarball on remote server"
+  scp "$TARBALL" "$DEPLOY_HOST:${REMOTE_TARBALL}"
+  ssh "$DEPLOY_HOST" "docker load -i ${REMOTE_TARBALL} && rm -f ${REMOTE_TARBALL}"
+fi
 
 log "checking remote .env"
 if ! ssh "$DEPLOY_HOST" "test -f ${REMOTE_DIR}/.env"; then
@@ -200,7 +244,7 @@ if ! ssh "$DEPLOY_HOST" "test -f ${REMOTE_DIR}/.env"; then
 # Generated by scripts/deploy-remote.sh.
 # Edit this file on the server for production values.
 
-BACKEND_IMAGE=project-pn-backend:latest
+BACKEND_IMAGE=${IMAGE_REF}
 
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 DATABASE_URL=postgres://project_pn:${POSTGRES_PASSWORD}@postgres:5432/project_pn?sslmode=disable
