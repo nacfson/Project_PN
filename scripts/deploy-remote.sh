@@ -185,7 +185,10 @@ log "building frontend web bundle"
   # Empty EXPO_PUBLIC_API_BASE_URL lets the web app resolve API calls from
   # window.location.origin, which works for both intranet and public IPs when
   # the bundle is served by nginx on the same origin.
-  EXPO_PUBLIC_API_BASE_URL= npm run web:export
+  # Empty API base → same-origin; bake Brain auth host for Sign In.
+  EXPO_PUBLIC_API_BASE_URL= \
+    EXPO_PUBLIC_CENTRAL_AUTH_URL="${EXPO_PUBLIC_CENTRAL_AUTH_URL:-https://auth.nacfson.cloud}" \
+    npm run web:export
 )
 
 log "creating remote deploy directories on ${DEPLOY_HOST}:${REMOTE_DIR}"

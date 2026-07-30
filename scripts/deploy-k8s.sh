@@ -22,7 +22,9 @@ log "Building frontend web static bundle"
 (
   cd frontend
   npm install --legacy-peer-deps
-  EXPO_PUBLIC_API_BASE_URL= npm run web:export
+  EXPO_PUBLIC_API_BASE_URL= \
+    EXPO_PUBLIC_CENTRAL_AUTH_URL="${EXPO_PUBLIC_CENTRAL_AUTH_URL:-https://auth.nacfson.cloud}" \
+    npm run web:export
 )
 
 log "Building project-pn-frontend for linux/amd64"

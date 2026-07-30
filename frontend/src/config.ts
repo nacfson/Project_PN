@@ -71,7 +71,11 @@ function stripTrailingSlash(value: string): string {
 
 function resolveCentralAuthUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_CENTRAL_AUTH_URL;
-  return fromEnv ? stripTrailingSlash(fromEnv.trim()) : '';
+  if (fromEnv && fromEnv.trim().length > 0) {
+    return stripTrailingSlash(fromEnv.trim());
+  }
+  // Never fall back to same-origin /login — Brain auth lives on auth.nacfson.cloud.
+  return 'https://auth.nacfson.cloud';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
