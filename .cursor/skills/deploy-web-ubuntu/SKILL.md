@@ -9,15 +9,14 @@ description: >-
 
 # Deploy Project PN Web to zlUbuntu
 
-Builds the Expo web bundle and the Go backend Docker image locally, then uploads
-both to `zlUbuntu` and starts the Docker Compose stack.
+Builds the Expo web bundle locally, pulls the pinned Go backend image from GHCR
+on `zlUbuntu`, and starts the Docker Compose stack.
 
 ## Prerequisites
 
 Before running the deploy, confirm:
 
 - [ ] You are on the local Mac with the Project PN repo at `/Users/hyungjuyu/Projects/iOS/Project_PN`.
-- [ ] Docker Desktop is running.
 - [ ] `npm`, `git`, `ssh`, and `scp` are available.
 - [ ] `zlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
 - [ ] `deploy/.deploy.env` exists and contains:
@@ -26,8 +25,10 @@ Before running the deploy, confirm:
   DEPLOY_PUBLIC_URL=http://124.59.225.59:53412
   DEPLOY_ACCESS_SCOPE=public
   REMOTE_DIR='~/project-pn/deploy'
-  IMAGE_NAME=project-pn-backend
-  PLATFORM=linux/amd64
+  GHCR_IMAGE=ghcr.io/nacfson/project-pn-backend
+  IMAGE_TAG=<published-short-git-sha>
+  GHCR_USERNAME=your-github-username
+  GHCR_TOKEN=<read:packages-token>
   ```
 - [ ] The remote `~/project-pn/deploy/.env` has the correct `ALLOWED_ORIGINS` and `APP_PUBLIC_URL`.
 - [ ] TLS certs exist at `~/project-pn/deploy/certs/` if you need HTTPS on port 443.
@@ -68,13 +69,13 @@ scripts/deploy-remote.sh
 
 Expected output sequence:
 
-1. `building project-pn-backend:<sha> for linux/amd64`
+1. `using GHCR backend image ghcr.io/nacfson/project-pn-backend:<sha>`
 2. `building frontend web bundle`
-3. `uploading compose files, web bundle, and image`
-4. `loading image on remote server`
+3. `uploading compose files and web bundle`
+4. `pulling ... from GHCR`
 5. `starting remote compose stack ...`
 6. `checking remote /readyz` → `{"status":"ready"}`
-7. `deployed project-pn-backend:<sha>`
+7. `deployed ghcr.io/nacfson/project-pn-backend:<sha>`
 
 If any step fails, stop and consult `deploy/deploy-exception-runbook.md`.
 
@@ -131,14 +132,16 @@ Open the public or intranet URL in a browser:
 ```sh
 cd frontend
 npm install
-EXPO_PUBLIC_API_BASE_URL= npm run web:export
+EXPO_PUBLIC_API_BASE_URL= EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud npm run web:export
 ```
 
 `EXPO_PUBLIC_API_BASE_URL` is intentionally **empty** so the exported bundle
 resolves API calls from `window.location.origin`. This lets the same bundle work
 on both intranet (`192.168.219.x`) and public (`124.59.225.59`) URLs.
 
-The bundle is uploaded to `~/project-pn/deploy/web/` and served by nginx at `/`.
+The backend image is published by
+`.github/workflows/publish-ghcr-images.yml`. The bundle is uploaded to
+`~/project-pn/deploy/web/` and served by nginx at `/`.
 nginx proxies these paths to the Go backend:
 
 - `/api/*`

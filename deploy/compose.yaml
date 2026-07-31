@@ -19,7 +19,8 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: ${BACKEND_IMAGE:-project-pn-backend:latest}
+    image: ${BACKEND_IMAGE:-ghcr.io/nacfson/project-pn-backend:latest}
+    pull_policy: always
     command: ["./migrate", "up"]
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -30,7 +31,8 @@ services:
     restart: "no"
 
   api:
-    image: ${BACKEND_IMAGE:-project-pn-backend:latest}
+    image: ${BACKEND_IMAGE:-ghcr.io/nacfson/project-pn-backend:latest}
+    pull_policy: always
     environment:
       APP_ADDR: :8080
       DATABASE_URL: ${DATABASE_URL}

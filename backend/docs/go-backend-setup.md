@@ -117,7 +117,7 @@ scripts/start-web-dev.sh --skip-db --skip-migrate
 
 Detailed deployment steps and troubleshooting live in `backend/docs/remote-deploy-runbook.md`.
 
-For a public Docker-only stack on `zlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. The script builds the backend image locally, uploads it to the remote server over SSH/SCP, loads it with Docker, and starts the remote compose stack.
+For a public Docker-only stack on `zlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. Backend images are published to GHCR; the script builds/uploads the web bundle, pulls a pinned GHCR backend image on the server, and starts the remote Compose stack.
 
 ```sh
 DEPLOY_HOST=user@YOUR_SERVER_IP scripts/deploy-remote.sh
@@ -139,9 +139,10 @@ DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
 DEPLOY_ACCESS_SCOPE=public
 EXISTING_POSTGRES_PASSWORD=old-password
 REMOTE_DIR=~/project-pn/deploy
-IMAGE_NAME=project-pn-backend
+GHCR_IMAGE=ghcr.io/nacfson/project-pn-backend
 IMAGE_TAG=$(git rev-parse --short HEAD)
-PLATFORM=linux/amd64
+GHCR_USERNAME=your-github-username
+GHCR_TOKEN=<read:packages token>
 ```
 
 For an internet-facing deploy, use a public domain or public IP and set
@@ -184,7 +185,12 @@ docker compose --env-file .env up -d
 curl https://YOUR_PUBLIC_DOMAIN/readyz
 ```
 
-The primary deployment path does not require GHCR. `scripts/deploy-remote.sh` loads both `project-pn-backend:<git-short-sha>` and `project-pn-backend:latest` on the server, then supplies `BACKEND_IMAGE=project-pn-backend:<git-short-sha>` when it starts Docker Compose remotely.
+The primary deployment path uses
+`ghcr.io/nacfson/project-pn-backend:<git-short-sha>`. The workflow
+`.github/workflows/publish-ghcr-images.yml` publishes the backend and
+`ghcr.io/nacfson/project-pn-frontend:<git-short-sha>` images. The remote
+script supplies the pinned backend reference as `BACKEND_IMAGE` and never
+places the GHCR token in the frontend bundle or remote `.env`.
 
 The backend image contains:
 

@@ -8,21 +8,22 @@ description: >-
 
 # Deploy Project PN Web & Backend Stack
 
-Deploys the Expo web bundle and the Go backend Docker image to `zlUbuntu` by
-running `scripts/deploy-remote.sh` and verifying the result.
+Deploys the Expo web bundle and a GHCR-published Go backend image to `zlUbuntu`
+by running `scripts/deploy-remote.sh` and verifying the result.
 
 ## Prerequisites
 
 Confirm before deploying:
 
 - [ ] You are on the local Mac with the repo at `/Users/hyungjuyu/Projects/iOS/Project_PN`.
-- [ ] Docker Desktop is running.
 - [ ] `zlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
 - [ ] `deploy/.deploy.env` exists and contains the correct values for
   `DEPLOY_HOST`, `DEPLOY_PUBLIC_URL`, `DEPLOY_ACCESS_SCOPE`, `REMOTE_DIR`,
-  `IMAGE_NAME`, and `PLATFORM`.
+  `GHCR_IMAGE`, and `IMAGE_TAG`.
 - [ ] The remote `~/project-pn/deploy/.env` has the correct `ALLOWED_ORIGINS`
   and `APP_PUBLIC_URL`.
+- [ ] `GHCR_IMAGE`, `IMAGE_TAG`, and private-registry credentials are set when
+  the package is private.
 - [ ] For HTTPS deployments, TLS certs exist at
   `~/project-pn/deploy/certs/fullchain.pem` and `privkey.pem`.
 
@@ -47,8 +48,8 @@ explicitly asked.
 Verify required tools are available:
 
 ```sh
-command -v docker && command -v git && command -v ssh && \
-  command -v scp && command -v npm && command -v curl
+command -v git && command -v ssh && command -v scp && \
+  command -v npm && command -v curl
 ```
 
 ## Deploy
@@ -61,7 +62,7 @@ scripts/deploy-remote.sh
 
 Expected final output:
 
-- `deployed project-pn-backend:<sha>`
+- `deployed ghcr.io/nacfson/project-pn-backend:<sha>`
 - `/readyz` returns `{"status":"ready"}`
 
 If the script fails, stop and consult `deploy/deploy-exception-runbook.md`.

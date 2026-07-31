@@ -5,58 +5,72 @@ log() {
   printf '[deploy-k8s] %s\n' "$*"
 }
 
-DEPLOY_HOST="zlUbuntu"
-REGISTRY_URL="192.168.219.100:5000"
-NAMESPACE="project-pn"
+DEPLOY_HOST="${DEPLOY_HOST:-zlUbuntu}"
+REGISTRY_URL="${REGISTRY_URL:-ghcr.io/nacfson}"
+NAMESPACE="${NAMESPACE:-project-pn}"
+IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
+GHCR_USERNAME="${GHCR_USERNAME:-}"
+GHCR_TOKEN="${GHCR_TOKEN:-}"
+BACKEND_IMAGE="${REGISTRY_URL}/project-pn-backend:${IMAGE_TAG}"
+FRONTEND_IMAGE="${REGISTRY_URL}/project-pn-frontend:${IMAGE_TAG}"
+
+[[ -n "$GHCR_USERNAME" ]] || { log "GHCR_USERNAME is required"; exit 1; }
+[[ -n "$GHCR_TOKEN" ]] || { log "GHCR_TOKEN is required"; exit 1; }
+case "$GHCR_USERNAME" in
+  *[!A-Za-z0-9._-]*) log "GHCR_USERNAME contains unsupported characters"; exit 1 ;;
+esac
 
 # Local cleanups
 cleanup() {
-  rm -f /tmp/project-pn-backend.tar.gz /tmp/project-pn-frontend.tar.gz
+  rm -f "/tmp/project-pn-backend-${IMAGE_TAG}.tar.gz" "/tmp/project-pn-frontend-${IMAGE_TAG}.tar.gz"
 }
 trap cleanup EXIT
 
-log "Building project-pn-backend for linux/amd64"
-docker build --platform linux/amd64 -t project-pn-backend:latest -f backend/Dockerfile backend
+log "Building project-pn-backend:${IMAGE_TAG} for linux/amd64"
+docker build --platform linux/amd64 -t "project-pn-backend:${IMAGE_TAG}" -f backend/Dockerfile backend
 
 log "Building frontend web static bundle"
 (
-  cd frontend
   npm install --legacy-peer-deps
-  EXPO_PUBLIC_API_BASE_URL= npm run web:export
+  cd frontend
+  EXPO_PUBLIC_API_BASE_URL= EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud npm run web:export
 )
 
-log "Building project-pn-frontend for linux/amd64"
-docker build --platform linux/amd64 -t project-pn-frontend:latest -f frontend/Dockerfile.web frontend
+log "Building project-pn-frontend:${IMAGE_TAG} for linux/amd64"
+docker build --platform linux/amd64 -t "project-pn-frontend:${IMAGE_TAG}" -f frontend/Dockerfile.web frontend
 
 log "Saving images to local gzip tarballs"
-docker save project-pn-backend:latest | gzip > /tmp/project-pn-backend.tar.gz
-docker save project-pn-frontend:latest | gzip > /tmp/project-pn-frontend.tar.gz
+docker save "project-pn-backend:${IMAGE_TAG}" | gzip > "/tmp/project-pn-backend-${IMAGE_TAG}.tar.gz"
+docker save "project-pn-frontend:${IMAGE_TAG}" | gzip > "/tmp/project-pn-frontend-${IMAGE_TAG}.tar.gz"
 
 log "Uploading tarballs to remote server ${DEPLOY_HOST}"
-scp /tmp/project-pn-backend.tar.gz "${DEPLOY_HOST}:/tmp/project-pn-backend.tar.gz"
-scp /tmp/project-pn-frontend.tar.gz "${DEPLOY_HOST}:/tmp/project-pn-frontend.tar.gz"
+scp "/tmp/project-pn-backend-${IMAGE_TAG}.tar.gz" "${DEPLOY_HOST}:/tmp/project-pn-backend-${IMAGE_TAG}.tar.gz"
+scp "/tmp/project-pn-frontend-${IMAGE_TAG}.tar.gz" "${DEPLOY_HOST}:/tmp/project-pn-frontend-${IMAGE_TAG}.tar.gz"
 
-log "Executing remote load, tag, push, and rollout on ${DEPLOY_HOST}"
+log "Logging remote Docker into GHCR"
+printf '%s' "$GHCR_TOKEN" | ssh "${DEPLOY_HOST}" "docker login ghcr.io --username '${GHCR_USERNAME}' --password-stdin"
+
+log "Executing remote load, GHCR push, and rollout on ${DEPLOY_HOST}"
 ssh "${DEPLOY_HOST}" "bash -s" <<EOF
   set -euo pipefail
   
   echo "==> Loading backend image"
-  docker load -i /tmp/project-pn-backend.tar.gz
-  rm -f /tmp/project-pn-backend.tar.gz
+  docker load -i /tmp/project-pn-backend-${IMAGE_TAG}.tar.gz
+  rm -f /tmp/project-pn-backend-${IMAGE_TAG}.tar.gz
   
   echo "==> Loading frontend image"
-  docker load -i /tmp/project-pn-frontend.tar.gz
-  rm -f /tmp/project-pn-frontend.tar.gz
+  docker load -i /tmp/project-pn-frontend-${IMAGE_TAG}.tar.gz
+  rm -f /tmp/project-pn-frontend-${IMAGE_TAG}.tar.gz
   
-  echo "==> Tagging images for registry ${REGISTRY_URL}"
-  docker tag project-pn-backend:latest ${REGISTRY_URL}/project-pn-backend:latest
-  docker tag project-pn-frontend:latest ${REGISTRY_URL}/project-pn-frontend:latest
+  echo "==> Tagging images for GHCR"
+  docker tag project-pn-backend:${IMAGE_TAG} ${BACKEND_IMAGE}
+  docker tag project-pn-frontend:${IMAGE_TAG} ${FRONTEND_IMAGE}
   
-  echo "==> Pushing backend to local registry"
-  docker push ${REGISTRY_URL}/project-pn-backend:latest
+  echo "==> Pushing backend to GHCR"
+  docker push ${BACKEND_IMAGE}
   
-  echo "==> Pushing frontend to local registry"
-  docker push ${REGISTRY_URL}/project-pn-frontend:latest
+  echo "==> Pushing frontend to GHCR"
+  docker push ${FRONTEND_IMAGE}
   
   echo "==> Deleting old database migration job"
   kubectl delete job project-pn-migrate -n ${NAMESPACE} --ignore-not-found=true
