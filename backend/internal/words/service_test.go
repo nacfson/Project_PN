@@ -232,6 +232,111 @@ func TestLearningItemsTranslations(t *testing.T) {
 	}
 }
 
+func TestJapaneseKoreanDueFlowCarriesLocalization(t *testing.T) {
+	pool := deckTestPool(t)
+	svc := deckTestService(t, pool)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	if _, err := pool.Exec(ctx, `update user_languages set is_active = false where user_id = $1::uuid`, userID); err != nil {
+		t.Fatalf("deactivate en pair: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		values ($1::uuid, 'ja', 'ko', true)`, userID); err != nil {
+		t.Fatalf("insert ja pair: %v", err)
+	}
+
+	lemma := fmt.Sprintf("食べる%d", time.Now().UnixNano())
+	var wordID string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech, pronunciation)
+		values ('ja', $1, $1, 'verb', 'たべる')
+		returning id::text`, lemma).Scan(&wordID); err != nil {
+		t.Fatalf("insert ja word: %v", err)
+	}
+	var senseID string
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, short_definition, meaning_order)
+		values ($1::uuid, '食物を口に入れて飲み込む', '食事をする', 1)
+		returning id::text`, wordID).Scan(&senseID); err != nil {
+		t.Fatalf("insert ja sense: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition, short_definition)
+		values ($1::uuid, 'ko', '음식을 입에 넣고 삼키다', '먹다')`, senseID); err != nil {
+		t.Fatalf("insert ko sense translation: %v", err)
+	}
+	var exampleID string
+	if err := pool.QueryRow(ctx, `
+		insert into examples (word_sense_id, sentence, difficulty_level)
+		values ($1::uuid, '私は毎朝パンを食べる。', 'easy')
+		returning id::text`, senseID).Scan(&exampleID); err != nil {
+		t.Fatalf("insert ja example: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into example_translations (example_id, language_code, translation)
+		values ($1::uuid, 'ko', '나는 매일 아침 빵을 먹는다.')`, exampleID); err != nil {
+		t.Fatalf("insert ko example translation: %v", err)
+	}
+
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err != nil {
+		t.Fatalf("add ja learning item: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		update review_states set due_at = now() - interval '1 hour'
+		where user_word_sense_id = $1::uuid`, item.ID); err != nil {
+		t.Fatalf("make ja item due: %v", err)
+	}
+
+	dueItems, err := svc.GetDueReviewItems(ctx, userID, "ja", "", 10)
+	if err != nil {
+		t.Fatalf("get ja due items: %v", err)
+	}
+	var found *DueItem
+	for i := range dueItems {
+		if dueItems[i].UserWordSenseID == item.ID {
+			found = &dueItems[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected ja due item %q", item.ID)
+	}
+	if found.LanguageCode != "ja" || found.DisplayLanguageCode != "ko" {
+		t.Errorf("expected ja→ko item, got %s→%s", found.LanguageCode, found.DisplayLanguageCode)
+	}
+	if found.LocalizedDefinition != "음식을 입에 넣고 삼키다" {
+		t.Errorf("expected ko localized definition, got %q", found.LocalizedDefinition)
+	}
+	if found.LocalizedShortDefinition == nil || *found.LocalizedShortDefinition != "먹다" {
+		t.Errorf("expected ko localized short definition, got %v", found.LocalizedShortDefinition)
+	}
+	if len(found.Examples) != 1 {
+		t.Fatalf("expected 1 example, got %d", len(found.Examples))
+	}
+	if found.Examples[0].LocalizedTranslation == nil || *found.Examples[0].LocalizedTranslation != "나는 매일 아침 빵을 먹는다." {
+		t.Errorf("expected ko example translation, got %v", found.Examples[0].LocalizedTranslation)
+	}
+
+	// Omitting language_code must resolve the active ja→ko pair.
+	activeItems, err := svc.GetDueReviewItems(ctx, userID, "", "", 10)
+	if err != nil {
+		t.Fatalf("get due items via active pair: %v", err)
+	}
+	seen := false
+	for i := range activeItems {
+		if activeItems[i].UserWordSenseID == item.ID {
+			seen = true
+			break
+		}
+	}
+	if !seen {
+		t.Errorf("expected ja item when resolving the active ja→ko pair")
+	}
+}
+
 func TestLookupLogsEnrichFail(t *testing.T) {
 	pool := deckTestPool(t)
 	userID, _ := deckTestUser(t, pool)
