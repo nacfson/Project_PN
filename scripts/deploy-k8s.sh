@@ -79,6 +79,10 @@ ssh "${DEPLOY_HOST}" "bash -s" <<EOF
   kubectl apply -f /home/nacfson/processmanager/k8s/project-pn/migrate-job.yaml
   kubectl wait --for=condition=complete --timeout=90s job/project-pn-migrate -n ${NAMESPACE}
   
+  echo "==> Pointing deployments at GHCR images"
+  kubectl set image deployment/project-pn-backend "*=${BACKEND_IMAGE}" -n ${NAMESPACE}
+  kubectl set image deployment/project-pn-frontend "*=${FRONTEND_IMAGE}" -n ${NAMESPACE}
+
   echo "==> Restarting frontend and backend deployments"
   kubectl rollout restart deployment/project-pn-backend -n ${NAMESPACE}
   kubectl rollout restart deployment/project-pn-frontend -n ${NAMESPACE}
