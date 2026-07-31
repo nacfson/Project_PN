@@ -1,4 +1,5 @@
-import { Linking, Platform } from 'react-native';
+import { Linking } from 'react-native';
+import { isBrowserWeb } from './platform';
 
 export function extractTokenFromUrl(urlStr: string): string | null {
   try {
@@ -28,7 +29,7 @@ export function extractTokenFromUrl(urlStr: string): string | null {
 
 export async function parseTokenFromLaunchUrl(): Promise<string | null> {
   try {
-    if (Platform.OS === 'web') {
+    if (isBrowserWeb()) {
       // Hosted browser web uses the HttpOnly central cookie. Tokens must never
       // be read from, stored in, or removed from browser URLs.
       return null;

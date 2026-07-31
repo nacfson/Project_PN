@@ -127,6 +127,23 @@ describe('authLaunch utils', () => {
         expect(token).toBeNull();
       });
     });
+
+    describe('Tauri desktop', () => {
+      beforeEach(() => {
+        Platform.OS = 'web';
+        Object.defineProperty(global, 'window', {
+          value: { __TAURI__: {} },
+          writable: true,
+          configurable: true,
+        });
+      });
+
+      it('keeps the native bearer deep-link flow', async () => {
+        jest.spyOn(Linking, 'getInitialURL').mockResolvedValue('projectpn://auth?token=tauri_token');
+        const token = await parseTokenFromLaunchUrl();
+        expect(token).toBe('tauri_token');
+      });
+    });
   });
 
   describe('parseVerifiedEmailFromLaunchUrl', () => {
