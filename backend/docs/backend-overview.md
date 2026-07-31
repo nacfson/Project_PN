@@ -102,24 +102,27 @@ When the global cache misses, the API can call an OpenAI-compatible chat-complet
 
 Canonical dictionary text is stored on `word_senses` and `examples`. Localized definitions and example translations are stored in `sense_translations` and `example_translations`, filled lazily per display language and cached permanently when validation passes.
 
-Toggled by environment variables:
+The primary provider defaults to Gemini's OpenAI-compatible endpoint
+(`https://generativelanguage.googleapis.com/v1beta/openai`) with model
+`gemini-3.1-flash-lite`, so all listed target languages (`en`, `ko`, `ja`,
+`zh`, `es`, `fr`, `de`) work once `ENRICH_PRIMARY_API_KEY` is set. Environment
+variables only override the built-in defaults:
 
-- `ENRICH_PRIMARY_BASE_URL` (empty disables primary generation; cache-only lookups still work)
-- `ENRICH_PRIMARY_API_KEY`
+- `ENRICH_PRIMARY_API_KEY` (empty disables generation and on-demand translation; cache-only lookups and manual adds still work)
+- `ENRICH_PRIMARY_BASE_URL` (set only to use a different provider; an explicit model is then required)
 - `ENRICH_PRIMARY_MODEL`
 - `ENRICH_FALLBACK_BASE_URL` (optional fallback base URL tried when primary fails)
 - `ENRICH_FALLBACK_API_KEY`
 - `ENRICH_FALLBACK_MODEL`
 - Legacy `ENRICH_BASE_URL`, `ENRICH_API_KEY`, and `ENRICH_MODEL` remain supported as aliases for the primary slot.
 
-When no primary or legacy base URL is configured, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; configure ENRICH_PRIMARY_BASE_URL or add the sense manually". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
+Without an API key, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually". Provider outages or rejected keys return HTTP 503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
 
-For full support across the app's listed target languages (`en`, `ko`, `ja`,
-`zh`, `es`, `fr`, `de`), configure a real multilingual OpenAI-compatible
-model. The local `english-dictionary-fallback-v1` service is a no-key staging
+The local `english-dictionary-fallback-v1` service is a no-key staging
 fallback for English target vocabulary only; it can translate English canonical
 content into display languages, but it must not be treated as multilingual
-dictionary generation.
+dictionary generation. Non-English targets configured with it fail with
+HTTP 503 "multilingual enrichment provider required for this target language".
 
 ## CORS
 

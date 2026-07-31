@@ -94,7 +94,7 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 
 - `POST /api/words/lookup` with empty `text` (and no `word_id`) returns 400.
 - `POST /api/words/lookup` with `force: true` and `part_of_speech=Any` (or empty) and no `word_id` returns 400 "force requires a concrete part_of_speech or a word_id".
-- `POST /api/words/lookup` with no cache hit and no enricher configured returns 503 "word enrichment is not available; configure ENRICH_PRIMARY_BASE_URL or add the sense manually".
+- `POST /api/words/lookup` with no cache hit and no enrichment API key configured returns 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually".
 - `POST /api/learning-items` with missing or empty `word_sense_id` returns 400.
 - `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
