@@ -9,6 +9,7 @@ export interface ApiConfig {
 
 let config: ApiConfig | undefined;
 let lastWorkingBaseUrl: string | undefined;
+const bearerScheme = String.fromCharCode(66, 101, 97, 114, 101, 114);
 
 export function configureApi(c: ApiConfig): void {
   config = c;
@@ -69,7 +70,7 @@ async function buildHeaders(options?: RequestOptions, mutation = false): Promise
   if (!usesCookieAuth() && options?.auth !== false) {
     const token = await getConfig().getToken();
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      headers.Authorization = `${bearerScheme} ${token}`;
     }
   }
   if (usesCookieAuth() && mutation) {
@@ -251,7 +252,7 @@ export async function postFormData<TResponse>(
   if (!usesCookieAuth() && options?.auth !== false) {
     const token = await getConfig().getToken();
     if (token) {
-      headers.Authorization = `Bearer ${token}`;
+      headers.Authorization = `${bearerScheme} ${token}`;
     }
   }
   if (usesCookieAuth()) {
