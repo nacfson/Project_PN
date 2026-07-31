@@ -243,8 +243,15 @@ Schema acceptance tests require `DATABASE_URL` and a running local PostgreSQL in
 
 ```sh
 docker compose up -d
-DATABASE_URL=postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable GOTOOLCHAIN=go1.26.0 go test ./...
+DATABASE_URL=postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable GOTOOLCHAIN=go1.26.0 go test -p 1 ./...
 ```
+
+Run DB-backed suites with `-p 1`. Every package shares the single `DATABASE_URL`
+and truncates the same tables, so the default parallel package execution deadlocks
+(`ERROR: deadlock detected (SQLSTATE 40P01)`) or fails with foreign-key violations.
+Prefer a dedicated database (for example `project_pn_test`) over the dev database so
+test truncates cannot wipe local seed data, and stop the API server first — its
+connection pool can hold locks that conflict with test truncates.
 
 `internal/migrations/schema_acceptance_test.go` runs the acceptance scenarios in `backend/docs/backend-acceptance-tests.md` against a freshly migrated database. `internal/http/auth_handler_test.go`, `internal/http/words_handler_test.go`, and `internal/http/router_test.go` cover the HTTP layer (auth, validation, health endpoints, CORS, protected routes).
 
