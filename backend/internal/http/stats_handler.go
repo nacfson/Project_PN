@@ -13,7 +13,7 @@ type statsHandler struct {
 func (h *statsHandler) getStatsSummary(w http.ResponseWriter, r *http.Request) {
 	summary, err := h.svc.GetStatsSummary(r.Context(), userIDFromRequest(r))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 

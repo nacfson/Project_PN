@@ -28,7 +28,7 @@ func authMiddleware(svc *auth.Service, central *auth.CentralClient, logger admin
 			}
 			user, err := svc.EnsureCentralUser(r.Context(), session.User)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "internal error")
+				writeInternalError(w, r, err)
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(withUser(r.Context(), user)))
@@ -59,4 +59,3 @@ func bearerToken(r *http.Request) string {
 	}
 	return strings.TrimSpace(header[7:])
 }
-

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"project-pn/internal/admin"
@@ -377,14 +379,30 @@ func TestAddLearningItemLogsAddItem(t *testing.T) {
 
 func TestWriteServiceErrorMapsUnsupportedLanguage(t *testing.T) {
 	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/words/lookup", nil)
 
-	(&wordsHandler{}).writeServiceError(rec, enrich.ErrUnsupportedLanguage)
+	(&wordsHandler{}).writeServiceError(rec, req, enrich.ErrUnsupportedLanguage)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "multilingual enrichment provider required") {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestWriteInternalErrorKeepsGenericClientMessage(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/learning-items", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.RequestIDKey, "req-test-123"))
+
+	writeInternalError(rec, req, errors.New("db connection refused"))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusInternalServerError, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"error":"internal error"`) {
+		t.Fatalf("expected generic client message, got %s", rec.Body.String())
 	}
 }
 

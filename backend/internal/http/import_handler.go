@@ -39,6 +39,7 @@ func (h *importHandler) previewAnkiImport(w http.ResponseWriter, r *http.Request
 
 	preview, err := h.svc.PreviewAnkiImport(r.Context(), userIDFromRequest(r), req)
 	if err != nil {
+		logHandlerError(r, err)
 		writeError(w, http.StatusInternalServerError, "preview failed")
 		return
 	}
@@ -63,6 +64,7 @@ func (h *importHandler) importAnki(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.ImportAnkiCards(r.Context(), userIDFromRequest(r), req)
 	if err != nil {
+		logHandlerError(r, err)
 		writeError(w, http.StatusInternalServerError, "import failed")
 		return
 	}

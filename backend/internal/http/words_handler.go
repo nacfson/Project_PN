@@ -3,11 +3,13 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
@@ -99,7 +101,7 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 		result, err = h.svc.Lookup(r.Context(), userID, req.Text, req.LanguageCode, displayLang, req.SourceContext, pos)
 	}
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 
@@ -122,7 +124,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID, req.SourceContext)
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 	h.logf("ADD_ITEM", "%s added learning item word_sense_id=%s", userIdentifierFromRequest(r), item.WordSenseID)
@@ -152,7 +154,7 @@ func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Re
 
 	item, err := h.svc.ChangeLearningItemSense(r.Context(), userIDFromRequest(r), itemID, req.WordSenseID, req.DisplayLanguageCode)
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, item)
@@ -167,7 +169,7 @@ func (h *wordsHandler) listLearningItems(w http.ResponseWriter, r *http.Request)
 
 	page, err := h.svc.ListLearningItems(r.Context(), userIDFromRequest(r), params)
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, page)
@@ -211,7 +213,7 @@ func parseListLearningItemsParams(r *http.Request) (words.ListLearningItemsParam
 	return params, nil
 }
 
-func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
+func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, words.ErrSenseNotFound):
 		writeError(w, http.StatusUnprocessableEntity, "word sense not found")
@@ -240,12 +242,30 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, enrich.ErrNotConfigured), errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
 		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually")
 	default:
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 	}
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func logHandlerError(r *http.Request, err error) {
+	if r == nil {
+		slog.Error("handler error", "error", err)
+		return
+	}
+	slog.Error("handler error",
+		"error", err,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"request_id", middleware.GetReqID(r.Context()),
+	)
+}
+
+func writeInternalError(w http.ResponseWriter, r *http.Request, err error) {
+	logHandlerError(r, err)
+	writeError(w, http.StatusInternalServerError, "internal error")
 }
 
 func userIDFromRequest(r *http.Request) string {
@@ -267,7 +287,7 @@ func (h *wordsHandler) getDueReviewItems(w http.ResponseWriter, r *http.Request)
 	deckID := strings.TrimSpace(r.URL.Query().Get("deck_id"))
 	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), langCode, deckID, limit)
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 
@@ -308,7 +328,7 @@ func (h *wordsHandler) recordBatchReviewAttempts(w http.ResponseWriter, r *http.
 
 	result, err := h.svc.RecordBatchReviewAttempts(r.Context(), userIDFromRequest(r), req.Attempts)
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 
@@ -318,7 +338,7 @@ func (h *wordsHandler) recordBatchReviewAttempts(w http.ResponseWriter, r *http.
 func (h *wordsHandler) optimizeWeights(w http.ResponseWriter, r *http.Request) {
 	result, err := h.svc.OptimizeWeights(r.Context(), userIDFromRequest(r))
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, result)
@@ -327,9 +347,8 @@ func (h *wordsHandler) optimizeWeights(w http.ResponseWriter, r *http.Request) {
 func (h *wordsHandler) optimizationStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := h.svc.GetOptimizationStatus(r.Context(), userIDFromRequest(r))
 	if err != nil {
-		h.writeServiceError(w, err)
+		h.writeServiceError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, status)
 }
-

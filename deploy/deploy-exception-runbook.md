@@ -111,6 +111,12 @@ docker compose up -d --no-deps api nginx
 **Fix:** Check logs and status:
 
 ```sh
+# From your Mac
+scripts/remote-logs.sh api
+scripts/remote-logs.sh nginx
+scripts/remote-logs.sh errors
+
+# Or on the server
 ssh zlUbuntu
 cd ~/project-pn/deploy
 docker compose ps
@@ -287,6 +293,18 @@ A helper script automating this is located at `scripts/setup-ssl.sh`.
 
 ## Useful Debug Commands
 
+Prefer the helper from your Mac (uses `deploy/.deploy.env`):
+
+```sh
+scripts/remote-logs.sh              # last 200 lines, all services
+scripts/remote-logs.sh api -f       # follow API slog
+scripts/remote-logs.sh admin -f     # follow persisted admin audit log
+scripts/remote-logs.sh nginx --tail 100
+scripts/remote-logs.sh errors       # grep ERROR|panic|FATAL|ENRICH_FAIL
+```
+
+Or SSH manually:
+
 ```sh
 # All containers
 docker compose ps
@@ -297,6 +315,9 @@ docker compose logs --tail 200
 # API logs only
 docker compose logs --tail 200 api
 
+# Persisted admin audit log (survives api recreate)
+docker compose exec api tail -n 200 /var/log/project-pn/admin.log
+
 # Inspect running API env
 docker compose exec api env | sort
 
@@ -306,3 +327,20 @@ curl http://api:8080/healthz
 # Test from inside nginx container
 docker compose exec nginx wget -qO- http://api:8080/healthz
 ```
+
+---
+
+## Error Log Triage Cheatsheet
+
+| Symptom | Start with | Then check |
+|---------|------------|------------|
+| App 500 / `"internal error"` | `scripts/remote-logs.sh api` and `errors` | Admin `[ERROR]` line + matching `request_id`; browser Network `X-Request-Id` |
+| Enrich / add-word failure | `scripts/remote-logs.sh admin` | `[ENRICH_FAIL]`, `[ADD_WORD]`; API enrich provider config |
+| Auth / session issues | `scripts/remote-logs.sh admin` + `api` | `[AUTH_FAILURE]`, `[VERIFY_REQUIRED]`; `CENTRAL_AUTH_URL` |
+| 502 Bad Gateway | `scripts/remote-logs.sh api` + `nginx` | `docker compose ps`; postgres/migrate if api never started |
+| Deploy / schema failure | `scripts/remote-logs.sh migrate` | `scripts/remote-logs.sh postgres` |
+| CORS / wrong origin | Browser console | `ALLOWED_ORIGINS` in remote `.env` (not logs) |
+
+**Correlate browser ↔ server:** Chi sets `X-Request-Id` on every response. Copy it from DevTools Network headers and grep api/admin logs for `request_id=<id>`.
+
+Useful admin categories: `ERROR`, `ENRICH_FAIL`, `AUTH_FAILURE`, `VERIFY_REQUIRED`, `METRICS`.

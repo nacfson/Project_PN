@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // HTTPLoggingMiddleware records request metrics and logs 5xx responses.
@@ -34,7 +36,12 @@ func HTTPLoggingMiddleware(logger Logger, collector *MetricsCollector, userIDFro
 					collector.RecordRequest(ww.statusCode, latencyMs, userID)
 				}
 				if ww.statusCode >= 500 {
-					logger.Logf("ERROR", "%s %s returned %d in %dms", r.Method, r.URL.Path, ww.statusCode, latencyMs)
+					reqID := middleware.GetReqID(r.Context())
+					if reqID != "" {
+						logger.Logf("ERROR", "%s %s returned %d in %dms request_id=%s", r.Method, r.URL.Path, ww.statusCode, latencyMs, reqID)
+					} else {
+						logger.Logf("ERROR", "%s %s returned %d in %dms", r.Method, r.URL.Path, ww.statusCode, latencyMs)
+					}
 				}
 			}()
 		})

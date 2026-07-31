@@ -44,7 +44,8 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
 			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-			AllowedHeaders:   []string{"Content-Type", "Authorization", "Cache-Control", "Pragma"},
+			AllowedHeaders:   []string{"Content-Type", "Authorization", "Cache-Control", "Pragma", "X-Request-Id"},
+			ExposedHeaders:   []string{"X-Request-Id"},
 			AllowCredentials: false,
 			MaxAge:           300,
 		}))
