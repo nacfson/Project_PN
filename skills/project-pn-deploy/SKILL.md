@@ -53,11 +53,19 @@ command -v docker && command -v git && command -v ssh && \
 
 ## Deploy
 
-Run the deploy script:
+Use the full stack deploy when the Expo web bundle must change:
 
 ```sh
 scripts/deploy-remote.sh
 ```
+
+Backend-only Docker image rollouts (no web rebuild):
+
+```sh
+scripts/update-backend-image.sh
+```
+
+See `.cursor/skills/update-backend-image/SKILL.md`.
 
 Expected final output:
 

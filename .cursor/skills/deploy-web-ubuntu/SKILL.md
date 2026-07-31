@@ -4,13 +4,19 @@ description: >-
   Build and deploy the Project PN web app (Expo Web static bundle + Go backend)
   to the remote Ubuntu server (zlUbuntu). Use when the user asks to deploy the
   web app, build and deploy frontend, publish the web build, deploy to zlUbuntu,
-  or update the Project PN website/server.
+  or update the Project PN website/server. For backend-only Docker image
+  updates (no web rebuild), use `.cursor/skills/update-backend-image/SKILL.md`
+  instead.
 ---
 
 # Deploy Project PN Web to zlUbuntu
 
 Builds the Expo web bundle and the Go backend Docker image locally, then uploads
 both to `zlUbuntu` and starts the Docker Compose stack.
+
+Backend-only image rollouts (skip Expo export): use
+`.cursor/skills/update-backend-image/SKILL.md` and
+`scripts/update-backend-image.sh`.
 
 ## Prerequisites
 
