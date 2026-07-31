@@ -21,7 +21,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 
 			var (
 				session     auth.CentralSession
-				authSession authSession
+				credentials authSession
 				err         error
 			)
 			if cookie, cookieErr := r.Cookie(auth.CentralSessionCookieName); cookieErr == nil {
@@ -30,7 +30,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 					return
 				}
 				session, err = central.ValidateCookieSession(r.Context(), cookie.Value)
-				authSession = authSession{
+				credentials = authSession{
 					method:     authMethodCookie,
 					credential: cookie.Value,
 				}
@@ -56,7 +56,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 					return
 				}
 				session, err = central.ValidateSession(r.Context(), token)
-				authSession = authSession{
+				credentials = authSession{
 					method:     authMethodBearer,
 					credential: token,
 				}
@@ -72,7 +72,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 				writeError(w, http.StatusInternalServerError, "internal error")
 				return
 			}
-			ctx := withAuthSession(r.Context(), authSession)
+			ctx := withAuthSession(r.Context(), credentials)
 			next.ServeHTTP(w, r.WithContext(withUser(ctx, user)))
 		})
 	}
