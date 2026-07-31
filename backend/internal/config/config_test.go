@@ -28,3 +28,17 @@ func TestLoad_AdminLogPathFromEnv(t *testing.T) {
 		t.Fatalf("expected env admin log path, got %q", cfg.AdminLogPath)
 	}
 }
+
+func TestLoad_CentralCookieAuthConfiguration(t *testing.T) {
+	t.Setenv("CENTRAL_AUTH_INTERNAL_URL", "http://auth.internal")
+	t.Setenv("AUTH_SESSION_INTERNAL_TOKEN", "internal-secret")
+
+	cfg := Load()
+
+	if cfg.CentralAuthInternalURL != "http://auth.internal" {
+		t.Fatalf("expected internal auth URL, got %q", cfg.CentralAuthInternalURL)
+	}
+	if cfg.AuthSessionInternalToken != "internal-secret" {
+		t.Fatalf("expected internal auth token, got %q", cfg.AuthSessionInternalToken)
+	}
+}

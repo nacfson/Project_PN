@@ -17,6 +17,38 @@ test('attaches Authorization header', async () => {
   );
 });
 
+test('uses the browser cookie session without a bearer header', async () => {
+  configureApi({
+    baseUrls: ['http://localhost:9999'],
+    authMode: 'cookie',
+    getToken: async () => 'must-not-be-used',
+    getCsrfToken: () => 'csrf-token',
+  });
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: async () => '{}',
+  });
+
+  await getJson('/api/auth/me');
+  expect(global.fetch).toHaveBeenCalledWith(
+    'http://localhost:9999/api/auth/me',
+    expect.objectContaining({
+      credentials: 'include',
+      headers: expect.not.objectContaining({ Authorization: expect.anything() }),
+    }),
+  );
+
+  await postJson('/api/learning-items', { word_sense_id: 'sense-1' });
+  expect(global.fetch).toHaveBeenLastCalledWith(
+    'http://localhost:9999/api/learning-items',
+    expect.objectContaining({
+      credentials: 'include',
+      headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf-token' }),
+    }),
+  );
+});
+
 test('throws ApiError on non-ok response', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: false,

@@ -6,7 +6,8 @@ import {
   logout as logoutApi,
   me as meApi,
 } from './client';
-import { sessionStorage } from './storage';
+import { sessionStorage } from './sessionStorage';
+import { isBrowserWeb } from '../utils/platform';
 
 let languageOptionsCache: Promise<LanguageOptionsResponse> | null = null;
 let languageOptionsCacheTime = 0;
@@ -31,6 +32,9 @@ export async function getLanguageOptions(): Promise<LanguageOptionsResponse> {
 }
 
 export async function login(email: string, password: string): Promise<SessionResponse> {
+  if (isBrowserWeb()) {
+    throw new Error('Web sign-in uses the central cookie session.');
+  }
   if (!CENTRAL_AUTH_URL) {
     throw new Error('Central auth URL is not configured.');
   }

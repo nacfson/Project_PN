@@ -23,18 +23,36 @@ type CentralSession struct {
 	User      CentralUser `json:"user"`
 }
 
+const CentralSessionCookieName = "nacfson_session"
+
 type CentralClient struct {
-	baseURL string
-	client  *http.Client
+	baseURL       string
+	internalURL   string
+	internalToken string
+	client        *http.Client
 }
 
 func NewCentralClient(baseURL string, client *http.Client) *CentralClient {
+	return NewCentralClientWithInternalAuth(baseURL, "", "", client)
+}
+
+func NewCentralClientWithInternalAuth(publicURL, internalURL, internalToken string, client *http.Client) *CentralClient {
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
+	publicURL = strings.TrimRight(publicURL, "/")
+	internalURL = strings.TrimRight(internalURL, "/")
+	if publicURL == "" {
+		publicURL = internalURL
+	}
+	if internalURL == "" {
+		internalURL = publicURL
+	}
 	return &CentralClient{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  client,
+		baseURL:       publicURL,
+		internalURL:   internalURL,
+		internalToken: strings.TrimSpace(internalToken),
+		client:        client,
 	}
 }
 
@@ -52,7 +70,7 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 	if token == "" {
 		return CentralSession{}, ErrInvalidToken
 	}
-	endpoint, err := url.JoinPath(c.baseURL, "/api/auth/session")
+	endpoint, err := url.JoinPath(c.backendURL(), "/api/auth/session")
 	if err != nil {
 		return CentralSession{}, fmt.Errorf("auth: central session URL: %w", err)
 	}
@@ -93,6 +111,70 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 	return session, nil
 }
 
+func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue string) (CentralSession, error) {
+	if strings.TrimSpace(cookieValue) == "" {
+		return CentralSession{}, ErrInvalidToken
+	}
+	if c.internalToken == "" {
+		return CentralSession{}, ErrInternalAuthNotConfigured
+	}
+
+	endpoint, err := url.JoinPath(c.backendURL(), "/api/internal/cookie-session")
+	if err != nil {
+		return CentralSession{}, fmt.Errorf("auth: central cookie session URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return CentralSession{}, fmt.Errorf("auth: central cookie session request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.internalToken)
+	req.AddCookie(&http.Cookie{Name: CentralSessionCookieName, Value: cookieValue})
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return CentralSession{}, fmt.Errorf("auth: central cookie session request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return CentralSession{}, fmt.Errorf("auth: read central cookie session response: %w", err)
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return CentralSession{}, ErrInvalidToken
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return CentralSession{}, fmt.Errorf("auth: central cookie session status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		UserID    string    `json:"user_id"`
+		Email     string    `json:"email"`
+		IsAdmin   bool      `json:"is_admin"`
+		ExpiresAt time.Time `json:"expires_at"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		slog.Error("auth: failed to decode central cookie session", "error", err)
+		return CentralSession{}, fmt.Errorf("auth: decode central cookie session: %w", err)
+	}
+	if payload.UserID == "" || NormalizeEmail(payload.Email) == "" || payload.ExpiresAt.IsZero() {
+		slog.Error("auth: central cookie session missing identity or expiry")
+		return CentralSession{}, ErrInvalidToken
+	}
+	if !payload.ExpiresAt.After(time.Now()) {
+		return CentralSession{}, ErrInvalidToken
+	}
+
+	return CentralSession{
+		ExpiresAt: payload.ExpiresAt,
+		User: CentralUser{
+			ID:      payload.UserID,
+			Email:   NormalizeEmail(payload.Email),
+			IsAdmin: payload.IsAdmin,
+		},
+	}, nil
+}
+
 func (c *CentralClient) Logout(ctx context.Context, token string) error {
 	if token == "mock-dev-token" {
 		return nil
@@ -100,7 +182,7 @@ func (c *CentralClient) Logout(ctx context.Context, token string) error {
 	if token == "" {
 		return ErrInvalidToken
 	}
-	endpoint, err := url.JoinPath(c.baseURL, "/api/auth/session")
+	endpoint, err := url.JoinPath(c.backendURL(), "/api/auth/session")
 	if err != nil {
 		return fmt.Errorf("auth: central logout URL: %w", err)
 	}
@@ -123,4 +205,41 @@ func (c *CentralClient) Logout(ctx context.Context, token string) error {
 		return fmt.Errorf("auth: central logout status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func (c *CentralClient) LogoutCookieSession(ctx context.Context, cookieValue string) error {
+	if strings.TrimSpace(cookieValue) == "" {
+		return ErrInvalidToken
+	}
+
+	endpoint, err := url.JoinPath(c.backendURL(), "/api/auth/session")
+	if err != nil {
+		return fmt.Errorf("auth: central cookie logout URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("auth: central cookie logout request: %w", err)
+	}
+	req.AddCookie(&http.Cookie{Name: CentralSessionCookieName, Value: cookieValue})
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("auth: central cookie logout request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return ErrInvalidToken
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("auth: central cookie logout status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *CentralClient) backendURL() string {
+	if c.internalURL != "" {
+		return c.internalURL
+	}
+	return c.baseURL
 }

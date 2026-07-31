@@ -2,6 +2,8 @@ export interface ApiConfig {
   baseUrls: string[];
   fetchImpl?: typeof fetch;
   getToken: () => Promise<string | null>;
+  authMode?: 'bearer' | 'cookie';
+  getCsrfToken?: () => string | null | Promise<string | null>;
   onUnauthorized?: () => void;
 }
 
@@ -54,12 +56,26 @@ export interface RequestOptions {
   auth?: boolean;
 }
 
-async function buildHeaders(options?: RequestOptions): Promise<Record<string, string>> {
+function usesCookieAuth(): boolean {
+  return getConfig().authMode === 'cookie';
+}
+
+function requestCredentials(): RequestCredentials | undefined {
+  return usesCookieAuth() ? 'include' : undefined;
+}
+
+async function buildHeaders(options?: RequestOptions, mutation = false): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (options?.auth !== false) {
+  if (!usesCookieAuth() && options?.auth !== false) {
     const token = await getConfig().getToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  if (usesCookieAuth() && mutation) {
+    const csrfToken = await getConfig().getCsrfToken?.();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
     }
   }
   return headers;
@@ -150,6 +166,7 @@ export async function getJson<TResponse>(path: string, options?: RequestOptions)
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         Pragma: 'no-cache',
       },
+      credentials: requestCredentials(),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -170,8 +187,9 @@ export async function postJson<TResponse>(
   try {
     response = await fetchWithFallback(path, {
       method: 'POST',
-      headers: await buildHeaders(options),
+      headers: await buildHeaders(options, true),
       body: JSON.stringify(body),
+      credentials: requestCredentials(),
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
@@ -191,8 +209,9 @@ export async function patchJson<TResponse>(
   try {
     response = await fetchWithFallback(path, {
       method: 'PATCH',
-      headers: await buildHeaders(options),
+      headers: await buildHeaders(options, true),
       body: JSON.stringify(body),
+      credentials: requestCredentials(),
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
@@ -211,7 +230,8 @@ export async function deleteJson<TResponse>(
   try {
     response = await fetchWithFallback(path, {
       method: 'DELETE',
-      headers: await buildHeaders(options),
+      headers: await buildHeaders(options, true),
+      credentials: requestCredentials(),
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
@@ -228,10 +248,16 @@ export async function postFormData<TResponse>(
   options?: RequestOptions,
 ): Promise<TResponse> {
   const headers: Record<string, string> = {};
-  if (options?.auth !== false) {
+  if (!usesCookieAuth() && options?.auth !== false) {
     const token = await getConfig().getToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  if (usesCookieAuth()) {
+    const csrfToken = await getConfig().getCsrfToken?.();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
     }
   }
 
@@ -241,6 +267,7 @@ export async function postFormData<TResponse>(
       method: 'POST',
       headers,
       body: formData,
+      credentials: requestCredentials(),
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
@@ -260,8 +287,9 @@ export async function postNoContent(
   try {
     response = await fetchWithFallback(path, {
       method: 'POST',
-      headers: await buildHeaders(options),
+      headers: await buildHeaders(options, true),
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: requestCredentials(),
     });
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');

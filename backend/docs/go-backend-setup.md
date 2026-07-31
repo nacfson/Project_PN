@@ -211,14 +211,17 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `ENRICH_FALLBACK_BASE_URL` | empty | Optional fallback OpenAI-compatible `/chat/completions` endpoint (e.g. DeepSeek). |
 | `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the fallback enricher. |
 | `ENRICH_FALLBACK_MODEL` | empty | Model name passed to the fallback enricher (e.g. `deepseek-v4-flash`). |
-| `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from the bearer session, not this env var. |
+| `CENTRAL_AUTH_URL` | empty | Public Central Auth URL used by the app's sign-in redirect and as the backend fallback URL. |
+| `CENTRAL_AUTH_INTERNAL_URL` | empty | Backend-only Central Auth URL used for bearer validation and `/api/internal/cookie-session`. |
+| `AUTH_SESSION_INTERNAL_TOKEN` | empty | Backend-only bearer credential required by Central Auth's cookie-session introspection endpoint. Never expose it to frontend builds. |
+| `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from Central Auth, not this env var. |
 | `DEFAULT_TARGET_LANG` | `en` | Default `target_language` on register when omitted; fallback when a request omits `language_code`. |
 | `DEFAULT_DEFINITION_LANG` | `ko` | Default `native_language` on register when omitted; fallback when a request omits `definition_language_code`. |
 | `ALLOWED_TARGET_LANGS` | empty | Comma-separated ISO 639-1 codes users may select as `target_language`. Empty means unrestricted. |
 | `ALLOWED_DEFINITION_LANGS` | empty | Comma-separated ISO 639-1 codes users may select as `native_language`. Empty means unrestricted. |
 | `FORCE_TARGET_LANG` | empty | If set, all new users receive this `target_language` and the frontend hides the selector. |
 | `FORCE_DEFINITION_LANG` | empty | If set, all new users receive this `native_language` and the frontend hides the selector. |
-| `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS allow-list. Empty disables the CORS middleware. |
+| `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS and browser CSRF Origin allow-list. Empty disables CORS and causes cookie-authenticated mutations to fail Origin validation. |
 
 
 ## Enrichment

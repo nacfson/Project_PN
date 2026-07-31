@@ -89,25 +89,17 @@ describe('authLaunch utils', () => {
         });
       });
 
-      it('extracts token, deletes it from URL query, and replaces history state', async () => {
+      it('does not read or remove tokens from browser URLs', async () => {
         const token = await parseTokenFromLaunchUrl();
-        expect(token).toBe('abc_token');
-        expect(mockReplaceState).toHaveBeenCalledWith(
-          {},
-          'Mock Title',
-          '/'
-        );
+        expect(token).toBeNull();
+        expect(mockReplaceState).not.toHaveBeenCalled();
       });
 
-      it('extracts token from hash query, deletes it, and replaces history state preserving other query parameters', async () => {
+      it('leaves hash URLs untouched for cookie SSO', async () => {
         (global as any).window.location.href = 'http://localhost:8081/#/dashboard?token=hash_token&foo=bar';
         const token = await parseTokenFromLaunchUrl();
-        expect(token).toBe('hash_token');
-        expect(mockReplaceState).toHaveBeenCalledWith(
-          {},
-          'Mock Title',
-          '/#/dashboard?foo=bar'
-        );
+        expect(token).toBeNull();
+        expect(mockReplaceState).not.toHaveBeenCalled();
       });
 
       it('returns null and does not replace state if no token is present', async () => {

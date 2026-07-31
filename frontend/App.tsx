@@ -3,7 +3,8 @@ import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { me } from './src/api/auth';
-import { onboardingStorage, sessionStorage } from './src/api/storage';
+import { onboardingStorage } from './src/api/storage';
+import { sessionStorage } from './src/api/sessionStorage';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
 import { AppLanguageProvider } from './src/i18n';
 import { LanguageProvider } from './src/contexts/LanguageContext';
@@ -12,19 +13,10 @@ import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import { parseTokenFromLaunchUrl, extractTokenFromUrl } from './src/utils/authLaunch';
+import { isBrowserWeb } from './src/utils/platform';
 import { onUnauthorized } from './src/api/client';
-import { PN_EXTENSION_ID } from './src/config';
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
-
-function notifyExtension(token: string) {
-  if (typeof window === 'undefined') return;
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('extension') !== '1' || !PN_EXTENSION_ID) return;
-  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-    chrome.runtime.sendMessage(PN_EXTENSION_ID, { token });
-  }
-}
 
 function LoadingScreen() {
   const { colors } = useTheme();
@@ -74,18 +66,22 @@ function AppContent() {
 
   const checkAuth = useCallback(async () => {
     try {
-      const token = await sessionStorage.getToken();
-      if (!token) {
-        setAuthState('unauthenticated');
-        setConnectionError(null);
-        return;
+      if (!isBrowserWeb()) {
+        const token = await sessionStorage.getToken();
+        if (!token) {
+          setAuthState('unauthenticated');
+          setConnectionError(null);
+          return;
+        }
       }
       await me();
       setAuthState('authenticated');
       setConnectionError(null);
     } catch (err: any) {
       if (err && err.status === 401) {
-        await sessionStorage.removeToken();
+        if (!isBrowserWeb()) {
+          await sessionStorage.removeToken();
+        }
         setAuthState('unauthenticated');
         setConnectionError(null);
       } else {
@@ -105,10 +101,11 @@ function AppContent() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const incomingToken = await parseTokenFromLaunchUrl();
-        if (incomingToken) {
-          await sessionStorage.setToken(incomingToken);
-          notifyExtension(incomingToken);
+        if (!isBrowserWeb()) {
+          const incomingToken = await parseTokenFromLaunchUrl();
+          if (incomingToken) {
+            await sessionStorage.setToken(incomingToken);
+          }
         }
         await checkAuth();
       } catch {
@@ -120,10 +117,10 @@ function AppContent() {
 
   useEffect(() => {
     const handleOpenURL = async (event: { url: string }) => {
+      if (isBrowserWeb()) return;
       const token = extractTokenFromUrl(event.url);
       if (token) {
         await sessionStorage.setToken(token);
-        notifyExtension(token);
         void checkAuth();
       }
     };
@@ -135,7 +132,9 @@ function AppContent() {
 
   useEffect(() => {
     const unsubscribe = onUnauthorized(async () => {
-      await sessionStorage.removeToken();
+      if (!isBrowserWeb()) {
+        await sessionStorage.removeToken();
+      }
       setAuthState('unauthenticated');
     });
     return unsubscribe;

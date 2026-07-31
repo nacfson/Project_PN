@@ -84,15 +84,20 @@ func main() {
 		ForceUILang:            cfg.ForceUILang,
 	})
 	var centralAuth *auth.CentralClient
-	centralAuthURL := cfg.CentralAuthInternalURL
+	centralAuthURL := cfg.CentralAuthURL
 	if centralAuthURL == "" {
-		centralAuthURL = cfg.CentralAuthURL
+		centralAuthURL = cfg.CentralAuthInternalURL
 	}
 	if centralAuthURL == "" {
 		slog.Error("CENTRAL_AUTH_URL or CENTRAL_AUTH_INTERNAL_URL is required")
 		os.Exit(1)
 	}
-	centralAuth = auth.NewCentralClient(centralAuthURL, nil)
+	centralAuth = auth.NewCentralClientWithInternalAuth(
+		centralAuthURL,
+		cfg.CentralAuthInternalURL,
+		cfg.AuthSessionInternalToken,
+		nil,
+	)
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 

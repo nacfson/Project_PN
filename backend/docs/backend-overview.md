@@ -61,16 +61,18 @@ The backend is exposed as an HTTP API. Routes are defined in `backend/internal/h
 
 ### Auth (protected)
 
-Requires `Authorization: Bearer <token>`.
+Browser web requests authenticate with the shared `nacfson_session` cookie.
+Tauri, iOS, and Android requests retain `Authorization: Bearer <token>`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/auth/me` | Current user profile (`email_verified`, languages, etc.). |
-| `POST` | `/api/auth/logout` | Revoke current bearer session. 204. |
+| `POST` | `/api/auth/logout` | Revoke the current central session and clear the browser cookie. 204. |
 
 ### Learning (protected)
 
-Requires `Authorization: Bearer <token>`. All protected routes require a verified email (403 otherwise).
+Requires the shared browser cookie or native bearer token. All protected routes
+require a verified email (403 otherwise).
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -84,11 +86,27 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 ## Authentication
 
-The backend delegates authentication to an external Nacfson Cloud service (`CENTRAL_AUTH_URL`). The client obtains a session token from `auth.nacfson.cloud`, then sends it as `Authorization: Bearer <token>` on every API request. The backend validates each token by calling the central auth server's `GET /api/auth/session` endpoint via `CentralClient.ValidateSession()`.
+The backend delegates authentication to the external Nacfson Cloud service.
+Browser web uses the HttpOnly `nacfson_session` cookie set by Central Auth. On
+each cookie-authenticated request, Project PN forwards the cookie to
+`GET {CENTRAL_AUTH_INTERNAL_URL}/api/internal/cookie-session` with the
+backend-only `AUTH_SESSION_INTERNAL_TOKEN`. Central Auth performs cookie
+validation and hashing and returns the central identity.
+
+Tauri, iOS, and Android retain bearer-token authentication. Project PN validates
+those tokens through `GET {CENTRAL_AUTH_INTERNAL_URL}/api/auth/session`.
 
 On first contact, `EnsureCentralUser()` provisions a local `users` row (with `user_identities` linking) using the identity returned by the central auth server. Subsequent requests resolve the existing local user via `user_identities(provider='nacfson', provider_subject)`.
 
-Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
+When both credentials are present, the cookie takes precedence; an invalid
+cookie does not fall back to bearer credentials. Browser mutations also require
+an Origin in the configured Project PN origin list and a matching
+`X-CSRF-Token` header and host-only CSRF cookie. Client-supplied `X-User-Id`,
+`X-User-Email`, and `X-User-Roles` headers are discarded.
+
+Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`, and
+`AUTH_SESSION_INTERNAL_TOKEN`) is documented in `backend/docs/go-backend-setup.md`.
+Flow details are in `backend/docs/backend-flows.md`.
 
 ## Public Docker Deployment
 
@@ -130,7 +148,10 @@ The API allows browser callers from a configured list of origins. The default li
 - `tauri://localhost` (Tauri macOS)
 - `http://tauri.localhost` (Tauri Windows)
 
-Override via the `ALLOWED_ORIGINS` comma-separated env var. Allowed request headers include `Content-Type` and `Authorization`. When no origins are configured, the CORS middleware is not installed and only same-origin requests succeed.
+Override via the `ALLOWED_ORIGINS` comma-separated env var. Allowed request
+headers include `Content-Type`, `Authorization`, and `X-CSRF-Token`; browser
+credentials are enabled for the shared cookie. When no origins are configured,
+the CORS middleware is not installed and only same-origin requests succeed.
 
 ## MVP Boundary
 

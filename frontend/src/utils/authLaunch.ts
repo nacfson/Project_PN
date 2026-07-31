@@ -28,25 +28,10 @@ export function extractTokenFromUrl(urlStr: string): string | null {
 
 export async function parseTokenFromLaunchUrl(): Promise<string | null> {
   try {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      const token = extractTokenFromUrl(window.location.href);
-      if (token) {
-        if (url.searchParams.has('token')) {
-          url.searchParams.delete('token');
-        }
-        if (url.hash.includes('token=')) {
-          const [hashPath, hashQuery] = url.hash.split('?');
-          if (hashQuery) {
-            const hashParams = new URLSearchParams(hashQuery);
-            hashParams.delete('token');
-            const cleanHashQuery = hashParams.toString();
-            url.hash = cleanHashQuery ? `${hashPath}?${cleanHashQuery}` : hashPath;
-          }
-        }
-        window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
-        return token;
-      }
+    if (Platform.OS === 'web') {
+      // Hosted browser web uses the HttpOnly central cookie. Tokens must never
+      // be read from, stored in, or removed from browser URLs.
+      return null;
     }
     const initialUrl = await Linking.getInitialURL();
     if (initialUrl) {

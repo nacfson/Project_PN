@@ -2,19 +2,35 @@
 
 ## Central Auth Flow
 
-1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
-2. Nacfson Cloud handles credentials (email/password, OAuth, etc.) and redirects back to the app with a session token in the URL (`?token=` or `#token=`).
-3. Client stores the token (`localStorage` on web, `expo-secure-store` on native).
-4. Client sends `Authorization: Bearer <token>` on all protected API requests.
-5. Backend middleware extracts the token and calls `CentralClient.ValidateSession()` (GET `{CENTRAL_AUTH_INTERNAL_URL}/api/auth/session`).
-6. Central auth returns `{ user: { id, email, is_admin }, expires_at }`.
-7. Backend calls `EnsureCentralUser()` which:
+1. Browser web opens the Nacfson Cloud login page
+   (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
+2. Nacfson Cloud handles credentials (email/password, OAuth, etc.), sets the
+   HttpOnly `nacfson_session` cookie scoped to `nacfson.cloud`, and redirects
+   back to the Project PN origin. No token is placed in the URL.
+3. On startup and refresh, browser web calls same-origin `GET /api/auth/me`
+   with browser credentials included.
+4. Project PN takes the cookie when present and calls
+   `GET {CENTRAL_AUTH_INTERNAL_URL}/api/internal/cookie-session` with
+   `Authorization: Bearer <AUTH_SESSION_INTERNAL_TOKEN>` and the forwarded
+   `nacfson_session` cookie.
+5. Central Auth validates and hashes the cookie and returns
+   `{ user_id, email, is_admin, expires_at }`.
+6. Tauri, iOS, and Android retain the bearer flow: the native client stores
+   its token in native/Tauri storage and sends `Authorization: Bearer <token>`;
+   Project PN validates it through `{CENTRAL_AUTH_INTERNAL_URL}/api/auth/session`.
+7. Project PN calls `EnsureCentralUser()` which:
    - Looks up `user_identities` by `(provider='nacfson', provider_subject=central_user_id)`.
    - Falls back to email match if no identity link exists.
    - Creates a new `users` row + `user_identities` link if neither exists.
    - Creates a default `user_languages` entry for new users.
 8. The resolved `auth.User` is stored in request context for downstream handlers.
-9. `POST /api/auth/logout` proxies to the central auth server's `DELETE /api/auth/session`.
+9. If both cookie and bearer credentials are present, the cookie wins; an
+   invalid cookie does not fall back to bearer.
+10. Browser mutations require an allowed `Origin`, the host-only Project PN
+    CSRF cookie, and a matching `X-CSRF-Token` header.
+11. Browser `POST /api/auth/logout` revokes the central cookie-backed session
+    through `DELETE /api/auth/session` with the cookie, then clears the shared
+    cookie. Native logout continues to revoke its bearer session.
 
 ## Add-Word Flow
 
