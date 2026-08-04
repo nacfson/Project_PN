@@ -31,6 +31,12 @@ const (
 	defaultDevExtensionID  = ""
 	defaultProdExtensionID = ""
 
+	// Built-in multilingual provider: Gemini's OpenAI-compatible shim. Applied
+	// only when no primary/legacy base URL is set, so every supported target
+	// language works once ENRICH_PRIMARY_API_KEY is provided.
+	defaultEnrichPrimaryBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
+	defaultEnrichPrimaryModel   = "gemini-3.1-flash-lite"
+
 	defaultAdminLogPath = "/var/log/project-pn/admin.log"
 )
 
@@ -76,14 +82,23 @@ type Config struct {
 }
 
 func Load() Config {
+	enrichPrimaryBaseURL := envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL"))
+	enrichPrimaryModel := envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL"))
+	if enrichPrimaryBaseURL == "" {
+		enrichPrimaryBaseURL = defaultEnrichPrimaryBaseURL
+		if enrichPrimaryModel == "" {
+			enrichPrimaryModel = defaultEnrichPrimaryModel
+		}
+	}
+
 	return Config{
 		AppAddr:        envOrDefault("APP_ADDR", defaultAppAddr),
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		MigrationsPath: envOrDefault("MIGRATIONS_PATH", defaultMigrationsPath),
 
-		EnrichPrimaryBaseURL: envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL")),
+		EnrichPrimaryBaseURL: enrichPrimaryBaseURL,
 		EnrichPrimaryAPIKey:  envOrDefault("ENRICH_PRIMARY_API_KEY", os.Getenv("ENRICH_API_KEY")),
-		EnrichPrimaryModel:   envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL")),
+		EnrichPrimaryModel:   enrichPrimaryModel,
 
 		EnrichFallbackBaseURL: os.Getenv("ENRICH_FALLBACK_BASE_URL"),
 		EnrichFallbackAPIKey:  os.Getenv("ENRICH_FALLBACK_API_KEY"),

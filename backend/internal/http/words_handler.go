@@ -241,8 +241,12 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid target language")
 	case errors.Is(err, enrich.ErrUnsupportedLanguage):
 		writeError(w, http.StatusServiceUnavailable, "multilingual enrichment provider required for this target language")
-	case errors.Is(err, enrich.ErrNotConfigured), errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
-		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; configure ENRICH_BASE_URL or add the sense manually")
+	case errors.Is(err, enrich.ErrNotConfigured):
+		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually")
+	case errors.Is(err, enrich.ErrUnavailable):
+		writeError(w, http.StatusServiceUnavailable, "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings")
+	case errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
+		writeError(w, http.StatusServiceUnavailable, "word enrichment failed to produce usable output; try again or add the sense manually")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}

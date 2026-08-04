@@ -24,6 +24,11 @@ var ErrInvalidOutput = errors.New("enrich: invalid model output")
 // not support the requested target word language.
 var ErrUnsupportedLanguage = errors.New("enrich: unsupported target language")
 
+// ErrUnavailable is returned when the configured enrichment endpoint cannot be
+// reached or rejects the request (transport error or non-200 status), so callers
+// can distinguish provider outages from missing configuration.
+var ErrUnavailable = errors.New("enrich: endpoint unavailable")
+
 const englishDictionaryFallbackModel = "english-dictionary-fallback-v1"
 
 var validCEFR = map[string]bool{
@@ -197,16 +202,16 @@ func (e *OpenAIEnricher) complete(ctx context.Context, body []byte) (string, err
 
 	resp, err := e.Client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("enrich: call endpoint: %w", err)
+		return "", fmt.Errorf("%w: call endpoint: %v", ErrUnavailable, err)
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", fmt.Errorf("enrich: read response: %w", err)
+		return "", fmt.Errorf("%w: read response: %v", ErrUnavailable, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("enrich: endpoint status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+		return "", fmt.Errorf("%w: endpoint status %d: %s", ErrUnavailable, resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
 
 	var chat chatResponse

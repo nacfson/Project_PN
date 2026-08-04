@@ -205,9 +205,9 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `APP_ADDR` | `:8080` | HTTP listen address for `cmd/api`. |
 | `DATABASE_URL` | `postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable` | PostgreSQL connection string used by `db.Open` and the migrate CLI. |
 | `MIGRATIONS_PATH` | `file://db/migrations` | golang-migrate source URL. Resolved relative to the `backend/` working directory. |
-| `ENRICH_PRIMARY_BASE_URL` | empty | Base URL of primary OpenAI-compatible `/chat/completions` endpoint. Empty disables primary generation. (Alias: `ENRICH_BASE_URL`) |
-| `ENRICH_PRIMARY_API_KEY` | empty | Bearer token for the primary enricher. (Alias: `ENRICH_API_KEY`) |
-| `ENRICH_PRIMARY_MODEL` | empty | Model name passed to the primary enricher. (Alias: `ENRICH_MODEL`) |
+| `ENRICH_PRIMARY_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Base URL of the primary OpenAI-compatible `/chat/completions` endpoint. The built-in default is Gemini's shim; set this only to use a different provider. (Alias: `ENRICH_BASE_URL`) |
+| `ENRICH_PRIMARY_API_KEY` | empty | Bearer token for the primary enricher. Empty disables generation and on-demand translation; cache-only lookups and manual adds still work. (Alias: `ENRICH_API_KEY`) |
+| `ENRICH_PRIMARY_MODEL` | `gemini-3.1-flash-lite` | Model name passed to the primary enricher. The default applies only with the built-in base URL; custom providers must set this explicitly. (Alias: `ENRICH_MODEL`) |
 | `ENRICH_FALLBACK_BASE_URL` | empty | Optional fallback OpenAI-compatible `/chat/completions` endpoint (e.g. DeepSeek). |
 | `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the fallback enricher. |
 | `ENRICH_FALLBACK_MODEL` | empty | Model name passed to the fallback enricher (e.g. `deepseek-v4-flash`). |
@@ -225,9 +225,23 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 
 The `Enricher` interface lives in `internal/enrich/`. The current implementation (`OpenAIEnricher`) calls any OpenAI-compatible chat-completions endpoint (Groq, DeepSeek, Gemini's OpenAI shim, OpenAI, etc.).
 
-- Primary/Legacy Base URL empty → if both `ENRICH_PRIMARY_BASE_URL` and `ENRICH_BASE_URL` are empty, primary enrichment is skipped. If fallback is also unconfigured, `Enrich` returns `ErrNotConfigured`. The lookup endpoint returns HTTP 503 "word enrichment is not available; configure ENRICH_PRIMARY_BASE_URL or add the sense manually" on a cache miss. Cache hits are unaffected.
-- Primary or fallback set → enrichment runs synchronously inside the request, attempting primary first and falling back to secondary on failure. The result is persisted in the same transaction as the cache write.
-- Model string is required when a corresponding base URL is configured.
+- No API key → `Enrich`/`Translate` return `ErrNotConfigured`, and the lookup endpoint returns HTTP 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually" on a cache miss. Cache hits and manual adds are unaffected.
+- Provider unreachable or request rejected (bad key, outage) → `ErrUnavailable`, returned as HTTP 503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings" instead of a generic 500.
+- Primary and fallback set → enrichment runs synchronously inside the request, attempting primary first and falling back to secondary on failure. The result is persisted in the same transaction as the cache write.
+- Model string is required when a custom (non-default) base URL is configured.
+
+### Non-English study set fails to load (e.g. ja→ko)
+
+Symptom: the app shows "학습 세트 불러오기 실패" / "… 학습 준비 중 오류 발생" for a non-English target language while en→ko works.
+
+Cause: the backend has no working multilingual enrichment provider, so non-English content cannot be generated or translated on demand. The failing response identifies the exact gap:
+
+- `503 "multilingual enrichment provider required for this target language"` — the configured model is the English-only `english-dictionary-fallback-v1` staging fallback.
+- `503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually"` — no API key configured.
+- `503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings"` — provider down or key rejected.
+- `422 "localized translation unavailable for this word sense"` — adding a sense whose display-language translation is missing and cannot be generated.
+
+Fix: set `ENRICH_PRIMARY_API_KEY` (base URL and model default to Gemini) and restart the API. Items added earlier without translations are backfilled lazily on the next lookup/add, or in bulk via `go run ./cmd/retranslate-senses`.
 
 Enrichment is currently in-request and synchronous. A background queue is future scope (see `backend/docs/backend-future-scope.md`).
 
@@ -247,8 +261,15 @@ Schema acceptance tests require `DATABASE_URL` and a running local PostgreSQL in
 
 ```sh
 docker compose up -d
-DATABASE_URL=postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable GOTOOLCHAIN=go1.26.0 go test ./...
+DATABASE_URL=postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable GOTOOLCHAIN=go1.26.0 go test -p 1 ./...
 ```
+
+Run DB-backed suites with `-p 1`. Every package shares the single `DATABASE_URL`
+and truncates the same tables, so the default parallel package execution deadlocks
+(`ERROR: deadlock detected (SQLSTATE 40P01)`) or fails with foreign-key violations.
+Prefer a dedicated database (for example `project_pn_test`) over the dev database so
+test truncates cannot wipe local seed data, and stop the API server first — its
+connection pool can hold locks that conflict with test truncates.
 
 `internal/migrations/schema_acceptance_test.go` runs the acceptance scenarios in `backend/docs/backend-acceptance-tests.md` against a freshly migrated database. `internal/http/auth_handler_test.go`, `internal/http/words_handler_test.go`, and `internal/http/router_test.go` cover the HTTP layer (auth, validation, health endpoints, CORS, protected routes).
 

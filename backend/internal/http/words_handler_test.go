@@ -389,6 +389,32 @@ func TestWriteServiceErrorMapsUnsupportedLanguage(t *testing.T) {
 	}
 }
 
+func TestWriteServiceErrorMapsNotConfigured(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	(&wordsHandler{}).writeServiceError(rec, enrich.ErrNotConfigured)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "set ENRICH_PRIMARY_API_KEY") {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestWriteServiceErrorMapsUnavailable(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	(&wordsHandler{}).writeServiceError(rec, enrich.ErrUnavailable)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "unreachable or rejected") {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
 func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
