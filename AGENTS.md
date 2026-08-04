@@ -69,3 +69,27 @@ Future expansion tables are listed in `backend/docs/backend-future-scope.md` and
 - After code edits, run the relevant build or validation command when one exists.
 - For documentation-only edits, verify by reading/searching the changed document.
 
+## Cursor Cloud specific instructions
+
+This is an npm-workspaces monorepo plus a standalone Go backend module. The dependency-refresh update script (`npm install`, then `go -C backend mod download`) runs automatically on VM startup; do not re-run it. System tooling (Go 1.26, Node 22, Docker 29, Postgres 16 client, Rust/Cargo) is preinstalled in the snapshot. Standard build/test/run commands live in `backend/docs/go-backend-setup.md`, root/`frontend`/`browser-extension`/`packages/api` `package.json` scripts, and `scripts/start-web-dev.sh` — reference those rather than duplicating them. The notes below are the non-obvious startup/run caveats.
+
+### Services
+
+- Backend Go API (`backend/`, chi + pgx) on `:8080`. Run: `cd backend && set -a && source .env && set +a && go run ./cmd/api`. Health: `/healthz`, DB readiness: `/readyz`.
+- PostgreSQL 16 on host port `5433`, via Docker (`backend/compose.yaml`). Required by the backend and by DB-backed tests.
+- Expo web frontend (`frontend/`) on `:8081`. Run: `cd frontend && npm run web` (first load compiles the Metro bundle; be patient).
+- Optional (not needed for the core web product): Tauri desktop (`frontend/src-tauri`, needs Cargo), browser extension (`browser-extension/`, `npm run build:dev` then load `dist/` unpacked), external word enrichment API, and central auth (`auth.nacfson.cloud`).
+
+### Startup caveats (non-obvious)
+
+- Docker daemon is NOT running at session start. Start it once with `sudo dockerd` (docker-in-docker is preconfigured for fuse-overlayfs + iptables-legacy). Then `docker compose -f backend/compose.yaml up -d` starts Postgres. The `ubuntu` user is in the `docker` group, so `docker` needs no sudo once the daemon is up.
+- `backend/.env` and `frontend/.env` are gitignored and absent on a fresh pod; copy them from the matching `.env.example` before running (the run scripts also do this).
+- Local auth needs NO external central auth server: the backend accepts `Authorization: Bearer mock-dev-token` as the seeded dev user (`dev@project-pn.local`, admin, verified), and `EnsureCentralUser` auto-creates that user on the first authenticated request. For the web UI, open `http://localhost:8081/?token=mock-dev-token` to sign in as the dev user.
+- `scripts/start-web-dev.sh` currently FAILS at its `seed-dev-guest.sh` step: that seed targets the fixed dev-user id `00000000-...0001`, which no longer exists (the dev user is created with a random UUID), so the FK insert errors and the script (`set -e`) aborts before starting the API. For a reliable full stack, start Postgres, migrations, the API, and Expo web manually (or use `--skip-db`/`--skip-migrate` only after the stack is already up) and authenticate with `mock-dev-token` instead of relying on the guest seed.
+- Word enrichment is disabled by default (no `ENRICH_*` keys). `POST /api/words/lookup` on a cache miss returns HTTP 503, so adding a brand-new word through the UI/lookup will not generate senses without an enrichment API key. Words already present in the `words`/`word_senses` cache (or seeded directly) can be added and reviewed normally.
+
+### Testing caveats (non-obvious)
+
+- Run backend tests SERIALLY: `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`. All Go test packages share the single local Postgres database and `TRUNCATE` it, so the default parallel `go test ./...` (as written in `go-backend-setup.md`) produces spurious failures (truncate deadlocks, FK violations, missing "central user"). `-p 1` makes the full suite pass. DB-backed tests require Postgres running and `DATABASE_URL` (from `backend/.env`).
+- JS tests/typechecks run from the repo root via workspaces: `npm test -w frontend`, `npm test -w browser-extension`, `npm test -w packages/api`, and `npm run typecheck -w <workspace>`.
+
