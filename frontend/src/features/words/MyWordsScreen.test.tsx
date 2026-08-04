@@ -172,7 +172,7 @@ describe('MyWordsScreen', () => {
     const { rerender } = await render(<MyWordsScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('Default')).toBeTruthy());
-    expect(mockedListDecks).toHaveBeenLastCalledWith('en');
+    expect(mockedListDecks).toHaveBeenLastCalledWith('en', 'private');
 
     mockedUseActiveTargetLanguage.mockReturnValue({
       targetLanguage: 'es',
@@ -184,7 +184,7 @@ describe('MyWordsScreen', () => {
     rerender(<MyWordsScreen />);
 
     await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
-    expect(mockedListDecks).toHaveBeenLastCalledWith('es');
+    expect(mockedListDecks).toHaveBeenLastCalledWith('es', 'private');
     expect(screen.queryByText('Default')).toBeNull();
   });
 
