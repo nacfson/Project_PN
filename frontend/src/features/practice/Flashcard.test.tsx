@@ -124,7 +124,7 @@ describe('Flashcard', () => {
     // Not flipped: should have accessibilityLabel and role
     const pressable = screen.getByLabelText('TAP TO REVEAL ANSWER');
     expect(pressable).toBeTruthy();
-    
+
     // Flipped: should remove accessibility attributes
     await rerender(
       <Flashcard
@@ -140,5 +140,10 @@ describe('Flashcard', () => {
     );
 
     expect(screen.queryByLabelText('TAP TO REVEAL ANSWER')).toBeNull();
+  });
+
+  it('shows swipe guide after reveal when onRate is provided', async () => {
+    await renderCard();
+    expect(screen.getByText(/Swipe to rate/i)).toBeTruthy();
   });
 });
