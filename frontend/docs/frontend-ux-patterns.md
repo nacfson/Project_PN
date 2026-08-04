@@ -37,9 +37,11 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
   - **Typing mode** (Deprecated): the user types the target word before revealing the answer. The probability of selecting typing mode has been set to zero across all stages to deprecate the input quiz, so all cards now default to Flashcard mode.
 - The answer input should auto-focus at the start of each **typing** card. Flashcard cards do not auto-focus because they require a tap.
 - Grading controls use four large answer buttons that mirror Anki (Again/Hard/Good/Easy). Each button displays the predicted next-review interval.
+- After reveal, users can also **swipe the card to rate** (← Again, → Good, ↑ Easy, ↓ Hard). Keep the button bar as the accessible fallback.
+- On mobile web, pin the typing answer bar and the grading/submit bar to the bottom of the viewport and **hide the tab bar** while they are visible. Do not leave rate/submit controls in normal document flow under the absolute tab bar — phone Chrome will cover them.
 - Grade controls must work on both touch and pointer devices:
   - Scale buttons for desktop/web/Tauri.
-  - (Planned) keyboard shortcuts 1/2/3/4 for web/desktop.
+  - Keyboard shortcuts 1/2/3/4 for web/desktop.
 - Repeat review mode loads every non-archived learning item and includes example sentences so cloze prompts work the same as normal due reviews.
 
 ## OAuth / third-party sign-in

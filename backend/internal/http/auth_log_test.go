@@ -147,3 +147,36 @@ func TestAuthCentralLogoutLogsFailure(t *testing.T) {
 	}
 }
 
+func TestAuthCentralLogoutRevokesCookieAndClearsBrowserCookie(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/auth/session" {
+			t.Fatalf("unexpected logout request: %s %s", r.Method, r.URL.Path)
+		}
+		cookie, err := r.Cookie(auth.CentralSessionCookieName)
+		if err != nil || cookie.Value != "cookie-value" {
+			t.Fatalf("expected forwarded cookie, got %v %#v", err, cookie)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	central := auth.NewCentralClientWithInternalAuth("", srv.URL, "internal-secret", nil)
+	logger := &fakeLogger{}
+	handler := centralLogout(central, logger)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req = req.WithContext(withAuthSession(req.Context(), authSession{
+		method:     authMethodCookie,
+		credential: "cookie-value",
+	}))
+	rec := httptest.NewRecorder()
+
+	handler(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != auth.CentralSessionCookieName || cookies[0].MaxAge != -1 {
+		t.Fatalf("expected central cookie clearing response, got %+v", cookies)
+	}
+}

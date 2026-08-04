@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -19,15 +19,21 @@ const DOCK_ITEMS = [
   { id: 'theme', icon: 'contrast', labelKey: 'commandDock.theme' as const, testID: 'dock-theme', action: 'toggleTheme' as const },
 ];
 
-export function CommandDock() {
-  if (Platform.OS !== 'web') return null;
+/** Hide the desktop floating dock on phone-sized web viewports. */
+const MOBILE_WEB_MAX_WIDTH = 720;
 
+export function CommandDock() {
   const { colors, spacing, radii, mode, setMode } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { pendingCount } = useAddQueue();
   const reducedMotion = useReducedMotion();
   const { t } = useAppLanguage();
+  const { width } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
+
+  if (Platform.OS !== 'web' || width < MOBILE_WEB_MAX_WIDTH) {
+    return null;
+  }
 
   // When reduced motion is preferred, keep the dock permanently expanded
   const isExpanded = reducedMotion || expanded;
@@ -38,7 +44,7 @@ export function CommandDock() {
         navigation.navigate('Add');
         break;
       case 'navigatePractice':
-        navigation.navigate('Practice');
+        navigation.navigate('Practice', { deckId: undefined });
         break;
       case 'navigateWords':
         navigation.navigate('Words');

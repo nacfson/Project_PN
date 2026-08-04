@@ -1,10 +1,13 @@
 import { deleteJson, getJson, patchJson, postJson, postNoContent } from './client';
 import type { Deck } from './types';
 
-export function listDecks(languageCode?: string): Promise<Deck[]> {
+export function listDecks(languageCode?: string, origin?: 'private' | 'curriculum'): Promise<Deck[]> {
   const searchParams = new URLSearchParams();
   if (languageCode) {
     searchParams.set('language_code', languageCode);
+  }
+  if (origin) {
+    searchParams.set('origin', origin);
   }
   const query = searchParams.toString();
   return getJson<{ decks: Deck[] }>(`/api/decks${query ? `?${query}` : ''}`).then((res) => res.decks);

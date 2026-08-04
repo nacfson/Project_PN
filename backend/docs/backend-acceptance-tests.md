@@ -58,6 +58,16 @@ The backend schema should satisfy these scenarios:
 - Deleting a custom deck moves its items to the default deck for the same target language.
 - The default deck cannot be deleted.
 
+### Curriculum origin (migration `000020` / `000021`)
+
+- `decks.origin` is `private` or `curriculum`; default decks are `private`.
+- Curriculum decks require `curriculum_pack_id` and cannot be default.
+- At most one deck per `(user_id, curriculum_pack_id)`.
+- `essential-en-a1` pack is published with seeded pack entries.
+- Enroll is idempotent per `(user_id, pack_id)`.
+- Enroll does not move existing private `user_word_senses` into the curriculum deck.
+- `GET /api/reviews/due?deck_id=` returns only items in that curriculum deck.
+
 ### Auth schema (migration `000003`)
 
 - Duplicate emails differing only by case are rejected (`users_email_lower_idx`).
@@ -78,8 +88,14 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 
 ### Auth — protection and sessions
 
-- `POST /api/words/lookup`, `GET /api/learning-items`, `POST /api/learning-items`, and `GET /api/auth/me` return **401** without `Authorization: Bearer`.
+- `POST /api/words/lookup`, `GET /api/learning-items`, `POST /api/learning-items`, and `GET /api/auth/me` return **401** without a valid cookie or `Authorization: Bearer`.
 - `GET /api/auth/me` with a valid central auth session token returns **200** with user profile.
+- `GET /api/auth/me` with a valid `nacfson_session` cookie forwards the cookie and backend-only internal token to Central Auth, then returns **200** with the local profile.
+- Invalid or expired cookies return **401** and do not fall back to a simultaneous bearer credential.
+- `POST /api/auth/logout` revokes a cookie-backed central session and returns a clearing `Set-Cookie` header; native bearer logout still calls the bearer revoke path.
+- Cookie-authenticated browser mutations reject missing/untrusted `Origin`, missing or mismatched `X-CSRF-Token`, and accept a valid configured origin plus matching host-only CSRF cookie.
+- `X-User-Id`, `X-User-Email`, and `X-User-Roles` never override the Central Auth identity and are removed before downstream handlers.
+- Native bearer-token requests continue to authenticate and mutate without browser CSRF headers.
 
 ### Auth — email verification gating
 

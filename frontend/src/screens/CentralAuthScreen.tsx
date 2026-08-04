@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { CENTRAL_AUTH_URL } from '../config';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
-import { sessionStorage } from '../api/storage';
+import { sessionStorage } from '../api/sessionStorage';
 import { extractTokenFromUrl } from '../utils/authLaunch';
+import { isBrowserWeb } from '../utils/platform';
 
 interface CentralAuthScreenProps {
   onTokenReceived?: () => void;
@@ -21,10 +22,10 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
   const handleSignIn = async () => {
     setBusy(true);
     try {
-      const redirectUrl = Platform.OS === 'web' ? window.location.origin : 'projectpn://auth';
+      const browserWeb = isBrowserWeb();
+      const redirectUrl = browserWeb ? window.location.origin : 'projectpn://auth';
       const authUrl = `${CENTRAL_AUTH_URL}/login?rd=${encodeURIComponent(redirectUrl)}`;
-
-      if (Platform.OS === 'web') {
+      if (browserWeb) {
         window.location.href = authUrl;
       } else {
         const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);

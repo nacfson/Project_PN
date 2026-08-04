@@ -77,7 +77,7 @@ function stripTrailingSlash(value: string): string {
 
 function resolveCentralAuthUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_CENTRAL_AUTH_URL;
-  return fromEnv ? stripTrailingSlash(fromEnv.trim()) : '';
+  return fromEnv ? stripTrailingSlash(fromEnv.trim()) : 'https://auth.nacfson.cloud';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();

@@ -62,8 +62,9 @@ type Config struct {
 
 	AllowedOrigins []string
 
-	CentralAuthURL        string
-	CentralAuthInternalURL string
+	CentralAuthURL           string
+	CentralAuthInternalURL   string
+	AuthSessionInternalToken string
 
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
@@ -105,8 +106,9 @@ func Load() Config {
 			envOrDefault("PN_PROD_EXTENSION_ID", defaultProdExtensionID),
 		),
 
-		CentralAuthURL:         strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
-		CentralAuthInternalURL: strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
+		CentralAuthURL:           strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
+		CentralAuthInternalURL:   strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
+		AuthSessionInternalToken: strings.TrimSpace(os.Getenv("AUTH_SESSION_INTERNAL_TOKEN")),
 
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),

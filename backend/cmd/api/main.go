@@ -13,6 +13,7 @@ import (
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
+	"project-pn/internal/curriculum"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
 	"project-pn/internal/learninglog"
@@ -91,23 +92,30 @@ func main() {
 		ForceUILang:            cfg.ForceUILang,
 	})
 	var centralAuth *auth.CentralClient
-	centralAuthURL := cfg.CentralAuthInternalURL
+	centralAuthURL := cfg.CentralAuthURL
 	if centralAuthURL == "" {
-		centralAuthURL = cfg.CentralAuthURL
+		centralAuthURL = cfg.CentralAuthInternalURL
 	}
 	if centralAuthURL == "" {
 		slog.Error("CENTRAL_AUTH_URL or CENTRAL_AUTH_INTERNAL_URL is required")
 		os.Exit(1)
 	}
-	centralAuth = auth.NewCentralClient(centralAuthURL, nil)
+	centralAuth = auth.NewCentralClientWithInternalAuth(
+		centralAuthURL,
+		cfg.CentralAuthInternalURL,
+		cfg.AuthSessionInternalToken,
+		nil,
+	)
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	curriculumService := curriculum.New(pool)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,
 		Handler: httpapi.NewRouter(httpapi.Dependencies{
 			DB:               pool,
 			Words:            wordsService,
+			Curriculum:       curriculumService,
 			Auth:             authService,
 			CentralAuth:      centralAuth,
 			AllowedOrigins:   cfg.AllowedOrigins,

@@ -15,6 +15,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 const mockNavigate = jest.fn();
 let mockPendingCount = 0;
+let mockWidth = 1024;
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -26,6 +27,11 @@ jest.mock('../../hooks/useAddQueue', () => ({
 
 jest.mock('../../hooks/useReducedMotion', () => ({
   useReducedMotion: () => false,
+}));
+
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => ({ width: mockWidth, height: 800, scale: 2, fontScale: 1 }),
 }));
 
 // Note: Platform.OS is a value property (not a getter) in the jest-expo RN mock.
@@ -41,6 +47,7 @@ describe('CommandDock', () => {
     });
     mockNavigate.mockClear();
     mockPendingCount = 0;
+    mockWidth = 1024;
   });
 
   afterEach(() => {
@@ -56,6 +63,12 @@ describe('CommandDock', () => {
     expect(screen.queryByTestId('dock-practice')).toBeNull();
   });
 
+  it('hides the dock on phone-sized web viewports', async () => {
+    mockWidth = 390;
+    await render(<CommandDock />, { wrapper: Wrapper });
+    expect(screen.queryByTestId('dock-add')).toBeNull();
+  });
+
   it('navigates to Add screen on press', async () => {
     await render(<CommandDock />, { wrapper: Wrapper });
     await fireEvent.press(screen.getByTestId('dock-add'));
@@ -67,7 +80,7 @@ describe('CommandDock', () => {
     // Simulate expansion to reveal other items
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
     await fireEvent.press(screen.getByTestId('dock-practice'));
-    expect(mockNavigate).toHaveBeenCalledWith('Practice');
+    expect(mockNavigate).toHaveBeenCalledWith('Practice', { deckId: undefined });
   });
 
   it('navigates to Words (Search) screen on press', async () => {

@@ -34,11 +34,33 @@ func centralLogout(central *auth.CentralClient, logger admin.Logger) http.Handle
 			writeError(w, http.StatusInternalServerError, "central auth is not configured")
 			return
 		}
-		token := bearerToken(r)
-		if err := central.Logout(r.Context(), token); err != nil {
-			logger.Logf("AUTH_FAILURE", "logout failed for token from %s: %v", r.RemoteAddr, err)
+
+		session, ok := authSessionFromContext(r.Context())
+		if !ok {
+			token := bearerToken(r)
+			if token == "" {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			session = authSession{method: authMethodBearer, credential: token}
+		}
+
+		var err error
+		switch session.method {
+		case authMethodCookie:
+			err = central.LogoutCookieSession(r.Context(), session.credential)
+		case authMethodBearer:
+			err = central.Logout(r.Context(), session.credential)
+		default:
+			err = auth.ErrInvalidToken
+		}
+		if err != nil {
+			logger.Logf("AUTH_FAILURE", "logout failed from %s: %v", r.RemoteAddr, err)
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
+		}
+		if session.method == authMethodCookie {
+			clearCentralSessionCookie(w, r)
 		}
 		logger.Logf("AUTH", "logout from %s", r.RemoteAddr)
 		w.WriteHeader(http.StatusNoContent)

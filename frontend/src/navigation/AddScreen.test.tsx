@@ -116,7 +116,7 @@ describe('AddScreen', () => {
     const { rerender } = await render(<AddScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('All Words')).toBeTruthy());
-    expect(mockedListDecks).toHaveBeenLastCalledWith('en');
+    expect(mockedListDecks).toHaveBeenLastCalledWith('en', 'private');
 
     // Switch active language pair to Spanish
     mockUseActiveTargetLanguage.mockReturnValue({
@@ -129,7 +129,7 @@ describe('AddScreen', () => {
     rerender(<AddScreen />);
 
     await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
-    expect(mockedListDecks).toHaveBeenLastCalledWith('es');
+    expect(mockedListDecks).toHaveBeenLastCalledWith('es', 'private');
     expect(screen.queryByText('No deck')).toBeNull();
   });
 

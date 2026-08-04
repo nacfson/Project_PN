@@ -13,12 +13,14 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
+	"project-pn/internal/curriculum"
 	"project-pn/internal/words"
 )
 
 type Dependencies struct {
 	DB               *pgxpool.Pool
 	Words            *words.Service
+	Curriculum       *curriculum.Service
 	Auth             *auth.Service
 	CentralAuth      *auth.CentralClient
 	AllowedOrigins   []string
@@ -44,8 +46,8 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
 			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-			AllowedHeaders:   []string{"Content-Type", "Authorization", "Cache-Control", "Pragma"},
-			AllowCredentials: false,
+			AllowedHeaders:   []string{"Content-Type", "Authorization", "Cache-Control", "Pragma", "X-CSRF-Token"},
+			AllowCredentials: true,
 			MaxAge:           300,
 		}))
 	}
@@ -63,6 +65,7 @@ func NewRouter(deps Dependencies) http.Handler {
 
 			authRouter.Group(func(protected chi.Router) {
 				protected.Use(authMW)
+				protected.Use(csrfProtection(deps.AllowedOrigins))
 				protected.Get("/me", ah.me)
 				protected.Post("/logout", centralLogout(deps.CentralAuth, deps.AdminLogger))
 			})
@@ -71,6 +74,7 @@ func NewRouter(deps Dependencies) http.Handler {
 		uh := &userHandler{svc: deps.Auth}
 		r.Route("/api/user", func(userRouter chi.Router) {
 			userRouter.Use(authMW)
+			userRouter.Use(csrfProtection(deps.AllowedOrigins))
 			userRouter.Get("/languages", uh.listLanguages)
 			userRouter.Get("/ui-language", uh.getUILanguage)
 
@@ -92,6 +96,7 @@ func NewRouter(deps Dependencies) http.Handler {
 				if deps.Auth != nil {
 					protected.Use(authMW)
 					protected.Use(requireVerified(deps.AdminLogger))
+					protected.Use(csrfProtection(deps.AllowedOrigins))
 				}
 				protected.Post("/words/lookup", wh.lookup)
 				protected.Get("/learning-items", wh.listLearningItems)
@@ -119,6 +124,13 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Patch("/decks/{deck_id}", dh.renameDeck)
 				protected.Delete("/decks/{deck_id}", dh.deleteDeck)
 				protected.Post("/decks/{deck_id}/move-items", dh.moveItems)
+
+				if deps.Curriculum != nil {
+					chCurriculum := &curriculumHandler{svc: deps.Curriculum, logger: deps.AdminLogger}
+					protected.Get("/curriculum/packs", chCurriculum.listPacks)
+					protected.Get("/curriculum/packs/{slug}", chCurriculum.getPack)
+					protected.Post("/curriculum/packs/{slug}/enroll", chCurriculum.enroll)
+				}
 
 				nh := &notificationsHandler{svc: deps.Words}
 				protected.Post("/notifications/register", nh.registerPushToken)

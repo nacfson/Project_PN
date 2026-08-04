@@ -10,15 +10,39 @@ import (
 
 type contextKey string
 
-const userContextKey contextKey = "authUser"
+const (
+	userContextKey        contextKey = "authUser"
+	authSessionContextKey contextKey = "authSession"
+)
+
+type authSession struct {
+	method     authMethod
+	credential string
+}
+
+type authMethod string
+
+const (
+	authMethodBearer authMethod = "bearer"
+	authMethodCookie authMethod = "cookie"
+)
 
 func withUser(ctx context.Context, user auth.User) context.Context {
 	return context.WithValue(ctx, userContextKey, user)
 }
 
+func withAuthSession(ctx context.Context, session authSession) context.Context {
+	return context.WithValue(ctx, authSessionContextKey, session)
+}
+
 func userFromContext(ctx context.Context) (auth.User, bool) {
 	user, ok := ctx.Value(userContextKey).(auth.User)
 	return user, ok
+}
+
+func authSessionFromContext(ctx context.Context) (authSession, bool) {
+	session, ok := ctx.Value(authSessionContextKey).(authSession)
+	return session, ok
 }
 
 // userIdentifierFromRequest returns the user's email when available, falling

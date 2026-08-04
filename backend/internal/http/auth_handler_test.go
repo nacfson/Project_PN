@@ -23,6 +23,10 @@ import (
 )
 
 func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
+	return testAuthRouterWithCentral(t, nil)
+}
+
+func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.Handler, *auth.Service) {
 	t.Helper()
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -64,10 +68,56 @@ func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
+		CentralAuth:    central,
 		AllowedOrigins: []string{"http://localhost:8081"},
 		AdminLogger:    admin.NoopLogger{},
 	})
 	return router, authSvc
+}
+
+func TestCookieAuthMeLoadsLocalProfile(t *testing.T) {
+	var centralUserRequests int
+	centralServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/internal/cookie-session" {
+			t.Fatalf("unexpected central path %q", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer internal-secret" {
+			t.Fatalf("unexpected central auth header %q", r.Header.Get("Authorization"))
+		}
+		cookie, err := r.Cookie(auth.CentralSessionCookieName)
+		if err != nil || cookie.Value != "cookie-value" {
+			t.Fatalf("unexpected forwarded cookie: %v %#v", err, cookie)
+		}
+		centralUserRequests++
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"user_id":"central-cookie-user","email":"cookie-user@example.com","is_admin":false,"expires_at":"2099-01-01T00:00:00Z"}`))
+	}))
+	defer centralServer.Close()
+
+	router, _ := testAuthRouterWithCentral(t, auth.NewCentralClientWithInternalAuth("", centralServer.URL, "internal-secret", centralServer.Client()))
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: auth.CentralSessionCookieName, Value: "cookie-value"})
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var profile meResponse
+	if err := json.NewDecoder(rec.Body).Decode(&profile); err != nil {
+		t.Fatalf("decode profile: %v", err)
+	}
+	if profile.Email != "cookie-user@example.com" {
+		t.Fatalf("expected cookie user profile, got %+v", profile)
+	}
+	if centralUserRequests != 1 {
+		t.Fatalf("expected one central cookie request, got %d", centralUserRequests)
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != csrfCookieName || cookies[0].Value == "" {
+		t.Fatalf("expected csrf cookie, got %v", cookies)
+	}
 }
 
 func TestLanguageOptionsEndpoint(t *testing.T) {
