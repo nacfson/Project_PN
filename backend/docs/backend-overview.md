@@ -79,10 +79,14 @@ require a verified email (403 otherwise).
 | `POST` | `/api/words/lookup` | Look up senses for a word. Cache hit returns existing rows. Cache miss + enricher configured returns generated senses, persisted in the same transaction. Cache miss + no enricher returns 503. `force: true` runs Force-Generate. |
 | `GET` | `/api/learning-items?limit=50&descending=true&cursor=...&q=app` | List the authenticated user's active learning items. Uses keyset pagination, excludes archived items, supports optional prefix search on `q`, and returns `next_cursor` when more rows are available. |
 | `POST` | `/api/learning-items` | Add a `(user, word_sense)` to the authenticated user's learning set. Idempotent. Returns the `user_word_senses` row and its current `due_at`. |
-| `GET` | `/api/reviews/due?limit=50` | Return due review items by joining `review_states` to active `user_word_senses`. Respects daily limits (`new_cards_per_day`, `reviews_per_day`), excludes buried and suspended cards, and returns reviews first then new cards. |
+| `GET` | `/api/reviews/due?limit=50` | Return due review items by joining `review_states` to active `user_word_senses`. Respects daily limits (`new_cards_per_day`, `reviews_per_day`), excludes buried and suspended cards, and returns reviews first then new cards. Optional `deck_id` scopes to one deck (curriculum-only sessions). |
 | `POST` | `/api/reviews/batch` | Record review attempts and update `review_states` atomically. Applies Anki-style learning/relearning steps, leech detection, sibling-sense burying, and daily count tracking. |
 | `POST` | `/api/reviews/optimize-weights` | Trigger FSRS parameter optimization for the authenticated user based on review history (requires 1000+ reviews). Returns 202. |
 | `GET` | `/api/reviews/optimization-status` | Return the user's current FSRS weights, last optimization timestamp, and review count. |
+| `GET` | `/api/decks?language_code=&origin=` | List the user's decks. Optional `origin=private` or `origin=curriculum`. |
+| `GET` | `/api/curriculum/packs` | List published curriculum packs with enrollment status and progress counts. |
+| `GET` | `/api/curriculum/packs/{slug}` | Pack detail with entry preview (lemma, POS, CEFR, short definition). |
+| `POST` | `/api/curriculum/packs/{slug}/enroll` | Enroll into an isolated curriculum deck. Skips senses already in the user's learning set. Idempotent. |
 
 ## Authentication
 
@@ -110,7 +114,7 @@ Flow details are in `backend/docs/backend-flows.md`.
 
 ## Public Docker Deployment
 
-The public deploy path uses Docker Compose on `zlUbuntu`: PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Forward router ports `80/tcp` and `443/tcp` to `zlUbuntu`, mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
+The public deploy path uses Docker Compose on an **Oracle Cloud** Ubuntu instance (`OracleCloud`): PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Open OCI Security List / NSG ingress for `80/tcp` and `443/tcp` (optional staging `53412/tcp`), mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
 
 See `backend/docs/go-backend-setup.md` and `backend/docs/remote-deploy-runbook.md` for deployment steps.
 

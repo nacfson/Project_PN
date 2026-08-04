@@ -93,15 +93,61 @@ export interface LearningItemsPage {
   next_cursor: string | null;
 }
 
+export type DeckOrigin = 'private' | 'curriculum';
+
 export interface Deck {
   id: string;
   user_id: string;
   target_language: string;
   name: string;
   is_default: boolean;
+  origin: DeckOrigin;
+  curriculum_pack_id?: string | null;
   item_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface CurriculumPack {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  target_language: string;
+  cefr_band: string;
+  sort_order: number;
+  entry_count: number;
+  enrolled: boolean;
+  deck_id?: string | null;
+  added_count: number;
+  skipped_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CurriculumPackEntry {
+  word_sense_id: string;
+  lemma: string;
+  part_of_speech: string;
+  short_definition: string | null;
+  definition: string;
+  cefr_level: string | null;
+  sort_order: number;
+  already_learning: boolean;
+}
+
+export interface CurriculumPackDetail extends CurriculumPack {
+  entries: CurriculumPackEntry[];
+  entries_total: number;
+}
+
+export interface CurriculumEnrollResult {
+  pack_id: string;
+  slug: string;
+  deck_id: string;
+  added_count: number;
+  skipped_count: number;
+  already_enrolled: boolean;
 }
 
 export type ReviewActivityType =

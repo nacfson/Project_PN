@@ -45,7 +45,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   useEffect(() => {
     let active = true;
     setDecksLoading(true);
-    listDecks(item.language_code)
+    listDecks(item.language_code, 'private')
       .then((loaded) => {
         if (!active) return;
         setDecks(loaded);

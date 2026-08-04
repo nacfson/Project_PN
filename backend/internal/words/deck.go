@@ -20,8 +20,8 @@ func (s *Service) EnsureDefaultDeck(ctx context.Context, userID, targetLang stri
 
 	var deckID string
 	err := s.pool.QueryRow(ctx, `
-		insert into decks (user_id, target_language, name, is_default)
-		values ($1::uuid, $2, $2 || ' (Default)', true)
+		insert into decks (user_id, target_language, name, is_default, origin)
+		values ($1::uuid, $2, $2 || ' (Default)', true, 'private')
 		on conflict (user_id, target_language) where is_default = true
 		do update set updated_at = now()
 		returning id::text
@@ -33,12 +33,13 @@ func (s *Service) EnsureDefaultDeck(ctx context.Context, userID, targetLang stri
 }
 
 // ListDecks returns all decks for a user, optionally filtered to one target
-// language. A default deck is ensured for every language pair the user has.
-func (s *Service) ListDecks(ctx context.Context, userID, languageCode string) ([]Deck, error) {
+// language and/or origin (`private` / `curriculum`). A default deck is ensured
+// for every language pair the user has.
+func (s *Service) ListDecks(ctx context.Context, userID, languageCode, origin string) ([]Deck, error) {
 	// Ensure default decks exist for every registered language pair.
 	if _, err := s.pool.Exec(ctx, `
-		insert into decks (user_id, target_language, name, is_default)
-		select user_id, target_language, target_language || ' (Default)', true
+		insert into decks (user_id, target_language, name, is_default, origin)
+		select user_id, target_language, target_language || ' (Default)', true, 'private'
 		from user_languages
 		where user_id = $1::uuid
 		  and not exists (
@@ -52,18 +53,25 @@ func (s *Service) ListDecks(ctx context.Context, userID, languageCode string) ([
 	}
 
 	languageCode = strings.TrimSpace(languageCode)
+	origin = strings.TrimSpace(strings.ToLower(origin))
+	if origin != "" && origin != "private" && origin != "curriculum" {
+		return nil, ErrInvalidDeckOrigin
+	}
 
 	rows, err := s.pool.Query(ctx, `
 		select d.id::text, d.user_id::text, d.target_language, d.name, d.is_default,
+		       d.origin, d.curriculum_pack_id::text,
 		       count(uws.id) filter (where uws.archived_at is null)::int as item_count,
 		       d.created_at, d.updated_at
 		from decks d
 		left join user_word_senses uws on uws.deck_id = d.id
 		where d.user_id = $1::uuid
 		  and ($2::text = '' or d.target_language = $2)
-		group by d.id, d.user_id, d.target_language, d.name, d.is_default, d.created_at, d.updated_at
+		  and ($3::text = '' or d.origin = $3)
+		group by d.id, d.user_id, d.target_language, d.name, d.is_default,
+		         d.origin, d.curriculum_pack_id, d.created_at, d.updated_at
 		order by d.target_language, d.is_default desc, d.created_at, d.id
-	`, userID, languageCode)
+	`, userID, languageCode, origin)
 	if err != nil {
 		return nil, fmt.Errorf("words: list decks: %w", err)
 	}
@@ -72,11 +80,16 @@ func (s *Service) ListDecks(ctx context.Context, userID, languageCode string) ([
 	var decks []Deck
 	for rows.Next() {
 		var d Deck
+		var packID *string
 		if err := rows.Scan(
 			&d.ID, &d.UserID, &d.TargetLanguage, &d.Name, &d.IsDefault,
-			&d.ItemCount, &d.CreatedAt, &d.UpdatedAt,
+			&d.Origin, &packID, &d.ItemCount, &d.CreatedAt, &d.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("words: scan deck: %w", err)
+		}
+		d.CurriculumPackID = packID
+		if d.Origin == "" {
+			d.Origin = "private"
 		}
 		decks = append(decks, d)
 	}
@@ -109,12 +122,15 @@ func (s *Service) CreateDeck(ctx context.Context, userID, name, targetLang strin
 	}
 
 	var d Deck
+	var packID *string
 	err := s.pool.QueryRow(ctx, `
-		insert into decks (user_id, target_language, name, is_default)
-		values ($1::uuid, $2, $3, false)
-		returning id::text, user_id::text, target_language, name, is_default, created_at, updated_at
+		insert into decks (user_id, target_language, name, is_default, origin)
+		values ($1::uuid, $2, $3, false, 'private')
+		returning id::text, user_id::text, target_language, name, is_default, origin,
+		          curriculum_pack_id::text, created_at, updated_at
 	`, userID, targetLang, name).Scan(
-		&d.ID, &d.UserID, &d.TargetLanguage, &d.Name, &d.IsDefault, &d.CreatedAt, &d.UpdatedAt,
+		&d.ID, &d.UserID, &d.TargetLanguage, &d.Name, &d.IsDefault, &d.Origin,
+		&packID, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -122,6 +138,7 @@ func (s *Service) CreateDeck(ctx context.Context, userID, name, targetLang strin
 		}
 		return Deck{}, fmt.Errorf("words: create deck: %w", err)
 	}
+	d.CurriculumPackID = packID
 	d.ItemCount = 0
 	return d, nil
 }
@@ -136,11 +153,15 @@ func (s *Service) RenameDeck(ctx context.Context, userID, deckID, name string) e
 		return ErrInvalidDeckName
 	}
 
-	if err := s.requireDeckOwner(ctx, userID, deckID); err != nil {
+	deck, err := s.loadDeck(ctx, userID, deckID)
+	if err != nil {
 		return err
 	}
+	if deck.Origin == "curriculum" {
+		return ErrCurriculumDeckImmutable
+	}
 
-	_, err := s.pool.Exec(ctx, `
+	_, err = s.pool.Exec(ctx, `
 		update decks
 		set name = $3, updated_at = now()
 		where id = $2::uuid
@@ -164,6 +185,9 @@ func (s *Service) DeleteDeck(ctx context.Context, userID, deckID string) error {
 	}
 	if deck.IsDefault {
 		return ErrCannotDeleteDefaultDeck
+	}
+	if deck.Origin == "curriculum" {
+		return ErrCurriculumDeckImmutable
 	}
 
 	defaultDeckID, err := s.EnsureDefaultDeck(ctx, userID, deck.TargetLanguage)
@@ -209,6 +233,9 @@ func (s *Service) MoveItemsToDeck(ctx context.Context, userID, deckID string, it
 	deck, err := s.loadDeck(ctx, userID, deckID)
 	if err != nil {
 		return err
+	}
+	if deck.Origin == "curriculum" {
+		return ErrCurriculumDeckImmutable
 	}
 
 	rows, err := s.pool.Query(ctx, `
@@ -257,24 +284,34 @@ func (s *Service) resolveDeckForAdd(ctx context.Context, userID, requestedDeckID
 	if deck.TargetLanguage != wordLang {
 		return "", ErrDeckLanguageMismatch
 	}
+	if deck.Origin == "curriculum" {
+		return "", ErrCurriculumDeckNotAddTarget
+	}
 	return deck.ID, nil
 }
 
 // loadDeck returns a deck only if it belongs to the user.
 func (s *Service) loadDeck(ctx context.Context, userID, deckID string) (Deck, error) {
 	var d Deck
+	var packID *string
 	err := s.pool.QueryRow(ctx, `
-		select id::text, user_id::text, target_language, name, is_default, created_at, updated_at
+		select id::text, user_id::text, target_language, name, is_default, origin,
+		       curriculum_pack_id::text, created_at, updated_at
 		from decks
 		where id = $1::uuid and user_id = $2::uuid
 	`, deckID, userID).Scan(
-		&d.ID, &d.UserID, &d.TargetLanguage, &d.Name, &d.IsDefault, &d.CreatedAt, &d.UpdatedAt,
+		&d.ID, &d.UserID, &d.TargetLanguage, &d.Name, &d.IsDefault, &d.Origin,
+		&packID, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Deck{}, ErrDeckNotFound
 		}
 		return Deck{}, fmt.Errorf("words: load deck: %w", err)
+	}
+	d.CurriculumPackID = packID
+	if d.Origin == "" {
+		d.Origin = "private"
 	}
 	return d, nil
 }

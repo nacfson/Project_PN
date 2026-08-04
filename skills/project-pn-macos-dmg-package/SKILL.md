@@ -27,15 +27,15 @@ sed -n '1,120p' frontend/src/config.ts
 
 3. Choose the API base URL.
 
-- Use the URL the user provides.
-- If the user says to use the current test IP and gives no newer value, use `http://124.59.225.59:53412`.
+- Use the URL the user provides (Oracle Cloud public domain or IP).
+- If the user gives no URL, ask for the current Oracle Cloud `APP_PUBLIC_URL` rather than assuming a home-LAN IP.
 - This URL must match the backend `ALLOWED_ORIGINS` policy for Tauri. Include `tauri://localhost` and `http://tauri.localhost` on the backend for desktop builds.
 
 4. Build the DMG from `frontend/`:
 
 ```sh
 cd frontend
-EXPO_PUBLIC_API_BASE_URL=http://124.59.225.59:53412 npm run desktop:build
+EXPO_PUBLIC_API_BASE_URL=https://YOUR_PUBLIC_DOMAIN npm run desktop:build
 ```
 
 Replace the URL with the selected API base URL. The command writes `frontend/dist` and `frontend/src-tauri/target`.

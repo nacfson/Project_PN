@@ -2,7 +2,7 @@
 
 ## Scope
 
-Build only these tables for the first version:
+Build these tables for the current MVP (including curriculum origin):
 
 ```text
 users
@@ -13,6 +13,10 @@ user_word_senses
 review_states
 review_attempts
 examples
+decks
+curriculum_packs
+curriculum_pack_entries
+user_curriculum_enrollments
 ```
 
 This supports:
@@ -138,7 +142,12 @@ Rules:
 
 ## decks
 
-Stores user-created named groups of vocabulary items, scoped to a target language. Each `user_word_senses` row belongs to exactly one deck.
+Stores user-owned named groups of vocabulary items, scoped to a target language. Each `user_word_senses` row belongs to exactly one deck.
+
+Decks have an `origin`:
+
+- `private` — user-created (including the default deck); used by the personal add-word flow
+- `curriculum` — created by enrolling in a curriculum pack; studyable in isolation
 
 ```sql
 decks
@@ -147,6 +156,8 @@ decks
 - target_language text not null
 - name text not null
 - is_default boolean not null default false
+- origin text not null default 'private'
+- curriculum_pack_id uuid null references curriculum_packs(id) on delete restrict
 - created_at timestamptz not null default now()
 - updated_at timestamptz not null default now()
 ```
@@ -156,8 +167,17 @@ Required constraints and indexes:
 ```sql
 constraint decks_user_target_name_unique
   unique (user_id, target_language, lower(name))
+constraint decks_origin_valid
+  check (origin in ('private', 'curriculum'))
+constraint decks_curriculum_pack_origin_consistent
+  check (
+    (origin = 'private' and curriculum_pack_id is null)
+    or (origin = 'curriculum' and curriculum_pack_id is not null and is_default = false)
+  )
 create unique index decks_user_target_default_unique
   on decks (user_id, target_language) where is_default = true;
+create unique index decks_user_curriculum_pack_unique
+  on decks (user_id, curriculum_pack_id) where curriculum_pack_id is not null;
 create index decks_user_id_idx on decks (user_id);
 create index decks_user_target_idx on decks (user_id, target_language);
 ```
@@ -165,9 +185,93 @@ create index decks_user_target_idx on decks (user_id, target_language);
 Rules:
 
 - A deck belongs to one user and one target language.
-- Exactly one default deck exists per `(user_id, target_language)`. The application creates it lazily.
-- The default deck receives items when no other deck is specified.
-- Deleting a custom deck moves its items to the default deck for the same target language; the default deck itself cannot be deleted.
+- Exactly one default deck exists per `(user_id, target_language)`. The application creates it lazily. Default decks are always `origin = 'private'`.
+- The default deck receives private items when no other deck is specified.
+- Curriculum decks are never default and are not valid Add-tab targets.
+- Deleting a custom private deck moves its items to the default deck for the same target language; the default deck itself cannot be deleted.
+- Curriculum decks cannot be renamed or deleted through the normal deck APIs (v1).
+
+## curriculum_packs
+
+Global catalog of curated vocabulary packs (curriculum origin). Shared across users; not user progress.
+
+```sql
+curriculum_packs
+- id uuid primary key default gen_random_uuid()
+- slug text not null
+- title text not null
+- description text not null default ''
+- target_language text not null
+- cefr_band text not null
+- sort_order integer not null default 0
+- is_published boolean not null default false
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Required constraints:
+
+```sql
+constraint curriculum_packs_slug_unique unique (slug)
+constraint curriculum_packs_cefr_band_valid
+  check (cefr_band in ('A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'A1-A2', 'A1-B2', 'B1-C1'))
+```
+
+Rules:
+
+- Packs are global curriculum catalog rows.
+- Only `is_published = true` packs are listed to clients.
+- Seeded pilot pack slug: `essential-en-a1`.
+
+## curriculum_pack_entries
+
+Maps a pack to global `word_senses` rows in study order.
+
+```sql
+curriculum_pack_entries
+- id uuid primary key default gen_random_uuid()
+- pack_id uuid not null references curriculum_packs(id) on delete cascade
+- word_sense_id uuid not null references word_senses(id) on delete cascade
+- sort_order integer not null default 0
+- cefr_level text
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Required constraints:
+
+```sql
+constraint curriculum_pack_entries_pack_sense_unique unique (pack_id, word_sense_id)
+constraint curriculum_pack_entries_cefr_valid
+  check (cefr_level is null or cefr_level in ('A1', 'A2', 'B1', 'B2', 'C1', 'C2'))
+```
+
+## user_curriculum_enrollments
+
+Links a user to a pack and the isolated curriculum deck created on enroll.
+
+```sql
+user_curriculum_enrollments
+- id uuid primary key default gen_random_uuid()
+- user_id uuid not null references users(id) on delete cascade
+- pack_id uuid not null references curriculum_packs(id) on delete cascade
+- deck_id uuid not null references decks(id) on delete restrict
+- created_at timestamptz not null default now()
+- updated_at timestamptz not null default now()
+```
+
+Required constraints:
+
+```sql
+constraint user_curriculum_enrollments_user_pack_unique unique (user_id, pack_id)
+constraint user_curriculum_enrollments_deck_unique unique (deck_id)
+```
+
+Rules:
+
+- Enroll is idempotent per `(user_id, pack_id)`.
+- Enroll creates a `decks` row with `origin = 'curriculum'` and inserts only senses the user does not already have in `user_word_senses`.
+- Existing private learning items are never moved into the curriculum deck.
 
 ## user_identities
 
@@ -620,6 +724,11 @@ users 1 -> many decks
 users 1 -> 1 review_settings
 users 1 -> many daily_review_counts
 users 1 -> many user_word_senses
+users 1 -> many user_curriculum_enrollments
+curriculum_packs 1 -> many curriculum_pack_entries
+curriculum_packs 1 -> many user_curriculum_enrollments
+curriculum_pack_entries many -> 1 word_senses
+user_curriculum_enrollments 1 -> 1 decks
 decks 1 -> many user_word_senses
 words 1 -> many word_senses
 word_senses 1 -> many user_word_senses

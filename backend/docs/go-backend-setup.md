@@ -117,7 +117,7 @@ scripts/start-web-dev.sh --skip-db --skip-migrate
 
 Detailed deployment steps and troubleshooting live in `backend/docs/remote-deploy-runbook.md`.
 
-For a public Docker-only stack on `zlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. Backend images are published to GHCR; the script builds/uploads the web bundle, pulls a pinned GHCR backend image on the server, and starts the remote Compose stack.
+For a public Docker-only stack on **Oracle Cloud** (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root with `DEPLOY_HOST=OracleCloud`. The script builds the backend image locally, uploads it to the remote server over SSH/SCP, loads it with Docker, and starts the remote compose stack.
 
 ```sh
 DEPLOY_HOST=user@YOUR_SERVER_IP scripts/deploy-remote.sh
@@ -139,10 +139,9 @@ DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
 DEPLOY_ACCESS_SCOPE=public
 EXISTING_POSTGRES_PASSWORD=old-password
 REMOTE_DIR=~/project-pn/deploy
-GHCR_IMAGE=ghcr.io/nacfson/project-pn-backend
+IMAGE_NAME=project-pn-backend
 IMAGE_TAG=$(git rev-parse --short HEAD)
-GHCR_USERNAME=your-github-username
-GHCR_TOKEN=<read:packages token>
+PLATFORM=linux/amd64
 ```
 
 For an internet-facing deploy, use a public domain or public IP and set
@@ -185,12 +184,7 @@ docker compose --env-file .env up -d
 curl https://YOUR_PUBLIC_DOMAIN/readyz
 ```
 
-The primary deployment path uses
-`ghcr.io/nacfson/project-pn-backend:<git-short-sha>`. The workflow
-`.github/workflows/publish-ghcr-images.yml` publishes the backend and
-`ghcr.io/nacfson/project-pn-frontend:<git-short-sha>` images. The remote
-script supplies the pinned backend reference as `BACKEND_IMAGE` and never
-places the GHCR token in the frontend bundle or remote `.env`.
+The primary deployment path does not require GHCR. `scripts/deploy-remote.sh` loads both `project-pn-backend:<git-short-sha>` and `project-pn-backend:latest` on the server, then supplies `BACKEND_IMAGE=project-pn-backend:<git-short-sha>` when it starts Docker Compose remotely.
 
 The backend image contains:
 
@@ -198,7 +192,7 @@ The backend image contains:
 - Runtime: **`debian:bookworm-slim` + `ca-certificates`** (required for outbound HTTPS to Resend, Google token verification, and enrichment APIs — do not use a scratch/distroless runtime without bundled CA certs)
 - Migrations copied to `/app/db/migrations`
 
-TLS termination is enabled in `deploy/nginx/nginx.conf`. Forward public `80/tcp` and `443/tcp` from the router to `zlUbuntu`, and keep `APP_PUBLIC_URL` / native build `EXPO_PUBLIC_API_BASE_URL` on the same HTTPS domain.
+TLS termination is enabled in `deploy/nginx/nginx.conf`. On Oracle Cloud, open OCI Security List / NSG ingress for public `80/tcp` and `443/tcp`, and keep `APP_PUBLIC_URL` / native build `EXPO_PUBLIC_API_BASE_URL` on the same HTTPS domain.
 
 Local development continues to use `backend/compose.yaml` (PostgreSQL on host port `5433`) and `go run ./cmd/api`.
 
@@ -217,17 +211,14 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `ENRICH_FALLBACK_BASE_URL` | empty | Optional fallback OpenAI-compatible `/chat/completions` endpoint (e.g. DeepSeek). |
 | `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the fallback enricher. |
 | `ENRICH_FALLBACK_MODEL` | empty | Model name passed to the fallback enricher (e.g. `deepseek-v4-flash`). |
-| `CENTRAL_AUTH_URL` | empty | Public Central Auth URL used by the app's sign-in redirect and as the backend fallback URL. |
-| `CENTRAL_AUTH_INTERNAL_URL` | empty | Backend-only Central Auth URL used for bearer validation and `/api/internal/cookie-session`. |
-| `AUTH_SESSION_INTERNAL_TOKEN` | empty | Backend-only bearer credential required by Central Auth's cookie-session introspection endpoint. Never expose it to frontend builds. |
-| `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from Central Auth, not this env var. |
+| `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from the bearer session, not this env var. |
 | `DEFAULT_TARGET_LANG` | `en` | Default `target_language` on register when omitted; fallback when a request omits `language_code`. |
 | `DEFAULT_DEFINITION_LANG` | `ko` | Default `native_language` on register when omitted; fallback when a request omits `definition_language_code`. |
 | `ALLOWED_TARGET_LANGS` | empty | Comma-separated ISO 639-1 codes users may select as `target_language`. Empty means unrestricted. |
 | `ALLOWED_DEFINITION_LANGS` | empty | Comma-separated ISO 639-1 codes users may select as `native_language`. Empty means unrestricted. |
 | `FORCE_TARGET_LANG` | empty | If set, all new users receive this `target_language` and the frontend hides the selector. |
 | `FORCE_DEFINITION_LANG` | empty | If set, all new users receive this `native_language` and the frontend hides the selector. |
-| `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS and browser CSRF Origin allow-list. Empty disables CORS and causes cookie-authenticated mutations to fail Origin validation. |
+| `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS allow-list. Empty disables the CORS middleware. |
 
 
 ## Enrichment

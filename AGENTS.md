@@ -22,9 +22,9 @@ Core backend principle:
 - **Go backend setup, local PostgreSQL setup, migration commands, health checks, or DB connection logic 수정 시**: `backend/docs/go-backend-setup.md`
 - **MVP scope 변경, study sessions, imports, tags, collections, AI enrichment, writing, or speaking 기능 추가 시**: `backend/docs/backend-future-scope.md`
 - **Migration tests, backend acceptance criteria, or schema behavior 검증 작성 시**: `backend/docs/backend-acceptance-tests.md`
-- **Project PN web app을 zlUbuntu에 배포하거나, frontend web build를 build/deploy/publish 할 시**: `.cursor/skills/deploy-web-ubuntu/SKILL.md`
+- **Project PN web app을 Oracle Cloud에 배포하거나, frontend web build를 build/deploy/publish 할 시**: `.cursor/skills/deploy-web-ubuntu/SKILL.md`
 - **Frontend UI component, form validation, loading state, practice UX, or translation string 추가/수정 시**: `frontend/docs/frontend-ux-patterns.md`
-- **Deploy 실패, nginx 오류, CORS 오류, migration password 오류, public IP unreachable, 또는 zlUbuntu에서 backend/container 예외 발생 시**: `deploy/deploy-exception-runbook.md`
+- **Deploy 실패, nginx 오류, CORS 오류, migration password 오류, public IP unreachable, 또는 Oracle Cloud에서 backend/container 예외 발생 시**: `deploy/deploy-exception-runbook.md`
 
 ## Backend Rules
 

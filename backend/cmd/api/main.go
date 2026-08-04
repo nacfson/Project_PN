@@ -13,6 +13,7 @@ import (
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
+	"project-pn/internal/curriculum"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
 	httpapi "project-pn/internal/http"
@@ -100,12 +101,14 @@ func main() {
 	)
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	curriculumService := curriculum.New(pool)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,
 		Handler: httpapi.NewRouter(httpapi.Dependencies{
 			DB:               pool,
 			Words:            wordsService,
+			Curriculum:       curriculumService,
 			Auth:             authService,
 			CentralAuth:      centralAuth,
 			AllowedOrigins:   cfg.AllowedOrigins,

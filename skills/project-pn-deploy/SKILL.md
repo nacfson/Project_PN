@@ -1,14 +1,15 @@
 ---
 name: project-pn-deploy
 description: >-
-  Deploy Project PN's Expo web frontend and Go backend to the remote Ubuntu
-  server (zlUbuntu). Use when the user asks to deploy web/backend changes,
-  publish the web build, update the server, or distribute the full stack.
+  Deploy Project PN's Expo web frontend and Go backend to the remote Oracle
+  Cloud Ubuntu instance (SSH alias OracleCloud). Use when the user asks to
+  deploy web/backend changes, publish the web build, update the server, or
+  distribute the full stack.
 ---
 
 # Deploy Project PN Web & Backend Stack
 
-Deploys the Expo web bundle and a GHCR-published Go backend image to `zlUbuntu`
+Deploys the Expo web bundle and the Go backend Docker image to **Oracle Cloud**
 by running `scripts/deploy-remote.sh` and verifying the result.
 
 ## Prerequisites
@@ -16,14 +17,14 @@ by running `scripts/deploy-remote.sh` and verifying the result.
 Confirm before deploying:
 
 - [ ] You are on the local Mac with the repo at `/Users/hyungjuyu/Projects/iOS/Project_PN`.
-- [ ] `zlUbuntu` is reachable via SSH alias in `~/.ssh/config`.
+- [ ] Docker Desktop is running.
+- [ ] `OracleCloud` is reachable via SSH alias in `~/.ssh/config`.
 - [ ] `deploy/.deploy.env` exists and contains the correct values for
-  `DEPLOY_HOST`, `DEPLOY_PUBLIC_URL`, `DEPLOY_ACCESS_SCOPE`, `REMOTE_DIR`,
-  `GHCR_IMAGE`, and `IMAGE_TAG`.
+  `DEPLOY_HOST=OracleCloud`, `DEPLOY_PUBLIC_URL`, `DEPLOY_ACCESS_SCOPE`,
+  `REMOTE_DIR`, `IMAGE_NAME`, and `PLATFORM`.
 - [ ] The remote `~/project-pn/deploy/.env` has the correct `ALLOWED_ORIGINS`
   and `APP_PUBLIC_URL`.
-- [ ] `GHCR_IMAGE`, `IMAGE_TAG`, and private-registry credentials are set when
-  the package is private.
+- [ ] OCI Security List / NSG allows inbound `22`, `80`, `443` (optional `53412`).
 - [ ] For HTTPS deployments, TLS certs exist at
   `~/project-pn/deploy/certs/fullchain.pem` and `privkey.pem`.
 
@@ -48,8 +49,8 @@ explicitly asked.
 Verify required tools are available:
 
 ```sh
-command -v git && command -v ssh && command -v scp && \
-  command -v npm && command -v curl
+command -v docker && command -v git && command -v ssh && \
+  command -v scp && command -v npm && command -v curl
 ```
 
 ## Deploy
@@ -62,7 +63,7 @@ scripts/deploy-remote.sh
 
 Expected final output:
 
-- `deployed ghcr.io/nacfson/project-pn-backend:<sha>`
+- `deployed project-pn-backend:<sha>`
 - `/readyz` returns `{"status":"ready"}`
 
 If the script fails, stop and consult `deploy/deploy-exception-runbook.md`.
@@ -89,20 +90,19 @@ Then return to the repo root and run the deploy script. This ensures the new
 Check the remote stack directly:
 
 ```sh
-ssh zlUbuntu '
+ssh OracleCloud '
   cd ~/project-pn/deploy &&
   docker compose ps &&
-  curl -fsS http://localhost:53412/healthz &&
-  curl -fsS http://localhost:53412/readyz
+  (curl -fsS http://localhost:53412/healthz || curl -fsS http://localhost/healthz) &&
+  (curl -fsS http://localhost:53412/readyz || curl -fsS http://localhost/readyz)
 '
 ```
 
-Check from the public internet and LAN:
+Check from the public internet:
 
 ```sh
-curl -fsS http://124.59.225.59:53412/healthz
-curl -fsS http://124.59.225.59:53412/ | head
-curl -fsS http://192.168.219.100:53412/ | head
+curl -fsS https://YOUR_PUBLIC_DOMAIN/healthz
+curl -fsS https://YOUR_PUBLIC_DOMAIN/ | head
 ```
 
 Expected results:
@@ -117,13 +117,14 @@ If any check fails, follow `deploy/deploy-exception-runbook.md`.
 
 | Symptom | First Check |
 |---|---|
-| `curl localhost:53412` fails on Mac | Use the server IP, not Mac `localhost` |
-| Public IP connection refused | Router port-forward rule for `53412/tcp` |
+| `curl localhost` fails on Mac | Use Oracle public IP/domain, not Mac `localhost` |
+| Public IP connection refused | OCI Security List / NSG ingress for `80`/`443`/`53412` |
 | CORS error in browser | `ALLOWED_ORIGINS` in remote `.env` |
-| 502 Bad Gateway | `docker compose logs api` on server |
+| 502 Bad Gateway | `docker compose logs api` on OracleCloud |
 | Migration password failed | `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` |
 | Old bundle still shown | Force recreate nginx: `docker compose up -d --force-recreate nginx` |
-| New `EXPO_PUBLIC_*` env vars ignored (e.g. auth mode still local) | Run `npx expo export --platform web --clear` before deploying |
+| New `EXPO_PUBLIC_*` env vars ignored | Run `npx expo export --platform web --clear` before deploying |
 | Magic link wrong redirect | `APP_PUBLIC_URL` in remote `.env` |
 
-For deeper diagnosis, read `deploy/deploy-exception-runbook.md`.
+For deeper diagnosis, read `deploy/deploy-exception-runbook.md` and
+`deploy/NETWORK_SETUP.md`.

@@ -11,7 +11,7 @@ Documentation for the Go + PostgreSQL backend.
 | [`go-backend-setup.md`](go-backend-setup.md) | Local setup, migrations, environment variables, tests, Docker deploy |
 | [`backend-acceptance-tests.md`](backend-acceptance-tests.md) | Schema and HTTP acceptance scenarios |
 | [`backend-future-scope.md`](backend-future-scope.md) | Tables and features intentionally out of MVP |
-| [`remote-deploy-runbook.md`](remote-deploy-runbook.md) | Production-style deploy to zlUbuntu |
+| [`remote-deploy-runbook.md`](remote-deploy-runbook.md) | Production-style deploy to Oracle Cloud |
 | [`remote-access-port-forward-summary.md`](remote-access-port-forward-summary.md) | Port forwarding notes |
 
 See also [`docs/GUIDE.md`](../../docs/GUIDE.md) for the full project documentation map.
