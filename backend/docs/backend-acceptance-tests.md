@@ -58,6 +58,16 @@ The backend schema should satisfy these scenarios:
 - Deleting a custom deck moves its items to the default deck for the same target language.
 - The default deck cannot be deleted.
 
+### Curriculum origin (migration `000020` / `000021`)
+
+- `decks.origin` is `private` or `curriculum`; default decks are `private`.
+- Curriculum decks require `curriculum_pack_id` and cannot be default.
+- At most one deck per `(user_id, curriculum_pack_id)`.
+- `essential-en-a1` pack is published with seeded pack entries.
+- Enroll is idempotent per `(user_id, pack_id)`.
+- Enroll does not move existing private `user_word_senses` into the curriculum deck.
+- `GET /api/reviews/due?deck_id=` returns only items in that curriculum deck.
+
 ### Auth schema (migration `000003`)
 
 - Duplicate emails differing only by case are rejected (`users_email_lower_idx`).

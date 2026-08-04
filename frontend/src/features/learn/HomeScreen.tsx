@@ -16,6 +16,7 @@ import { StaggeredList } from '../../ui/StaggeredList';
 import { CinematicCard } from '../../ui/CinematicCard';
 import { AnimatedProgressBar } from '../../ui/AnimatedProgressBar';
 import { CountUpText } from '../../components/CountUpText';
+import { CurriculumSection } from './CurriculumSection';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Learn'>;
 
@@ -545,7 +546,7 @@ export function HomeScreen() {
 
   const handlePressHero = useCallback(() => {
     if (reduced) {
-      navigation.navigate('Practice');
+      navigation.navigate('Practice', { deckId: undefined });
       return;
     }
     heroScale.setValue(motion.scale.press);
@@ -555,7 +556,7 @@ export function HomeScreen() {
       friction: motion.spring.bouncy.friction,
       useNativeDriver: true,
     }).start(() => {
-      navigation.navigate('Practice');
+      navigation.navigate('Practice', { deckId: undefined });
     });
   }, [reduced, motion, navigation, heroScale]);
 
@@ -665,6 +666,8 @@ export function HomeScreen() {
             </Text>
           </Card>
         ) : null}
+
+        <CurriculumSection />
 
         {statsError ? (
           <ErrorState

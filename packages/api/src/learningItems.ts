@@ -36,10 +36,13 @@ export function listLearningItems(params?: ListLearningItemsParams): Promise<Lea
   return getJson<LearningItemsPage>(`/api/learning-items?${searchParams.toString()}`);
 }
 
-export function getDueLearningItems(limit?: number): Promise<DueItem[]> {
+export function getDueLearningItems(limit?: number, deckId?: string): Promise<DueItem[]> {
   const searchParams = new URLSearchParams();
   if (limit) {
     searchParams.set('limit', String(limit));
+  }
+  if (deckId?.trim()) {
+    searchParams.set('deck_id', deckId.trim());
   }
   return getJson<DueItem[]>(`/api/reviews/due?${searchParams.toString()}`);
 }

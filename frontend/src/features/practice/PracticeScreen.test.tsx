@@ -9,11 +9,13 @@ import type { DueItem } from '../../types';
 
 jest.mock('../../api/learningItems', () => ({
   getDueLearningItems: jest.fn(),
+  listLearningItems: jest.fn().mockResolvedValue({ items: [], next_cursor: null }),
   recordBatchReviewAttempts: jest.fn().mockResolvedValue({}),
 }));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: jest.fn() }),
+  useRoute: () => ({ params: undefined }),
   useFocusEffect: (cb: () => void) => {
     require('react').useEffect(cb, []);
   },

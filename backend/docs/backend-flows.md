@@ -95,6 +95,20 @@ One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds every (or selected) `w
 2. Insert new senses, auto-match each learner card via token Jaccard on definition + localized gloss, resolve conflicts (higher `review_count`, else earlier `added_at`; archive losers), then delete old sense IDs.
 3. Flags: `-limit N`, `-word-id UUID`, `-dry-run`, `-continue-on-error`.
 
+## Curriculum Enroll Flow
+
+Curriculum is a separate vocabulary origin from private add-word.
+
+1. Client lists packs with `GET /api/curriculum/packs`.
+2. Client opens a pack with `GET /api/curriculum/packs/{slug}` (entry preview).
+3. Client enrolls with `POST /api/curriculum/packs/{slug}/enroll`.
+4. API loads the published pack and its `curriculum_pack_entries`.
+5. If the user already has an enrollment, API returns the existing curriculum `deck_id` (idempotent).
+6. Otherwise API creates a `decks` row with `origin = 'curriculum'`, `curriculum_pack_id` set, `is_default = false`.
+7. API inserts `user_word_senses` + `review_states` only for pack senses the user does **not** already own. Existing private items are never moved (`deck_id` stays on the private deck).
+8. API upserts `user_curriculum_enrollments` linking `(user_id, pack_id, deck_id)`.
+9. Client studies with `GET /api/reviews/due?deck_id=<curriculum_deck_id>` for an isolated curriculum-only session.
+
 ## Review Flow
 
 1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. It queries due items by joining `review_states` to `user_word_senses` and `words`, filtering to the resolved target language and deck.
@@ -144,11 +158,14 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | `DELETE /api/user/languages/{target_language}` | Remove user language pair | `auth.Service.RemoveUserLanguage` |
 | `GET /api/user/ui-language` | Get UI language | `auth.Service.GetUILanguage` |
 | `PUT /api/user/ui-language` | Set UI language | `auth.Service.SetUILanguage` |
-| `GET /api/decks` | List decks | `words.Service.ListDecks` |
-| `POST /api/decks` | Create deck | `words.Service.CreateDeck` |
-| `PATCH /api/decks/{deck_id}` | Rename deck | `words.Service.RenameDeck` |
-| `DELETE /api/decks/{deck_id}` | Delete deck | `words.Service.DeleteDeck` |
+| `GET /api/decks` | List decks (`origin` optional: `private` / `curriculum`) | `words.Service.ListDecks` |
+| `POST /api/decks` | Create private deck | `words.Service.CreateDeck` |
+| `PATCH /api/decks/{deck_id}` | Rename private deck | `words.Service.RenameDeck` |
+| `DELETE /api/decks/{deck_id}` | Delete private deck | `words.Service.DeleteDeck` |
 | `POST /api/decks/{deck_id}/move-items` | Move items to deck | `words.Service.MoveItemsToDeck` |
+| `GET /api/curriculum/packs` | List published curriculum packs + enrollment | `curriculum.Service.ListPacks` |
+| `GET /api/curriculum/packs/{slug}` | Pack detail + entry preview | `curriculum.Service.GetPack` |
+| `POST /api/curriculum/packs/{slug}/enroll` | Enroll into isolated curriculum deck | `curriculum.Service.Enroll` |
 | `POST /api/words/lookup` (no `force`) | Lookup | `words.Service.Lookup` |
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |

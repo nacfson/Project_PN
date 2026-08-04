@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { RouteProp } from '@react-navigation/native';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -111,6 +112,8 @@ export function PracticeScreen() {
   const tabBarHeight = 60 + insets.bottom;
   const cardStartedAtRef = useRef(Date.now());
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<RouteProp<MainTabParamList, 'Practice'>>();
+  const scopedDeckId = route.params?.deckId?.trim() || undefined;
 
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [sessionMode, setSessionMode] = useState<SessionMode>('normal');
@@ -251,7 +254,7 @@ export function PracticeScreen() {
     setStatus('loading_due');
     setErrorMsg(null);
     setSessionMode('normal');
-    getDueLearningItems()
+    getDueLearningItems(undefined, scopedDeckId)
       .then((items) => {
         setDueItems(items);
         if (items.length > 0) {
@@ -272,7 +275,7 @@ export function PracticeScreen() {
         setErrorMsg(err.message || t('practice.loadDueFailed'));
         setStatus('idle');
       });
-  }, [resetCardInteraction, t]);
+  }, [resetCardInteraction, scopedDeckId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -286,7 +289,7 @@ export function PracticeScreen() {
   const startRepeatSession = () => {
     setStatus('loading_repeat');
     setErrorMsg(null);
-    listLearningItems({ limit: 100 })
+    listLearningItems({ limit: 100, deckId: scopedDeckId })
       .then((res) => {
         const repeatItems = res.items.map(learningItemToDueItem);
 

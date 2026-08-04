@@ -36,7 +36,7 @@ export function AddScreen() {
 
     setDecksLoading(true);
     setDecksError(null);
-    listDecks(targetLanguage)
+    listDecks(targetLanguage, 'private')
       .then((loaded) => {
         setDecks(loaded);
         const defaultDeck = loaded.find((d) => d.is_default);

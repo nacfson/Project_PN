@@ -124,7 +124,7 @@ export function MyWordsScreen() {
     setDecksLoading(true);
     setDecksError(null);
     try {
-      const loaded = await listDecks(targetLanguage);
+      const loaded = await listDecks(targetLanguage, 'private');
       setDecks(loaded);
       setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : null));
     } catch (err) {
