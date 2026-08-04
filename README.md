@@ -27,7 +27,7 @@ For local backend setup details, see [`backend/docs/go-backend-setup.md`](backen
 | Understand the product and backend API | [`backend/docs/backend-overview.md`](backend/docs/backend-overview.md) |
 | Set up the local backend | [`backend/docs/go-backend-setup.md`](backend/docs/go-backend-setup.md) |
 | Learn frontend UX patterns | [`frontend/docs/frontend-ux-patterns.md`](frontend/docs/frontend-ux-patterns.md) |
-| Deploy to zlUbuntu | [`backend/docs/remote-deploy-runbook.md`](backend/docs/remote-deploy-runbook.md) |
+| Deploy to Oracle Cloud | [`backend/docs/remote-deploy-runbook.md`](backend/docs/remote-deploy-runbook.md) |
 | Fix deploy issues | [`deploy/deploy-exception-runbook.md`](deploy/deploy-exception-runbook.md) |
 | Run manual QA locally | [`docs/dev-test-plan.md`](docs/dev-test-plan.md) |
 | Build the browser extension | [`browser-extension/README.md`](browser-extension/README.md) |

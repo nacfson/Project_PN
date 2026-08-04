@@ -96,7 +96,7 @@ Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is document
 
 ## Public Docker Deployment
 
-The public deploy path uses Docker Compose on `zlUbuntu`: PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Forward router ports `80/tcp` and `443/tcp` to `zlUbuntu`, mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
+The public deploy path uses Docker Compose on an **Oracle Cloud** Ubuntu instance (`OracleCloud`): PostgreSQL, one-shot migrations, the Go API image, and nginx with HTTPS. Open OCI Security List / NSG ingress for `80/tcp` and `443/tcp` (optional staging `53412/tcp`), mount real certificates under `deploy/certs/`, and set `APP_PUBLIC_URL` to the public HTTPS domain. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
 
 See `backend/docs/go-backend-setup.md` and `backend/docs/remote-deploy-runbook.md` for deployment steps.
 

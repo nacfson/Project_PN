@@ -1,51 +1,69 @@
 # Project_PN Network Setup
 
-Current deployment configuration for the Project PN web app and backend API on `zlUbuntu`.
+Current deployment target is an **Oracle Cloud Infrastructure (OCI) Ubuntu instance**.
 
 The frontend is a static Expo web bundle served by nginx. API routes are proxied to the Go backend.
 
+SSH host alias used in docs and deploy scripts: `OracleCloud` (set this in `~/.ssh/config`).
+
 ## Server Addresses
 
-| Type | Address | Interface |
+| Type | Address | Notes |
 |---|---|---|
-| Public IP | `124.59.225.59` | WAN |
-| Public API URL | `http://124.59.225.59:53412` | nginx → backend |
-| Intranet (Ethernet) | `192.168.219.100` | `enp0s31f6` |
-| Intranet (Wi-Fi) | `192.168.219.109` | `wlp2s0` |
+| SSH host | `OracleCloud` | Local SSH config alias |
+| Public IP / domain | `YOUR_ORACLE_PUBLIC_IP` or `https://YOUR_PUBLIC_DOMAIN` | OCI VCN public IP or DNS |
+| Public API URL | `https://YOUR_PUBLIC_DOMAIN` or `http://YOUR_ORACLE_PUBLIC_IP:53412` | nginx → backend |
+
+Replace placeholders with your instance’s real public IP or domain before deploy.
 
 ## Backend Configuration
 
 File: `~/project-pn/deploy/.env`
 
 ```bash
-APP_PUBLIC_URL=http://124.59.225.59:53412
-ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081
+APP_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
+ALLOWED_ORIGINS=https://YOUR_PUBLIC_DOMAIN,http://localhost:8081,tauri://localhost,http://tauri.localhost
+```
+
+For HTTP staging on a custom port:
+
+```bash
+APP_PUBLIC_URL=http://YOUR_ORACLE_PUBLIC_IP:53412
+ALLOWED_ORIGINS=http://YOUR_ORACLE_PUBLIC_IP:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
 ```
 
 ## Nginx Ports
 
 From `compose.yaml`:
 
-- `80:80`   → HTTP
-- `443:443` → HTTPS (requires certs)
-- `53412:80` → Public staging access on non-standard port
+- `80:80` → HTTP
+- `443:443` → HTTPS (requires certs under `deploy/certs/`)
+- `53412:80` → Optional staging access on a non-standard port
 
-Required router port-forwarding rule for public staging:
+## Oracle Cloud networking (required)
+
+OCI does **not** use a home-router port-forward. Open ingress on the instance VCN:
+
+1. **Security List** and/or **Network Security Group** attached to the instance VNIC
+2. Allow inbound TCP from the internet (or your admin CIDR) for the ports you expose:
+   - `22` (SSH)
+   - `80` / `443` (production HTTPS)
+   - `53412` (optional staging HTTP)
+3. Confirm the subnet route table has an Internet Gateway for public ingress
+4. Confirm the instance has a public IP (or use a load balancer / DNS in front)
+
+Example security-list ingress (CIDR `0.0.0.0/0` only if you intend public access):
 
 ```text
-Protocol:              TCP
-External/WAN port:     53412-53412
-Internal/LAN IP:       192.168.219.100
-Internal/private port: 53412-53412
-Status:                ON / enabled
+TCP 22
+TCP 80
+TCP 443
+TCP 53412   # optional staging
 ```
-
-Do not set the internal/private port to `22-22`; that forwards public staging
-traffic to SSH instead of nginx/Project PN.
 
 ## Frontend Base URLs
 
-For the production/staging web build served by nginx, leave `EXPO_PUBLIC_API_BASE_URL` **unset** so the app resolves API calls from `window.location.origin`. This makes the same bundle work on both intranet and public IPs.
+For the production/staging web build served by nginx, leave `EXPO_PUBLIC_API_BASE_URL` **unset** so the app resolves API calls from `window.location.origin`.
 
 | Build Target | `EXPO_PUBLIC_API_BASE_URL` |
 |---|---|
@@ -61,9 +79,9 @@ EXPO_PUBLIC_API_BASE_URL= npm run web:export
 
 ## Web Bundle
 
-nginx serves the static files from `~/project-pn/deploy/web/` (mounted at `/usr/share/nginx/web` in the container).
+nginx serves static files from `~/project-pn/deploy/web/` (mounted at `/usr/share/nginx/web` in the container).
 
-Files are uploaded by `scripts/deploy-remote.sh` after running `npm run web:export`.
+Files are uploaded by `scripts/deploy-remote.sh` after `npm run web:export`.
 
 nginx routes:
 
@@ -79,20 +97,19 @@ nginx routes:
 | Action | Method | Path |
 |---|---|---|
 | Health check | GET | `/healthz` |
-| Login | POST | `/api/auth/login` |
-| Register | POST | `/api/auth/register` |
-| Google OAuth | POST | `/api/auth/oauth/google` |
-| Magic link | POST | `/api/auth/magic-link` |
+| Ready check | GET | `/readyz` |
 | Me | GET | `/api/auth/me` |
 | Lookup word | POST | `/api/words/lookup` |
 | Add learning item | POST | `/api/learning-items` |
+| Curriculum packs | GET | `/api/curriculum/packs` |
+| Enroll curriculum pack | POST | `/api/curriculum/packs/{slug}/enroll` |
 
 Full example:
 
 ```bash
-curl -X POST http://124.59.225.59:53412/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password"}'
+curl -X GET https://YOUR_PUBLIC_DOMAIN/healthz
+curl -X GET https://YOUR_PUBLIC_DOMAIN/api/curriculum/packs \
+  -H "Authorization: Bearer <token>"
 ```
 
 ## How to Update CORS Origins
@@ -102,6 +119,7 @@ curl -X POST http://124.59.225.59:53412/api/auth/login \
 3. Restart the API container:
 
 ```bash
+ssh OracleCloud
 cd ~/project-pn/deploy
 docker compose up -d --no-deps api nginx
 ```
@@ -111,34 +129,25 @@ docker compose up -d --no-deps api nginx
 From the server:
 
 ```bash
+ssh OracleCloud
 curl http://localhost:53412/healthz
 curl http://localhost:53412/ | head
+# or, if using 80/443:
+curl http://localhost/healthz
 ```
 
-From another device on the same LAN:
+From the public internet:
 
 ```bash
-curl http://192.168.219.100:53412/healthz
-curl http://192.168.219.100:53412/ | head
-# or
-curl http://192.168.219.109:53412/healthz
-curl http://192.168.219.109:53412/ | head
+curl https://YOUR_PUBLIC_DOMAIN/healthz
+curl https://YOUR_PUBLIC_DOMAIN/ | head
+# HTTP staging example:
+curl http://YOUR_ORACLE_PUBLIC_IP:53412/healthz
 ```
-
-From public internet:
-
-```bash
-curl http://124.59.225.59:53412/healthz
-curl http://124.59.225.59:53412/ | head
-```
-
-If `http://124.59.225.59/` opens the router admin page, public port `80` is not
-being forwarded to `zlUbuntu`. For the current staging setup, test the explicit
-custom port `http://124.59.225.59:53412/` from outside the LAN, such as mobile
-data.
 
 ## Notes
 
-- Intranet IPs are dynamic. If the router reboots, `192.168.219.100` / `192.168.219.109` may change. Set static DHCP leases in the router for a permanent setup.
-- Current deploy uses `EMAIL_PROVIDER=log` and `REQUIRE_EMAIL_VERIFIED=false`. This is a staging/dev configuration.
-- HTTPS is not currently enabled for public access. Port 443 is mapped but requires valid TLS certificates in `deploy/certs/`.
+- Prefer HTTPS + domain for production (`APP_PUBLIC_URL=https://…`).
+- If `deploy/compose.yaml` still contains a home-LAN `extra_hosts` entry for `auth.nacfson.cloud`, remove or replace it on Oracle Cloud so central auth resolves via public DNS.
+- TLS for port 443 requires valid certificate files in `~/project-pn/deploy/certs/`.
+- Historical home-LAN (`zlUbuntu` / `192.168.219.x`) notes live in older revision history; they are not the current target.

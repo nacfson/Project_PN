@@ -1,14 +1,16 @@
 # Project PN Deploy Exception Runbook
 
-Common failures when deploying or running Project PN on `zlUbuntu`, with causes
-and fixes.
+Common failures when deploying or running Project PN on the **Oracle Cloud**
+Ubuntu instance, with causes and fixes.
 
 Run all server-side commands via SSH:
 
 ```sh
-ssh zlUbuntu
+ssh OracleCloud
 cd ~/project-pn/deploy
 ```
+
+See also [`NETWORK_SETUP.md`](NETWORK_SETUP.md) for OCI security lists / NSG ports.
 
 ---
 
@@ -17,62 +19,56 @@ cd ~/project-pn/deploy
 **Cause:** You are running curl on the Mac. `localhost` means the Mac itself,
 not the remote server.
 
-**Fix:** Use the server IP:
+**Fix:** Use the Oracle Cloud public IP or domain:
 
 ```sh
-# Same LAN
-curl http://192.168.219.100:53412/healthz
-curl http://192.168.219.109:53412/healthz
-
-# Public internet
-curl http://124.59.225.59:53412/healthz
+curl https://YOUR_PUBLIC_DOMAIN/healthz
+# or HTTP staging:
+curl http://YOUR_ORACLE_PUBLIC_IP:53412/healthz
 ```
 
 To test directly on the server:
 
 ```sh
-ssh zlUbuntu 'curl http://localhost:53412/healthz'
+ssh OracleCloud 'curl -s http://localhost:53412/healthz'
+# or
+ssh OracleCloud 'curl -s http://localhost/healthz'
 ```
 
 ---
 
 ## Connection refused on public IP
 
-**Cause 1:** The router is not forwarding WAN port `53412` to `zlUbuntu`.
-If the router UI shows an internal/private port range, it must also be
-`53412-53412`; do not leave it as `22-22`, which forwards the public request to
-SSH instead of Project PN.
+**Cause 1:** OCI Security List / NSG does not allow inbound TCP on the port you
+are using (`80`, `443`, and/or `53412`).
 
-**Cause 2:** You are testing from inside the same LAN. Some home routers
-(including LG U+ CHGW units) do not support NAT hairpin/loopback, so a request
-to the WAN IP from an internal host is dropped by the router even though the
-port-forward rule is correct and works for real external users.
+**Cause 2:** The instance has no public IP, or the subnet has no Internet Gateway
+route.
 
-**Fix for Cause 1:** Add or verify the router port-forward rule:
+**Cause 3:** nginx/compose is not listening on the host port.
+
+**Fix for Cause 1:** In OCI Console → VCN → Security List / NSG, add ingress:
 
 ```text
-Protocol:              TCP
-External/WAN port:     53412-53412
-Internal/LAN IP:       192.168.219.100
-Internal/private port: 53412-53412
-Status:                ON / enabled
+TCP 22
+TCP 80
+TCP 443
+TCP 53412   # optional staging
+Source CIDR: 0.0.0.0/0   # or your admin CIDR
 ```
 
-**Fix for Cause 2:** Test from a genuinely external network (mobile hotspot,
-another location, or an external service):
+**Fix for Cause 2:** Attach a public IP to the VNIC and ensure the subnet route
+table sends `0.0.0.0/0` to an Internet Gateway.
+
+**Fix for Cause 3:** On the server:
 
 ```sh
-curl http://124.59.225.59:53412/healthz
+ssh OracleCloud
+cd ~/project-pn/deploy
+docker compose --env-file .env ps
+docker compose --env-file .env logs --no-color nginx api
+ss -lntp | rg '80|443|53412'
 ```
-
-If it works from outside but fails from inside the LAN, the rule is correct and
-the router simply lacks NAT hairpin support. Continue using the public IP for
-external access and use the LAN IP or the Cloudflare tunnel for local testing.
-
-If `http://124.59.225.59/` shows a router admin page such as
-`/etc/intro.asp`, public port `80` is still terminating at the router. Use the
-custom staging port `53412` and make sure the forwarding rule targets
-`192.168.219.100:53412`.
 
 ---
 
@@ -83,226 +79,145 @@ custom staging port `53412` and make sure the forwarding rule targets
 **Fix:** Edit the remote `.env` and restart the API:
 
 ```sh
-ssh zlUbuntu
+ssh OracleCloud
 cd ~/project-pn/deploy
 grep ALLOWED_ORIGINS .env
 ```
 
-Expected for intranet + public access + Tauri desktop:
+Expected for public Oracle Cloud + local Expo/Tauri:
 
 ```env
-ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
+ALLOWED_ORIGINS=https://YOUR_PUBLIC_DOMAIN,http://localhost:8081,tauri://localhost,http://tauri.localhost
+```
+
+HTTP staging example:
+
+```env
+ALLOWED_ORIGINS=http://YOUR_ORACLE_PUBLIC_IP:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost
 ```
 
 If it is wrong, update it and restart:
 
 ```sh
-# Use sed or a text editor
-sed -i 's|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=http://124.59.225.59:53412,http://192.168.219.100:53412,http://192.168.219.109:53412,http://localhost:8081,tauri://localhost,http://tauri.localhost|' .env
+# Use sed or a text editor — replace with your real origin(s)
+sed -i 's|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://YOUR_PUBLIC_DOMAIN,http://localhost:8081,tauri://localhost,http://tauri.localhost|' .env
 docker compose up -d --no-deps api nginx
+```
+
+---
+
+## Migration password failed
+
+**Cause:** Remote Postgres volume was initialized with a different
+`POSTGRES_PASSWORD` than the one in `.env`.
+
+**Fix:** Set the old password in local `deploy/.deploy.env` and redeploy:
+
+```env
+EXISTING_POSTGRES_PASSWORD=old-password
+```
+
+Then:
+
+```sh
+scripts/deploy-remote.sh
+```
+
+Inspect migrate logs:
+
+```sh
+ssh OracleCloud 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
 ```
 
 ---
 
 ## 502 Bad Gateway from nginx
 
-**Cause:** The `api` container is down, unhealthy, or crashed.
+**Cause:** API container is down, restarting, or not healthy.
 
-**Fix:** Check logs and status:
+**Fix:**
 
 ```sh
-ssh zlUbuntu
+ssh OracleCloud
 cd ~/project-pn/deploy
-docker compose ps
-docker compose logs --tail 100 api
-```
-
-Common causes:
-
-- PostgreSQL not healthy → `docker compose logs postgres`
-- Migration failed → `docker compose logs migrate`
-- Missing env var → `docker compose config | grep -A2 'APP_PUBLIC_URL\|WEB_APP_PUBLIC_URL'`
-
-Restart everything:
-
-```sh
-docker compose down
-docker compose up -d
+docker compose --env-file .env ps
+docker compose --env-file .env logs --no-color api
+docker compose --env-file .env up -d --force-recreate api
+curl -s http://127.0.0.1:8080/readyz || curl -s http://127.0.0.1/readyz
 ```
 
 ---
 
-## Migration password authentication failed
+## Old web bundle still shown
 
-**Cause:** The Postgres volume already exists with an older password, but the
-new `.env` has a different `POSTGRES_PASSWORD`.
+**Cause:** Browser cache or nginx not reloading uploaded files.
 
-**Fix:** Set the old password locally and rerun deploy:
-
-```sh
-# On your Mac, in /Users/hyungjuyu/Projects/iOS/Project_PN
-EXISTING_POSTGRES_PASSWORD=<old-password> scripts/deploy-remote.sh
-```
-
-If you do not know the old password and the data is disposable, remove the
-volume (destructive):
+**Fix:**
 
 ```sh
-ssh zlUbuntu
-cd ~/project-pn/deploy
-docker compose down -v
-docker compose up -d
+# From Mac (after web:export)
+scp -r frontend/dist/. OracleCloud:~/project-pn/deploy/web/
+ssh OracleCloud 'cd ~/project-pn/deploy && docker compose up -d --force-recreate nginx'
 ```
+
+Hard-refresh the browser (or clear site cache).
 
 ---
 
-## `frontend/dist` missing or stale
+## Central auth / enrichment outbound failures
 
-**Cause:** The deploy script did not run the frontend build, or the local bundle
-is outdated.
+**Cause:** Oracle Cloud egress blocked, or `deploy/compose.yaml` still pins
+`auth.nacfson.cloud` to an old home-LAN IP via `extra_hosts`.
 
-**Fix:** Build manually and verify timestamps:
+**Fix:**
 
-```sh
-cd /Users/hyungjuyu/Projects/iOS/Project_PN/frontend
-EXPO_PUBLIC_API_BASE_URL= npm run web:export
-ls -la dist/index.html
-```
-
-Then redeploy or upload:
-
-```sh
-scp -r frontend/dist/. zlUbuntu:~/project-pn/deploy/web/
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose up -d --force-recreate nginx'
-```
+1. Remove home-LAN `extra_hosts` overrides for `auth.nacfson.cloud` on Oracle Cloud.
+2. Confirm the instance can reach the public internet (`curl -I https://auth.nacfson.cloud`).
+3. Restart API after compose changes.
 
 ---
 
-## TLS / certificate errors on HTTPS
+## Magic link / OAuth redirect wrong
 
-**Cause:** nginx port 443 needs `certs/fullchain.pem` and `certs/privkey.pem`.
+**Cause:** `APP_PUBLIC_URL` in remote `.env` does not match the URL users open.
 
-**Fix:** On `zlUbuntu`:
+**Fix:**
 
 ```sh
+ssh OracleCloud
 cd ~/project-pn/deploy
-ls -la certs/
-```
-
-If missing, obtain or copy certificates into `deploy/certs/` and restart nginx:
-
-```sh
-docker compose up -d --force-recreate nginx
-```
-
-For staging over HTTP, use port `53412` instead of `443`.
-
----
-
-## Old bundle still served after deploy
-
-**Cause:** nginx cached the old files or the new bundle was not uploaded.
-
-**Fix:** Force recreate the nginx container:
-
-```sh
-ssh zlUbuntu
-cd ~/project-pn/deploy
-docker compose up -d --force-recreate nginx
-ls -la web/index.html
-```
-
----
-
-## Magic link redirects to wrong URL
-
-**Cause:** `APP_PUBLIC_URL` or `WEB_APP_PUBLIC_URL` in remote `.env` does not match the URL users open.
-
-**Fix:** Update and restart API:
-
-```sh
-ssh zlUbuntu
-cd ~/project-pn/deploy
-grep -E 'APP_PUBLIC_URL|WEB_APP_PUBLIC_URL' .env
-```
-
-For staging:
-
-```env
-APP_PUBLIC_URL=http://124.59.225.59:53412
-```
-
-Then:
-
-```sh
+grep APP_PUBLIC_URL .env
+# set to https://YOUR_PUBLIC_DOMAIN (or the staging URL users actually use)
 docker compose up -d --no-deps api
 ```
 
 ---
 
-## Container does not restart after reboot
+## Deploy script cannot resolve host
 
-**Cause:** Docker Compose services may not start automatically unless configured.
+**Cause:** `DEPLOY_HOST` in `deploy/.deploy.env` is not a valid SSH alias.
 
-**Fix:** The current `compose.yaml` uses `restart: unless-stopped`, which restarts
-after a Docker daemon restart. If the host reboots, start manually:
+**Fix:** Use the Oracle Cloud SSH alias:
 
-```sh
-ssh zlUbuntu
-cd ~/project-pn/deploy
-docker compose up -d
+```env
+DEPLOY_HOST=OracleCloud
 ```
 
-For automatic host-level restart, add a systemd service or cron `@reboot` entry.
+and ensure `~/.ssh/config` has:
+
+```sshconfig
+Host OracleCloud
+  HostName YOUR_ORACLE_PUBLIC_IP
+  User ubuntu
+  IdentityFile ~/.ssh/your_oci_key
+```
 
 ---
 
-## Port 80 occupied by host-level nginx or host-networked containers during SSL setup
-
-**Cause:** Nginx processes running on the host system or in other Docker containers using `network_mode: host` are occupying port 80. Standard `docker compose stop` or systemd service checks will not free port 80, preventing Certbot from binding to it.
-
-**Fix:** Identify the conflicting PIDs using `ss` or `lsof` and map them to their corresponding Docker container (or stop/kill them if they are host processes):
-
-1. Find the host PIDs listening on port 80:
-   ```bash
-   sudo ss -tulpn | grep :80
-   ```
-2. Check if a PID belongs to a Docker container by querying container PIDs:
-   ```bash
-   docker ps -q | xargs docker inspect --format '{{.State.Pid}} {{.Name}}'
-   ```
-3. If it belongs to a container, stop it:
-   ```bash
-   docker stop <container_id>
-   ```
-4. If it is a host process (e.g. standalone host nginx), stop or kill it:
-   ```bash
-   sudo nginx -s stop || sudo kill -9 <pid>
-   ```
-5. Run Certbot and restart the services afterwards.
-
-A helper script automating this is located at `scripts/setup-ssl.sh`.
-
----
-
-## Useful Debug Commands
+## Quick checks
 
 ```sh
-# All containers
-docker compose ps
-
-# Recent logs across all services
-docker compose logs --tail 200
-
-# API logs only
-docker compose logs --tail 200 api
-
-# Inspect running API env
-docker compose exec api env | sort
-
-# Test backend directly, bypassing nginx
-curl http://api:8080/healthz
-
-# Test from inside nginx container
-docker compose exec nginx wget -qO- http://api:8080/healthz
+ssh OracleCloud 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
+ssh OracleCloud 'curl -s http://localhost:53412/readyz || curl -s http://localhost/readyz'
+curl -s https://YOUR_PUBLIC_DOMAIN/readyz
 ```

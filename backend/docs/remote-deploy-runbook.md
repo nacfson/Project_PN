@@ -23,7 +23,7 @@ docker --version
 docker compose version
 ```
 
-The SSH user must be able to run Docker. For public access from outside the intranet, router port-forward public `80/tcp` and `443/tcp` to `zlUbuntu`, and use HTTPS with real certificate files.
+The SSH user must be able to run Docker. Current target is an **Oracle Cloud** Ubuntu instance (`DEPLOY_HOST=OracleCloud`). Open OCI Security List / NSG ingress for `80/tcp`, `443/tcp` (and optional staging `53412/tcp`), and use HTTPS with real certificate files when serving on 443.
 
 ## Local Deploy Config
 
@@ -36,7 +36,7 @@ cp deploy/.deploy.env.example deploy/.deploy.env
 Example:
 
 ```env
-DEPLOY_HOST=zlUbuntu
+DEPLOY_HOST=OracleCloud
 DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
 DEPLOY_ACCESS_SCOPE=public
 REMOTE_DIR='~/project-pn/deploy'
@@ -44,9 +44,9 @@ IMAGE_NAME=project-pn-backend
 PLATFORM=linux/amd64
 ```
 
-Use the exact `Host` alias from `~/.ssh/config` for `DEPLOY_HOST`.
+Use the exact `Host` alias from `~/.ssh/config` for `DEPLOY_HOST` (recommended: `OracleCloud`).
 
-For access outside your intranet, deploy to a server with a public IP/domain and set:
+For public internet access, set:
 
 ```env
 DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
@@ -57,37 +57,13 @@ DEPLOY_ACCESS_SCOPE=public
 `172.16.x.x`-`172.31.x.x`, and `192.168.x.x` URLs because those are not
 reachable from the public internet.
 
-If the server is behind a home/office router and the public IP shows the router
-admin page instead of Project PN, inbound traffic is not being forwarded to the
-Ubuntu host. Fix that with one of these durable options:
+On Oracle Cloud, public reachability depends on:
 
-- move the stack to a public cloud host
-- configure router/NAT port-forwarding for both `80/tcp` and `443/tcp` to the
-  Ubuntu host (`zlUbuntu`)
-- run a named Cloudflare Tunnel on a domain you control
+- instance public IP (or load balancer / DNS)
+- VCN Internet Gateway route
+- Security List / NSG ingress for `80` / `443` (and optional `53412`)
 
-For temporary outside-intranet testing only, you can use a Cloudflare
-TryCloudflare quick tunnel. Cloudflare quick tunnels create a random
-`trycloudflare.com` URL and proxy it back to a localhost web server, but
-Cloudflare documents them as testing/development only, not production.
-
-```sh
-QUICK_TUNNEL_ACK=public-test-only scripts/start-remote-quick-tunnel.sh
-```
-
-To also update the remote `.env` so CORS allows it, run:
-
-```sh
-QUICK_TUNNEL_ACK=public-test-only UPDATE_REMOTE_ENV=true scripts/start-remote-quick-tunnel.sh
-```
-
-The helper writes `cloudflared.pid` and `cloudflared.log` in the remote deploy
-directory. Check or stop the temporary tunnel with:
-
-```sh
-QUICK_TUNNEL_ACTION=status scripts/start-remote-quick-tunnel.sh
-QUICK_TUNNEL_ACTION=stop scripts/start-remote-quick-tunnel.sh
-```
+See [`deploy/NETWORK_SETUP.md`](../../deploy/NETWORK_SETUP.md).
 
 If a remote Postgres volume already exists and was initialized with an older password, add the old password locally:
 
@@ -146,7 +122,7 @@ The generated remote `.env` includes a random `POSTGRES_PASSWORD`, matching `DAT
 From local Mac:
 
 ```sh
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
+ssh OracleCloud 'cd ~/project-pn/deploy && docker compose --env-file .env ps'
 curl https://YOUR_PUBLIC_DOMAIN/readyz
 ```
 
@@ -166,7 +142,7 @@ SSH alias typo:
 Could not resolve hostname
 ```
 
-Fix `DEPLOY_HOST` in `deploy/.deploy.env`.
+Fix `DEPLOY_HOST=OracleCloud` in `deploy/.deploy.env` and your `~/.ssh/config`.
 
 Remote path expanded on macOS:
 
@@ -191,8 +167,8 @@ Set `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` and rerun the script.
 Inspect logs:
 
 ```sh
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
-ssh zlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color api'
+ssh OracleCloud 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color migrate'
+ssh OracleCloud 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no-color api'
 ```
 
 ## Safety
