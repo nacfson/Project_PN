@@ -20,7 +20,7 @@ type patchReviewSettingsRequest struct {
 func (h *reviewSettingsHandler) getReviewSettings(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.svc.GetReviewSettings(r.Context(), userIDFromRequest(r))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, settings)
@@ -61,13 +61,13 @@ type patchStreakSettingsRequest struct {
 func (h *streakSettingsHandler) getStreakSettings(w http.ResponseWriter, r *http.Request) {
 	dueToday, err := h.svc.CountDueToday(r.Context(), userIDFromRequest(r))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 
 	settings, err := h.svc.GetStreakSettings(r.Context(), userIDFromRequest(r), dueToday)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, settings)

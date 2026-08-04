@@ -1,10 +1,13 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func TestHTTPLoggingMiddleware_Logs5xxAndRecordsMetrics(t *testing.T) {
@@ -18,6 +21,7 @@ func TestHTTPLoggingMiddleware_Logs5xxAndRecordsMetrics(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.RequestIDKey, "req-abc"))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -32,6 +36,9 @@ func TestHTTPLoggingMiddleware_Logs5xxAndRecordsMetrics(t *testing.T) {
 	}
 	if !contains(logger.logs[0], "[ERROR]") {
 		t.Fatalf("expected [ERROR] log, got %s", logger.logs[0])
+	}
+	if !contains(logger.logs[0], "request_id=req-abc") {
+		t.Fatalf("expected request_id in ERROR log, got %s", logger.logs[0])
 	}
 	if !contains(logger.logs[1], "[METRICS]") {
 		t.Fatalf("expected [METRICS] log, got %s", logger.logs[1])
@@ -95,9 +102,9 @@ func TestHTTPLoggingMiddleware_NilCollector(t *testing.T) {
 
 type panicLogger struct{}
 
-func (panicLogger) Log(string, string)                   {}
+func (panicLogger) Log(string, string)                  {}
 func (panicLogger) Logf(string, string, ...interface{}) { panic("logger panic") }
-func (panicLogger) Close() error                         { return nil }
+func (panicLogger) Close() error                        { return nil }
 
 func TestHTTPLoggingMiddleware_PanickingLogger(t *testing.T) {
 	collector := NewMetricsCollector()

@@ -34,7 +34,7 @@ func (h *notificationsHandler) registerPushToken(w http.ResponseWriter, r *http.
 			writeError(w, http.StatusBadRequest, strings.TrimSpace(strings.TrimPrefix(msg, "words:")))
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -51,7 +51,7 @@ func (h *contentHandler) getWordOfTheDay(w http.ResponseWriter, r *http.Request)
 
 	word, err := h.svc.GetWordOfTheDay(r.Context(), userIDFromRequest(r), langCode, defLangCode)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 	if word.SenseOptions == nil {

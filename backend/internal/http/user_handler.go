@@ -41,7 +41,7 @@ func (h *userHandler) listLanguages(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromRequest(r)
 	langs, err := h.svc.GetUserLanguages(r.Context(), userID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 	if langs == nil {
@@ -67,7 +67,7 @@ func (h *userHandler) addLanguage(w http.ResponseWriter, r *http.Request) {
 
 	ul, err := h.svc.AddUserLanguage(r.Context(), userIDFromRequest(r), req.TargetLanguage, req.DisplayLanguage, req.SetActive)
 	if err != nil {
-		h.writeUserError(w, err)
+		h.writeUserError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, ul)
@@ -94,7 +94,7 @@ func (h *userHandler) updateLanguagePair(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.svc.UpdateUserLanguage(r.Context(), userIDFromRequest(r), targetLang, req.NewTargetLanguage, req.DisplayLanguage); err != nil {
-		h.writeUserError(w, err)
+		h.writeUserError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -108,7 +108,7 @@ func (h *userHandler) setActiveLanguage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.svc.SetActiveUserLanguage(r.Context(), userIDFromRequest(r), targetLang); err != nil {
-		h.writeUserError(w, err)
+		h.writeUserError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -122,7 +122,7 @@ func (h *userHandler) removeLanguage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.RemoveUserLanguage(r.Context(), userIDFromRequest(r), targetLang); err != nil {
-		h.writeUserError(w, err)
+		h.writeUserError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -131,7 +131,7 @@ func (h *userHandler) removeLanguage(w http.ResponseWriter, r *http.Request) {
 func (h *userHandler) getUILanguage(w http.ResponseWriter, r *http.Request) {
 	lang, err := h.svc.GetUILanguage(r.Context(), userIDFromRequest(r))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, uiLanguageResponse{UILanguage: lang})
@@ -149,13 +149,13 @@ func (h *userHandler) setUILanguage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.SetUILanguage(r.Context(), userIDFromRequest(r), req.UILanguage); err != nil {
-		h.writeUserError(w, err)
+		h.writeUserError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *userHandler) writeUserError(w http.ResponseWriter, err error) {
+func (h *userHandler) writeUserError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, auth.ErrInvalidTargetLang):
 		writeError(w, http.StatusBadRequest, "invalid target language")
@@ -168,6 +168,6 @@ func (h *userHandler) writeUserError(w http.ResponseWriter, err error) {
 	case errors.Is(err, auth.ErrTargetLanguageExists):
 		writeError(w, http.StatusConflict, "target language already exists")
 	default:
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 	}
 }

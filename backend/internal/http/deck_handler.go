@@ -45,7 +45,7 @@ func (h *deckHandler) listDecks(w http.ResponseWriter, r *http.Request) {
 	origin := strings.TrimSpace(r.URL.Query().Get("origin"))
 	decks, err := h.svc.ListDecks(r.Context(), userIDFromRequest(r), langCode, origin)
 	if err != nil {
-		h.writeDeckError(w, err)
+		h.writeDeckError(w, r, err)
 		return
 	}
 	if decks == nil {
@@ -71,7 +71,7 @@ func (h *deckHandler) createDeck(w http.ResponseWriter, r *http.Request) {
 
 	deck, err := h.svc.CreateDeck(r.Context(), userIDFromRequest(r), req.Name, req.TargetLanguage)
 	if err != nil {
-		h.writeDeckError(w, err)
+		h.writeDeckError(w, r, err)
 		return
 	}
 	h.logf("DECK_CREATED", "%s created deck '%s' (%s)", userIdentifierFromRequest(r), deck.Name, deck.TargetLanguage)
@@ -96,7 +96,7 @@ func (h *deckHandler) renameDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.RenameDeck(r.Context(), userIDFromRequest(r), deckID, req.Name); err != nil {
-		h.writeDeckError(w, err)
+		h.writeDeckError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -110,7 +110,7 @@ func (h *deckHandler) deleteDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.DeleteDeck(r.Context(), userIDFromRequest(r), deckID); err != nil {
-		h.writeDeckError(w, err)
+		h.writeDeckError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -136,13 +136,13 @@ func (h *deckHandler) moveItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.MoveItemsToDeck(r.Context(), userIDFromRequest(r), deckID, req.UserWordSenseIDs); err != nil {
-		h.writeDeckError(w, err)
+		h.writeDeckError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *deckHandler) writeDeckError(w http.ResponseWriter, err error) {
+func (h *deckHandler) writeDeckError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, words.ErrDeckNotFound):
 		writeError(w, http.StatusNotFound, "deck not found")
@@ -163,6 +163,6 @@ func (h *deckHandler) writeDeckError(w http.ResponseWriter, err error) {
 	case errors.Is(err, words.ErrInvalidTargetLanguagePair), errors.Is(err, words.ErrInvalidTargetLang):
 		writeError(w, http.StatusBadRequest, "invalid target language")
 	default:
-		writeError(w, http.StatusInternalServerError, "internal error")
+		writeInternalError(w, r, err)
 	}
 }
