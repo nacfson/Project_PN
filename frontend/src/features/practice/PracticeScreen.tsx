@@ -142,6 +142,10 @@ export function PracticeScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const statusRef = useRef(status);
 
+  // Hide tab bar while typing/grading chrome is up so mobile web does not cover controls.
+  const hideTabBarForPracticeChrome =
+    status === 'active' && ((cardMode === 'typing' && !isFlipped) || isFlipped);
+
   const toggleFlip = () => {
     if (cardMode === 'typing' && !isFlipped) {
       return;
@@ -222,11 +226,10 @@ export function PracticeScreen() {
     };
   }, [status, isFlipped, cardMode, userAnswer]);
 
-  // Hide tab bar while the typing answer bar is visible to maximize screen space
-  const showAnswerBarForTabHide = status === 'active' && cardMode === 'typing' && !isFlipped;
+  // Keep the absolute tab bar tucked away while practice bottom chrome is visible.
   useEffect(() => {
     if (!scrollContext) return;
-    if (showAnswerBarForTabHide) {
+    if (hideTabBarForPracticeChrome) {
       scrollContext.tabBarTranslateY.value = 100;
     } else {
       scrollContext.tabBarTranslateY.value = 0;
@@ -236,7 +239,7 @@ export function PracticeScreen() {
         scrollContext.tabBarTranslateY.value = 0;
       }
     };
-  }, [showAnswerBarForTabHide, scrollContext]);
+  }, [hideTabBarForPracticeChrome, scrollContext]);
 
   const resetCardInteraction = useCallback(() => {
     cardStartedAtRef.current = Date.now();
@@ -648,17 +651,22 @@ export function PracticeScreen() {
   const blankedSentence = example ? getBlankedSentence(example.sentence, currentItem.normalized_text) : '';
 
   const showAnswerBar = cardMode === 'typing' && !isFlipped;
-  const answerBarHeight = 144 + tabBarHeight;
+  const showGradingBar = isFlipped;
+  // Screen always reserves tab-bar height under the flex child. While the tab bar
+  // is translated away, pull the sticky chrome into that spacer so it sits flush.
+  const bottomBarOffset = hideTabBarForPracticeChrome ? -(tabBarHeight + 16) : 0;
+  const answerBarHeight = 144 + insets.bottom - Math.min(bottomBarOffset, 0);
+  const gradingBarHeight = (sessionMode === 'repeat' ? 220 : 168) + insets.bottom - Math.min(bottomBarOffset, 0);
 
   const answerBar = showAnswerBar ? (
     <Card
       glass={true}
       style={[
-        styles.answerBar,
+        styles.bottomBar,
         {
           borderTopColor: colors.outlineVariant,
           paddingBottom: spacing.lg + insets.bottom,
-          bottom: 0,
+          bottom: bottomBarOffset,
         },
       ]}
     >
@@ -707,6 +715,38 @@ export function PracticeScreen() {
     </Card>
   ) : null;
 
+  const gradingBar = showGradingBar ? (
+    <Card
+      glass={true}
+      style={[
+        styles.bottomBar,
+        styles.gradingBar,
+        {
+          borderTopColor: colors.outlineVariant,
+          paddingBottom: spacing.md + insets.bottom,
+          bottom: bottomBarOffset,
+          gap: spacing.md,
+        },
+      ]}
+    >
+      <Text variant="caption" color="muted" style={{ textAlign: 'center' }} bold>
+        {t('practice.rateRecall')}
+      </Text>
+      <RatingBar
+        intervals={currentItem.preview_intervals}
+        onSelect={selectGrade}
+      />
+      {sessionMode === 'repeat' && (
+        <Button
+          label={t('practice.finishRepeat')}
+          variant="outline"
+          style={{ width: '100%' }}
+          onPress={finishRepeatSession}
+        />
+      )}
+    </Card>
+  ) : null;
+
   return (
     <Screen padded>
       <KeyboardAvoidingView
@@ -719,6 +759,7 @@ export function PracticeScreen() {
           contentContainerStyle={[
             styles.scroll,
             showAnswerBar && { paddingBottom: answerBarHeight + spacing.md },
+            showGradingBar && { paddingBottom: gradingBarHeight + spacing.md },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
@@ -764,37 +805,10 @@ export function PracticeScreen() {
               userAnswer={userAnswer}
               isPreviouslyFailed={isPreviouslyFailed}
               onFlip={toggleFlip}
+              onRate={selectGrade}
             />
           </Animated.View>
 
-          {isFlipped && (
-            <Card
-              glass={true}
-              style={[
-                styles.gradingPanel,
-                {
-                  gap: spacing.md,
-                  borderTopColor: colors.outlineVariant,
-                },
-              ]}
-            >
-              <Text variant="caption" color="muted" style={{ textAlign: 'center' }} bold>
-                {t('practice.rateRecall')}
-              </Text>
-              <RatingBar
-                intervals={currentItem.preview_intervals}
-                onSelect={selectGrade}
-              />
-              {sessionMode === 'repeat' && (
-                <Button
-                  label={t('practice.finishRepeat')}
-                  variant="outline"
-                  style={{ width: '100%' }}
-                  onPress={finishRepeatSession}
-                />
-              )}
-            </Card>
-          )}
           {sessionMode === 'repeat' && !isFlipped && (
             <Button
               label={t('practice.finishRepeat')}
@@ -806,6 +820,7 @@ export function PracticeScreen() {
         </ScrollView>
 
         {answerBar}
+        {gradingBar}
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -851,7 +866,7 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  answerBar: {
+  bottomBar: {
     position: 'absolute',
     left: 0,
     right: 0,
@@ -862,6 +877,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     gap: 10,
     zIndex: 999,
+  },
+  gradingBar: {
+    // Keep rate controls above mobile browser chrome / home indicator.
   },
   answerInput: {
     width: '100%',
@@ -879,14 +897,6 @@ const styles = StyleSheet.create({
   },
   revealButton: {
     flex: 1,
-  },
-  gradingPanel: {
-    width: '100%',
-    marginTop: 18,
-    paddingTop: 16,
-    paddingHorizontal: 14,
-    paddingBottom: 14,
-    borderTopWidth: 1,
   },
   saveIndicator: {
     flexDirection: 'row',
