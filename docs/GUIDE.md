@@ -20,7 +20,7 @@ This guide maps every documentation file in the repository. Use it to find the r
 | [`go-backend-setup.md`](../backend/docs/go-backend-setup.md) | Local setup, migrations, environment variables, tests, Docker deploy |
 | [`backend-acceptance-tests.md`](../backend/docs/backend-acceptance-tests.md) | Schema and HTTP acceptance scenarios |
 | [`backend-future-scope.md`](../backend/docs/backend-future-scope.md) | Tables and features intentionally out of MVP |
-| [`remote-deploy-runbook.md`](../backend/docs/remote-deploy-runbook.md) | Production-style deploy to wlUbuntu |
+| [`remote-deploy-runbook.md`](../backend/docs/remote-deploy-runbook.md) | Production-style deploy to wlUbuntu; Cursor merge deploy (local worker) |
 | [`remote-access-port-forward-summary.md`](../backend/docs/remote-access-port-forward-summary.md) | Port forwarding notes |
 
 ## Frontend Docs

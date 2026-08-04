@@ -31,10 +31,14 @@ Before running the deploy, confirm:
   ```
 - [ ] The remote `~/project-pn/deploy/.env` has `AUTH_MODE=central`,
   `CENTRAL_AUTH_URL=https://auth.nacfson.cloud`,
-  `CENTRAL_AUTH_INTERNAL_URL=http://192.168.219.120:<auth-nodeport>`,
+  `CENTRAL_AUTH_INTERNAL_URL=http://192.168.219.120:31956`
+  (auth-service **NodePort** — ClusterIP is not reachable from Compose on the host),
   `APP_PUBLIC_URL=https://pn.nacfson.cloud`, and matching `ALLOWED_ORIGINS`.
+- [ ] Central auth is **magic-link only** (`https://auth.nacfson.cloud/login`).
 - [ ] Production HTTPS is on ingress (`pn-tls` / `auth-service-tls` Let's Encrypt).
   Compose certs under `~/project-pn/deploy/certs/` stay in sync via acme reload hook.
+- [ ] Ingress `project-pn` (ProcessManager `k8s/project-pn/compose-ingress.yaml`)
+  proxies `pn.nacfson.cloud` → host `192.168.219.120:53412`.
 
 ## Deploy Workflow
 
@@ -120,14 +124,15 @@ curl -fsS -o /dev/null -w '%{http_code}\n' https://auth.nacfson.cloud/login
 
 ### 7. Browser smoke test
 
-Open `https://pn.nacfson.cloud` (central login via `auth.nacfson.cloud`):
+Open `https://pn.nacfson.cloud` (central login via magic link on `auth.nacfson.cloud`):
 
-1. Log in with central auth.
-2. Go to the Capture screen.
-3. Paste text and tap a word.
-4. Confirm `POST /api/words/lookup` succeeds.
-5. Pick a sense and add it.
-6. Confirm `POST /api/learning-items` succeeds and the chip shows "added".
+1. Click Sign In → Nacfson Cloud login → enter email → open magic link.
+2. Confirm redirect returns with `?token=` / session and PN loads.
+3. Go to the Capture screen.
+4. Paste text and tap a word.
+5. Confirm `POST /api/words/lookup` succeeds.
+6. Pick a sense and add it.
+7. Confirm `POST /api/learning-items` succeeds and the chip shows "added".
 
 ## How the Build Works
 
@@ -154,9 +159,9 @@ Copy and check off after deploy:
 - [ ] scripts/deploy-remote.sh completed with {"status":"ready"}
 - [ ] curl http://localhost:53412/ returns index.html (on server)
 - [ ] curl https://pn.nacfson.cloud/readyz succeeds (LE cert, not Fake Certificate)
-- [ ] curl https://auth.nacfson.cloud/login returns 200
+- [ ] curl https://auth.nacfson.cloud/login returns 200 (magic-link UI)
 - [ ] Browser loads the web app without CORS or cert errors
-- [ ] Central login works
+- [ ] Magic-link central login works
 - [ ] Lookup word and add learning item work
 ```
 
@@ -172,5 +177,8 @@ Copy and check off after deploy:
 | Migration password failed | `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env` |
 | Old bundle still shown | Force recreate nginx: `docker compose up -d --force-recreate nginx` |
 | Magic link wrong redirect | `APP_PUBLIC_URL=https://pn.nacfson.cloud` in remote `.env` |
+| Password login expected | Removed — auth is magic-link only on `auth.nacfson.cloud` |
+| Auth/K8s image deploy | Use `~/.cursor/skills/deploy-nacfson-project/SKILL.md` (not this Compose flow) |
+| Magic link opens PN but Sign In again (401) | Auth NodePort dead — `curl http://192.168.219.120:31956/healthz`; Service must be `NodePort 31956` matching `CENTRAL_AUTH_INTERNAL_URL` |
 
 For deeper diagnosis, read `deploy/deploy-exception-runbook.md`.

@@ -204,3 +204,59 @@ ssh wlUbuntu 'cd ~/project-pn/deploy && docker compose --env-file .env logs --no
 - The script does not overwrite an existing remote `.env`.
 - Do not delete Docker volumes unless the staging database is disposable.
 - Do not print or commit generated `.env` secrets.
+
+## Cursor merge deploy (cloud dev, local deploy)
+
+Day-to-day feature work can run in **Cursor Cloud** using [`.cursor/environment.json`](../../.cursor/environment.json) (Postgres, migrations, optional API terminal). **Production deploy is not run from cloud VMs** for this project.
+
+When a PR merges to `main`, a **Cursor Automation** can deploy from your **Mac** via [My Machines](https://cursor.com/docs/cloud-agent/self-hosted-guides/my-machines.md): the cloud agent loop runs, but terminal tools execute on a local worker with your existing `deploy/.deploy.env`, Docker Desktop, and `ssh wlUbuntu`.
+
+### Prerequisites
+
+- [`deploy/.deploy.env`](../../deploy/.deploy.env.example) on the Mac (`DEPLOY_HOST=wlUbuntu`, etc.)
+- Docker Desktop running when deploy runs
+- `ssh wlUbuntu` works from Terminal
+- Remote `~/project-pn/deploy/.env` already configured (first deploy creates it; later deploys preserve it)
+
+### My Machines worker
+
+Start and keep a worker pointed at this repo:
+
+```sh
+scripts/start-cursor-worker.sh
+```
+
+Optional persistence: copy [`deploy/cursor-worker.launchd.plist.example`](../../deploy/cursor-worker.launchd.plist.example), replace `REPO_ROOT` with your checkout path, install under `~/Library/LaunchAgents/`, and `launchctl load` it.
+
+Verify the machine appears at [cursor.com/agents](https://cursor.com/agents). Run `agent worker debug` if the worker fails to register.
+
+**Constraint:** the Mac must be awake and the worker process running when the automation fires.
+
+### Merge deploy script
+
+Automations should call the deterministic wrapper (path filter + `deploy-remote.sh`):
+
+```sh
+git fetch origin main && git checkout main && git pull origin main
+scripts/deploy-on-merge.sh
+```
+
+Dry-run path check only:
+
+```sh
+scripts/deploy-on-merge.sh --check-only
+```
+
+Force deploy despite path filter (debug):
+
+```sh
+DEPLOY_SKIP_PATH_CHECK=1 scripts/deploy-on-merge.sh
+```
+
+### Cursor Automation setup
+
+Copy trigger, runtime, and prompt from [`.cursor/automation-merge-deploy.md`](../../.cursor/automation-merge-deploy.md). Runtime must be **My Machine**, not the default Cursor Cloud VM.
+
+### Fallback
+
+If your Cursor plan does not expose **My Machine** as the automation runtime, run the same `scripts/deploy-on-merge.sh` from a **GitHub Actions self-hosted runner** on the Mac on `push` to `main` instead of using Cursor Automations.

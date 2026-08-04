@@ -22,10 +22,14 @@ Confirm before deploying:
   `DEPLOY_HOST=wlUbuntu`, `DEPLOY_PUBLIC_URL=https://pn.nacfson.cloud`,
   `DEPLOY_ACCESS_SCOPE`, `REMOTE_DIR`, `IMAGE_NAME`, and `PLATFORM`.
 - [ ] The remote `~/project-pn/deploy/.env` has `AUTH_MODE=central`,
-  `CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`, `ALLOWED_ORIGINS`,
+  `CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL=http://192.168.219.120:31956`
+  (auth NodePort; not ClusterIP), `ALLOWED_ORIGINS`,
   and `APP_PUBLIC_URL=https://pn.nacfson.cloud`.
+- [ ] Central auth is magic-link only (`https://auth.nacfson.cloud`).
 - [ ] Production HTTPS uses ingress Let's Encrypt secrets; Compose
   `deploy/certs/` is kept in sync by the acme reload hook.
+- [ ] For auth-service / ProcessManager K8s image rolls, use
+  `~/.cursor/skills/deploy-nacfson-project/SKILL.md` instead of this skill.
 
 ## Pre-deploy checks
 
@@ -126,5 +130,8 @@ If any check fails, follow `deploy/deploy-exception-runbook.md`.
 | Old bundle still shown | Force recreate nginx: `docker compose up -d --force-recreate nginx` |
 | New `EXPO_PUBLIC_*` env vars ignored (e.g. auth mode still local) | Run `npx expo export --platform web --clear` before deploying |
 | Magic link wrong redirect | `APP_PUBLIC_URL=https://pn.nacfson.cloud` in remote `.env` |
+| Password login expected | Removed — use magic link on `auth.nacfson.cloud` |
+| Need to roll auth-service image | `deploy-nacfson-project` skill (registry `.120`, not this Compose script) |
+| Magic link → PN Sign In loop (401) | `auth-service` NodePort `31956` must match `CENTRAL_AUTH_INTERNAL_URL` |
 
 For deeper diagnosis, read `deploy/deploy-exception-runbook.md`.

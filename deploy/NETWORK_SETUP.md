@@ -14,7 +14,7 @@ Use this when moving Project PN (Docker Compose) or verifying router/DNS after a
    - `80` → `80` (HTTPS redirect / cert challenges)
    - `443` → `443` (production `https://pn.nacfson.cloud`)
    - `53412` → `53412` (optional HTTP staging on custom port)
-4. **LAN split DNS:** On home LAN DNS, override `pn.nacfson.cloud` and `auth.nacfson.cloud` → `192.168.219.120` (public DNS unchanged; WAN IP remains `124.59.225.59`).
+4. **LAN split DNS:** Run [`ProcessManager/deploy/landns`](../../ProcessManager/deploy/landns) (dnsmasq on wlUbuntu) and set LG U+ DHCP DNS to `192.168.219.120`, so `*.nacfson.cloud` → `192.168.219.120` on Wi‑Fi. Public Gabia DNS stays `124.59.225.59`.
 5. **Deploy path:** `scripts/deploy-remote.sh` with `DEPLOY_HOST=wlUbuntu` in `deploy/.deploy.env`.
 6. **Smoke tests:**
    ```bash

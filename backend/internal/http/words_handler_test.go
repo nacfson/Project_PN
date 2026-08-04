@@ -17,6 +17,7 @@ import (
 	"project-pn/internal/config"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 	"project-pn/internal/migrations"
 	"project-pn/internal/words"
 )
@@ -67,7 +68,7 @@ func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), logger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), logger, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
@@ -181,7 +182,7 @@ func TestLookupAcceptsSourceContext(t *testing.T) {
 		ForceUILang:            cfg.ForceUILang,
 	})
 	recEnricher := &recordingEnricher{}
-	wordsSvc := words.New(pool, recEnricher, admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, recEnricher, admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
@@ -313,7 +314,7 @@ func TestChangeMeaningConflictReturns409(t *testing.T) {
 	}
 
 	cfg := config.Load()
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	itemA, err := wordsSvc.AddLearningItem(ctx, user.ID, senseA, "ko", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -410,7 +411,7 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
 	}
-	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, "", "", "")
+	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "", "")
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, otherUser.ID, "en"); err != nil {
 		t.Fatalf("ensure other default deck: %v", err)
 	}
@@ -541,7 +542,7 @@ func TestParseListLearningItemsParamsRejectsInvalidValues(t *testing.T) {
 func TestCorsPreflightAllowsConfiguredOrigin(t *testing.T) {
 	t.Parallel()
 
-	svc := words.New(nil, nil, admin.NoopLogger{}, "00000000-0000-0000-0000-000000000001", "en", "ko")
+	svc := words.New(nil, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "00000000-0000-0000-0000-000000000001", "en", "ko")
 	authSvc := auth.New(nil, auth.Options{
 		DefaultDefinitionLang: "ko",
 		DefaultTargetLang:     "en",

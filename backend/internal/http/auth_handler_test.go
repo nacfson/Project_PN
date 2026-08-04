@@ -17,6 +17,7 @@ import (
 	"project-pn/internal/config"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
+	"project-pn/internal/learninglog"
 	"project-pn/internal/migrations"
 	"project-pn/internal/words"
 )
@@ -57,7 +58,7 @@ func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	router := NewRouter(Dependencies{
 		DB:             pool,
