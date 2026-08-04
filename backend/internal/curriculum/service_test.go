@@ -12,6 +12,7 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/db"
+	"project-pn/internal/learninglog"
 	"project-pn/internal/migrations"
 	"project-pn/internal/words"
 )
@@ -171,7 +172,7 @@ func TestListPacksAndEnrollIdempotent(t *testing.T) {
 func TestEnrollSkipsExistingPrivateSenses(t *testing.T) {
 	pool := curriculumTestPool(t)
 	curriculumSvc := New(pool)
-	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, "", "en", "en")
+	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "en")
 	userID := curriculumTestUser(t, pool)
 	ctx := context.Background()
 
@@ -227,7 +228,7 @@ func TestEnrollSkipsExistingPrivateSenses(t *testing.T) {
 func TestDueReviewsFilterByCurriculumDeck(t *testing.T) {
 	pool := curriculumTestPool(t)
 	curriculumSvc := New(pool)
-	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, "", "en", "en")
+	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "en")
 	userID := curriculumTestUser(t, pool)
 	ctx := context.Background()
 

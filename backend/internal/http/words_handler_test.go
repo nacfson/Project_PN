@@ -378,8 +378,9 @@ func TestAddLearningItemLogsAddItem(t *testing.T) {
 
 func TestWriteServiceErrorMapsUnsupportedLanguage(t *testing.T) {
 	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	(&wordsHandler{}).writeServiceError(rec, enrich.ErrUnsupportedLanguage)
+	(&wordsHandler{}).writeServiceError(rec, req, enrich.ErrUnsupportedLanguage)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
@@ -391,8 +392,9 @@ func TestWriteServiceErrorMapsUnsupportedLanguage(t *testing.T) {
 
 func TestWriteServiceErrorMapsNotConfigured(t *testing.T) {
 	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	(&wordsHandler{}).writeServiceError(rec, enrich.ErrNotConfigured)
+	(&wordsHandler{}).writeServiceError(rec, req, enrich.ErrNotConfigured)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
@@ -404,8 +406,9 @@ func TestWriteServiceErrorMapsNotConfigured(t *testing.T) {
 
 func TestWriteServiceErrorMapsUnavailable(t *testing.T) {
 	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	(&wordsHandler{}).writeServiceError(rec, enrich.ErrUnavailable)
+	(&wordsHandler{}).writeServiceError(rec, req, enrich.ErrUnavailable)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())

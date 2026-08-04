@@ -67,12 +67,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-
-	enricher := enrich.NewOpenAI(config.GeminiOpenAIBaseURL, cfg.GeminiAPIKey, cfg.GeminiModel)
+	primaryEnricher := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
+	fallbackEnricher := enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
+	enricher := enrich.NewFallback(primaryEnricher, fallbackEnricher, slog.Default())
 	slog.Info("enrich provider configured",
-		"provider", "gemini",
-		"model", cfg.GeminiModel,
-		"configured", cfg.GeminiAPIKey != "",
+		"primary_model", cfg.EnrichPrimaryModel,
+		"primary_url", cfg.EnrichPrimaryBaseURL,
+		"fallback_model", cfg.EnrichFallbackModel,
+		"fallback_url", cfg.EnrichFallbackBaseURL,
 	)
 	authService := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
