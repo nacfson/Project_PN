@@ -220,7 +220,7 @@ func TestGetDueReviewItemsFiltersByDeck(t *testing.T) {
 		t.Fatalf("add item B: %v", err)
 	}
 
-	items, err := svc.GetDueReviewItems(ctx, userID, "", custom.ID, 50)
+	items, err := svc.GetDueReviewItems(ctx, userID, "", custom.ID, "", 50)
 	if err != nil {
 		t.Fatalf("get due by deck: %v", err)
 	}

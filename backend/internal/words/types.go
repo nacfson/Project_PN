@@ -98,6 +98,9 @@ type ListLearningItemsParams struct {
 	Search       string
 	LanguageCode string
 	DeckID       string
+	// Origin filters by decks.origin (`private` or `curriculum`). Empty means all origins.
+	// Ignored when DeckID is set (a deck already implies origin).
+	Origin string
 }
 
 type LearningItemsCursor struct {

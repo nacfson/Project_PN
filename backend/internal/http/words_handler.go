@@ -209,6 +209,7 @@ func parseListLearningItemsParams(r *http.Request) (words.ListLearningItemsParam
 	params.Search = strings.TrimSpace(query.Get("q"))
 	params.LanguageCode = strings.TrimSpace(query.Get("language_code"))
 	params.DeckID = strings.TrimSpace(query.Get("deck_id"))
+	params.Origin = strings.TrimSpace(strings.ToLower(query.Get("origin")))
 
 	return params, nil
 }
@@ -235,6 +236,8 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusConflict, "cannot add private items to a curriculum deck")
 	case errors.Is(err, words.ErrCurriculumDeckImmutable):
 		writeError(w, http.StatusConflict, "curriculum deck cannot be modified")
+	case errors.Is(err, words.ErrInvalidDeckOrigin):
+		writeError(w, http.StatusBadRequest, "origin must be private or curriculum")
 	case errors.Is(err, words.ErrInvalidDeckName):
 		writeError(w, http.StatusBadRequest, "invalid deck name")
 	case errors.Is(err, words.ErrDeckNameExists):
@@ -293,7 +296,8 @@ func (h *wordsHandler) getDueReviewItems(w http.ResponseWriter, r *http.Request)
 
 	langCode := strings.TrimSpace(r.URL.Query().Get("language_code"))
 	deckID := strings.TrimSpace(r.URL.Query().Get("deck_id"))
-	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), langCode, deckID, limit)
+	origin := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("origin")))
+	items, err := h.svc.GetDueReviewItems(r.Context(), userIDFromRequest(r), langCode, deckID, origin, limit)
 	if err != nil {
 		h.writeServiceError(w, r, err)
 		return

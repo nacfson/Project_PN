@@ -34,11 +34,11 @@ Steps 6-8 must be idempotent: re-adding the same `(user_id, word_sense_id)` must
 
 ## Learning Items List Flow
 
-1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...&deck_id=...`.
+1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...&deck_id=...&origin=private|curriculum`.
 2. API derives the acting user from the bearer session.
 3. API resolves the target language. If `language_code` is omitted, the active `user_languages` row is used.
 4. If `deck_id` is provided, API validates deck ownership and resolves the target language from the deck.
-5. API queries `user_word_senses` joined to `word_senses`, `words`, and `review_states`, filtering to the resolved target language and deck.
+5. API queries `user_word_senses` joined to `word_senses`, `words`, `decks`, and `review_states`, filtering to the resolved target language and deck. Optional `origin` (`private` / `curriculum`) filters by `decks.origin` when `deck_id` is omitted.
 6. API excludes rows where `user_word_senses.archived_at is not null`.
 7. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
 8. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
@@ -99,7 +99,7 @@ One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds every (or selected) `w
 
 ## Review Flow
 
-1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. It queries due items by joining `review_states` to `user_word_senses` and `words`, filtering to the resolved target language and deck.
+1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. Optional `origin=private|curriculum` limits due items to that deck origin when `deck_id` is omitted (custom quizzes vs dictionary/curriculum quizzes). It queries due items by joining `review_states` to `user_word_senses`, `words`, and `decks`, filtering to the resolved target language, deck, and/or origin.
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.

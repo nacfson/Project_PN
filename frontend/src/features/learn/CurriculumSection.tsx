@@ -62,7 +62,7 @@ export function CurriculumSection() {
 
   const handleStudy = (pack: CurriculumPack) => {
     if (!pack.deck_id) return;
-    navigation.navigate('Practice', { deckId: pack.deck_id });
+    navigation.navigate('Practice', { deckId: pack.deck_id, origin: 'curriculum' });
   };
 
   return (

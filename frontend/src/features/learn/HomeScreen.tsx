@@ -546,7 +546,7 @@ export function HomeScreen() {
 
   const handlePressHero = useCallback(() => {
     if (reduced) {
-      navigation.navigate('Practice', { deckId: undefined });
+      navigation.navigate('Practice', { origin: 'private' });
       return;
     }
     heroScale.setValue(motion.scale.press);
@@ -556,7 +556,7 @@ export function HomeScreen() {
       friction: motion.spring.bouncy.friction,
       useNativeDriver: true,
     }).start(() => {
-      navigation.navigate('Practice', { deckId: undefined });
+      navigation.navigate('Practice', { origin: 'private' });
     });
   }, [reduced, motion, navigation, heroScale]);
 

@@ -80,7 +80,7 @@ describe('CommandDock', () => {
     // Simulate expansion to reveal other items
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
     await fireEvent.press(screen.getByTestId('dock-practice'));
-    expect(mockNavigate).toHaveBeenCalledWith('Practice', { deckId: undefined });
+    expect(mockNavigate).toHaveBeenCalledWith('Practice', { origin: 'private' });
   });
 
   it('navigates to Words (Search) screen on press', async () => {
