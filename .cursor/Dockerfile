@@ -23,9 +23,13 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Go 1.26 (matches backend/go.mod)
+# Go 1.26 (matches backend/go.mod). Symlink into /usr/local/bin because
+# Cloud Agent install/start shells may not inherit image ENV PATH.
 RUN curl -fsSL https://go.dev/dl/go1.26.0.linux-amd64.tar.gz \
-    | tar -C /usr/local -xz
+      | tar -C /usr/local -xz \
+    && ln -sf /usr/local/go/bin/go /usr/local/bin/go \
+    && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt \
+    && printf '%s\n' 'export PATH=/usr/local/go/bin:$PATH' > /etc/profile.d/go.sh
 
 ########################################################
 # DOCKER INSTALLATION (Cursor recommended DinD pattern)
