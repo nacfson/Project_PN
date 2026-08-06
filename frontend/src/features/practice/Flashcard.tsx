@@ -32,6 +32,8 @@ interface FlashcardProps {
 }
 
 const SWIPE_THRESHOLD = 96;
+// RN Web has no native animated module; native driver only warns and falls back.
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
 
 function uniqueText(value: string | null | undefined, original: string | null | undefined) {
   const trimmed = value?.trim();
@@ -126,18 +128,18 @@ export function Flashcard({
       Animated.spring(flipAnim, {
         toValue: isFlipped ? 180 : 0,
         ...motion.spring.bouncy,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.sequence([
         Animated.spring(flipScale, {
           toValue: 0.97,
           ...motion.spring.bouncy,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.spring(flipScale, {
           toValue: 1,
           ...motion.spring.bouncy,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ]),
     ]).start();
@@ -196,7 +198,7 @@ export function Flashcard({
     Animated.spring(pan, {
       toValue: { x: 0, y: 0 },
       friction: 8,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
     resetHint();
   };
