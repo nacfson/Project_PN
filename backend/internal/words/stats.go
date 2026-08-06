@@ -80,7 +80,8 @@ func (s *Service) countDueTodayWithSettings(ctx context.Context, userID string, 
 		return 0, nil
 	}
 
-	items, err := s.GetDueReviewItems(ctx, userID, "", "", limit)
+	// Home / Practice default to private (custom) decks so due_today matches custom quizzes.
+	items, err := s.GetDueReviewItems(ctx, userID, "", "", "private", limit)
 	if err != nil {
 		return 0, err
 	}

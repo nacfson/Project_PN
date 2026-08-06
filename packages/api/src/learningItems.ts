@@ -1,6 +1,8 @@
 import { getJson, postJson } from './client';
 import type { BatchReviewResult, DueItem, LearningItemsPage, ReviewAttemptParams } from './types';
 
+export type DeckOrigin = 'private' | 'curriculum';
+
 export interface ListLearningItemsParams {
   limit?: number;
   descending?: boolean;
@@ -8,6 +10,8 @@ export interface ListLearningItemsParams {
   cursor?: string | null;
   languageCode?: string;
   deckId?: string;
+  /** Filter by decks.origin. Ignored when deckId is set. */
+  origin?: DeckOrigin;
 }
 
 export function listLearningItems(params?: ListLearningItemsParams): Promise<LearningItemsPage> {
@@ -33,16 +37,26 @@ export function listLearningItems(params?: ListLearningItemsParams): Promise<Lea
     searchParams.set('deck_id', params.deckId.trim());
   }
 
+  if (params?.origin?.trim()) {
+    searchParams.set('origin', params.origin.trim());
+  }
+
   return getJson<LearningItemsPage>(`/api/learning-items?${searchParams.toString()}`);
 }
 
-export function getDueLearningItems(limit?: number, deckId?: string): Promise<DueItem[]> {
+export function getDueLearningItems(
+  limit?: number,
+  deckId?: string,
+  origin?: DeckOrigin,
+): Promise<DueItem[]> {
   const searchParams = new URLSearchParams();
   if (limit) {
     searchParams.set('limit', String(limit));
   }
   if (deckId?.trim()) {
     searchParams.set('deck_id', deckId.trim());
+  } else if (origin?.trim()) {
+    searchParams.set('origin', origin.trim());
   }
   return getJson<DueItem[]>(`/api/reviews/due?${searchParams.toString()}`);
 }

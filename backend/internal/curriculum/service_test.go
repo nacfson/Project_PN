@@ -242,7 +242,7 @@ func TestDueReviewsFilterByCurriculumDeck(t *testing.T) {
 		t.Fatalf("enroll: %v", err)
 	}
 
-	allDue, err := wordsSvc.GetDueReviewItems(ctx, userID, "", "", 50)
+	allDue, err := wordsSvc.GetDueReviewItems(ctx, userID, "", "", "", 50)
 	if err != nil {
 		t.Fatalf("due all: %v", err)
 	}
@@ -250,7 +250,23 @@ func TestDueReviewsFilterByCurriculumDeck(t *testing.T) {
 		t.Fatalf("expected at least 2 due items overall, got %d", len(allDue))
 	}
 
-	curriculumDue, err := wordsSvc.GetDueReviewItems(ctx, userID, "", enroll.DeckID, 50)
+	privateDue, err := wordsSvc.GetDueReviewItems(ctx, userID, "", "", "private", 50)
+	if err != nil {
+		t.Fatalf("due private: %v", err)
+	}
+	if len(privateDue) != 1 {
+		t.Fatalf("expected 1 private due item, got %d", len(privateDue))
+	}
+
+	curriculumOriginDue, err := wordsSvc.GetDueReviewItems(ctx, userID, "", "", "curriculum", 50)
+	if err != nil {
+		t.Fatalf("due curriculum origin: %v", err)
+	}
+	if len(curriculumOriginDue) != 1 {
+		t.Fatalf("expected 1 curriculum-origin due item, got %d", len(curriculumOriginDue))
+	}
+
+	curriculumDue, err := wordsSvc.GetDueReviewItems(ctx, userID, "", enroll.DeckID, "", 50)
 	if err != nil {
 		t.Fatalf("due curriculum: %v", err)
 	}

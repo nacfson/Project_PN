@@ -44,7 +44,7 @@ export function CommandDock() {
         navigation.navigate('Add');
         break;
       case 'navigatePractice':
-        navigation.navigate('Practice', { deckId: undefined });
+        navigation.navigate('Practice', { origin: 'private' });
         break;
       case 'navigateWords':
         navigation.navigate('Words');

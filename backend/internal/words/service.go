@@ -505,10 +505,21 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	}
 
 	args := []any{userID, params.LanguageCode, defLangCode}
-	deckPredicate := ""
+	scopePredicate := ""
 	if params.DeckID != "" {
 		args = append(args, params.DeckID)
-		deckPredicate = fmt.Sprintf("and uws.deck_id = $%d::uuid", len(args))
+		scopePredicate += fmt.Sprintf(" and uws.deck_id = $%d::uuid", len(args))
+	}
+	origin := strings.TrimSpace(strings.ToLower(params.Origin))
+	if origin != "" {
+		if origin != "private" && origin != "curriculum" {
+			return LearningItemsPage{}, ErrInvalidDeckOrigin
+		}
+		// DeckID already pins a single deck; origin is only applied when listing across decks.
+		if params.DeckID == "" {
+			args = append(args, origin)
+			scopePredicate += fmt.Sprintf(" and d.origin = $%d", len(args))
+		}
 	}
 
 	searchPredicate := ""
@@ -562,7 +573,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		   %s
 		 order by uws.added_at %s, uws.id %s
 		 limit $%d`,
-		deckPredicate, searchPredicate, cursorPredicate, orderDirection, orderDirection, limitPlaceholder,
+		scopePredicate, searchPredicate, cursorPredicate, orderDirection, orderDirection, limitPlaceholder,
 	)
 
 	rows, err := s.pool.Query(ctx, query, args...)
@@ -1242,7 +1253,9 @@ func firstNonEmpty(values ...string) string {
 // excluding buried/suspended cards. Reviews (Review/Relearning state) are
 // returned first, then new cards, up to their respective daily quotas.
 // If deckID is provided, items are limited to that deck.
-func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckID string, limit int) ([]DueItem, error) {
+// If origin is provided (`private` / `curriculum`) and deckID is empty, items
+// are limited to decks of that origin. Empty origin means all origins.
+func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckID, origin string, limit int) ([]DueItem, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -1263,6 +1276,11 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 			return nil, ErrDeckLanguageMismatch
 		}
 		langCode = deck.TargetLanguage
+	}
+
+	origin = strings.TrimSpace(strings.ToLower(origin))
+	if origin != "" && origin != "private" && origin != "curriculum" {
+		return nil, ErrInvalidDeckOrigin
 	}
 
 	// Load or create review settings for the user.
@@ -1304,11 +1322,14 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		return []DueItem{}, nil
 	}
 
-	deckPredicate := ""
+	scopePredicate := ""
 	argsBase := []any{userID, langCode, defLangCode}
 	if deckID != "" {
 		argsBase = append(argsBase, deckID)
-		deckPredicate = fmt.Sprintf("and uws.deck_id = $%d::uuid", len(argsBase))
+		scopePredicate += fmt.Sprintf(" and uws.deck_id = $%d::uuid", len(argsBase))
+	} else if origin != "" {
+		argsBase = append(argsBase, origin)
+		scopePredicate += fmt.Sprintf(" and d.origin = $%d", len(argsBase))
 	}
 
 	baseQuery := `
@@ -1329,6 +1350,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		join word_senses ws on ws.id = uws.word_sense_id
 		join words w on w.id = ws.word_id
 		join review_states rs on rs.user_word_sense_id = uws.id
+		join decks d on d.id = uws.deck_id
 		left join sense_translations st
 		  on st.word_sense_id = ws.id and st.language_code = $3
 		where uws.user_id = $1::uuid
@@ -1406,7 +1428,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		reviewQuery := fmt.Sprintf(baseQuery+`
 		  and rs.fsrs_state in ('Review', 'Relearning')
 		order by rs.due_at asc
-		limit $%d`, deckPredicate, reviewLimitPlaceholder)
+		limit $%d`, scopePredicate, reviewLimitPlaceholder)
 
 		rows, err := s.pool.Query(ctx, reviewQuery, reviewArgs...)
 		if err != nil {
@@ -1441,7 +1463,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		newQuery := fmt.Sprintf(baseQuery+`
 		  and rs.fsrs_state = 'New'
 		order by uws.added_at asc
-		limit $%d`, deckPredicate, newLimitPlaceholder)
+		limit $%d`, scopePredicate, newLimitPlaceholder)
 
 		rows, err := s.pool.Query(ctx, newQuery, newArgs...)
 		if err != nil {

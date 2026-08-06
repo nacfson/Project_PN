@@ -211,7 +211,7 @@ func TestLearningItemsTranslations(t *testing.T) {
 	}
 
 	// 3. Verify LocalizedDefinition in GetDueReviewItems
-	dueItems, err := svc.GetDueReviewItems(ctx, userID, "en", "", 10)
+	dueItems, err := svc.GetDueReviewItems(ctx, userID, "en", "", "", 10)
 	if err != nil {
 		t.Fatalf("failed to get due review items: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestJapaneseKoreanDueFlowCarriesLocalization(t *testing.T) {
 		t.Fatalf("make ja item due: %v", err)
 	}
 
-	dueItems, err := svc.GetDueReviewItems(ctx, userID, "ja", "", 10)
+	dueItems, err := svc.GetDueReviewItems(ctx, userID, "ja", "", "", 10)
 	if err != nil {
 		t.Fatalf("get ja due items: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestJapaneseKoreanDueFlowCarriesLocalization(t *testing.T) {
 	}
 
 	// Omitting language_code must resolve the active ja→ko pair.
-	activeItems, err := svc.GetDueReviewItems(ctx, userID, "", "", 10)
+	activeItems, err := svc.GetDueReviewItems(ctx, userID, "", "", "", 10)
 	if err != nil {
 		t.Fatalf("get due items via active pair: %v", err)
 	}
