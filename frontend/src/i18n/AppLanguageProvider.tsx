@@ -70,7 +70,9 @@ export function AppLanguageProvider({ children }: { children: ReactNode }) {
   const t = useCallback(
     (key: TranslationKey, params?: TranslationParams) => {
       const dictionary = dictionaries[language];
-      return interpolate(dictionary[key] ?? en[key], params);
+      // Missing keys (e.g. unexpected `pos.*` from imported data) must not return
+      // undefined — callers such as Flashcard call string methods on the result.
+      return interpolate(dictionary[key] ?? en[key] ?? String(key), params);
     },
     [language],
   );

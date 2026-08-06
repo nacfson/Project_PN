@@ -151,6 +151,8 @@ export const en = {
   'pos.conjunction': 'conjunction',
   'pos.interjection': 'interjection',
   'pos.determiner': 'determiner',
+  // Used by Anki import when enrichment is unavailable (backend stores part_of_speech = 'unknown').
+  'pos.unknown': 'unknown',
 
   'practice.preparing': 'Preparing practice session...',
   'practice.syncing': 'Syncing results with server...',
@@ -465,6 +467,7 @@ export const ko: Record<TranslationKey, string> = {
   'pos.conjunction': '접속사',
   'pos.interjection': '감탄사',
   'pos.determiner': '한정사',
+  'pos.unknown': '미분류',
 
   'practice.preparing': '복습 세션을 준비하는 중...',
   'practice.syncing': '결과를 서버와 동기화하는 중...',

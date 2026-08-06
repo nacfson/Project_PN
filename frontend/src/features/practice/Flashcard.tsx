@@ -40,6 +40,24 @@ function uniqueText(value: string | null | undefined, original: string | null | 
   return trimmed;
 }
 
+/** Safe POS badge label — Anki import can persist `unknown`, and other unexpected POS values may lack i18n keys. */
+function formatPosBadgeLabel(
+  pos: string | null | undefined,
+  t: (key: TranslationKey) => string,
+): string {
+  const fallback = (pos?.trim() || 'unknown').toUpperCase();
+  if (!pos?.trim()) {
+    return fallback;
+  }
+  const key = `pos.${pos}` as TranslationKey;
+  const translated = t(key);
+  // Missing keys: older `t` returned undefined; hardened `t` returns the key string.
+  if (typeof translated !== 'string' || translated.length === 0 || translated === key) {
+    return fallback;
+  }
+  return translated.toUpperCase();
+}
+
 export function Flashcard({
   item,
   example,
@@ -240,6 +258,7 @@ export function Flashcard({
 
   const posColor = getPosColor(item.part_of_speech, colors);
   const badgeVariant = getPosBadgeVariant(item.part_of_speech);
+  const posBadgeLabel = formatPosBadgeLabel(item.part_of_speech, t);
 
   const cardStyle = {
     backgroundColor: colors.surfaceContainerLow,
@@ -256,7 +275,7 @@ export function Flashcard({
   const renderFront = () => (
     <View style={styles.cardContent}>
       <View onLayout={handleFrontLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant={badgeVariant} />
+        <Badge label={posBadgeLabel} variant={badgeVariant} />
         {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
         {cardMode === 'flashcard' ? (
           <>
@@ -304,7 +323,7 @@ export function Flashcard({
   const renderBack = () => (
     <View style={styles.cardContent}>
       <View onLayout={handleBackLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant={badgeVariant} />
+        <Badge label={posBadgeLabel} variant={badgeVariant} />
         {cardMode === 'typing' && (
           <View style={[styles.wordRow, { gap: spacing.sm }]}>
             <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
