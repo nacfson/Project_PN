@@ -32,12 +32,32 @@ interface FlashcardProps {
 }
 
 const SWIPE_THRESHOLD = 96;
+// RN Web has no native animated module; native driver only warns and falls back.
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
 
 function uniqueText(value: string | null | undefined, original: string | null | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   if (trimmed === original?.trim()) return null;
   return trimmed;
+}
+
+/** Safe POS badge label — Anki import can persist `unknown`, and other unexpected POS values may lack i18n keys. */
+function formatPosBadgeLabel(
+  pos: string | null | undefined,
+  t: (key: TranslationKey) => string,
+): string {
+  const fallback = (pos?.trim() || 'unknown').toUpperCase();
+  if (!pos?.trim()) {
+    return fallback;
+  }
+  const key = `pos.${pos}` as TranslationKey;
+  const translated = t(key);
+  // Missing keys: older `t` returned undefined; hardened `t` returns the key string.
+  if (typeof translated !== 'string' || translated.length === 0 || translated === key) {
+    return fallback;
+  }
+  return translated.toUpperCase();
 }
 
 export function Flashcard({
@@ -108,18 +128,18 @@ export function Flashcard({
       Animated.spring(flipAnim, {
         toValue: isFlipped ? 180 : 0,
         ...motion.spring.bouncy,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.sequence([
         Animated.spring(flipScale, {
           toValue: 0.97,
           ...motion.spring.bouncy,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.spring(flipScale, {
           toValue: 1,
           ...motion.spring.bouncy,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ]),
     ]).start();
@@ -178,7 +198,7 @@ export function Flashcard({
     Animated.spring(pan, {
       toValue: { x: 0, y: 0 },
       friction: 8,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
     resetHint();
   };
@@ -240,6 +260,7 @@ export function Flashcard({
 
   const posColor = getPosColor(item.part_of_speech, colors);
   const badgeVariant = getPosBadgeVariant(item.part_of_speech);
+  const posBadgeLabel = formatPosBadgeLabel(item.part_of_speech, t);
 
   const cardStyle = {
     backgroundColor: colors.surfaceContainerLow,
@@ -256,7 +277,7 @@ export function Flashcard({
   const renderFront = () => (
     <View style={styles.cardContent}>
       <View onLayout={handleFrontLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant={badgeVariant} />
+        <Badge label={posBadgeLabel} variant={badgeVariant} />
         {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
         {cardMode === 'flashcard' ? (
           <>
@@ -304,7 +325,7 @@ export function Flashcard({
   const renderBack = () => (
     <View style={styles.cardContent}>
       <View onLayout={handleBackLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey).toUpperCase()} variant={badgeVariant} />
+        <Badge label={posBadgeLabel} variant={badgeVariant} />
         {cardMode === 'typing' && (
           <View style={[styles.wordRow, { gap: spacing.sm }]}>
             <Text variant="headline" style={[styles.wordText, { color: posColor }]}>

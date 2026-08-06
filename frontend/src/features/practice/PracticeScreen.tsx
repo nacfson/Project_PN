@@ -33,6 +33,8 @@ import { CountUpText } from '../../components/CountUpText';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Practice'>;
 type SessionMode = 'normal' | 'repeat';
+
+const USE_NATIVE_DRIVER = Platform.OS !== 'web';
 type CardMode = 'typing' | 'flashcard';
 type SessionStatus =
   | 'idle'
@@ -175,12 +177,12 @@ export function PracticeScreen() {
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 120,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
         duration: 120,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]).start();
   }, [currentIndex, status, slideAnim, opacityAnim]);

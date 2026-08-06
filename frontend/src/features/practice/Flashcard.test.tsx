@@ -146,4 +146,17 @@ describe('Flashcard', () => {
     await renderCard();
     expect(screen.getByText(/Swipe to rate/i)).toBeTruthy();
   });
+
+  it('does not crash when part_of_speech is unknown (Anki import fallback)', async () => {
+    // Backend import_service inserts words with part_of_speech 'unknown' when
+    // enrichment is unavailable. Missing/unsafe POS labels must not throw.
+    await expect(renderCard({ part_of_speech: 'unknown' })).resolves.toBeDefined();
+    // Front + back faces both mount on web, so the badge text appears twice.
+    expect(screen.getAllByText('UNKNOWN').length).toBeGreaterThan(0);
+  });
+
+  it('falls back to raw POS when translation key is missing', async () => {
+    await expect(renderCard({ part_of_speech: 'particle' })).resolves.toBeDefined();
+    expect(screen.getAllByText('PARTICLE').length).toBeGreaterThan(0);
+  });
 });
