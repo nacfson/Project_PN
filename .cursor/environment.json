@@ -1,11 +1,22 @@
 {
   "name": "project-pn-dev",
-  "install": "cd backend && docker compose up -d && GOTOOLCHAIN=go1.26.0 go mod download && go run ./cmd/migrate up && cd ../frontend && npm install --legacy-peer-deps",
-  "start": "cd backend && docker compose up -d",
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "export PATH=\"/usr/local/go/bin:/usr/local/bin:$PATH\"; npm install && go -C backend mod download",
+  "start": "sudo service docker start; test -f backend/.env || cp backend/.env.example backend/.env; test -f frontend/.env || cp frontend/.env.example frontend/.env; docker compose -f backend/compose.yaml --env-file backend/.env up -d",
   "terminals": [
     {
       "name": "api",
-      "command": "cd backend && go run ./cmd/api"
+      "command": "export PATH=\"/usr/local/go/bin:/usr/local/bin:$PATH\"; cd backend && set -a && source .env && set +a && go run ./cmd/api",
+      "description": "Go API on :8080 (requires Postgres from start)"
     }
+  ],
+  "ports": [
+    { "name": "api", "port": 8080 },
+    { "name": "postgres", "port": 5433 },
+    { "name": "expo-web", "port": 8081 }
   ]
 }
