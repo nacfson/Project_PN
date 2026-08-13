@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
 	"project-pn/internal/learninglog"
