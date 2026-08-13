@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -66,10 +67,11 @@ func NewOpenAI(baseURL, apiKey, model string) *OpenAIEnricher {
 }
 
 type chatRequest struct {
-	Model          string          `json:"model"`
-	Messages       []chatMessage   `json:"messages"`
-	Temperature    float64         `json:"temperature"`
-	ResponseFormat *responseFormat `json:"response_format,omitempty"`
+	Model           string          `json:"model"`
+	Messages        []chatMessage   `json:"messages"`
+	Temperature     float64         `json:"temperature"`
+	ResponseFormat  *responseFormat `json:"response_format,omitempty"`
+	ReasoningEffort string          `json:"reasoning_effort,omitempty"`
 }
 
 type chatMessage struct {
@@ -83,7 +85,11 @@ type responseFormat struct {
 
 type chatResponse struct {
 	Choices []struct {
-		Message chatMessage `json:"message"`
+		FinishReason string `json:"finish_reason"`
+		Message      struct {
+			Role    string          `json:"role"`
+			Content json.RawMessage `json:"content"`
+		} `json:"message"`
 	} `json:"choices"`
 }
 
@@ -127,15 +133,7 @@ func (e *OpenAIEnricher) Enrich(ctx context.Context, req Request) (Result, error
 		return Result{}, fmt.Errorf("%w: target language %q requires a multilingual AI provider", ErrUnsupportedLanguage, req.LanguageCode)
 	}
 
-	body, err := json.Marshal(chatRequest{
-		Model:       e.Model,
-		Temperature: 0.2,
-		Messages: []chatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: buildUserPrompt(req)},
-		},
-		ResponseFormat: &responseFormat{Type: "json_object"},
-	})
+	body, err := e.marshalChat(systemPrompt, buildUserPrompt(req))
 	if err != nil {
 		return Result{}, fmt.Errorf("enrich: marshal request: %w", err)
 	}
@@ -155,15 +153,7 @@ func (e *OpenAIEnricher) Translate(ctx context.Context, req TranslateRequest) (T
 		return TranslateResult{}, fmt.Errorf("%w: target language %q requires a multilingual AI provider", ErrUnsupportedLanguage, req.LanguageCode)
 	}
 
-	body, err := json.Marshal(chatRequest{
-		Model:       e.Model,
-		Temperature: 0.2,
-		Messages: []chatMessage{
-			{Role: "system", Content: translateSystemPrompt},
-			{Role: "user", Content: buildTranslatePrompt(req)},
-		},
-		ResponseFormat: &responseFormat{Type: "json_object"},
-	})
+	body, err := e.marshalChat(translateSystemPrompt, buildTranslatePrompt(req))
 	if err != nil {
 		return TranslateResult{}, fmt.Errorf("enrich: marshal translate request: %w", err)
 	}
@@ -173,6 +163,30 @@ func (e *OpenAIEnricher) Translate(ctx context.Context, req TranslateRequest) (T
 		return TranslateResult{}, err
 	}
 	return parseTranslateOutput(req, content)
+}
+
+func (e *OpenAIEnricher) marshalChat(system, user string) ([]byte, error) {
+	req := chatRequest{
+		Model:       e.Model,
+		Temperature: 0.2,
+		Messages: []chatMessage{
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
+		},
+		ResponseFormat: &responseFormat{Type: "json_object"},
+	}
+	if e.usesGeminiThinking() {
+		// Gemini 3.x defaults to thinking; keep it minimal so structured
+		// JSON translations stay in message.content instead of stalling or 400ing.
+		req.ReasoningEffort = "minimal"
+	}
+	return json.Marshal(req)
+}
+
+func (e *OpenAIEnricher) usesGeminiThinking() bool {
+	base := strings.ToLower(e.BaseURL)
+	model := strings.ToLower(strings.TrimSpace(e.Model))
+	return strings.Contains(base, "generativelanguage.googleapis.com") || strings.HasPrefix(model, "gemini-")
 }
 
 func (e *OpenAIEnricher) isEnglishDictionaryFallback() bool {
@@ -219,9 +233,35 @@ func (e *OpenAIEnricher) complete(ctx context.Context, body []byte) (string, err
 		return "", fmt.Errorf("enrich: decode envelope: %w", err)
 	}
 	if len(chat.Choices) == 0 {
-		return "", errors.New("enrich: empty completion")
+		return "", fmt.Errorf("%w: empty completion", ErrInvalidOutput)
 	}
-	return chat.Choices[0].Message.Content, nil
+	content := messageContentText(chat.Choices[0].Message.Content)
+	if strings.TrimSpace(content) == "" {
+		return "", fmt.Errorf("%w: empty completion (finish_reason=%s)", ErrInvalidOutput, strings.TrimSpace(chat.Choices[0].FinishReason))
+	}
+	return content, nil
+}
+
+func messageContentText(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &parts); err == nil {
+		var b strings.Builder
+		for _, p := range parts {
+			b.WriteString(p.Text)
+		}
+		return b.String()
+	}
+	return ""
 }
 
 func parseModelOutput(req Request, content string) (Result, error) {
@@ -331,19 +371,27 @@ func normalizeModelWord(value string) string {
 func parseTranslateOutput(req TranslateRequest, content string) (TranslateResult, error) {
 	jsonText := extractJSONObject(content)
 	if jsonText == "" {
-		return TranslateResult{}, errors.New("enrich: no JSON object in translate completion")
+		return TranslateResult{}, fmt.Errorf("%w: no JSON object in translate completion", ErrInvalidOutput)
 	}
 
 	var out translateModelOutput
 	if err := json.Unmarshal([]byte(jsonText), &out); err != nil {
-		return TranslateResult{}, fmt.Errorf("enrich: decode translate JSON: %w", err)
+		return TranslateResult{}, fmt.Errorf("%w: decode translate JSON: %v", ErrInvalidOutput, err)
 	}
-	if len(out.Senses) != len(req.Senses) {
-		return TranslateResult{}, errors.New("enrich: translate sense count mismatch")
+
+	wantSenses, gotSenses := len(req.Senses), len(out.Senses)
+	if gotSenses != wantSenses {
+		slog.Warn("enrich: translate sense count mismatch; keeping overlapping senses",
+			"word", req.WordText, "want", wantSenses, "got", gotSenses)
+	}
+	n := gotSenses
+	if n > wantSenses {
+		n = wantSenses
 	}
 
 	var result TranslateResult
-	for i, inputSense := range req.Senses {
+	for i := 0; i < n; i++ {
+		inputSense := req.Senses[i]
 		modelSense := out.Senses[i]
 		senseResult := TranslateSenseResult{SenseID: inputSense.SenseID}
 
@@ -354,12 +402,30 @@ func parseTranslateOutput(req TranslateRequest, content string) (TranslateResult
 			if shortDef == "" || ValidTranslation(req.DisplayLang, inputSense.ShortDefinition, shortDef) {
 				senseResult.ShortDefinition = shortDef
 			}
+		} else if def != "" {
+			slog.Warn("enrich: dropped invalid sense translation",
+				"word", req.WordText,
+				"display_lang", req.DisplayLang,
+				"sense_id", inputSense.SenseID,
+				"translation", clipForLog(def, 80),
+			)
 		}
 
-		if len(modelSense.Examples) != len(inputSense.Examples) {
-			return TranslateResult{}, errors.New("enrich: translate example count mismatch")
+		wantExamples, gotExamples := len(inputSense.Examples), len(modelSense.Examples)
+		if gotExamples != wantExamples {
+			slog.Warn("enrich: translate example count mismatch; pairing by index",
+				"word", req.WordText,
+				"sense_id", inputSense.SenseID,
+				"want", wantExamples,
+				"got", gotExamples,
+			)
 		}
-		for j, inputEx := range inputSense.Examples {
+		exampleN := gotExamples
+		if exampleN > wantExamples {
+			exampleN = wantExamples
+		}
+		for j := 0; j < exampleN; j++ {
+			inputEx := inputSense.Examples[j]
 			translation := strings.TrimSpace(modelSense.Examples[j].Translation)
 			if ValidTranslation(req.DisplayLang, inputEx.Sentence, translation) {
 				senseResult.Examples = append(senseResult.Examples, TranslateExampleResult{
@@ -371,6 +437,15 @@ func parseTranslateOutput(req TranslateRequest, content string) (TranslateResult
 		result.Senses = append(result.Senses, senseResult)
 	}
 	return result, nil
+}
+
+func clipForLog(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if max <= 0 || len([]rune(s)) <= max {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:max]) + "…"
 }
 
 // extractJSONObject returns the substring from the first '{' to the last '}'.

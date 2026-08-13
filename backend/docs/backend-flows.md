@@ -24,7 +24,7 @@ Password login is not used. Sign-in is magic-link-only on the central auth servi
 2. App normalizes the word text.
 3. App creates or reuses a row in `words`.
 4. App creates or selects the intended row in `word_senses`.
-5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language. If translation is unavailable after an on-demand attempt, the add is rejected with HTTP 422.
+5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language. On-demand Translate is best-effort per sense: extra or missing example translations no longer abort the whole word. If the enricher is unconfigured or the provider rejects the request, add returns HTTP 503 with that cause. If Translate ran but this sense still has no valid display-language definition, the add is rejected with HTTP 422.
 6. App resolves the target deck. If the request includes `deck_id`, it validates ownership and that the deck's `target_language` matches the word's `language_code`. Otherwise it uses the active target language's default deck, creating the default deck if necessary.
 7. App upserts a row in `user_word_senses` with the chosen `deck_id`.
 8. App creates one `review_states` row if missing.
@@ -60,8 +60,8 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 1. App normalizes the lookup text.
 2. App resolves the target/display language pair. If the request omits `language_code` / `display_language_code`, the active `user_languages` row is used; otherwise the explicitly requested pair is used. Legacy fallback reads `users.target_language` / `users.native_language`.
 3. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path loads canonical `word_senses` and `examples`, left-joining `sense_translations` and `example_translations` for the requested `display_language_code` (legacy requests may still send `definition_language_code`).
-4. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading.
-5. If translations are still missing (enricher unconfigured or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
+4. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading. Sense/example count mismatches keep the overlapping rows instead of failing the whole call.
+5. If translations are still missing (enricher unconfigured, provider error, or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
 6. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, optional POS, and optional `source_context` (steers which distinct senses to generate).
 7. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with **mutually distinct** senses and **exactly one** example sentence per sense, plus display-language translation blocks.
 8. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.

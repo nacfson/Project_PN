@@ -11,7 +11,7 @@ import (
 
 // WordOfTheDay is the daily discovery word for a user.
 type WordOfTheDay struct {
-	Date         string      `json:"date"`
+	Date         string        `json:"date"`
 	SenseOptions []SenseOption `json:"sense_options"`
 }
 
@@ -58,9 +58,7 @@ func (s *Service) GetWordOfTheDay(ctx context.Context, userID, langCode, defLang
 		return WordOfTheDay{}, fmt.Errorf("words: pick word of the day: %w", err)
 	}
 
-	if _, err := s.ensureTranslationsForWord(ctx, []string{wordID}, defLangCode); err != nil {
-		return WordOfTheDay{}, err
-	}
+	s.tryEnsureTranslations(ctx, []string{wordID}, defLangCode)
 
 	options, err := loadSenseOptions(ctx, s.pool, []string{wordID}, defLangCode)
 	if err != nil {

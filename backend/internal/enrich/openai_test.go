@@ -262,3 +262,106 @@ func TestParseModelOutputRejectsSenseWithNoExamples(t *testing.T) {
 		t.Fatal("expected error when all senses lack examples")
 	}
 }
+
+func TestParseTranslateOutputKeepsSensesWhenExampleCountDiffers(t *testing.T) {
+	req := TranslateRequest{
+		WordText:     "charge",
+		LanguageCode: "en",
+		DisplayLang:  "ko",
+		Senses: []TranslateSenseInput{{
+			SenseID:    "s1",
+			Definition: "to store energy",
+			Examples: []TranslateExampleInput{
+				{ExampleID: "e1", Sentence: "Charge it overnight."},
+				{ExampleID: "e2", Sentence: "Charge the battery."},
+			},
+		}},
+	}
+	raw := `{
+	  "senses":[{
+	    "definition":"충전하다",
+	    "short_definition":"충전하다",
+	    "examples":[{"translation":"밤새 **충전**하세요."}]
+	  }]
+	}`
+	got, err := parseTranslateOutput(req, raw)
+	if err != nil {
+		t.Fatalf("example count mismatch should not fail translate: %v", err)
+	}
+	if len(got.Senses) != 1 || got.Senses[0].Definition != "충전하다" {
+		t.Fatalf("expected cached definition, got %+v", got)
+	}
+	if len(got.Senses[0].Examples) != 1 || got.Senses[0].Examples[0].ExampleID != "e1" {
+		t.Fatalf("expected first example paired, got %+v", got.Senses[0].Examples)
+	}
+}
+
+func TestParseTranslateOutputKeepsOverlappingSensesOnCountMismatch(t *testing.T) {
+	req := TranslateRequest{
+		WordText:     "run",
+		LanguageCode: "en",
+		DisplayLang:  "ko",
+		Senses: []TranslateSenseInput{
+			{SenseID: "s1", Definition: "to move quickly"},
+			{SenseID: "s2", Definition: "to operate"},
+			{SenseID: "s3", Definition: "a scoring play"},
+		},
+	}
+	raw := `{
+	  "senses":[
+	    {"definition":"빨리 달리다","short_definition":"달리다","examples":[]},
+	    {"definition":"작동하다","short_definition":"작동","examples":[]}
+	  ]
+	}`
+	got, err := parseTranslateOutput(req, raw)
+	if err != nil {
+		t.Fatalf("sense count mismatch should not fail translate: %v", err)
+	}
+	if len(got.Senses) != 2 {
+		t.Fatalf("expected 2 overlapping senses, got %d", len(got.Senses))
+	}
+	if got.Senses[0].SenseID != "s1" || got.Senses[0].Definition != "빨리 달리다" {
+		t.Fatalf("unexpected first sense: %+v", got.Senses[0])
+	}
+	if got.Senses[1].SenseID != "s2" || got.Senses[1].Definition != "작동하다" {
+		t.Fatalf("unexpected second sense: %+v", got.Senses[1])
+	}
+}
+
+func TestParseTranslateOutputRejectsNonJSON(t *testing.T) {
+	_, err := parseTranslateOutput(TranslateRequest{WordText: "x"}, "not json")
+	if err == nil {
+		t.Fatal("expected invalid output error")
+	}
+	if !errors.Is(err, ErrInvalidOutput) {
+		t.Fatalf("expected ErrInvalidOutput, got %v", err)
+	}
+}
+
+func TestMarshalChatSetsGeminiReasoningEffort(t *testing.T) {
+	e := NewOpenAI("https://generativelanguage.googleapis.com/v1beta/openai", "key", "gemini-3.1-flash-lite")
+	body, err := e.marshalChat("sys", "user")
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), `"reasoning_effort":"minimal"`) {
+		t.Fatalf("expected Gemini reasoning_effort=minimal, got %s", body)
+	}
+
+	other := NewOpenAI("https://api.groq.com/openai/v1", "key", "llama-3.1-8b-instant")
+	body, err = other.marshalChat("sys", "user")
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(body), "reasoning_effort") {
+		t.Fatalf("non-Gemini provider should omit reasoning_effort, got %s", body)
+	}
+}
+
+func TestMessageContentTextAcceptsArrayParts(t *testing.T) {
+	raw := []byte(`[{"type":"text","text":"{\"senses\":[]}"}]`)
+	got := messageContentText(raw)
+	if got != `{"senses":[]}` {
+		t.Fatalf("got %q", got)
+	}
+}
