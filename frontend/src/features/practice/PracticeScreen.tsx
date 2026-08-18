@@ -384,30 +384,6 @@ export function PracticeScreen() {
   }, [flushPending]);
 
   useEffect(() => {
-    const flushOnExit = () => {
-      if (pendingRef.current.length > 0 || flushingRef.current) {
-        void flushPending();
-      }
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushOnExit();
-      }
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('pagehide', flushOnExit);
-      document.addEventListener('visibilitychange', onVisibilityChange);
-    }
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('pagehide', flushOnExit);
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-      }
-      flushOnExit();
-    };
-  }, [flushPending]);
-
-  useEffect(() => {
     if (sessionMode === 'normal' && status === 'active' && queue.length > 0 && currentIndex === queue.length) {
       waitForPendingFlushes()
         .then(() => setStatus('success'))

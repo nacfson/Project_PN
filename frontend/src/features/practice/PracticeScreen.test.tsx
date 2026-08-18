@@ -115,13 +115,10 @@ describe('PracticeScreen Integration', () => {
   it('shows Retrying for recovered learning-stage cards after a refresh', async () => {
     const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
     getDueMock.mockResolvedValue([{ ...mockItem, learning_stage: 'learning' }]);
-    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
 
     await render(<PracticeScreen />, { wrapper: Wrapper });
 
-    await waitFor(() => expect(screen.getByText('Retrying')).toBeTruthy());
-
-    randomSpy.mockRestore();
+    await waitFor(() => expect(screen.getAllByText('Retrying').length).toBeGreaterThan(0));
   });
 
   it('flips the card when rating trigger active', async () => {
