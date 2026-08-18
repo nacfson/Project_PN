@@ -1,4 +1,4 @@
-import { decideCardMode } from './PracticeScreen';
+import { decideCardMode, failedMapFromDueItems } from './PracticeScreen';
 import type { DueItem } from '../../types';
 
 const baseItem: DueItem = {
@@ -32,5 +32,13 @@ describe('decideCardMode', () => {
     for (const stage of stages) {
       expect(decideCardMode(itemWithStage(stage))).toBe('flashcard');
     }
+  });
+});
+
+describe('failedMapFromDueItems', () => {
+  it('marks recovered learning-stage cards as previously failed after a refresh', () => {
+    const failed = itemWithStage('learning');
+    const passed = { ...baseItem, user_word_sense_id: 'uws-2', learning_stage: 'recognized' };
+    expect(failedMapFromDueItems([failed, passed])).toEqual({ 'uws-1': true });
   });
 });

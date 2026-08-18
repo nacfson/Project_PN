@@ -103,7 +103,7 @@ One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds every (or selected) `w
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.
-5. App returns Review/Relearning items first (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`).
+5. App returns unfinished intra-day Learning/Relearning items first (no daily quota, including cards whose step interval has not elapsed yet), then Review items (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`). This recovers a failed-word retry queue if the user exits or refreshes mid-session.
 6. User answers a prompt.
 7. App loads the user's `review_settings` and builds a `SchedulerConfig` (learning steps, relearning steps, desired retention, fuzz, FSRS weights).
 8. App calls `CalculateNextFSRSState` with the config, which applies Anki-style step logic:
@@ -168,10 +168,10 @@ Protected learning routes run `authMiddleware` then `requireVerified` when `REQU
 ## Flow Rules
 
 - Normalize user input before inserting or looking up a word.
-- `review_states.due_at` determines when an item appears again.
+- `review_states.due_at` determines when an item appears again. Intra-day Learning/Relearning cards are also returned while still in step progression so interrupted retries are recovered.
 - `review_attempts` remains append-only even when `review_states` changes.
 - Archived, suspended, and buried user items must not appear in due-review queries.
-- Daily quotas (`new_cards_per_day`, `reviews_per_day`) are enforced by the due-review query using `daily_review_counts`.
+- Daily quotas (`new_cards_per_day`, `reviews_per_day`) are enforced by the due-review query using `daily_review_counts`. Unfinished Learning/Relearning retries are exempt from those quotas.
 - Learning and relearning steps use minute-level `due_at` until the card graduates to Review.
 - Leech cards (lapse_count >= threshold) are suspended or tagged per `review_settings.leech_action`.
 - Sibling senses of the same word are buried until end-of-day after one is reviewed.

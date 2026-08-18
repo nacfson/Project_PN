@@ -69,7 +69,7 @@ review_states.due_at determines when the item appears again
 learning_stage describes the user's broad ability level
 ```
 
-There must be one `review_states` row per `user_word_senses` row. A due-review query should join `review_states` to `user_word_senses` and exclude archived, suspended, and buried items.
+There must be one `review_states` row per `user_word_senses` row. A due-review query should join `review_states` to `user_word_senses` and exclude archived, suspended, and buried items. Intra-day `Learning` and `Relearning` cards stay in that due list even when `due_at` is still minutes in the future, so a failed-word retry queue survives exit or refresh.
 
 The scheduler is FSRS-style and stores a DSR memory state on `review_states`:
 
@@ -115,7 +115,9 @@ The due-review query respects per-user daily quotas configured in `review_settin
 - `new_cards_per_day` (default: 20): maximum new cards introduced per day.
 - `reviews_per_day` (default: 200): maximum review cards (Review/Relearning state) per day.
 
-`daily_review_counts` tracks how many new cards and reviews the user has already done today. The due query returns reviews first (Anki convention), then new cards up to their remaining quota.
+`daily_review_counts` tracks how many new cards and reviews the user has already done today. The due query returns unfinished intra-day Learning/Relearning cards first (no daily quota — these are interrupted retries), then Review cards, then new cards up to their remaining quota.
+
+Intra-day Learning and Relearning cards stay in the due queue even when their minute-level step interval has not elapsed. The in-session practice UI already requeues a failed card immediately; the due query matches that so a refresh or exit does not skip the failed cards.
 
 ## Interval Fuzzing
 

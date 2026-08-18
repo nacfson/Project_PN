@@ -27,6 +27,7 @@ The backend schema should satisfy these scenarios:
 ### Learning step behavior (migration `000009`)
 
 - New card answered "again" enters Learning state with `remaining_steps > 0` and `due_at` within minutes (not days).
+- A failed New or Review card remains in `GET /api/reviews/due` immediately after the attempt (Learning/Relearning), even when `due_at` is still minutes in the future and even when daily quotas are exhausted.
 - Learning card advancing past the last step graduates to Review state with day-level scheduling.
 - Learning card answered "again" resets to the first step.
 - Review card answered "again" enters Relearning state with minute-level `due_at` (not +1 day).
@@ -115,7 +116,7 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 - `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
 
-- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled, buried, and suspended items. Reviews are returned before new cards, respecting daily quotas.
+- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled Review/New, buried, and suspended items. Unfinished Learning/Relearning retries are returned first even when their step interval has not elapsed and even when daily quotas are exhausted. Review cards are returned next, then new cards, respecting daily quotas.
 - `POST /api/reviews/batch` records attempts and updates `review_states` in one transaction; invalid `activity_type` values return 400 before any attempt is inserted. Applies learning steps, leech detection, sibling bury, and daily count tracking.
 - `POST /api/reviews/optimize-weights` triggers FSRS weight optimization; returns 202. Requires 1000+ reviews for actual optimization.
 - `GET /api/reviews/optimization-status` returns current FSRS weights, optimization timestamp, and review count.

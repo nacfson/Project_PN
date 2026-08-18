@@ -93,6 +93,16 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
   };
 }
 
+export function failedMapFromDueItems(items: DueItem[]): Record<string, boolean> {
+  const next: Record<string, boolean> = {};
+  for (const item of items) {
+    if (item.learning_stage === 'learning') {
+      next[item.user_word_sense_id] = true;
+    }
+  }
+  return next;
+}
+
 export function decideCardMode(item: DueItem): CardMode {
   const flashcardProbabilityByStage: Record<string, number> = {
     new: 1,
@@ -280,7 +290,7 @@ export function PracticeScreen() {
           setQueue([...items]);
           setCurrentIndex(0);
           setAttempts([]);
-          setFailedMap({});
+          setFailedMap(failedMapFromDueItems(items));
           setExampleIndexMap({});
           setCardMode(decideCardMode(items[0]));
           resetCardInteraction();
@@ -318,7 +328,7 @@ export function PracticeScreen() {
           setQueue(repeatItems);
           setCurrentIndex(0);
           setAttempts([]);
-          setFailedMap({});
+          setFailedMap(failedMapFromDueItems(repeatItems));
           setExampleIndexMap({});
           setCardMode(decideCardMode(repeatItems[0]));
           resetCardInteraction();
