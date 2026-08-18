@@ -1250,8 +1250,16 @@ func firstNonEmpty(values ...string) string {
 // TODO: negative-cache / backoff for repeatedly-failing (word, language) pairs
 
 // GetDueReviewItems returns due review items, respecting daily limits and
-// excluding buried/suspended cards. Reviews (Review/Relearning state) are
-// returned first, then new cards, up to their respective daily quotas.
+// excluding buried/suspended cards.
+//
+// Fetch order:
+//  1. Intra-day Learning/Relearning cards (failed cards still in step
+//     progression). These are returned first with no daily quota and without
+//     requiring due_at <= now(), so an interrupted retry queue is recovered
+//     after the user exits or refreshes.
+//  2. Review cards, up to reviews_per_day - reviews_done.
+//  3. New cards, up to new_cards_per_day - new_cards_done.
+//
 // If deckID is provided, items are limited to that deck.
 // If origin is provided (`private` / `curriculum`) and deckID is empty, items
 // are limited to decks of that origin. Empty origin means all origins.
@@ -1312,16 +1320,6 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		newQuota = 0
 	}
 
-	// Reviews are fetched first up to the request limit; any unused slots go to new cards.
-	reviewFetchLimit := reviewQuota
-	if reviewFetchLimit > limit {
-		reviewFetchLimit = limit
-	}
-
-	if reviewFetchLimit == 0 && newQuota == 0 {
-		return []DueItem{}, nil
-	}
-
 	scopePredicate := ""
 	argsBase := []any{userID, langCode, defLangCode}
 	if deckID != "" {
@@ -1358,7 +1356,6 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		  %s
 		  and uws.archived_at is null
 		  and uws.learning_stage != 'archived'
-		  and rs.due_at <= now()
 		  and rs.is_suspended = false
 		  and (rs.buried_until is null or rs.buried_until <= now())`
 
@@ -1421,74 +1418,64 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		return nil
 	}
 
-	// Fetch review items (Review and Relearning states) first.
-	if reviewFetchLimit > 0 {
-		reviewArgs := append(argsBase, reviewFetchLimit)
-		reviewLimitPlaceholder := len(reviewArgs)
-		reviewQuery := fmt.Sprintf(baseQuery+`
-		  and rs.fsrs_state in ('Review', 'Relearning')
-		order by rs.due_at asc
-		limit $%d`, scopePredicate, reviewLimitPlaceholder)
-
-		rows, err := s.pool.Query(ctx, reviewQuery, reviewArgs...)
-		if err != nil {
-			return nil, fmt.Errorf("words: get due review items: %w", err)
+	fetchDue := func(fetchLimit int, extraPredicate, orderBy string) error {
+		if fetchLimit <= 0 {
+			return nil
 		}
+		args := append(append([]any{}, argsBase...), fetchLimit)
+		limitPlaceholder := len(args)
+		query := fmt.Sprintf(baseQuery+`
+		  %s
+		order by %s
+		limit $%d`, scopePredicate, extraPredicate, orderBy, limitPlaceholder)
+		rows, err := s.pool.Query(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("words: get due review items: %w", err)
+		}
+		defer rows.Close()
 		for rows.Next() {
 			var item DueItem
 			if err := scanDueItem(rows, &item); err != nil {
-				rows.Close()
-				return nil, err
+				return err
 			}
 			items = append(items, item)
 		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
+		return rows.Err()
 	}
 
-	reviewCount := len(items)
+	// Unfinished intra-day retries are recovered even when the step interval
+	// has not elapsed and even when daily Review/New quotas are exhausted.
+	intradayLimit := limit
+	if err := fetchDue(intradayLimit, "and rs.fsrs_state in ('Learning', 'Relearning')", "rs.due_at asc"); err != nil {
+		return nil, err
+	}
 
-	// Fetch new cards (New state) in any remaining slots after due reviews.
-	newFetchLimit := newQuota
+	reviewFetchLimit := reviewQuota
 	remainingLimit := limit - len(items)
+	if reviewFetchLimit > remainingLimit {
+		reviewFetchLimit = remainingLimit
+	}
+	if err := fetchDue(reviewFetchLimit, "and rs.fsrs_state = 'Review' and rs.due_at <= now()", "rs.due_at asc"); err != nil {
+		return nil, err
+	}
+
+	reviewLikeCount := len(items)
+
+	newFetchLimit := newQuota
+	remainingLimit = limit - len(items)
 	if newFetchLimit > remainingLimit {
 		newFetchLimit = remainingLimit
 	}
-
-	if newFetchLimit > 0 {
-		newArgs := append(argsBase, newFetchLimit)
-		newLimitPlaceholder := len(newArgs)
-		newQuery := fmt.Sprintf(baseQuery+`
-		  and rs.fsrs_state = 'New'
-		order by uws.added_at asc
-		limit $%d`, scopePredicate, newLimitPlaceholder)
-
-		rows, err := s.pool.Query(ctx, newQuery, newArgs...)
-		if err != nil {
-			return nil, fmt.Errorf("words: get due new cards: %w", err)
-		}
-		for rows.Next() {
-			var item DueItem
-			if err := scanDueItem(rows, &item); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			items = append(items, item)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
+	if err := fetchDue(newFetchLimit, "and rs.fsrs_state = 'New' and rs.due_at <= now()", "uws.added_at asc"); err != nil {
+		return nil, err
 	}
 
 	// Interleave within due reviews and new cards separately; keep reviews first.
-	if reviewCount > 1 {
-		items = append(interleaveDueItems(items[:reviewCount]), items[reviewCount:]...)
+	if reviewLikeCount > 1 {
+		items = append(interleaveDueItems(items[:reviewLikeCount]), items[reviewLikeCount:]...)
 	}
-	if len(items) > reviewCount+1 {
-		items = append(items[:reviewCount], interleaveDueItems(items[reviewCount:])...)
+	if len(items) > reviewLikeCount+1 {
+		items = append(items[:reviewLikeCount], interleaveDueItems(items[reviewLikeCount:])...)
 	}
 
 	// Load example sentences for each due item.

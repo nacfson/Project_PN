@@ -47,6 +47,7 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
   - Scale buttons for desktop/web/Tauri.
   - Keyboard shortcuts 1/2/3/4 for web/desktop.
 - Repeat review mode loads every non-archived learning item and includes example sentences so cloze prompts work the same as normal due reviews.
+- Failed cards are requeued in the current session and stay recoverable after exit or refresh: `GET /api/reviews/due` returns unfinished Learning/Relearning items, and the practice UI marks `learning_stage === 'learning'` cards with the Retrying badge. Pending review flushes run on page hide so the last grade is not dropped.
 
 ## OAuth / third-party sign-in
 

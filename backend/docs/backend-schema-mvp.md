@@ -515,7 +515,7 @@ constraint review_states_remaining_steps_nonnegative
 
 Rules:
 
-- `due_at` is the source of truth for scheduling.
+- `due_at` is the source of truth for scheduling. Intra-day Learning/Relearning cards remain in the due-review list until they graduate, even if `due_at` is still minutes in the future, so interrupted retry queues are recovered.
 - A due-review query should join `review_states` to `user_word_senses` and exclude archived, suspended, and buried items.
 - The scheduler uses an FSRS-style DSR memory state: `difficulty`, `stability`, `fsrs_state`, and `scheduled_days`.
 - `remaining_steps` tracks the position in the current learning/relearning step progression. When > 0, the card is in an intra-day step phase.
