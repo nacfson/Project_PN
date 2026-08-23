@@ -1,12 +1,44 @@
 package words
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 )
+
+// #region agent log
+func agentDebugLog(hypothesisId, location, message string, data map[string]any) {
+	payload := map[string]any{
+		"hypothesisId": hypothesisId,
+		"location":     location,
+		"message":      message,
+		"data":         data,
+		"timestamp":    time.Now().UnixMilli(),
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	f, err := os.OpenFile("/opt/cursor/logs/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	_, _ = f.Write(append(b, '\n'))
+	_ = f.Close()
+	// Mirror to workspace path requested by the task.
+	f2, err := os.OpenFile("/workspace/.cursor/debug-a3f9b2.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	_, _ = f2.Write(append(b, '\n'))
+	_ = f2.Close()
+}
+
+// #endregion
 
 const (
 	fsrsDecay         = -0.5
@@ -187,6 +219,12 @@ func CalculateNextFSRSState(curr FSRSState, score float64, responseTimeMs *int, 
 		next.State = "Review"
 		next.RemainingSteps = 0
 		next.Stability = clampStability(curr.Stability)
+		// #region agent log
+		agentDebugLog("B", "scheduler.go:LearningGraduate", "learning graduation uses curr.Stability for all ratings", map[string]any{
+			"rating": rating, "currStability": curr.Stability, "nextStability": next.Stability,
+			"difficulty": next.Difficulty, "fuzzEnabled": cfg.FuzzEnabled, "state": "Learning->Review",
+		})
+		// #endregion
 		next.ScheduledDays = scheduledDays(w, next.Stability, rating, cfg.DesiredRetention, cfg.FuzzEnabled)
 		dueAt := now.AddDate(0, 0, next.ScheduledDays)
 		return next, rating, dueAt
@@ -223,6 +261,12 @@ func CalculateNextFSRSState(curr FSRSState, score float64, responseTimeMs *int, 
 		elapsedDays := elapsedDays(curr.LastReviewedAt, now)
 		retrievability := forgettingCurve(w, float64(elapsedDays), curr.Stability)
 		next.Stability = clampStability(nextForgetStability(w, curr.Difficulty, curr.Stability, retrievability))
+		// #region agent log
+		agentDebugLog("B", "scheduler.go:RelearningGraduate", "relearning graduation stability independent of hard/good/easy", map[string]any{
+			"rating": rating, "nextStability": next.Stability, "currStability": curr.Stability,
+			"fuzzEnabled": cfg.FuzzEnabled, "state": "Relearning->Review",
+		})
+		// #endregion
 		next.ScheduledDays = scheduledDays(w, next.Stability, rating, cfg.DesiredRetention, cfg.FuzzEnabled)
 		dueAt := now.AddDate(0, 0, next.ScheduledDays)
 		return next, rating, dueAt
@@ -285,9 +329,11 @@ func PreviewIntervals(curr FSRSState, now time.Time, cfg SchedulerConfig) Interv
 		"easy":  3.0,
 	}
 	preview := IntervalPreview{}
+	rawDays := map[string]float64{}
 	for rating, score := range scores {
 		_, _, dueAt := CalculateNextFSRSState(curr, score, nil, now, cfg)
 		duration := dueAt.Sub(now)
+		rawDays[rating] = duration.Hours() / 24
 		switch rating {
 		case "again":
 			preview.Again = formatInterval(duration)
@@ -299,6 +345,17 @@ func PreviewIntervals(curr FSRSState, now time.Time, cfg SchedulerConfig) Interv
 			preview.Easy = formatInterval(duration)
 		}
 	}
+	// #region agent log
+	inverted := rawDays["hard"] > rawDays["easy"] || rawDays["hard"] > rawDays["good"] || rawDays["good"] > rawDays["easy"]
+	agentDebugLog("A", "scheduler.go:PreviewIntervals", "preview intervals computed", map[string]any{
+		"state": curr.normalizedState(), "stability": curr.Stability, "fuzzEnabled": cfg.FuzzEnabled,
+		"again": preview.Again, "hard": preview.Hard, "good": preview.Good, "easy": preview.Easy,
+		"hardDays": rawDays["hard"], "goodDays": rawDays["good"], "easyDays": rawDays["easy"],
+		"invertedHardEasy": rawDays["hard"] > rawDays["easy"],
+		"invertedAny":      inverted,
+		"remainingSteps":   curr.RemainingSteps,
+	})
+	// #endregion
 	return preview
 }
 
@@ -428,13 +485,21 @@ func scheduledDays(w []float64, stability float64, rating string, desiredRetenti
 	if days < 1 {
 		return 1
 	}
-	result := int(math.Round(days))
+	preFuzz := int(math.Round(days))
+	result := preFuzz
 	if fuzzEnabled {
 		result = fuzzInterval(result)
 	}
 	if result < 1 {
 		result = 1
 	}
+	// #region agent log
+	agentDebugLog("A", "scheduler.go:scheduledDays", "scheduledDays pre/post fuzz", map[string]any{
+		"rating": rating, "stability": stability, "desiredRetention": desiredRetention,
+		"rawDays": days, "preFuzz": preFuzz, "postFuzz": result, "fuzzEnabled": fuzzEnabled,
+		"ratingUnusedInFormula": rating != "again",
+	})
+	// #endregion
 	return result
 }
 
@@ -453,6 +518,11 @@ func fuzzInterval(days int) int {
 	if result < 1 {
 		result = 1
 	}
+	// #region agent log
+	agentDebugLog("A", "scheduler.go:fuzzInterval", "independent fuzz applied", map[string]any{
+		"inputDays": days, "fuzzRange": fuzzRange, "delta": delta, "outputDays": result,
+	})
+	// #endregion
 	return result
 }
 
