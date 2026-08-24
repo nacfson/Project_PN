@@ -17,7 +17,7 @@ import { Badge, Icon, Text } from '../../ui';
 import type { Rating } from '../../ui';
 import type { DueItem } from '../../types';
 import { SpeakButton } from '../../components/SpeakButton';
-import { renderFormattedSentence, renderBoldMarkdown, getPosColor, getPosBadgeVariant } from '../../utils/text';
+import { getPosColor, getPosBadgeVariant } from '../../utils/text';
 
 interface FlashcardProps {
   item: DueItem;
@@ -304,6 +304,11 @@ export function Flashcard({
             <Text variant="caption" color="muted" style={styles.promptLabel}>
               {t('practice.typePrompt')}
             </Text>
+            {localizedDefinition && (
+              <Text variant="headline" bold style={[styles.definitionText, { color: posColor }]}>
+                {localizedDefinition}
+              </Text>
+            )}
             <Text variant="title" bold style={styles.definitionText}>
               {item.definition}
             </Text>
@@ -361,14 +366,14 @@ export function Flashcard({
           <Text variant="caption" color="muted">
             {t('practice.definitionLabel')}
           </Text>
-          <Text variant="title" style={styles.backDefinitionText}>
-            {item.definition}
-          </Text>
           {localizedDefinition && (
-            <Text variant="body" color="muted" style={styles.backDefinitionText}>
+            <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
               {localizedDefinition}
             </Text>
           )}
+          <Text variant="title" style={styles.backDefinitionText}>
+            {item.definition}
+          </Text>
         </View>
         {example && (
           <View style={[styles.section, { gap: spacing.xs, marginTop: spacing.sm }]}>
@@ -376,11 +381,11 @@ export function Flashcard({
               {t('practice.exampleLabel')}
             </Text>
             <Text variant="body" style={styles.exampleSentence}>
-              &ldquo;{renderFormattedSentence(example.sentence, item.normalized_text, posColor)}&rdquo;
+              &ldquo;{example.sentence}&rdquo;
             </Text>
             {localizedExample && (
               <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-                {renderBoldMarkdown(localizedExample, posColor)}
+                {localizedExample}
               </Text>
             )}
           </View>
