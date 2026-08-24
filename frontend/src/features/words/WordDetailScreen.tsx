@@ -12,6 +12,7 @@ import type { Deck, LearningItemListItem } from '../../types';
 import { MoveToDeckModal } from './MoveToDeckModal';
 import { ChangeMeaningSheet } from './ChangeMeaningSheet';
 import { renderFormattedSentence, renderBoldMarkdown, getPosColor, getPosBadgeVariant } from '../../utils/text';
+import { splitMeanings, preferSimpleGloss } from '../../utils/meanings';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
 
@@ -80,9 +81,8 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   );
 
   const explanation = item.definition;
-  const shortExplanation = item.short_definition;
-  const translation = item.localized_definition;
-  const shortTranslation = item.localized_short_definition;
+  const shortExplanation = preferSimpleGloss(item.short_definition, item.definition);
+  const { simple: simpleMeaning, full: fullMeaning } = splitMeanings(item);
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
   const examples = item.examples ?? [];
 
@@ -159,16 +159,25 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           </Card>
         )}
 
-        {translation && translation !== explanation && (
+        {(simpleMeaning || fullMeaning) && (
           <Card style={{ marginBottom: spacing.md }}>
-            <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-              {t('words.detailTranslation')}
-            </Text>
-            <Text variant="body">{translation}</Text>
-            {shortTranslation && shortTranslation !== translation && (
-              <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                {shortTranslation}
-              </Text>
+            {simpleMeaning && (
+              <>
+                <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
+                  {t('practice.simpleMeaningLabel')}
+                </Text>
+                <Text variant="headline" bold style={{ color: posColor, marginBottom: fullMeaning ? spacing.sm : 0 }}>
+                  {simpleMeaning}
+                </Text>
+              </>
+            )}
+            {fullMeaning && (
+              <>
+                <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
+                  {t('practice.fullMeaningLabel')}
+                </Text>
+                <Text variant="body">{fullMeaning}</Text>
+              </>
             )}
           </Card>
         )}

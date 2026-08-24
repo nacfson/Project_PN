@@ -8,6 +8,7 @@ import { Badge, Button, Card, Icon, Text } from '../ui';
 import type { PartOfSpeech, SenseOption } from '../types';
 import { bestMatch } from '../utils/senses';
 import { renderFormattedSentence } from '../utils/text';
+import { SenseMeaning } from './SenseMeaning';
 
 const CONCRETE_POS: PartOfSpeech[] = [
   'noun',
@@ -147,15 +148,7 @@ export function SensePicker({
                       <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
                       {option.cefr_level && <Badge label={option.cefr_level} variant="info" />}
                     </View>
-                    <Text variant="body" style={{ marginTop: spacing.xs }}>
-                      {option.definition}
-                    </Text>
-                    {option.localized_definition &&
-                      option.localized_definition !== option.definition && (
-                        <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                          {option.localized_definition}
-                        </Text>
-                      )}
+                    <SenseMeaning option={option} />
                     {(option.examples ?? []).length > 0 && (
                       <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
                         &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, query)}&rdquo;

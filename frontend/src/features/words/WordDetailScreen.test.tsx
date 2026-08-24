@@ -97,7 +97,9 @@ describe('WordDetailScreen', () => {
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('Explanation')).toBeTruthy();
     expect(screen.getByText('to leave behind, to forsake')).toBeTruthy();
-    expect(screen.getByText('Translation')).toBeTruthy();
+    expect(screen.getByText('Simple meaning')).toBeTruthy();
+    expect(screen.getByText('떠나다')).toBeTruthy();
+    expect(screen.getByText('Full meaning')).toBeTruthy();
     expect(screen.getByText('떠나다, 버리다')).toBeTruthy();
   });
 

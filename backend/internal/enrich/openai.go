@@ -273,7 +273,7 @@ func parseModelOutput(req Request, content string) (Result, error) {
 			}
 			sense := Sense{
 				Definition:      def,
-				ShortDefinition: strings.TrimSpace(s.ShortDefinition),
+				ShortDefinition: PreferSimpleGloss(strings.TrimSpace(s.ShortDefinition), def),
 				CEFRLevel:       cefr,
 			}
 			nativeDef := strings.TrimSpace(s.NativeDefinition)
@@ -281,7 +281,7 @@ func parseModelOutput(req Request, content string) (Result, error) {
 				sense.NativeDefinition = nativeDef
 				nativeShort := strings.TrimSpace(s.NativeShortDefinition)
 				if ValidTranslation(req.DefinitionLanguageCode, sense.ShortDefinition, nativeShort) || nativeShort == "" {
-					sense.NativeShortDefinition = nativeShort
+					sense.NativeShortDefinition = PreferSimpleGloss(nativeShort, nativeDef)
 				}
 			}
 			var keptExamples []Example
@@ -352,7 +352,7 @@ func parseTranslateOutput(req TranslateRequest, content string) (TranslateResult
 			senseResult.Definition = def
 			shortDef := strings.TrimSpace(modelSense.ShortDefinition)
 			if shortDef == "" || ValidTranslation(req.DisplayLang, inputSense.ShortDefinition, shortDef) {
-				senseResult.ShortDefinition = shortDef
+				senseResult.ShortDefinition = PreferSimpleGloss(shortDef, def)
 			}
 		}
 
@@ -469,7 +469,10 @@ func buildUserPrompt(req Request) string {
 	}
 
 	b.WriteString("Provide mutually distinct senses (different intents); do not emit near-synonym gloss pairs as separate senses.\n")
-	b.WriteString("Provide exactly one example sentence per sense. Write a clear short_definition with no length limit.")
+	b.WriteString("Provide exactly one example sentence per sense.\n")
+	b.WriteString("short_definition must be a simple 1-3 word headword gloss in the word's language (cover, apple, expose) — not a sentence and not an infinitive paraphrase like \"To cover something with soil\".\n")
+	b.WriteString("native_short_definition must be a simple lexical gloss in the display language, typically one word: 덮다, 사과, 노출하다, 묻다. Do NOT write a dictionary paraphrase, pattern like \"~을 덮다\", or a clause like \"무엇을 흙이나 눈 등으로 덮어 감추다\".\n")
+	b.WriteString("definition / native_definition stay the fuller current meaning (e.g. native_definition: 흙이나 눈 등으로 ~을 덮다).\n")
 	return b.String()
 }
 
@@ -479,6 +482,8 @@ func buildTranslatePrompt(req TranslateRequest) string {
 	fmt.Fprintf(&b, "Word language code: %s\n", req.LanguageCode)
 	fmt.Fprintf(&b, "Translate into display language code: %s\n", req.DisplayLang)
 	b.WriteString("Return one senses[] entry per input sense below, in the same order, with one examples[] translation per input example.\n")
+	b.WriteString("definition is the fuller current meaning in the display language.\n")
+	b.WriteString("short_definition must be a simple 1-word (or very short) lexical gloss in the display language, like 덮다, 사과, or 노출하다 — not a full explanatory translation.\n")
 	b.WriteString("Wrap the word's meaning in each example translation with **...** markers.\n\n")
 
 	for i, sense := range req.Senses {
