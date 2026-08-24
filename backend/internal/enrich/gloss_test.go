@@ -1,0 +1,52 @@
+package enrich
+
+import "testing"
+
+func TestIsSimpleGloss(t *testing.T) {
+	simple := []string{"덮다", "사과", "노출하다", "떠나다, 버리다", "leave behind"}
+	for _, s := range simple {
+		if !IsSimpleGloss(s) {
+			t.Errorf("IsSimpleGloss(%q) = false, want true", s)
+		}
+	}
+	complex := []string{
+		"무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.",
+		"시체를 땅에 묻다",
+		"To hide or conceal something by covering it",
+	}
+	for _, s := range complex {
+		if IsSimpleGloss(s) {
+			t.Errorf("IsSimpleGloss(%q) = true, want false", s)
+		}
+	}
+}
+
+func TestExtractKoreanHeadword(t *testing.T) {
+	cases := map[string]string{
+		"흙이나 눈 등으로 ~을 덮다.":                    "덮다",
+		"무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.": "감추다",
+		"시체를 땅에 묻다.":                            "묻다",
+		"어떤 일에 몰두하다":                            "몰두하다",
+	}
+	for in, want := range cases {
+		if got := ExtractKoreanHeadword(in); got != want {
+			t.Errorf("ExtractKoreanHeadword(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPreferSimpleGloss(t *testing.T) {
+	if got := PreferSimpleGloss("덮다", "흙이나 눈 등으로 ~을 덮다"); got != "덮다" {
+		t.Fatalf("kept simple short: got %q", got)
+	}
+	if got := PreferSimpleGloss("무엇을 덮어 감추다", "무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다."); got != "감추다" {
+		t.Fatalf("korean extract: got %q", got)
+	}
+	got := PreferSimpleGloss(
+		"To hide or conceal something by covering it with earth, snow, or other material.",
+		"To cover something completely so that it cannot be seen.",
+	)
+	if got != "hide" {
+		t.Fatalf("english infinitive: got %q", got)
+	}
+}

@@ -8,6 +8,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Text } from '../../ui';
 import type { LearningItemListItem, SenseOption } from '../../types';
 import { renderFormattedSentence } from '../../utils/text';
+import { SenseMeaning } from '../../components/SenseMeaning';
 
 interface ChangeMeaningSheetProps {
   visible: boolean;
@@ -143,15 +144,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
                       <View style={[styles.optionHead, { gap: spacing.sm }]}>
                         <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
                       </View>
-                      <Text variant="body" style={{ marginTop: spacing.xs }}>
-                        {option.definition}
-                      </Text>
-                      {option.localized_definition &&
-                        option.localized_definition !== option.definition && (
-                          <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                            {option.localized_definition}
-                          </Text>
-                        )}
+                      <SenseMeaning option={option} />
                       {(option.examples ?? []).length > 0 && (
                         <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
                           &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}&rdquo;

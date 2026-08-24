@@ -18,6 +18,7 @@ import type { Rating } from '../../ui';
 import type { DueItem } from '../../types';
 import { SpeakButton } from '../../components/SpeakButton';
 import { getPosColor, getPosBadgeVariant } from '../../utils/text';
+import { splitMeanings } from '../../utils/meanings';
 
 interface FlashcardProps {
   item: DueItem;
@@ -34,13 +35,6 @@ interface FlashcardProps {
 const SWIPE_THRESHOLD = 96;
 // RN Web has no native animated module; native driver only warns and falls back.
 const USE_NATIVE_DRIVER = Platform.OS !== 'web';
-
-function uniqueText(value: string | null | undefined, original: string | null | undefined) {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  if (trimmed === original?.trim()) return null;
-  return trimmed;
-}
 
 /** Safe POS badge label — Anki import can persist `unknown`, and other unexpected POS values may lack i18n keys. */
 function formatPosBadgeLabel(
@@ -271,8 +265,13 @@ export function Flashcard({
     borderTopColor: posColor,
     ...shadows.md,
   };
-  const localizedDefinition = uniqueText(item.localized_definition, item.definition);
-  const localizedExample = uniqueText(example?.localized_translation, example?.sentence);
+  const { simple: simpleMeaning, full: fullMeaning } = splitMeanings(item);
+  const localizedExample = (() => {
+    const trimmed = example?.localized_translation?.trim();
+    if (!trimmed) return null;
+    if (trimmed === example?.sentence?.trim()) return null;
+    return trimmed;
+  })();
 
   const renderFront = () => (
     <View style={styles.cardContent}>
@@ -304,9 +303,14 @@ export function Flashcard({
             <Text variant="caption" color="muted" style={styles.promptLabel}>
               {t('practice.typePrompt')}
             </Text>
-            {localizedDefinition && (
+            {simpleMeaning && (
               <Text variant="headline" bold style={[styles.definitionText, { color: posColor }]}>
-                {localizedDefinition}
+                {simpleMeaning}
+              </Text>
+            )}
+            {fullMeaning && (
+              <Text variant="body" color="muted" style={styles.definitionText}>
+                {fullMeaning}
               </Text>
             )}
             <Text variant="title" bold style={styles.definitionText}>
@@ -363,14 +367,29 @@ export function Flashcard({
           </View>
         )}
         <View style={[styles.section, { gap: spacing.xs }]}>
+          {simpleMeaning && (
+            <>
+              <Text variant="caption" color="muted">
+                {t('practice.simpleMeaningLabel')}
+              </Text>
+              <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
+                {simpleMeaning}
+              </Text>
+            </>
+          )}
+          {fullMeaning && (
+            <>
+              <Text variant="caption" color="muted">
+                {t('practice.fullMeaningLabel')}
+              </Text>
+              <Text variant="title" style={styles.backDefinitionText}>
+                {fullMeaning}
+              </Text>
+            </>
+          )}
           <Text variant="caption" color="muted">
             {t('practice.definitionLabel')}
           </Text>
-          {localizedDefinition && (
-            <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
-              {localizedDefinition}
-            </Text>
-          )}
           <Text variant="title" style={styles.backDefinitionText}>
             {item.definition}
           </Text>

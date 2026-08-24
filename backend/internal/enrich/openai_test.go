@@ -184,6 +184,12 @@ func TestBuildUserPromptIncludesContextAndOneExample(t *testing.T) {
 	if !strings.Contains(strings.ToLower(prompt), "distinct") {
 		t.Fatal("expected distinct-sense instruction")
 	}
+	if strings.Contains(prompt, "no length limit") {
+		t.Fatal("short_definition should be a simple gloss, not unlimited prose")
+	}
+	if !strings.Contains(prompt, "덮다") {
+		t.Fatal("expected simple native gloss examples in prompt")
+	}
 }
 
 func TestNormalizeMatchText(t *testing.T) {

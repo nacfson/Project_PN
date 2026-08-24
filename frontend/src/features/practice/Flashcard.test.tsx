@@ -84,10 +84,24 @@ describe('Flashcard', () => {
     const gloss = screen.getByText('충전하다');
     expect(target).toBeTruthy();
     expect(gloss).toBeTruthy();
-    // Target uses title variant (primary); gloss uses muted body.
     expect(target.props.style).toEqual(
       expect.arrayContaining([expect.objectContaining({ fontSize: expect.any(Number) })]),
     );
+  });
+
+  it('shows a simple headword plus the current full meaning', async () => {
+    await renderCard({
+      definition: 'To cover something completely so that it cannot be seen.',
+      short_definition: 'To hide or conceal something by covering it.',
+      localized_definition: '무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.',
+      localized_short_definition: '무엇을 덮어 감추다.',
+    });
+
+    expect(screen.getByText('감추다')).toBeTruthy();
+    expect(screen.getByText('무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.')).toBeTruthy();
+    expect(screen.getByText('Simple meaning')).toBeTruthy();
+    expect(screen.getByText('Full meaning')).toBeTruthy();
+    expect(screen.getByText('To cover something completely so that it cannot be seen.')).toBeTruthy();
   });
 
   it('does not render duplicate localized example text', async () => {

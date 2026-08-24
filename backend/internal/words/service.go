@@ -597,6 +597,9 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		); err != nil {
 			return LearningItemsPage{}, err
 		}
+		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
+			item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
+		)
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -1175,6 +1178,9 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string, displayL
 		if translatedShort != nil && strings.TrimSpace(*translatedShort) != "" {
 			o.LocalizedShortDefinition = translatedShort
 		}
+		o.ShortDefinition, o.LocalizedShortDefinition = polishSenseGlosses(
+			o.ShortDefinition, o.LocalizedShortDefinition, o.Definition, o.LocalizedDefinition,
+		)
 		options = append(options, o)
 	}
 	if err := rows.Err(); err != nil {
@@ -1236,6 +1242,19 @@ func derefString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func optionalGloss(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func polishSenseGlosses(short *string, localizedShort *string, definition, localizedDefinition string) (*string, *string) {
+	return optionalGloss(enrich.PreferSimpleGloss(derefString(short), definition)),
+		optionalGloss(enrich.PreferSimpleGloss(derefString(localizedShort), localizedDefinition))
 }
 
 func firstNonEmpty(values ...string) string {
@@ -1403,6 +1422,10 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 				fsrsState = "Review"
 			}
 		}
+
+		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
+			item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
+		)
 
 		state := FSRSState{
 			State:          fsrsState,

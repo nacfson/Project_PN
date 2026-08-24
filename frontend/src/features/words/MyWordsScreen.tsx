@@ -23,6 +23,7 @@ import { useLearningItems } from './useLearningItems';
 import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
 import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from '../../api/decks';
 import { getPosBadgeVariant } from '../../utils/text';
+import { splitMeanings } from '../../utils/meanings';
 import { DeckCanvas } from './DeckCanvas';
 import { DeckFormModal } from './DeckFormModal';
 import { MoveToDeckModal } from './MoveToDeckModal';
@@ -331,7 +332,10 @@ export function MyWordsScreen() {
       const matchesTerm =
         !term ||
         item.lemma.toLowerCase().includes(term) ||
-        (item.short_definition ?? item.definition).toLowerCase().includes(term);
+        (item.short_definition ?? item.definition).toLowerCase().includes(term) ||
+        (item.localized_definition ?? '').toLowerCase().includes(term) ||
+        (item.localized_short_definition ?? '').toLowerCase().includes(term) ||
+        (splitMeanings(item).simple ?? '').toLowerCase().includes(term);
       return matchesFilter && matchesTerm;
     });
   }, [items, filter, q]);
@@ -376,7 +380,7 @@ export function MyWordsScreen() {
               </Text>
             )}
             <Text variant="caption" color="muted">
-              {item.short_definition ?? item.definition}
+              {splitMeanings(item).simple ?? item.short_definition ?? item.definition}
             </Text>
           </View>
           <Icon name="chevron-forward" size="md" />
