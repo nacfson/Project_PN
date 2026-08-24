@@ -62,6 +62,7 @@ node_modules/
 .env.*
 !.env.example
 deploy/.deploy.env
+deploy/.env
 *.pem
 *.p12
 GoogleService-Info.plist
