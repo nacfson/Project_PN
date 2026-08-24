@@ -1,6 +1,7 @@
 package words
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -427,3 +428,125 @@ func TestReviewStabilityAffectedBySubBucketScore(t *testing.T) {
 		t.Fatalf("higher good score should yield higher stability: low=%f high=%f", nextLow.Stability, nextHigh.Stability)
 	}
 }
+
+func TestPreviewIntervalsMonotonicWithFuzzEnabled(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	cfg := DefaultSchedulerConfig()
+	cfg.FuzzEnabled = true
+
+	cases := []FSRSState{
+		{State: "New"},
+		{State: "Learning", Stability: 20.0, Difficulty: 5.0, RemainingSteps: 0, ReviewCount: 2},
+		{State: "Learning", Stability: 2.5, Difficulty: 5.0, RemainingSteps: 0, ReviewCount: 2},
+		{
+			State: "Review", Stability: 8.0, Difficulty: 5.0, ScheduledDays: 7, ReviewCount: 5,
+			LastReviewedAt: ptrTime(now.Add(-7 * 24 * time.Hour)),
+		},
+		{
+			State: "Relearning", Stability: 40.0, Difficulty: 6.0, RemainingSteps: 0, ReviewCount: 4, LapseCount: 1,
+			LastReviewedAt: ptrTime(now.Add(-10 * 24 * time.Hour)),
+		},
+	}
+
+	for _, curr := range cases {
+		first := PreviewIntervals(curr, now, cfg)
+		for i := 0; i < 50; i++ {
+			p := PreviewIntervals(curr, now, cfg)
+			if p != first {
+				t.Fatalf("state=%s trial=%d: preview not deterministic with fuzz enabled on cfg: first=%+v got=%+v",
+					curr.normalizedState(), i, first, p)
+			}
+			hard := previewIntervalMinutes(p.Hard)
+			good := previewIntervalMinutes(p.Good)
+			easy := previewIntervalMinutes(p.Easy)
+			if hard > good || good > easy {
+				t.Fatalf("state=%s trial=%d: non-monotonic preview hard=%s (%g) good=%s (%g) easy=%s (%g)",
+					curr.normalizedState(), i, p.Hard, hard, p.Good, good, p.Easy, easy)
+			}
+		}
+	}
+}
+
+func TestGraduationScheduledDaysHardGoodEasyOrdered(t *testing.T) {
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	cfg := DefaultSchedulerConfig()
+	cfg.FuzzEnabled = false
+
+	scores := []struct {
+		rating string
+		score  float64
+	}{
+		{"hard", 1.0},
+		{"good", 2.0},
+		{"easy", 3.0},
+	}
+
+	cases := []struct {
+		name string
+		curr FSRSState
+	}{
+		{
+			name: "Learning",
+			curr: FSRSState{State: "Learning", Stability: 20.0, Difficulty: 5.0, RemainingSteps: 0, ReviewCount: 2},
+		},
+		{
+			name: "Relearning",
+			curr: FSRSState{
+				State: "Relearning", Stability: 40.0, Difficulty: 6.0, RemainingSteps: 0, ReviewCount: 4, LapseCount: 1,
+				LastReviewedAt: ptrTime(now.Add(-10 * 24 * time.Hour)),
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			days := map[string]int{}
+			stabilities := map[string]float64{}
+			for _, s := range scores {
+				next, rating, _ := CalculateNextFSRSState(tc.curr, s.score, nil, now, cfg)
+				if rating != s.rating {
+					t.Fatalf("score %v rated %q, want %q", s.score, rating, s.rating)
+				}
+				if next.State != "Review" {
+					t.Fatalf("rating %s: state=%q, want Review", s.rating, next.State)
+				}
+				days[s.rating] = next.ScheduledDays
+				stabilities[s.rating] = next.Stability
+			}
+			if days["hard"] > days["good"] || days["good"] > days["easy"] {
+				t.Fatalf("scheduled days not ordered: hard=%d good=%d easy=%d (stability hard=%.4f good=%.4f easy=%.4f)",
+					days["hard"], days["good"], days["easy"],
+					stabilities["hard"], stabilities["good"], stabilities["easy"])
+			}
+			if days["hard"] >= days["easy"] {
+				t.Fatalf("hard should schedule sooner than easy: hard=%d easy=%d", days["hard"], days["easy"])
+			}
+		})
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }
+
+// previewIntervalMinutes converts formatInterval output to a comparable minute count.
+func previewIntervalMinutes(s string) float64 {
+	var n float64
+	var unit string
+	if _, err := fmt.Sscanf(s, "%f%s", &n, &unit); err != nil {
+		return 0
+	}
+	switch unit {
+	case "m":
+		return n
+	case "h":
+		return n * 60
+	case "d":
+		return n * 60 * 24
+	case "mo":
+		return n * 30 * 60 * 24
+	case "y":
+		return n * 365 * 60 * 24
+	default:
+		return 0
+	}
+}
+

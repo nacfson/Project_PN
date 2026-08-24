@@ -186,7 +186,7 @@ func CalculateNextFSRSState(curr FSRSState, score float64, responseTimeMs *int, 
 		// Graduated from Learning → Review.
 		next.State = "Review"
 		next.RemainingSteps = 0
-		next.Stability = clampStability(curr.Stability)
+		next.Stability = graduationStability(w, curr.Stability, rating)
 		next.ScheduledDays = scheduledDays(w, next.Stability, rating, cfg.DesiredRetention, cfg.FuzzEnabled)
 		dueAt := now.AddDate(0, 0, next.ScheduledDays)
 		return next, rating, dueAt
@@ -219,10 +219,12 @@ func CalculateNextFSRSState(curr FSRSState, score float64, responseTimeMs *int, 
 		// Graduated from Relearning → Review.
 		next.State = "Review"
 		next.RemainingSteps = 0
-		// Re-compute stability after relearning graduation.
+		// Re-compute stability after relearning graduation, then apply the same
+		// hard-penalty / easy-bonus scaling used for Learning graduation.
 		elapsedDays := elapsedDays(curr.LastReviewedAt, now)
 		retrievability := forgettingCurve(w, float64(elapsedDays), curr.Stability)
-		next.Stability = clampStability(nextForgetStability(w, curr.Difficulty, curr.Stability, retrievability))
+		base := nextForgetStability(w, curr.Difficulty, curr.Stability, retrievability)
+		next.Stability = graduationStability(w, base, rating)
 		next.ScheduledDays = scheduledDays(w, next.Stability, rating, cfg.DesiredRetention, cfg.FuzzEnabled)
 		dueAt := now.AddDate(0, 0, next.ScheduledDays)
 		return next, rating, dueAt
@@ -278,6 +280,12 @@ func nextDifficulty(w []float64, current float64, grade int) float64 {
 }
 
 func PreviewIntervals(curr FSRSState, now time.Time, cfg SchedulerConfig) IntervalPreview {
+	// Previews must be deterministic and monotonic across Hard/Good/Easy.
+	// Independent per-rating fuzz can invert button labels even when base
+	// intervals are ordered, so fuzz is always off for preview only.
+	previewCfg := cfg
+	previewCfg.FuzzEnabled = false
+
 	scores := map[string]float64{
 		"again": 0.0,
 		"hard":  1.0,
@@ -286,7 +294,7 @@ func PreviewIntervals(curr FSRSState, now time.Time, cfg SchedulerConfig) Interv
 	}
 	preview := IntervalPreview{}
 	for rating, score := range scores {
-		_, _, dueAt := CalculateNextFSRSState(curr, score, nil, now, cfg)
+		_, _, dueAt := CalculateNextFSRSState(curr, score, nil, now, previewCfg)
 		duration := dueAt.Sub(now)
 		switch rating {
 		case "again":
@@ -300,6 +308,18 @@ func PreviewIntervals(curr FSRSState, now time.Time, cfg SchedulerConfig) Interv
 		}
 	}
 	return preview
+}
+
+// graduationStability scales Learning/Relearning → Review stability with the
+// FSRS hard-penalty (w[15]) and easy-bonus (w[16]) so Hard ≤ Good ≤ Easy.
+func graduationStability(w []float64, stability float64, rating string) float64 {
+	switch rating {
+	case "hard":
+		stability *= w[15]
+	case "easy":
+		stability *= w[16]
+	}
+	return clampStability(stability)
 }
 
 func formatInterval(d time.Duration) string {
