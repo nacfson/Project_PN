@@ -90,11 +90,9 @@ On first contact, `EnsureCentralUser()` provisions a local `users` row (with `us
 
 Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
 
-## Public Docker Deployment
+## Production Deployment (Oracle Cloud)
 
-The public deploy path uses Docker Compose on `wlUbuntu` for PostgreSQL, migrations, the Go API, and staging nginx on `:53412`. Production HTTPS for `https://pn.nacfson.cloud` terminates on **ingress-nginx** (same host) with Let's Encrypt and proxies to Compose `:53412`. Central auth is `https://auth.nacfson.cloud` on the same ingress. Forward router ports `80/tcp` and `443/tcp` to `wlUbuntu` (`192.168.219.120`). Set `APP_PUBLIC_URL=https://pn.nacfson.cloud` and `AUTH_MODE=central`. The API Docker runtime image includes CA certificates so outbound HTTPS to Resend and enrichment providers works from inside the container.
-
-See `backend/docs/go-backend-setup.md` and `backend/docs/remote-deploy-runbook.md` for deployment steps.
+Production runs on **Oracle Cloud k3s** (`project-pn` namespace). Images: `ghcr.io/nacfson/project-pn-backend` and `project-pn-frontend`. Public URL: Cursor secret `DEPLOY_PUBLIC_URL`. Central auth: `https://auth.nacfson.cloud`. Runtime secrets (including `ENRICH_PRIMARY_API_KEY`) are managed through **Cursor environment secrets**. See `backend/docs/cursor-secrets.md` and `backend/docs/oracle-deploy-runbook.md`.
 
 ## Enrichment
 

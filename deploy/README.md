@@ -1,16 +1,32 @@
-# Deploy Docs
+# Deploy Docs (Oracle Cloud)
 
-Documentation for deploying Project PN to **Oracle Cloud**.
+Production runs on **Oracle Cloud k3s**, not Docker Compose.
 
 | File | Purpose |
-|---|---|
-| [`NETWORK_SETUP.md`](NETWORK_SETUP.md) | Oracle Cloud / OCI networking and nginx setup |
-| [`deploy-exception-runbook.md`](deploy-exception-runbook.md) | Common deploy failures and fixes |
-| [`.deploy.env.example`](.deploy.env.example) | Local Mac deploy-script settings (`DEPLOY_HOST=OracleCloud`) |
+|------|---------|
+| [`../backend/docs/oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md) | GHCR publish + k3s rollout on Oracle |
+| [`../backend/docs/cursor-secrets.md`](../backend/docs/cursor-secrets.md) | Runtime secrets via Cursor environment secrets |
+| [`../backend/docs/ghcr-deploy.md`](../backend/docs/ghcr-deploy.md) | GHCR image publishing details |
+| [`NETWORK_SETUP.md`](NETWORK_SETUP.md) | Oracle networking and TLS |
+| [`deploy-exception-runbook.md`](deploy-exception-runbook.md) | Common production failures |
 
-Full stack deploy (web + backend image): `scripts/deploy-remote.sh`  
-Backend image only: `scripts/update-backend-image.sh` (see `.cursor/skills/update-backend-image/SKILL.md`)
+## Quick commands
 
-For the full deploy procedure, see [`backend/docs/remote-deploy-runbook.md`](../backend/docs/remote-deploy-runbook.md).
+Publish images (manual):
 
-See also [`docs/GUIDE.md`](../docs/GUIDE.md) for the full project documentation map.
+```sh
+GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+```
+
+Deploy skill for agents: [`.cursor/skills/deploy-oracle-k8s/SKILL.md`](../.cursor/skills/deploy-oracle-k8s/SKILL.md)
+
+## Removed (legacy)
+
+The following **wlUbuntu / Compose** artifacts were removed from this repo:
+
+- `scripts/deploy-remote.sh`, `deploy/compose.yaml`, `deploy/.env.example`
+- `deploy/.deploy.env.example`, `deploy/migrate-to-wlubuntu.md`
+- `.cursor/skills/deploy-web-ubuntu`, `.cursor/skills/update-backend-image`
+- Mac merge-deploy automation for Compose (`deploy-on-merge.sh`)
+
+Do not recreate host-level `~/project-pn/deploy/.env` for production. Use Cursor secrets + k3s.

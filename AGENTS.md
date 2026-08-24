@@ -22,13 +22,13 @@ Core backend principle:
 - **Go backend setup, local PostgreSQL setup, migration commands, health checks, or DB connection logic 수정 시**: `backend/docs/go-backend-setup.md`
 - **MVP scope 변경, study sessions, imports, tags, collections, AI enrichment, writing, or speaking 기능 추가 시**: `backend/docs/backend-future-scope.md`
 - **Migration tests, backend acceptance criteria, or schema behavior 검증 작성 시**: `backend/docs/backend-acceptance-tests.md`
-- **Project PN web app을 wlUbuntu에 배포하거나, frontend web build를 build/deploy/publish 할 시**: `.cursor/skills/deploy-web-ubuntu/SKILL.md`
-- **auth-service / ProcessManager / 기타 nacfson.cloud K8s 이미지 배포 시**: `~/.cursor/skills/deploy-nacfson-project/SKILL.md` (registry `192.168.219.120:5000`, control plane `wlUbuntu`)
+- **Production deploy, GHCR publish, Oracle k3s rollout 시**: `.cursor/skills/deploy-oracle-k8s/SKILL.md`, `backend/docs/oracle-deploy-runbook.md`
+- **Runtime secrets (Gemini, DB, auth tokens) or ENRICH_* configuration 시**: `backend/docs/cursor-secrets.md`
+- **auth-service / ProcessManager / 기타 nacfson.cloud K8s 이미지 배포 시**: `~/.cursor/skills/deploy-nacfson-project/SKILL.md`
 - **iOS를 Xcode로 Release/device 빌드하거나, localhost:8080 bake-in / EXPO_PUBLIC_API_BASE_URL 문제를 다룰 시**: `.cursor/skills/build-ios-xcode/SKILL.md`
 - **Frontend UI component, form validation, loading state, practice UX, or translation string 추가/수정 시**: `frontend/docs/frontend-ux-patterns.md`
-- **Deploy 실패, nginx 오류, CORS 오류, migration password 오류, public IP unreachable, TLS/`ERR_CERT_AUTHORITY_INVALID`, 또는 wlUbuntu에서 backend/container 예외 발생 시**: `deploy/deploy-exception-runbook.md`
-- **Network / router / split DNS / HTTPS 경로 확인 시**: `deploy/NETWORK_SETUP.md`
-- **Cursor Cloud 개발 + PR merge 시 로컬 Mac 자동 배포(My Machines) 설정 시**: `backend/docs/remote-deploy-runbook.md` (§ Cursor merge deploy), `.cursor/automation-merge-deploy.md`
+- **Deploy 실패, nginx 오류, CORS 오류, enrichment 503, TLS, 또는 Oracle/k3s backend 예외 발생 시**: `deploy/deploy-exception-runbook.md`
+- **Network / HTTPS 경로 확인 시**: `deploy/NETWORK_SETUP.md`
 
 ## Backend Rules
 
@@ -91,20 +91,17 @@ This is an npm-workspaces monorepo plus a standalone Go backend module. Cloud VM
 - After Postgres is healthy, apply migrations once: `cd backend && set -a && source .env && set +a && go run ./cmd/migrate up`.
 - Local auth needs NO external central auth server: the backend accepts `Authorization: Bearer mock-dev-token` as the seeded dev user (`dev@project-pn.local`, admin, verified), and `EnsureCentralUser` auto-creates that user on the first authenticated request. For the web UI, open `http://localhost:8081/?token=mock-dev-token` to sign in as the dev user.
 - `scripts/start-web-dev.sh` currently FAILS at its `seed-dev-guest.sh` step: that seed targets the fixed dev-user id `00000000-...0001`, which no longer exists (the dev user is created with a random UUID), so the FK insert errors and the script (`set -e`) aborts before starting the API. For a reliable full stack, start Postgres, migrations, the API, and Expo web manually (or use `--skip-db`/`--skip-migrate` only after the stack is already up) and authenticate with `mock-dev-token` instead of relying on the guest seed.
-- Word enrichment is disabled by default (no `ENRICH_*` keys). `POST /api/words/lookup` on a cache miss returns HTTP 503, so adding a brand-new word through the UI/lookup will not generate senses without an enrichment API key. Words already present in the `words`/`word_senses` cache (or seeded directly) can be added and reviewed normally.
+- Word enrichment in Cloud dev: set `ENRICH_PRIMARY_API_KEY` in **Cursor environment secrets** (or `backend/.env` locally). Without a key, `POST /api/words/lookup` on a cache miss returns HTTP 503. Cached/seeded words still work.
 
 ### Testing caveats (non-obvious)
 
 - Run backend tests SERIALLY: `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`. All Go test packages share the single local Postgres database and `TRUNCATE` it, so the default parallel `go test ./...` (as written in `go-backend-setup.md`) produces spurious failures (truncate deadlocks, FK violations, missing "central user"). `-p 1` makes the full suite pass. DB-backed tests require Postgres running and `DATABASE_URL` (from `backend/.env`).
 - JS tests/typechecks run from the repo root via workspaces: `npm test -w frontend`, `npm test -w browser-extension`, `npm test -w packages/api`, and `npm run typecheck -w <workspace>`.
 
-### Production deploy reality (do NOT use this repo's Compose deploy scripts for the live host)
+### Production deploy (Oracle Cloud k3s)
 
-- The live production host is **Oracle Cloud Ampere/arm64** (`ssh opc@<oracle-host>`). It serves the `pn.*`, `auth.*`, and `manager.*` domains via **host-level nginx** terminating TLS on `:80/:443` and proxying to a single NodePort upstream. It is orchestrated by **Kubernetes** through the separate **ProcessManager** platform — there are **no long-running Docker Compose containers** and **no `.env` file** on the host for the live path.
-- This repo's `scripts/deploy-remote.sh`, `deploy/compose.yaml`, and the `deploy-web-ubuntu` / `project-pn-deploy` skills describe an **OUTDATED `zlUbuntu` amd64 Docker-Compose path** and must NOT be run against the Oracle host: they build a `linux/amd64` image (wrong arch for Ampere), target a nonexistent `~/project-pn/deploy/`, abort at the HTTPS TLS-cert check, and their Compose nginx (`:80`) collides with the live host nginx.
-- Real rollout is a K8s image bump: build/push an arm64 image `ghcr.io/nacfson/processmanager:<sha>-arm64` (GHA multi-arch push has failed with 403, so arm64 is built/pushed locally), then `kubectl set image deploy/auth-service auth=<img> -n nacfson-auth` and `kubectl set image deploy/processmanager manager=<img> -n nacfson-personal`, followed by `kubectl rollout status` (KUBECONFIG lives on the server, e.g. `/secure/production.conf`).
-- Pod env comes from **K8s Secrets** via `envFrom`/`secretKeyRef` — `auth-db-secrets` (DATABASE_URL/PG creds), `auth-bootstrap` (`AUTH_INTERNAL_TOKEN`, bootstrap admin, `SMTP_*`), `auth-session-secrets` (`AUTH_SESSION_INTERNAL_TOKEN`) — plus plain Deployment env (`PORT`, `COOKIE_DOMAIN`, `SESSION_LIFETIME`, `AUTH_API_ALLOWED_ORIGINS`, `AUTH_ALLOWED_REDIRECTS`). Magic-link email works because SMTP is in `auth-bootstrap`.
-- A Compose fallback exists but is idle: `/home/opc/processmanager-auth/update-processmanager-image.sh` (pulls the arm64 GHCR tag, writes a short-lived env from a Bitwarden note, `docker compose up -d --force-recreate --no-deps auth`).
-- **The Project_PN app itself** runs in the k3s `project-pn` namespace (NOT the idle `~/project-pn/docker-compose.yml`): Deployments `project-pn-backend` (container `api`) and `project-pn-frontend` (container `nginx`) run `ghcr.io/nacfson/project-pn-backend:<tag>` / `project-pn-frontend:<tag>` (arm64; `ghcr-pull` imagePullSecret), alongside in-cluster `postgres` (StatefulSet) and an `enricher`, fronted by Ingress `pn.nacfson.cloud` → ingress-nginx NodePort `30489` → host nginx. DB migrations run as a one-shot Job `project-pn-migrate` (`./migrate up`), not on backend startup.
-- Validated rollout of a new app build (run `kubectl` on the host as `sudo env KUBECONFIG=/secure/production.conf kubectl`): (1) apply a one-shot migrate Job cloned from `project-pn-migrate` but with the new backend image (`./migrate up` is idempotent) and wait for `condition=complete`; (2) `kubectl -n project-pn set image deploy/project-pn-backend api=ghcr.io/nacfson/project-pn-backend:<tag>` and `deploy/project-pn-frontend nginx=ghcr.io/nacfson/project-pn-frontend:<tag>`; (3) `kubectl -n project-pn rollout status` each (rolling update keeps the old pod serving until the new one is Ready; `kubectl rollout undo` to revert). Verify with `pn.<domain>/healthz`, `/readyz`, `/` (HTML), and `/api/curriculum/packs` (401 unauth = route live).
-
+- Live production: **Oracle Cloud Ampere/arm64** (`ssh opc@<oracle-host>`). TLS on host nginx → ingress-nginx → k3s `project-pn` namespace.
+- **Secrets:** Manage runtime values (`ENRICH_PRIMARY_API_KEY`, `DATABASE_URL`, auth tokens, etc.) through **Cursor environment secrets** — never commit them. See `backend/docs/cursor-secrets.md`.
+- **Images:** `ghcr.io/nacfson/project-pn-backend:<tag>` and `project-pn-frontend:<tag>` (arm64). Publish via GitHub Actions (`.github/workflows/publish-ghcr-images.yml`) or `scripts/push-ghcr.sh`.
+- **Rollout:** Migrate Job → `kubectl set image` on backend/frontend Deployments → `rollout status`. See `backend/docs/oracle-deploy-runbook.md` and `.cursor/skills/deploy-oracle-k8s/SKILL.md`.
+- **Removed:** wlUbuntu / Docker Compose deploy path (`deploy-remote.sh`, `deploy/compose.yaml`, host `~/project-pn/deploy/.env`) — do not use or document for production.

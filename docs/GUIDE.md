@@ -20,8 +20,9 @@ This guide maps every documentation file in the repository. Use it to find the r
 | [`go-backend-setup.md`](../backend/docs/go-backend-setup.md) | Local setup, migrations, environment variables, tests, Docker deploy |
 | [`backend-acceptance-tests.md`](../backend/docs/backend-acceptance-tests.md) | Schema and HTTP acceptance scenarios |
 | [`backend-future-scope.md`](../backend/docs/backend-future-scope.md) | Tables and features intentionally out of MVP |
-| [`remote-deploy-runbook.md`](../backend/docs/remote-deploy-runbook.md) | Production-style deploy to wlUbuntu; Cursor merge deploy (local worker) |
-| [`remote-access-port-forward-summary.md`](../backend/docs/remote-access-port-forward-summary.md) | Port forwarding notes |
+| [`oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md) | Production deploy to Oracle Cloud k3s |
+| [`cursor-secrets.md`](../backend/docs/cursor-secrets.md) | Runtime secrets (Cursor environment secrets) |
+| [`ghcr-deploy.md`](../backend/docs/ghcr-deploy.md) | GHCR image publishing |
 
 ## Frontend Docs
 
@@ -35,8 +36,9 @@ This guide maps every documentation file in the repository. Use it to find the r
 
 | File | Purpose |
 |---|---|
-| [`deploy-exception-runbook.md`](../deploy/deploy-exception-runbook.md) | Common deploy failures and fixes |
-| [`NETWORK_SETUP.md`](../deploy/NETWORK_SETUP.md) | Network setup notes |
+| [`deploy-exception-runbook.md`](../deploy/deploy-exception-runbook.md) | Common Oracle/k3s deploy failures |
+| [`NETWORK_SETUP.md`](../deploy/NETWORK_SETUP.md) | Oracle Cloud networking and TLS |
+| [`deploy/README.md`](../deploy/README.md) | Deploy doc index |
 
 ## Project-Wide Docs
 

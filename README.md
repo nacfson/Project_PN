@@ -8,7 +8,7 @@ Personal vocabulary learning system. Add words you do not know, study them with 
 - **Frontend**: React Native / Expo with TypeScript (Web, iOS, Android), Tauri for desktop
 - **Browser Extension**: Chrome/Edge Manifest V3, TypeScript, esbuild
 - **Shared Package**: `@project-pn/api` for API client logic
-- **Deploy**: Docker Compose on Ubuntu, nginx
+- **Deploy**: Oracle Cloud k3s; images on GHCR; secrets via Cursor environment secrets
 
 ## Quick Start
 
@@ -27,7 +27,8 @@ For local backend setup details, see [`backend/docs/go-backend-setup.md`](backen
 | Understand the product and backend API | [`backend/docs/backend-overview.md`](backend/docs/backend-overview.md) |
 | Set up the local backend | [`backend/docs/go-backend-setup.md`](backend/docs/go-backend-setup.md) |
 | Learn frontend UX patterns | [`frontend/docs/frontend-ux-patterns.md`](frontend/docs/frontend-ux-patterns.md) |
-| Deploy to wlUbuntu | [`backend/docs/remote-deploy-runbook.md`](backend/docs/remote-deploy-runbook.md) |
+| Deploy to Oracle Cloud (k3s) | [`backend/docs/oracle-deploy-runbook.md`](backend/docs/oracle-deploy-runbook.md) |
+| Manage production secrets | [`backend/docs/cursor-secrets.md`](backend/docs/cursor-secrets.md) |
 | Fix deploy issues | [`deploy/deploy-exception-runbook.md`](deploy/deploy-exception-runbook.md) |
 | Run manual QA locally | [`docs/dev-test-plan.md`](docs/dev-test-plan.md) |
 | Build the browser extension | [`browser-extension/README.md`](browser-extension/README.md) |
@@ -40,7 +41,7 @@ backend/            Go API, migrations, backend docs
 frontend/           React Native / Expo app, Tauri desktop wrapper
 browser-extension/  Chrome/Edge extension for webpage word capture
 packages/api/       Shared API client used by frontend and extension
-deploy/             Docker Compose, nginx, deploy scripts
+deploy/             Oracle Cloud deploy docs and runbooks
 docs/               Project-wide docs and plans
 scripts/            Development and deployment helpers
 ```

@@ -113,101 +113,21 @@ For faster restarts when Postgres is already running and migrations are up to da
 scripts/start-web-dev.sh --skip-db --skip-migrate
 ```
 
-## Public Docker deploy (`deploy/`)
+## Production deploy (Oracle Cloud k3s)
 
-Detailed deployment steps and troubleshooting live in `backend/docs/remote-deploy-runbook.md`.
+Production runs on **Oracle Cloud Ampere (arm64)** in k3s namespace `project-pn`. See `backend/docs/oracle-deploy-runbook.md`, `backend/docs/cursor-secrets.md`, and `.cursor/skills/deploy-oracle-k8s/SKILL.md`.
 
-For a public Docker-only stack on `wlUbuntu` (PostgreSQL + migrate + API + nginx with HTTPS), use `scripts/deploy-remote.sh` from the repo root. The script builds the backend image locally, uploads it to the remote server over SSH/SCP, loads it with Docker, and starts the remote compose stack.
-
-```sh
-DEPLOY_HOST=user@YOUR_SERVER_IP scripts/deploy-remote.sh
-```
-
-Or create a local deploy environment file and run the script without inline variables:
+Publish images:
 
 ```sh
-cp deploy/.deploy.env.example deploy/.deploy.env
-# edit DEPLOY_HOST to match a ~/.ssh/config host alias, for example project-pn
-scripts/deploy-remote.sh
+GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
 ```
-
-Optional script inputs:
-
-```sh
-DEPLOY_ENV_FILE=deploy/.deploy.env
-DEPLOY_PUBLIC_URL=https://YOUR_PUBLIC_DOMAIN
-DEPLOY_ACCESS_SCOPE=public
-EXISTING_POSTGRES_PASSWORD=old-password
-REMOTE_DIR=~/project-pn/deploy
-IMAGE_NAME=project-pn-backend
-IMAGE_TAG=$(git rev-parse --short HEAD)
-USE_GHCR=1
-GHCR_OWNER=nacfson
-GHCR_IMAGE=project-pn-backend
-PLATFORMS=linux/amd64,linux/arm64
-```
-
-For an internet-facing deploy, use a public domain or public IP and set
-`DEPLOY_ACCESS_SCOPE=public`. The deploy script refuses private/local URLs
-(`localhost`, `127.0.0.1`, `10.x.x.x`, `172.16.x.x`-`172.31.x.x`,
-`192.168.x.x`) in public mode because those addresses only work on the same
-machine or private network.
-
-If the host is behind a router that does not forward public traffic to the
-Ubuntu server, use router port-forwarding, a public cloud host, or a named
-Cloudflare Tunnel for durable outside-intranet access. For temporary testing
-only, `scripts/start-remote-quick-tunnel.sh` can start a TryCloudflare quick
-tunnel after `QUICK_TUNNEL_ACK=public-test-only` is set.
-
-On first run, the script uploads `deploy/.env.example` and creates a remote `.env` if one does not exist. It generates a Postgres password, sets `DATABASE_URL`, and uses `DEPLOY_PUBLIC_URL` for `ALLOWED_ORIGINS`. The script never overwrites an existing remote `.env`.
-
-If the remote Postgres volume was already initialized with an older password, set `EXISTING_POSTGRES_PASSWORD` in `deploy/.deploy.env`. The script will start Postgres, update the `project_pn` database user password to match the remote `.env`, then continue the deployment.
-
-Services:
-
-| Service | Role |
-|---------|------|
-| `postgres` | PostgreSQL 16 with healthcheck; not published to the host |
-| `migrate` | One-shot `./migrate up` from the backend image |
-| `api` | Go API on internal `:8080` |
-| `nginx` | Publishes `80:80`; reverse-proxies to `api` |
-
-On a remote server, only these deployment files and TLS certs are required:
-
-- `deploy/compose.yaml`
-- `deploy/.env`
-- `deploy/nginx/nginx.conf`
-- `deploy/certs/fullchain.pem`
-- `deploy/certs/privkey.pem`
-
-From the server's `deploy/` directory, deploy with:
-
-```sh
-docker compose --env-file .env up -d
-curl https://YOUR_PUBLIC_DOMAIN/readyz
-```
-
-The primary deployment path publishes a multi-arch backend image
-(`linux/amd64,linux/arm64`) to `ghcr.io/nacfson/project-pn-backend`, then the
-remote server pulls that image and starts Compose with
-`BACKEND_IMAGE=ghcr.io/nacfson/project-pn-backend:<git-short-sha>`.
-
-To publish without a full deploy:
-
-```sh
-GHCR_TOKEN=... scripts/push-ghcr.sh
-```
-
-Legacy tarball deploy remains available with `USE_GHCR=0` (single-arch
-`docker save` / `scp` / `docker load`).
 
 The backend image contains:
 
 - Multi-stage build with **`CGO_ENABLED=0`** static binaries (`api`, `migrate`)
-- Runtime: **`debian:bookworm-slim` + `ca-certificates`** (required for outbound HTTPS to Resend, Google token verification, and enrichment APIs — do not use a scratch/distroless runtime without bundled CA certs)
+- Runtime: **`debian:bookworm-slim` + `ca-certificates`**
 - Migrations copied to `/app/db/migrations`
-
-TLS for production hostnames terminates on **ingress-nginx** (Let's Encrypt via `acme.sh --alpn`). Compose still keeps `deploy/certs/` in sync for local nginx TLS blocks. Forward public `80/tcp` and `443/tcp` from the router to `wlUbuntu` (`192.168.219.120`), and keep `APP_PUBLIC_URL` / native build `EXPO_PUBLIC_API_BASE_URL` on `https://pn.nacfson.cloud`. See `deploy/NETWORK_SETUP.md`.
 
 Local development continues to use `backend/compose.yaml` (PostgreSQL on host port `5433`) and `go run ./cmd/api`.
 

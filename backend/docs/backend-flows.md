@@ -67,7 +67,7 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 8. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
 9. App reloads the affected senses (joined with localized translations and examples). When `source_context` is present, sense options are stable-sorted by descending token Jaccard similarity against the context (no senses are dropped).
 
-The enricher is optional. If `GEMINI_API_KEY` is empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
+The enricher is optional. If `ENRICH_PRIMARY_API_KEY` is empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
 
 ## Force-Generate Flow (none of these match)
 
