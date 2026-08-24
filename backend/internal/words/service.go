@@ -52,9 +52,9 @@ type querier interface {
 
 // Service implements the add-word flow over the global cache tables.
 type Service struct {
-	pool        *pgxpool.Pool
-	enricher    enrich.Enricher
-	adminLogger admin.Logger
+	pool           *pgxpool.Pool
+	enricher       enrich.Enricher
+	adminLogger    admin.Logger
 	learningLogger learninglog.Logger
 
 	DefaultUserID  string
@@ -114,9 +114,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	}
 
 	if len(wordIDs) > 0 {
-		if _, err := s.ensureTranslationsForWord(ctx, wordIDs, defLangCode); err != nil {
-			return LookupResult{}, err
-		}
+		s.tryEnsureTranslations(ctx, wordIDs, defLangCode)
 		options, err := loadSenseOptions(ctx, s.pool, wordIDs, defLangCode)
 		if err != nil {
 			return LookupResult{}, err
@@ -247,9 +245,7 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 		return LookupResult{}, err
 	}
 
-	if _, err := s.ensureTranslationsForWord(ctx, []string{wordID}, defLangCode); err != nil {
-		return LookupResult{}, err
-	}
+	s.tryEnsureTranslations(ctx, []string{wordID}, defLangCode)
 	options, err := loadSenseOptions(ctx, s.pool, []string{wordID}, defLangCode)
 	if err != nil {
 		return LookupResult{}, err
@@ -306,7 +302,7 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 			_ = s.pool.QueryRow(ctx, `select normalized_text from words where id = $1::uuid`, wordID).Scan(&normalized)
 			slog.Warn("add refused: translation unavailable",
 				"word", normalized, "target_lang", wordLang, "display_lang", displayLang,
-				"reason", "language_mismatch")
+				"word_sense_id", wordSenseID, "reason", "missing_sense_translation")
 			return LearningItem{}, ErrTranslationUnavailable
 		}
 	}
@@ -799,6 +795,15 @@ func (s *Service) existingDefinitionsByIdentity(ctx context.Context, langCode, n
 	return defs, rows.Err()
 }
 
+// tryEnsureTranslations best-effort fills missing display-language rows.
+// Lookup and discovery degrade to canonical text when Translate fails;
+// add/change-meaning still call ensureTranslationsForWord and surface the error.
+func (s *Service) tryEnsureTranslations(ctx context.Context, wordIDs []string, displayLang string) {
+	if _, err := s.ensureTranslationsForWord(ctx, wordIDs, displayLang); err != nil {
+		slog.Warn("on-demand translation skipped", "error", err, "display_lang", displayLang)
+	}
+}
+
 // ensureTranslationsForWord makes sure every sense/example under wordIDs has a
 // valid translation row for displayLang, generating + caching the missing ones.
 // Returns whether a complete, valid translation set now exists.
@@ -857,7 +862,7 @@ func (s *Service) ensureWordTranslations(ctx context.Context, wordID, displayLan
 	}
 
 	if s.enricher == nil {
-		return false, nil
+		return false, enrich.ErrNotConfigured
 	}
 
 	input, err := s.buildTranslateInput(ctx, wordID, displayLang, missing)
@@ -873,7 +878,8 @@ func (s *Service) ensureWordTranslations(ctx context.Context, wordID, displayLan
 		slog.Warn("translation failed",
 			"word", normalized, "target_lang", wordLang, "display_lang", displayLang,
 			"reason", "translate_error", "error", err)
-		return false, nil
+		s.logf("TRANSLATE_FAIL", "translate failed for word '%s' (%s→%s): %v", normalized, wordLang, displayLang, err)
+		return false, err
 	}
 
 	if err := s.cacheTranslateResult(ctx, displayLang, result); err != nil {

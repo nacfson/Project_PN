@@ -63,7 +63,7 @@ func isHangul(r rune) bool {
 }
 
 func isJapanese(r rune) bool {
-	return isHangul(r) || isHanOnly(r) || (r >= 0x3040 && r <= 0x30FF)
+	return isHanOnly(r) || (r >= 0x3040 && r <= 0x30FF)
 }
 
 func isHanOnly(r rune) bool {

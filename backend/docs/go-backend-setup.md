@@ -174,7 +174,7 @@ Cause: the backend has no working multilingual enrichment provider, so non-Engli
 - `503 "multilingual enrichment provider required for this target language"` — the configured model is the English-only `english-dictionary-fallback-v1` staging fallback.
 - `503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually"` — no API key configured.
 - `503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings"` — provider down or key rejected.
-- `422 "localized translation unavailable for this word sense"` — adding a sense whose display-language translation is missing and cannot be generated.
+- `422 "localized translation unavailable for this word sense"` — Translate ran (or nothing was missing to send) but this sense still has no valid cached display-language definition. Provider/config failures on add are **not** this status; they use the 503s above.
 
 Fix: set `ENRICH_PRIMARY_API_KEY` (base URL and model default to Gemini) and restart the API. Items added earlier without translations are backfilled lazily on the next lookup/add, or in bulk via `go run ./cmd/retranslate-senses`.
 

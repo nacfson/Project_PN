@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
 	"project-pn/internal/learninglog"
@@ -72,8 +74,10 @@ func (f *fakeLogger) entries() []logLine {
 var _ admin.Logger = (*fakeLogger)(nil)
 
 type stubEnricher struct {
-	enrichResult enrich.Result
-	enrichErr    error
+	enrichResult    enrich.Result
+	enrichErr       error
+	translateResult enrich.TranslateResult
+	translateErr    error
 }
 
 func (s *stubEnricher) Enrich(_ context.Context, _ enrich.Request) (enrich.Result, error) {
@@ -81,7 +85,10 @@ func (s *stubEnricher) Enrich(_ context.Context, _ enrich.Request) (enrich.Resul
 }
 
 func (s *stubEnricher) Translate(_ context.Context, _ enrich.TranslateRequest) (enrich.TranslateResult, error) {
-	return enrich.TranslateResult{}, nil
+	if s.translateErr != nil {
+		return enrich.TranslateResult{}, s.translateErr
+	}
+	return s.translateResult, nil
 }
 
 func TestListLearningItemsPopulatesDeckAndReviewDetails(t *testing.T) {
@@ -421,5 +428,107 @@ func TestLookupAddWordNoDuplicateLog(t *testing.T) {
 
 	if count := logger.count("ADD_WORD", lemma); count != 1 {
 		t.Fatalf("expected exactly one ADD_WORD log containing %q, got %d", lemma, count)
+	}
+}
+
+func insertEnglishSenseWithoutTranslation(t *testing.T, pool *pgxpool.Pool, lemma, definition string) (wordID, senseID string) {
+	t.Helper()
+	ctx := context.Background()
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', $1, $1, 'noun')
+		returning id::text`, lemma).Scan(&wordID); err != nil {
+		t.Fatalf("insert word: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, $2, 1)
+		returning id::text`, wordID, definition).Scan(&senseID); err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+	return wordID, senseID
+}
+
+func TestAddLearningItemSurfacesTranslateProviderError(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	logger := &fakeLogger{}
+	svc := New(pool, &stubEnricher{translateErr: enrich.ErrUnavailable}, logger, learninglog.NoopLogger{}, "", "en", "ko")
+
+	lemma := fmt.Sprintf("notr%d", time.Now().UnixNano())
+	_, senseID := insertEnglishSenseWithoutTranslation(t, pool, lemma, "a missing translation")
+
+	_, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err == nil {
+		t.Fatal("expected add to fail")
+	}
+	if !errors.Is(err, enrich.ErrUnavailable) {
+		t.Fatalf("expected ErrUnavailable to surface on add, got %v", err)
+	}
+	if errors.Is(err, ErrTranslationUnavailable) {
+		t.Fatal("provider errors must not be collapsed into ErrTranslationUnavailable")
+	}
+	if !logger.has("TRANSLATE_FAIL", lemma) {
+		t.Fatalf("expected TRANSLATE_FAIL log containing %q, got %+v", lemma, logger.entries())
+	}
+}
+
+func TestLookupCacheHitDegradesWhenTranslateFails(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	svc := New(pool, &stubEnricher{translateErr: enrich.ErrUnavailable}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	lemma := fmt.Sprintf("lookupdeg%d", time.Now().UnixNano())
+	_, _ = insertEnglishSenseWithoutTranslation(t, pool, lemma, "canonical definition")
+
+	result, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil)
+	if err != nil {
+		t.Fatalf("lookup cache hit should degrade when translate fails, got %v", err)
+	}
+	if len(result.SenseOptions) != 1 {
+		t.Fatalf("expected 1 sense option, got %d", len(result.SenseOptions))
+	}
+	if result.SenseOptions[0].LocalizedDefinition != "canonical definition" {
+		t.Fatalf("expected canonical fallback, got %q", result.SenseOptions[0].LocalizedDefinition)
+	}
+}
+
+func TestAddLearningItemSucceedsWhenTranslateCachesDefinition(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	lemma := fmt.Sprintf("addok%d", time.Now().UnixNano())
+	_, senseID := insertEnglishSenseWithoutTranslation(t, pool, lemma, "to store energy")
+
+	svc := New(pool, &stubEnricher{
+		translateResult: enrich.TranslateResult{
+			Senses: []enrich.TranslateSenseResult{{
+				SenseID:    senseID,
+				Definition: "충전하다",
+			}},
+		},
+	}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err != nil {
+		t.Fatalf("add after successful translate: %v", err)
+	}
+	if item.WordSenseID != senseID {
+		t.Fatalf("expected sense %s, got %s", senseID, item.WordSenseID)
+	}
+	var cached string
+	if err := pool.QueryRow(ctx, `
+		select definition from sense_translations
+		where word_sense_id = $1::uuid and language_code = 'ko'`, senseID,
+	).Scan(&cached); err != nil {
+		t.Fatalf("load cached translation: %v", err)
+	}
+	if cached != "충전하다" {
+		t.Fatalf("expected cached Korean definition, got %q", cached)
 	}
 }
