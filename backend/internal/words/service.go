@@ -30,14 +30,12 @@ var (
 	ErrDeckNotFound               = errors.New("words: deck not found")
 	ErrDeckNotOwned               = errors.New("words: deck does not belong to user")
 	ErrDeckLanguageMismatch       = errors.New("words: deck target language does not match word language")
-	ErrCannotDeleteDefaultDeck    = errors.New("words: cannot delete default deck")
-	ErrCurriculumDeckImmutable    = errors.New("words: curriculum deck cannot be modified via deck APIs")
-	ErrCurriculumDeckNotAddTarget = errors.New("words: cannot add private items to a curriculum deck")
-	ErrInvalidDeckName            = errors.New("words: invalid deck name")
-	ErrDeckNameExists             = errors.New("words: deck name already exists")
-	ErrInvalidDeckOrigin          = errors.New("words: invalid deck origin filter")
-	ErrInvalidTargetLanguagePair  = errors.New("words: user is not learning the requested target language")
-	ErrInvalidTargetLang          = errors.New("words: invalid target language")
+	ErrCannotDeleteDefaultDeck   = errors.New("words: cannot delete default deck")
+	ErrInvalidDeckName           = errors.New("words: invalid deck name")
+	ErrDeckNameExists            = errors.New("words: deck name already exists")
+	ErrInvalidDeckOrigin         = errors.New("words: invalid deck origin filter")
+	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
+	ErrInvalidTargetLang         = errors.New("words: invalid target language")
 	ErrLearningItemNotFound       = errors.New("words: learning item not found")
 	ErrSenseConflict              = errors.New("words: sense_already_in_learning_set")
 	ErrSenseWrongWord             = errors.New("words: sense belongs to a different word")
@@ -508,13 +506,10 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	}
 	origin := strings.TrimSpace(strings.ToLower(params.Origin))
 	if origin != "" {
-		if origin != "private" && origin != "curriculum" {
+		// Curriculum packs were removed; only private decks remain. Accept
+		// "private" for API compatibility and ignore other filters.
+		if origin != "private" {
 			return LearningItemsPage{}, ErrInvalidDeckOrigin
-		}
-		// DeckID already pins a single deck; origin is only applied when listing across decks.
-		if params.DeckID == "" {
-			args = append(args, origin)
-			scopePredicate += fmt.Sprintf(" and d.origin = $%d", len(args))
 		}
 	}
 
@@ -1312,7 +1307,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 	}
 
 	origin = strings.TrimSpace(strings.ToLower(origin))
-	if origin != "" && origin != "private" && origin != "curriculum" {
+	if origin != "" && origin != "private" {
 		return nil, ErrInvalidDeckOrigin
 	}
 
@@ -1350,9 +1345,6 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 	if deckID != "" {
 		argsBase = append(argsBase, deckID)
 		scopePredicate += fmt.Sprintf(" and uws.deck_id = $%d::uuid", len(argsBase))
-	} else if origin != "" {
-		argsBase = append(argsBase, origin)
-		scopePredicate += fmt.Sprintf(" and d.origin = $%d", len(argsBase))
 	}
 
 	baseQuery := `

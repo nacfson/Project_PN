@@ -34,15 +34,15 @@ Steps 6-8 must be idempotent: re-adding the same `(user_id, word_sense_id)` must
 
 ## Learning Items List Flow
 
-1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...&deck_id=...&origin=private|curriculum`.
+1. Client sends `GET /api/learning-items?limit=50&descending=true&cursor=...&q=app&language_code=...&deck_id=...`.
 2. API derives the acting user from the bearer session.
 3. API resolves the target language. If `language_code` is omitted, the active `user_languages` row is used.
 4. If `deck_id` is provided, API validates deck ownership and resolves the target language from the deck.
-5. API queries `user_word_senses` joined to `word_senses`, `words`, `decks`, and `review_states`, filtering to the resolved target language and deck. Optional `origin` (`private` / `curriculum`) filters by `decks.origin` when `deck_id` is omitted.
+5. API queries `user_word_senses` joined to `word_senses`, `words`, `decks`, and `review_states`, filtering to the resolved target language and deck.
 6. API excludes rows where `user_word_senses.archived_at is not null`.
 7. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
 8. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
-9. API loads example sentences and their translations for each returned item.
+9. API loads example sentences and their translations for each returned item when present.
 10. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
 
 Rules:
@@ -53,31 +53,27 @@ Rules:
 - Use keyset pagination, not offset pagination.
 - Do not return `total_count` in MVP.
 
-## Lookup Flow (cache miss → enrich → persist)
+## Lookup Flow (cache miss → WiktApi glosses → persist)
 
 This is the `POST /api/words/lookup` happy path when the global cache has no row for the lookup key:
 
 1. App normalizes the lookup text.
-2. App resolves the target/display language pair. If the request omits `language_code` / `display_language_code`, the active `user_languages` row is used; otherwise the explicitly requested pair is used. Legacy fallback reads `users.target_language` / `users.native_language`.
-3. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. If a row exists, the cache-hit path loads canonical `word_senses` and `examples`, left-joining `sense_translations` and `example_translations` for the requested `display_language_code` (legacy requests may still send `definition_language_code`).
-4. On a cache hit where the display language differs from the word's target language and translations are missing, app calls the enricher's `Translate` operation once per word (outside any DB transaction), validates the output, and upserts `sense_translations` / `example_translations` rows before reloading. Sense/example count mismatches keep the overlapping rows instead of failing the whole call.
-5. If translations are still missing (enricher unconfigured, provider error, or validation dropped them), lookup returns canonical target-language text as `localized_*` fallback fields. This is not HTTP 503.
-6. On a full miss, app calls the configured enricher with the normalized text, target language code, display language code, optional POS, and optional `source_context` (steers which distinct senses to generate).
-7. The enricher returns one or more `Entry { Lemma, PartOfSpeech, Senses[] }` payloads with **mutually distinct** senses and **exactly one** example sentence per sense, plus display-language translation blocks.
-8. In a single transaction, app upserts each `words` row, then calls `appendSenses` which inserts canonical senses, target-language examples, and the requesting display language's translation rows. `meaning_order` continues from the current `max(meaning_order)` for that `word_id`.
-9. App reloads the affected senses (joined with localized translations and examples). When `source_context` is present, sense options are stable-sorted by descending token Jaccard similarity against the context (no senses are dropped).
+2. App resolves the target/display language pair (request or active `user_languages`).
+3. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. On a cache hit, load senses and left-join `sense_translations` for the display language.
+4. On a hit with missing display-language translations, app may call the enricher's `Translate` (WiktApi re-query) and upsert `sense_translations`.
+5. On a full miss, app calls the configured enricher. Default is **WiktApi** (`ORIGIN_WIKTAPI_BASE_URL`, no API key): `GET /v1/en/word/{lemma}/translations`, keep display-language glosses (e.g. `ko`), map each gloss to one sense (no examples required).
+6. In one transaction, upsert `words` and `appendSenses` (canonical text + display gloss in `sense_translations`).
+7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` still re-ranks options.
 
-The enricher is optional. If `ENRICH_PRIMARY_API_KEY` is empty, the cache-hit path still works but a full miss returns HTTP 503 "word enrichment is not available".
+If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases may miss on public WiktApi.
 
 ## Force-Generate Flow (none of these match)
 
-This is the `POST /api/words/lookup` path with `force: true`, used when the user sees the cached options and none of them match:
+This is the `POST /api/words/lookup` path with `force: true`:
 
-1. App receives `force: true` plus either a concrete `word_id` or a concrete `part_of_speech`. `force + part_of_speech=Any + word_id=nil` is rejected as ambiguous (HTTP 400). Optional `source_context` is forwarded to the enricher.
-2. If a `word_id` is given, app loads the word's existing definitions (ordered by `meaning_order`) and asks the enricher to return one additional sense.
-3. If no `word_id` is given (a concrete POS is guaranteed by step 1), app loads existing definitions for the `(language_code, normalized_text, part_of_speech)` identity and asks the enricher for one additional sense.
-4. In a single transaction, app appends the new senses to the matching `words` row(s) using `appendSenses` (continuing `meaning_order`), storing canonical text plus translation rows for the requesting display language.
-5. App ensures any missing on-demand translations for the display language, reloads the affected senses, and returns them.
+1. Require `force: true` plus `word_id` or a concrete `part_of_speech`.
+2. Load existing sense definitions and ask the enricher for additional glosses (WiktApi skips glosses already present).
+3. Append new senses and return them.
 
 ## Change-Meaning Flow
 

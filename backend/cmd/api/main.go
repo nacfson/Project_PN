@@ -13,7 +13,6 @@ import (
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
-	"project-pn/internal/curriculum"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
 	"project-pn/internal/learninglog"
@@ -67,15 +66,29 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	primaryEnricher := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
-	fallbackEnricher := enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
-	enricher := enrich.NewFallback(primaryEnricher, fallbackEnricher, slog.Default())
-	slog.Info("enrich provider configured",
-		"primary_model", cfg.EnrichPrimaryModel,
-		"primary_url", cfg.EnrichPrimaryBaseURL,
-		"fallback_model", cfg.EnrichFallbackModel,
-		"fallback_url", cfg.EnrichFallbackBaseURL,
-	)
+	primaryEnricher := enrich.NewWiktAPI(cfg.OriginWiktAPIBaseURL)
+	var enricher enrich.Enricher = primaryEnricher
+	if cfg.EnrichPrimaryAPIKey != "" {
+		legacy := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
+		var fallback enrich.Enricher
+		if cfg.EnrichFallbackBaseURL != "" {
+			fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
+		}
+		legacyChain := enrich.NewFallback(legacy, fallback, slog.Default())
+		// WiktApi first (free glosses); Gemini/OpenAI only if WiktApi misses.
+		enricher = enrich.NewFallback(primaryEnricher, legacyChain, slog.Default())
+		slog.Info("gloss origin configured",
+			"primary", "wiktapi",
+			"wiktapi_url", cfg.OriginWiktAPIBaseURL,
+			"legacy_fallback_model", cfg.EnrichPrimaryModel,
+			"legacy_fallback_url", cfg.EnrichPrimaryBaseURL,
+		)
+	} else {
+		slog.Info("gloss origin configured",
+			"primary", "wiktapi",
+			"wiktapi_url", cfg.OriginWiktAPIBaseURL,
+		)
+	}
 	authService := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
@@ -104,14 +117,12 @@ func main() {
 	)
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
-	curriculumService := curriculum.New(pool)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,
 		Handler: httpapi.NewRouter(httpapi.Dependencies{
 			DB:               pool,
 			Words:            wordsService,
-			Curriculum:       curriculumService,
 			Auth:             authService,
 			CentralAuth:      centralAuth,
 			AllowedOrigins:   cfg.AllowedOrigins,

@@ -53,7 +53,7 @@ type Deck struct {
 	Name             string    `json:"name"`
 	IsDefault        bool      `json:"is_default"`
 	Origin           string    `json:"origin"`
-	CurriculumPackID *string   `json:"curriculum_pack_id,omitempty"`
+	CurriculumPackID *string   `json:"curriculum_pack_id,omitempty"` // always null; retained for API compatibility
 	ItemCount        int       `json:"item_count"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
