@@ -27,7 +27,7 @@ export type MainTabParamList = {
   Learn: undefined;
   Words: undefined;
   Add: undefined;
-  Practice: { deckId?: string; origin?: 'private' | 'curriculum' } | undefined;
+  Practice: { deckId?: string; origin?: 'private' } | undefined;
   Settings: undefined;
 };
 

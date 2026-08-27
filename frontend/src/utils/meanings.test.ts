@@ -1,4 +1,5 @@
 import {
+  displayGloss,
   extractKoreanHeadword,
   isSimpleGloss,
   preferSimpleGloss,
@@ -50,16 +51,16 @@ describe('preferSimpleGloss', () => {
   });
 });
 
-describe('splitMeanings', () => {
-  it('returns simple headword plus current full meaning', () => {
-    expect(
-      splitMeanings({
-        definition: 'To cover something completely so that it cannot be seen.',
-        short_definition: 'To hide or conceal something by covering it.',
-        localized_definition: '무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.',
-        localized_short_definition: '무엇을 덮어 감추다.',
-      }),
-    ).toEqual({ simple: '감추다', full: '무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.' });
+describe('displayGloss / splitMeanings', () => {
+  it('returns a simple headword only for display', () => {
+    const fields = {
+      definition: 'To cover something completely so that it cannot be seen.',
+      short_definition: 'To hide or conceal something by covering it.',
+      localized_definition: '무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.',
+      localized_short_definition: '무엇을 덮어 감추다.',
+    };
+    expect(displayGloss(fields)).toBe('감추다');
+    expect(splitMeanings(fields)).toEqual({ simple: '감추다', full: null });
   });
 
   it('does not duplicate when simple and full already match', () => {
@@ -73,14 +74,14 @@ describe('splitMeanings', () => {
     ).toEqual({ simple: '충전하다', full: null });
   });
 
-  it('omits localized meanings when they copy the English definition', () => {
+  it('falls back to English gloss when localized is absent', () => {
     expect(
-      splitMeanings({
-        definition: 'same meaning',
-        short_definition: null,
-        localized_definition: 'same meaning',
+      displayGloss({
+        definition: 'to store energy',
+        short_definition: 'charge',
+        localized_definition: null,
         localized_short_definition: null,
       }),
-    ).toEqual({ simple: null, full: null });
+    ).toBe('charge');
   });
 });

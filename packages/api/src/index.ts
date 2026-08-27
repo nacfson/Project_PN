@@ -4,4 +4,3 @@ export * from './auth';
 export * from './decks';
 export * from './words';
 export * from './learningItems';
-export * from './curriculum';

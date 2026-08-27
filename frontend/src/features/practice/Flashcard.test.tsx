@@ -68,28 +68,21 @@ async function renderCard(overrides: Partial<DueItem> = {}, example = {
 }
 
 describe('Flashcard', () => {
-  it('does not render duplicate localized definition text', async () => {
-    await renderCard();
-
-    expect(screen.getAllByText(baseItem.definition)).toHaveLength(1);
-  });
-
-  it('renders target definition above localized gloss on the back', async () => {
+  it('shows only the chosen gloss on the back (no English definition line)', async () => {
     await renderCard({
       definition: 'to store energy',
       localized_definition: '충전하다',
+      localized_short_definition: '충전하다',
     });
 
-    const target = screen.getByText('to store energy');
-    const gloss = screen.getByText('충전하다');
-    expect(target).toBeTruthy();
-    expect(gloss).toBeTruthy();
-    expect(target.props.style).toEqual(
-      expect.arrayContaining([expect.objectContaining({ fontSize: expect.any(Number) })]),
-    );
+    expect(screen.getByText('충전하다')).toBeTruthy();
+    expect(screen.queryByText('to store energy')).toBeNull();
+    expect(screen.queryByText('Simple meaning')).toBeNull();
+    expect(screen.queryByText('Full meaning')).toBeNull();
+    expect(screen.queryByText('Definition')).toBeNull();
   });
 
-  it('shows a simple headword plus the current full meaning', async () => {
+  it('prefers a simple headword gloss over a verbose paraphrase', async () => {
     await renderCard({
       definition: 'To cover something completely so that it cannot be seen.',
       short_definition: 'To hide or conceal something by covering it.',
@@ -98,25 +91,19 @@ describe('Flashcard', () => {
     });
 
     expect(screen.getByText('감추다')).toBeTruthy();
-    expect(screen.getByText('무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.')).toBeTruthy();
-    expect(screen.getByText('Simple meaning')).toBeTruthy();
-    expect(screen.getByText('Full meaning')).toBeTruthy();
-    expect(screen.getByText('To cover something completely so that it cannot be seen.')).toBeTruthy();
+    expect(screen.queryByText('무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.')).toBeNull();
+    expect(screen.queryByText('To cover something completely so that it cannot be seen.')).toBeNull();
   });
 
-  it('does not render duplicate localized example text', async () => {
-    await renderCard();
-
-    expect(screen.queryByText('Daily discipline helped her finish the project.')).toBeNull();
-  });
-
-  it('renders a real translated example', async () => {
+  it('does not render example sentences as primary UX', async () => {
     await renderCard({}, {
       sentence: 'Daily discipline helped her finish the project.',
       localized_translation: '매일의 절제가 그녀가 프로젝트를 끝내는 데 도움이 되었다.',
     });
 
-    expect(screen.getByText('매일의 절제가 그녀가 프로젝트를 끝내는 데 도움이 되었다.')).toBeTruthy();
+    expect(screen.queryByText('Daily discipline helped her finish the project.')).toBeNull();
+    expect(screen.queryByText('매일의 절제가 그녀가 프로젝트를 끝내는 데 도움이 되었다.')).toBeNull();
+    expect(screen.queryByText('Example')).toBeNull();
   });
 
   it('card Pressable is enabled/has role when not flipped, and disabled/no role when flipped', async () => {

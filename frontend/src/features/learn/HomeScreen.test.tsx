@@ -25,11 +25,6 @@ jest.mock('../../api/stats', () => ({
     ]
   })
 }));
-jest.mock('../../api/curriculum', () => ({
-  listCurriculumPacks: jest.fn().mockResolvedValue([]),
-  enrollCurriculumPack: jest.fn(),
-}));
-
 const mockNavigate = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),

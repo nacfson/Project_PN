@@ -126,20 +126,8 @@ export function PracticeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProp<MainTabParamList, 'Practice'>>();
   const scopedDeckId = route.params?.deckId?.trim() || undefined;
-  // Custom quizzes = private decks. Dictionary/curriculum quizzes use deckId (pack) or origin=curriculum.
-  // Default Practice (no params) is always custom/private so sources never mix.
-  const scopedOrigin =
-    scopedDeckId != null
-      ? undefined
-      : route.params?.origin === 'curriculum'
-        ? 'curriculum'
-        : 'private';
-  const practiceScopeLabel =
-    scopedDeckId != null
-      ? t('practice.scopeDictionary')
-      : scopedOrigin === 'curriculum'
-        ? t('practice.scopeDictionary')
-        : t('practice.scopeCustom');
+  // Practice is private decks only (user-added words). Optional deckId narrows to one deck.
+  const scopedOrigin = 'private' as const;
 
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [sessionMode, setSessionMode] = useState<SessionMode>('normal');
@@ -615,15 +603,10 @@ export function PracticeScreen() {
     return (
       <Screen padded>
         <View style={[styles.center, { gap: spacing.lg }]}>
-          <Badge label={practiceScopeLabel} variant="primary" />
           <EmptyState
             icon="layers-outline"
             title={t('home.allCaughtUp')}
-            message={
-              scopedOrigin === 'curriculum' || scopedDeckId
-                ? t('practice.noDueDictionary')
-                : t('practice.noDueCustom')
-            }
+            message={t('practice.noDueCustom')}
           />
 
           {errorMsg && (
@@ -800,7 +783,6 @@ export function PracticeScreen() {
         >
           <View style={[styles.progressHeader, { gap: spacing.sm }]}>
             <View style={styles.progressTextRow}>
-              <Badge label={practiceScopeLabel} variant="primary" />
               <Text variant="caption" color="muted">
                 {t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}
               </Text>

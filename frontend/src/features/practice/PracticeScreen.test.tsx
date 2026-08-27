@@ -89,7 +89,6 @@ describe('PracticeScreen Integration', () => {
 
     // Step 1: Prompt State
     await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
-    expect(screen.getByText('Custom')).toBeTruthy();
     
     // Stepper buttons should not be visible yet
     expect(screen.queryByText('How did this feel?')).toBeNull();

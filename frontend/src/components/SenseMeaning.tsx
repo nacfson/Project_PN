@@ -1,29 +1,26 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../ui';
 import type { MeaningFields } from '../utils/meanings';
-import { splitMeanings } from '../utils/meanings';
+import { displayGloss } from '../utils/meanings';
 
 interface SenseMeaningProps {
   option: MeaningFields;
   posColor?: string;
 }
 
+/** Select Words / sense options: one simple gloss only (e.g. 가지다). */
 export function SenseMeaning({ option, posColor }: SenseMeaningProps) {
-  const { simple, full } = splitMeanings(option);
+  const gloss = displayGloss(option);
+
+  if (!gloss) {
+    return null;
+  }
 
   return (
     <View style={styles.block}>
-      {simple ? (
-        <Text variant="title" bold style={posColor ? { color: posColor } : undefined}>
-          {simple}
-        </Text>
-      ) : null}
-      {full ? (
-        <Text variant="caption" color="muted">
-          {full}
-        </Text>
-      ) : null}
-      <Text variant="body">{option.definition}</Text>
+      <Text variant="title" bold style={posColor ? { color: posColor } : undefined}>
+        {gloss}
+      </Text>
     </View>
   );
 }
