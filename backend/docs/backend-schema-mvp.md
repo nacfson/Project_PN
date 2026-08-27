@@ -587,7 +587,7 @@ Rules:
 - Localized sentence translations (with optional `**...**` highlight markers) live in `example_translations`.
 - `cloze_text` and `cloze_answer` are optional MVP fields for fill-in-the-blank exercises.
 
-One-time catalog rebuild: run `cmd/retranslate-senses` after deploying the one-example enricher so existing multi-example / near-duplicate sense sets are replaced and learner cards are auto-matched onto the new senses.
+Account or catalog gloss refresh: run `cmd/retranslate-senses` with `-email` / `-user-id` (user's active words) or without scope (all lemmas) so sense sets are rebuilt from WiktApi and learner cards are auto-matched onto the new glosses. Use `-dry-run` first to preview AutoMatch mappings.
 
 ## example_translations
 

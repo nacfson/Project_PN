@@ -172,6 +172,18 @@ Default origin is **WiktApi** (`internal/enrich/wiktapi.go`): on cache miss, the
 
 Enrichment is in-request and synchronous. A background queue is future scope.
 
+### Refresh existing meanings (retranslate-senses)
+
+Rebuild glosses for words already in a user's learning set (or the whole catalog), remapping cards with AutoMatch:
+
+```sh
+set -a && source .env && set +a
+go run ./cmd/retranslate-senses -email 'dev@project-pn.local' -dry-run
+go run ./cmd/retranslate-senses -email 'dev@project-pn.local' -continue-on-error
+```
+
+Flags: `-user-id`, `-email`, `-word-id`, `-limit`, `-dry-run`, `-continue-on-error`. See `docs/backend-flows.md` (Retranslate-Senses Command).
+
 ## Learning analytics logs (optional)
 
 When `LEARNING_LOG_DIR` is set to an absolute directory path, the API appends one key=value row per learning event to daily files named `YYYYMMDD_log` (UTC). Events include `learning_item_added`, `review_attempted`, `sense_changed`, and `learning_item_archived` (leech suspend). This is separate from `ADMIN_LOG_PATH` admin audit logs. Leave `LEARNING_LOG_DIR` empty to disable. Row format and fields are defined in `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`.

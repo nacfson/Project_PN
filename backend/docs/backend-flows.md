@@ -87,15 +87,27 @@ This is the `POST /api/words/lookup` path with `force: true`:
 
 ## Retranslate-Senses Command
 
-One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds every (or selected) `words` row's sense set:
+One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds selected `words` rows with WiktApi glosses (optional Gemini/OpenAI only when `ENRICH_PRIMARY_API_KEY` is set, as fallback):
 
-1. Enrich with empty `Existing` (fresh distinct senses, one example each).
+1. Enrich with empty `Existing` (fresh distinct senses / KO glosses from public WiktApi).
 2. Insert new senses, auto-match each learner card via token Jaccard on definition + localized gloss, resolve conflicts (higher `review_count`, else earlier `added_at`; archive losers), then delete old sense IDs.
-3. Flags: `-limit N`, `-word-id UUID`, `-dry-run`, `-continue-on-error`.
+3. Scope which lemmas to process:
+   - `-user-id UUID` or `-email` — only words in that user's **active** learning set (`user_word_senses.archived_at is null`). Global sense rebuild still runs for those lemmas (shared dictionary).
+   - `-word-id UUID` — single word.
+   - neither — all `words` rows (admin catalog rebuild).
+4. Other flags: `-limit N`, `-dry-run` (preview AutoMatch old→new without writing), `-continue-on-error`.
+
+Example (account refresh):
+
+```bash
+cd backend && set -a && source .env && set +a
+go run ./cmd/retranslate-senses -email 'you@example.com' -dry-run
+go run ./cmd/retranslate-senses -email 'you@example.com' -continue-on-error
+```
 
 ## Review Flow
 
-1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. Optional `origin=private|curriculum` limits due items to that deck origin when `deck_id` is omitted (custom quizzes vs dictionary/curriculum quizzes). It queries due items by joining `review_states` to `user_word_senses`, `words`, and `decks`, filtering to the resolved target language, deck, and/or origin.
+1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. It queries due items by joining `review_states` to `user_word_senses`, `words`, and `decks`, filtering to the resolved target language and deck.
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.
