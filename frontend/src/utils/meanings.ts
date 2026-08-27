@@ -8,6 +8,25 @@ export type MeaningFields = {
 const HANGUL_TOKEN = /[\uAC00-\uD7A3]+/g;
 const KOREAN_COMMA_LIST = /^[\uAC00-\uD7A3]+(?:\s*,\s*[\uAC00-\uD7A3]+)+$/;
 
+/** Nominalizers / connectives that are never useful Select Words glosses. */
+const KOREAN_GLOSS_STOPWORDS = new Set([
+  '것',
+  '수',
+  '등',
+  '등등',
+  '및',
+  '또는',
+  '혹은',
+  '그리고',
+  '또',
+  '더',
+  '임',
+  '음',
+  '듯',
+  '바',
+  '데',
+]);
+
 function trimMeaning(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed.replace(/[.。]+$/u, '').trim() || null : null;
@@ -22,7 +41,9 @@ export function isSimpleGloss(text: string | null | undefined): boolean {
   if (!value) return false;
 
   const korean = hangulTokens(value);
-  if (korean.length === 1) return true;
+  if (korean.length === 1) {
+    return !KOREAN_GLOSS_STOPWORDS.has(korean[0]!);
+  }
   if (korean.length > 1) {
     return korean.length <= 3 && KOREAN_COMMA_LIST.test(value);
   }
@@ -33,11 +54,44 @@ export function isSimpleGloss(text: string | null | undefined): boolean {
   return true;
 }
 
+/** Turn attributive forms into dictionary lemmas when obvious (공급하는 → 공급하다). */
+export function normalizeKoreanPredicate(token: string): string {
+  const t = token.trim();
+  if (t.length < 2) return t;
+  if (t.endsWith('하는') && t.length > 2) return `${t.slice(0, -2)}하다`;
+  if (t.endsWith('되는') && t.length > 2) return `${t.slice(0, -2)}되다`;
+  if (t.endsWith('이는') && t.length > 2) return `${t.slice(0, -2)}이다`;
+  return t;
+}
+
+function isPreferredVerbLemma(token: string): boolean {
+  return /(?:하다|되다|이다)$/u.test(token);
+}
+
+function isVerbLike(token: string): boolean {
+  return /다$/u.test(token) || /(?:하는|되는|이는)$/u.test(token);
+}
+
+/**
+ * Pick a Select Words headword from a dictionary paraphrase.
+ * Skips hollow endings like 것, and prefers real verb lemmas (…하다) over the last token.
+ */
 export function extractKoreanHeadword(text: string | null | undefined): string | null {
   const value = trimMeaning(text);
   if (!value) return null;
-  const tokens = hangulTokens(value);
+  const tokens = hangulTokens(value)
+    .map(normalizeKoreanPredicate)
+    .filter((t) => t.length > 0 && !KOREAN_GLOSS_STOPWORDS.has(t));
   if (tokens.length === 0) return null;
+
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i]!;
+    if (isPreferredVerbLemma(t)) return t;
+  }
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i]!;
+    if (isVerbLike(t)) return normalizeKoreanPredicate(t);
+  }
   return tokens[tokens.length - 1] ?? null;
 }
 
