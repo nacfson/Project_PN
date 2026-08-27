@@ -2,6 +2,7 @@ package words
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,176 @@ import (
 
 	"project-pn/internal/enrich"
 )
+
+// RemapPreview is one proposed old→new sense match for dry-run logging.
+type RemapPreview struct {
+	WordID        string
+	Lemma         string
+	PartOfSpeech  string
+	OldSenseID    string
+	OldDefinition string
+	OldLocalized  string
+	NewDefinition string
+	NewLocalized  string
+	UserCardCount int
+}
+
+// ListWordIDsForUser returns distinct word IDs for the user's active learning items.
+func (s *Service) ListWordIDsForUser(ctx context.Context, userID string, limit int) ([]string, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, fmt.Errorf("words: user id required")
+	}
+
+	q := `
+		select distinct w.id::text
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		join words w on w.id = ws.word_id
+		where uws.user_id = $1::uuid
+		  and uws.archived_at is null
+		order by w.id::text`
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	if limit > 0 {
+		rows, err = s.pool.Query(ctx, q+` limit $2`, userID, limit)
+	} else {
+		rows, err = s.pool.Query(ctx, q, userID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("words: list user word ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// ResolveUserIDByEmail returns the users.id for a normalized email.
+func (s *Service) ResolveUserIDByEmail(ctx context.Context, email string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return "", fmt.Errorf("words: email required")
+	}
+	var id string
+	err := s.pool.QueryRow(ctx, `
+		select id::text from users where lower(email) = $1 limit 1`,
+		email,
+	).Scan(&id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", fmt.Errorf("words: no user with email %q", email)
+		}
+		return "", fmt.Errorf("words: resolve user email: %w", err)
+	}
+	return id, nil
+}
+
+// PreviewRetranslateWord calls the enricher and reports AutoMatch mapping without writing.
+func (s *Service) PreviewRetranslateWord(ctx context.Context, wordID string) ([]RemapPreview, error) {
+	var (
+		langCode   string
+		normalized string
+		pos        string
+		lemma      string
+	)
+	err := s.pool.QueryRow(ctx, `
+		select language_code, normalized_text, part_of_speech, lemma
+		from words where id = $1::uuid`,
+		wordID,
+	).Scan(&langCode, &normalized, &pos, &lemma)
+	if err != nil {
+		return nil, fmt.Errorf("words: load word for preview: %w", err)
+	}
+
+	defLang := strings.TrimSpace(s.DefinitionLang)
+	if defLang == "" {
+		defLang = "ko"
+	}
+
+	oldSenses, err := loadSenseMatchInputs(ctx, s.pool, wordID, defLang)
+	if err != nil {
+		return nil, err
+	}
+	if s.enricher == nil {
+		return nil, fmt.Errorf("words: enricher not configured for retranslate")
+	}
+	result, err := s.enricher.Enrich(ctx, enrich.Request{
+		Text:                   normalized,
+		LanguageCode:           langCode,
+		DefinitionLanguageCode: defLang,
+		POS:                    pos,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("words: retranslate enrich preview: %w", err)
+	}
+
+	var newSenses []enrich.Sense
+	for _, entry := range result.Entries {
+		if pos != "" && !strings.EqualFold(strings.TrimSpace(entry.PartOfSpeech), pos) {
+			continue
+		}
+		newSenses = append(newSenses, entry.Senses...)
+	}
+	if len(newSenses) == 0 {
+		for _, entry := range result.Entries {
+			newSenses = append(newSenses, entry.Senses...)
+		}
+	}
+	if len(newSenses) == 0 {
+		return nil, fmt.Errorf("words: retranslate produced no senses for word %s", wordID)
+	}
+
+	candidates := make([]SenseMatchInput, 0, len(newSenses))
+	for i, sense := range newSenses {
+		candidates = append(candidates, SenseMatchInput{
+			ID:                  fmt.Sprintf("preview-%d", i),
+			Definition:          sense.Definition,
+			LocalizedDefinition: firstNonEmpty(sense.NativeShortDefinition, sense.NativeDefinition),
+			MeaningOrder:        i + 1,
+		})
+	}
+
+	previews := make([]RemapPreview, 0, len(oldSenses))
+	for _, old := range oldSenses {
+		matchID := AutoMatchSenseID(old, candidates)
+		var matched SenseMatchInput
+		for _, c := range candidates {
+			if c.ID == matchID {
+				matched = c
+				break
+			}
+		}
+		var cardCount int
+		_ = s.pool.QueryRow(ctx, `
+			select count(*)::int from user_word_senses
+			where word_sense_id = $1::uuid and archived_at is null`,
+			old.ID,
+		).Scan(&cardCount)
+
+		previews = append(previews, RemapPreview{
+			WordID:        wordID,
+			Lemma:         firstNonEmpty(lemma, normalized),
+			PartOfSpeech:  pos,
+			OldSenseID:    old.ID,
+			OldDefinition: old.Definition,
+			OldLocalized:  old.LocalizedDefinition,
+			NewDefinition: matched.Definition,
+			NewLocalized:  matched.LocalizedDefinition,
+			UserCardCount: cardCount,
+		})
+	}
+	return previews, nil
+}
 
 // RetranslateWord re-enriches a word with a fresh distinct sense set, remaps
 // learner cards via AutoMatchSenseID, then deletes the old senses.
@@ -103,6 +274,18 @@ func (s *Service) RetranslateWord(ctx context.Context, wordID string) error {
 	}
 
 	if len(oldIDs) > 0 {
+		for _, old := range oldSenses {
+			newID := AutoMatchSenseID(old, candidates)
+			var gloss string
+			for _, c := range candidates {
+				if c.ID == newID {
+					gloss = firstNonEmpty(c.LocalizedDefinition, c.Definition)
+					break
+				}
+			}
+			s.logf("RETRANSLATE_MATCH", "word %s (%s): %q / %q → %q",
+				wordID, normalized, old.Definition, old.LocalizedDefinition, gloss)
+		}
 		if err := remapUserWordSenses(ctx, tx, oldIDs, oldByID, candidates); err != nil {
 			return err
 		}

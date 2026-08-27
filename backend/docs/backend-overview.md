@@ -94,33 +94,17 @@ Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is document
 
 Production runs on **Oracle Cloud k3s** (`project-pn` namespace). Images: `ghcr.io/nacfson/project-pn-backend` and `project-pn-frontend`. Public URL: Cursor secret `DEPLOY_PUBLIC_URL`. Central auth: `https://auth.nacfson.cloud`. Runtime secrets (including `ENRICH_PRIMARY_API_KEY`) are managed through **Cursor environment secrets**. See `backend/docs/cursor-secrets.md` and `backend/docs/oracle-deploy-runbook.md`.
 
-## Enrichment
+## Enrichment (gloss origin)
 
-When the global cache misses, the API can call an OpenAI-compatible chat-completions endpoint to generate canonical target-language definitions, short definitions, CEFR levels, and 3–5 example sentences per sense (spanning difficulty levels). On a cache hit, the same enricher can translate canonical content into an additional display language on demand. The `Enricher` interface (`Enrich` + `Translate`) lives in `backend/internal/enrich/`.
+On a global cache miss, `POST /api/words/lookup` queries the free **WiktApi** origin (`https://api.wiktapi.dev`) for English→display-language glosses (for example Korean). Each gloss becomes one `word_senses` row and is persisted in Postgres. No WiktApi API key is required. Meanings come from Wiktionary via Kaikki (**CC BY-SA** — credit in product/docs).
 
-Canonical dictionary text is stored on `word_senses` and `examples`. Localized definitions and example translations are stored in `sense_translations` and `example_translations`, filled lazily per display language and cached permanently when validation passes.
+Optional: if `ENRICH_PRIMARY_API_KEY` is set, a Gemini/OpenAI-compatible enricher is used only when WiktApi returns no glosses.
 
-The primary provider defaults to Gemini's OpenAI-compatible endpoint
-(`https://generativelanguage.googleapis.com/v1beta/openai`) with model
-`gemini-3.1-flash-lite`, so all listed target languages (`en`, `ko`, `ja`,
-`zh`, `es`, `fr`, `de`) work once `ENRICH_PRIMARY_API_KEY` is set. Environment
-variables only override the built-in defaults:
+- `ORIGIN_WIKTAPI_BASE_URL` (default `https://api.wiktapi.dev`)
+- `ENRICH_PRIMARY_API_KEY` / `ENRICH_PRIMARY_BASE_URL` / `ENRICH_PRIMARY_MODEL` — optional legacy fallback
+- Legacy `ENRICH_BASE_URL`, `ENRICH_API_KEY`, `ENRICH_MODEL` aliases still apply to the primary fallback slot
 
-- `ENRICH_PRIMARY_API_KEY` (empty disables generation and on-demand translation; cache-only lookups and manual adds still work)
-- `ENRICH_PRIMARY_BASE_URL` (set only to use a different provider; an explicit model is then required)
-- `ENRICH_PRIMARY_MODEL`
-- `ENRICH_FALLBACK_BASE_URL` (optional fallback base URL tried when primary fails)
-- `ENRICH_FALLBACK_API_KEY`
-- `ENRICH_FALLBACK_MODEL`
-- Legacy `ENRICH_BASE_URL`, `ENRICH_API_KEY`, and `ENRICH_MODEL` remain supported as aliases for the primary slot.
-
-Without an API key, all lookup paths that would need generation return HTTP 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually". Provider outages or rejected keys return HTTP 503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings". The current implementation is synchronous and in-request; a background queue (`ai_enrichment_jobs`) is future scope.
-
-The local `english-dictionary-fallback-v1` service is a no-key staging
-fallback for English target vocabulary only; it can translate English canonical
-content into display languages, but it must not be treated as multilingual
-dictionary generation. Non-English targets configured with it fail with
-HTTP 503 "multilingual enrichment provider required for this target language".
+Examples and long dictionary essays are not part of the default gloss path. Multi-word phrases may 404 on public WiktApi until covered.
 
 ## CORS
 

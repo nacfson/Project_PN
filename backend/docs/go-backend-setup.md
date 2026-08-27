@@ -140,12 +140,13 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `APP_ADDR` | `:8080` | HTTP listen address for `cmd/api`. |
 | `DATABASE_URL` | `postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable` | PostgreSQL connection string used by `db.Open` and the migrate CLI. |
 | `MIGRATIONS_PATH` | `file://db/migrations` | golang-migrate source URL. Resolved relative to the `backend/` working directory. |
-| `ENRICH_PRIMARY_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Base URL of the primary OpenAI-compatible `/chat/completions` endpoint. The built-in default is Gemini's shim; set this only to use a different provider. (Alias: `ENRICH_BASE_URL`) |
-| `ENRICH_PRIMARY_API_KEY` | empty | Bearer token for the primary enricher. Empty disables generation and on-demand translation; cache-only lookups and manual adds still work. (Alias: `ENRICH_API_KEY`) |
-| `ENRICH_PRIMARY_MODEL` | `gemini-3.1-flash-lite` | Model name passed to the primary enricher. The default applies only with the built-in base URL; custom providers must set this explicitly. (Alias: `ENRICH_MODEL`) |
-| `ENRICH_FALLBACK_BASE_URL` | empty | Optional fallback OpenAI-compatible `/chat/completions` endpoint (e.g. DeepSeek). |
-| `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the fallback enricher. |
-| `ENRICH_FALLBACK_MODEL` | empty | Model name passed to the fallback enricher (e.g. `deepseek-v4-flash`). |
+| `ORIGIN_WIKTAPI_BASE_URL` | `https://api.wiktapi.dev` | Free gloss dictionary origin (WiktApi). **No API key.** |
+| `ENRICH_PRIMARY_BASE_URL` | empty (Gemini default only if key set) | Optional legacy OpenAI-compatible fallback base URL. (Alias: `ENRICH_BASE_URL`) |
+| `ENRICH_PRIMARY_API_KEY` | empty | Optional legacy Gemini/OpenAI key used only when WiktApi misses. (Alias: `ENRICH_API_KEY`) |
+| `ENRICH_PRIMARY_MODEL` | empty (`gemini-3.1-flash-lite` with Gemini default) | Model for optional legacy fallback. (Alias: `ENRICH_MODEL`) |
+| `ENRICH_FALLBACK_BASE_URL` | empty | Optional second legacy fallback OpenAI-compatible endpoint. |
+| `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the second legacy fallback. |
+| `ENRICH_FALLBACK_MODEL` | empty | Model name for the second legacy fallback. |
 | `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from the bearer session, not this env var. |
 | `DEFAULT_TARGET_LANG` | `en` | Default `target_language` on register when omitted; fallback when a request omits `language_code`. |
 | `DEFAULT_DEFINITION_LANG` | `ko` | Default `native_language` on register when omitted; fallback when a request omits `definition_language_code`. |
@@ -156,29 +157,32 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS allow-list. Empty disables the CORS middleware. |
 
 
-## Enrichment
+## Enrichment (gloss origin)
 
-The `Enricher` interface lives in `internal/enrich/`. The current implementation (`OpenAIEnricher`) calls any OpenAI-compatible chat-completions endpoint (Groq, DeepSeek, Gemini's OpenAI shim, OpenAI, etc.).
+Default origin is **WiktApi** (`internal/enrich/wiktapi.go`): on cache miss, the API calls `GET {ORIGIN_WIKTAPI_BASE_URL}/v1/en/word/{lemma}/translations`, keeps display-language glosses (e.g. Korean), and persists one sense per gloss. **No API key.** Data is Wiktionary/Kaikki (**CC BY-SA**).
 
-- No API key → `Enrich`/`Translate` return `ErrNotConfigured`, and the lookup endpoint returns HTTP 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually" on a cache miss. Cache hits and manual adds are unaffected.
-- Provider unreachable or request rejected (bad key, outage) → `ErrUnavailable`, returned as HTTP 503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings" instead of a generic 500.
-- Primary and fallback set → enrichment runs synchronously inside the request, attempting primary first and falling back to secondary on failure. The result is persisted in the same transaction as the cache write.
-- Model string is required when a custom (non-default) base URL is configured.
+- WiktApi miss / 404 / outage → `ErrUnavailable` → HTTP 503 unless an optional Gemini/OpenAI fallback is configured via `ENRICH_PRIMARY_*`.
+- Optional legacy enrichers still implement `Enricher` for fallback only.
+- Examples are not required on the gloss path.
 
-### Non-English study set fails to load (e.g. ja→ko)
+### Non-English / missing glosses
 
-Symptom: the app shows "학습 세트 불러오기 실패" / "… 학습 준비 중 오류 발생" for a non-English target language while en→ko works.
+- `503` on lookup miss usually means WiktApi had no entry (common for some multi-word phrases) and no legacy fallback key is set.
+- `422 "localized translation unavailable for this word sense"` — add requires a cached display-language gloss on the chosen sense.
 
-Cause: the backend has no working multilingual enrichment provider, so non-English content cannot be generated or translated on demand. The failing response identifies the exact gap:
+Enrichment is in-request and synchronous. A background queue is future scope.
 
-- `503 "multilingual enrichment provider required for this target language"` — the configured model is the English-only `english-dictionary-fallback-v1` staging fallback.
-- `503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually"` — no API key configured.
-- `503 "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings"` — provider down or key rejected.
-- `422 "localized translation unavailable for this word sense"` — Translate ran (or nothing was missing to send) but this sense still has no valid cached display-language definition. Provider/config failures on add are **not** this status; they use the 503s above.
+### Refresh existing meanings (retranslate-senses)
 
-Fix: set `ENRICH_PRIMARY_API_KEY` (base URL and model default to Gemini) and restart the API. Items added earlier without translations are backfilled lazily on the next lookup/add, or in bulk via `go run ./cmd/retranslate-senses`.
+Rebuild glosses for words already in a user's learning set (or the whole catalog), remapping cards with AutoMatch:
 
-Enrichment is currently in-request and synchronous. A background queue is future scope (see `backend/docs/backend-future-scope.md`).
+```sh
+set -a && source .env && set +a
+go run ./cmd/retranslate-senses -email 'dev@project-pn.local' -dry-run
+go run ./cmd/retranslate-senses -email 'dev@project-pn.local' -continue-on-error
+```
+
+Flags: `-user-id`, `-email`, `-word-id`, `-limit`, `-dry-run`, `-continue-on-error`. See `docs/backend-flows.md` (Retranslate-Senses Command).
 
 ## Learning analytics logs (optional)
 

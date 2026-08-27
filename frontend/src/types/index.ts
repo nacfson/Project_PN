@@ -99,7 +99,7 @@ export interface LearningItemsPage {
   next_cursor: string | null;
 }
 
-export type DeckOrigin = 'private' | 'curriculum';
+export type DeckOrigin = 'private';
 
 export interface Deck {
   id: string;
@@ -108,36 +108,9 @@ export interface Deck {
   name: string;
   is_default: boolean;
   origin: DeckOrigin;
-  curriculum_pack_id?: string | null;
   item_count: number;
   created_at: string;
   updated_at: string;
-}
-
-export interface CurriculumPack {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  target_language: string;
-  cefr_band: string;
-  sort_order: number;
-  entry_count: number;
-  enrolled: boolean;
-  deck_id?: string | null;
-  added_count: number;
-  skipped_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CurriculumEnrollResult {
-  pack_id: string;
-  slug: string;
-  deck_id: string;
-  added_count: number;
-  skipped_count: number;
-  already_enrolled: boolean;
 }
 
 export type ReviewActivityType =

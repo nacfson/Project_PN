@@ -11,8 +11,8 @@ import { listDecks, moveItemsToDeck } from '../../api/decks';
 import type { Deck, LearningItemListItem } from '../../types';
 import { MoveToDeckModal } from './MoveToDeckModal';
 import { ChangeMeaningSheet } from './ChangeMeaningSheet';
-import { renderFormattedSentence, renderBoldMarkdown, getPosColor, getPosBadgeVariant } from '../../utils/text';
-import { splitMeanings, preferSimpleGloss } from '../../utils/meanings';
+import { getPosColor, getPosBadgeVariant } from '../../utils/text';
+import { displayGloss } from '../../utils/meanings';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
 
@@ -80,11 +80,8 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
     [item.id, navigation, t],
   );
 
-  const explanation = item.definition;
-  const shortExplanation = preferSimpleGloss(item.short_definition, item.definition);
-  const { simple: simpleMeaning, full: fullMeaning } = splitMeanings(item);
+  const gloss = displayGloss(item);
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
-  const examples = item.examples ?? [];
 
   return (
     <Screen padded>
@@ -115,72 +112,16 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           {cefrLabel && <Badge label={cefrLabel} variant="info" />}
         </View>
 
-        {examples.length > 0 && (
+        {gloss ? (
           <Card style={{ marginBottom: spacing.md }}>
-            <Text variant="label" color="muted" style={{ marginBottom: spacing.sm }}>
-              {t('words.detailExamples')}
+            <Text variant="headline" bold style={{ color: posColor }}>
+              {gloss}
             </Text>
-            <View style={{ gap: spacing.md }}>
-              {examples.map((example, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.example,
-                    index !== examples.length - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.outlineVariant,
-                      paddingBottom: spacing.md,
-                    },
-                  ]}
-                >
-                  <Text variant="body">{renderFormattedSentence(example.sentence, item.word, posColor)}</Text>
-                  {example.localized_translation && (
-                    <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                      {renderBoldMarkdown(example.localized_translation, posColor)}
-                    </Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          </Card>
-        )}
-
-        {explanation && (
-          <Card style={{ marginBottom: spacing.md }}>
-            <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-              {t('words.detailExplanation')}
+            <Text variant="caption" color="muted" style={{ marginTop: spacing.sm }}>
+              {t('words.glossAttribution')}
             </Text>
-            <Text variant="body">{explanation}</Text>
-            {shortExplanation && shortExplanation !== explanation && (
-              <Text variant="caption" color="muted" style={{ marginTop: spacing.xs }}>
-                {shortExplanation}
-              </Text>
-            )}
           </Card>
-        )}
-
-        {(simpleMeaning || fullMeaning) && (
-          <Card style={{ marginBottom: spacing.md }}>
-            {simpleMeaning && (
-              <>
-                <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-                  {t('practice.simpleMeaningLabel')}
-                </Text>
-                <Text variant="headline" bold style={{ color: posColor, marginBottom: fullMeaning ? spacing.sm : 0 }}>
-                  {simpleMeaning}
-                </Text>
-              </>
-            )}
-            {fullMeaning && (
-              <>
-                <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-                  {t('practice.fullMeaningLabel')}
-                </Text>
-                <Text variant="body">{fullMeaning}</Text>
-              </>
-            )}
-          </Card>
-        )}
+        ) : null}
 
         <Card>
           <View style={[styles.metaRow, { gap: spacing.sm }]}>
@@ -250,7 +191,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
   },
-  example: {},
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',

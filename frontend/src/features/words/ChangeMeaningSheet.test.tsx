@@ -108,8 +108,8 @@ describe('ChangeMeaningSheet', () => {
       </SafeAreaProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('to store energy')).toBeTruthy());
-    fireEvent.press(screen.getByText('to store energy'));
+    await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
+    fireEvent.press(screen.getByText('충전하다'));
     await waitFor(() => {
       expect(screen.getByText('Save meaning')).not.toBeDisabled();
     });

@@ -6,6 +6,11 @@ import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import type { LearningItemListItem } from '../../types';
 
+jest.mock('../../api/decks', () => ({
+  listDecks: jest.fn().mockResolvedValue([]),
+  moveItemsToDeck: jest.fn(),
+}));
+
 function Wrapper({ children }: { children: ReactNode }) {
   return (
     <SafeAreaProvider
@@ -27,8 +32,10 @@ const baseItem: LearningItemListItem = {
   word_id: 'w-1',
   language_code: 'en',
   lemma: 'abandon',
+  normalized_text: 'abandon',
   pronunciation: '/əˈbændən/',
   part_of_speech: 'verb',
+  display_language_code: 'ko',
   definition: 'to leave behind, to forsake',
   short_definition: 'leave behind',
   localized_definition: '떠나다, 버리다',
@@ -55,13 +62,16 @@ const mockRoute = (item: LearningItemListItem) =>
   } as const);
 
 describe('WordDetailScreen', () => {
-  it('renders the lemma and definition', async () => {
+  it('renders the lemma and chosen gloss only', async () => {
     await render(<WordDetailScreen route={mockRoute(baseItem) as any} />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
-    expect(screen.getByText('떠나다, 버리다')).toBeTruthy();
+    expect(screen.getByText('떠나다')).toBeTruthy();
     expect(screen.getByText('CEFR B2')).toBeTruthy();
-    expect(screen.getByText('He abandoned his car in the snow.')).toBeTruthy();
+    expect(screen.queryByText('Explanation')).toBeNull();
+    expect(screen.queryByText('to leave behind, to forsake')).toBeNull();
+    expect(screen.queryByText('Full meaning')).toBeNull();
+    expect(screen.queryByText('He abandoned his car in the snow.')).toBeNull();
   });
 
   it('renders with minimal data (no optional fields)', async () => {
@@ -89,32 +99,13 @@ describe('WordDetailScreen', () => {
     await render(<WordDetailScreen route={mockRoute(nullExamplesItem) as any} />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
-    expect(screen.getByText('떠나다, 버리다')).toBeTruthy();
+    expect(screen.getByText('떠나다')).toBeTruthy();
   });
 
-  it('renders both explanation and translation cards when different', async () => {
+  it('shows Wiktionary attribution with the gloss', async () => {
     render(<WordDetailScreen route={mockRoute(baseItem) as any} />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
-    expect(screen.getByText('Explanation')).toBeTruthy();
-    expect(screen.getByText('to leave behind, to forsake')).toBeTruthy();
-    expect(screen.getByText('Simple meaning')).toBeTruthy();
     expect(screen.getByText('떠나다')).toBeTruthy();
-    expect(screen.getByText('Full meaning')).toBeTruthy();
-    expect(screen.getByText('떠나다, 버리다')).toBeTruthy();
-  });
-
-  it('renders only explanation card when translation is identical to explanation', async () => {
-    const identicalItem: LearningItemListItem = {
-      ...baseItem,
-      definition: 'same meaning',
-      localized_definition: 'same meaning',
-      short_definition: null,
-      localized_short_definition: null,
-    };
-    render(<WordDetailScreen route={mockRoute(identicalItem) as any} />, { wrapper: Wrapper });
-    await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
-    expect(screen.getByText('Explanation')).toBeTruthy();
-    expect(screen.getByText('same meaning')).toBeTruthy();
-    expect(screen.queryByText('Translation')).toBeNull();
+    expect(screen.getByText('Gloss via Wiktionary')).toBeTruthy();
   });
 });

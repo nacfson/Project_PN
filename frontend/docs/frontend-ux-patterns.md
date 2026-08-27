@@ -32,10 +32,9 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 ## Practice UX
 
-- Practice sessions are scoped by vocabulary source and must not mix them:
-  - **Custom quizzes** (Home / Practice tab / Command Dock): `origin=private` — only private decks (user-added words).
-  - **Dictionary quizzes** (Curriculum “Study pack”): `deckId=<curriculum deck>` — only that public pack.
-  - Show a Custom / Dictionary scope badge in the practice chrome so the active source is obvious.
+- Practice sessions use **private decks only** (user-added words). Optional `deckId` narrows to one deck; there is no curriculum / dictionary-pack practice mode.
+- Select Words / sense pickers show a **single simple gloss** per option (e.g. `가지다`), not English definition plus localized paraphrase.
+- Flashcards: front = lemma, back = chosen gloss only (no Explanation / Full meaning / Example as primary UX).
 - The practice session supports two card modes:
   - **Flashcard mode**: the user taps the card to flip it and self-grades with the Anki-style answer buttons (Again/Hard/Good/Easy).
   - **Typing mode** (Deprecated): the user types the target word before revealing the answer. The probability of selecting typing mode has been set to zero across all stages to deprecate the input quiz, so all cards now default to Flashcard mode.

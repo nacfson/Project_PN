@@ -31,9 +31,10 @@ const (
 	defaultDevExtensionID  = ""
 	defaultProdExtensionID = ""
 
-	// Built-in multilingual provider: Gemini's OpenAI-compatible shim. Applied
-	// only when no primary/legacy base URL is set, so every supported target
-	// language works once ENRICH_PRIMARY_API_KEY is provided.
+	// Default free gloss origin (WiktApi / Wiktionary). No API key required.
+	defaultOriginWiktAPIBaseURL = "https://api.wiktapi.dev"
+
+	// Optional legacy Gemini OpenAI-compatible shim (not the default path).
 	defaultEnrichPrimaryBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
 	defaultEnrichPrimaryModel   = "gemini-3.1-flash-lite"
 
@@ -44,6 +45,9 @@ type Config struct {
 	AppAddr        string
 	DatabaseURL    string
 	MigrationsPath string
+
+	// OriginWiktAPIBaseURL is the free gloss dictionary origin (no API key).
+	OriginWiktAPIBaseURL string
 
 	EnrichPrimaryBaseURL string
 	EnrichPrimaryAPIKey  string
@@ -84,7 +88,9 @@ type Config struct {
 func Load() Config {
 	enrichPrimaryBaseURL := envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL"))
 	enrichPrimaryModel := envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL"))
-	if enrichPrimaryBaseURL == "" {
+	// Only apply Gemini defaults when an API key is present (legacy optional path).
+	enrichPrimaryKey := envOrDefault("ENRICH_PRIMARY_API_KEY", os.Getenv("ENRICH_API_KEY"))
+	if enrichPrimaryKey != "" && enrichPrimaryBaseURL == "" {
 		enrichPrimaryBaseURL = defaultEnrichPrimaryBaseURL
 		if enrichPrimaryModel == "" {
 			enrichPrimaryModel = defaultEnrichPrimaryModel
@@ -96,8 +102,10 @@ func Load() Config {
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		MigrationsPath: envOrDefault("MIGRATIONS_PATH", defaultMigrationsPath),
 
+		OriginWiktAPIBaseURL: envOrDefault("ORIGIN_WIKTAPI_BASE_URL", defaultOriginWiktAPIBaseURL),
+
 		EnrichPrimaryBaseURL: enrichPrimaryBaseURL,
-		EnrichPrimaryAPIKey:  envOrDefault("ENRICH_PRIMARY_API_KEY", os.Getenv("ENRICH_API_KEY")),
+		EnrichPrimaryAPIKey:  enrichPrimaryKey,
 		EnrichPrimaryModel:   enrichPrimaryModel,
 
 		EnrichFallbackBaseURL: os.Getenv("ENRICH_FALLBACK_BASE_URL"),

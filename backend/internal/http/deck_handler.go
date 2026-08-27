@@ -150,16 +150,12 @@ func (h *deckHandler) writeDeckError(w http.ResponseWriter, r *http.Request, err
 		writeError(w, http.StatusForbidden, "deck not available for this user or language")
 	case errors.Is(err, words.ErrCannotDeleteDefaultDeck):
 		writeError(w, http.StatusConflict, "cannot delete default deck")
-	case errors.Is(err, words.ErrCurriculumDeckImmutable):
-		writeError(w, http.StatusConflict, "curriculum deck cannot be modified")
-	case errors.Is(err, words.ErrCurriculumDeckNotAddTarget):
-		writeError(w, http.StatusConflict, "cannot add private items to a curriculum deck")
 	case errors.Is(err, words.ErrInvalidDeckName):
 		writeError(w, http.StatusBadRequest, "invalid deck name")
 	case errors.Is(err, words.ErrDeckNameExists):
 		writeError(w, http.StatusConflict, "deck name already exists")
 	case errors.Is(err, words.ErrInvalidDeckOrigin):
-		writeError(w, http.StatusBadRequest, "origin must be private or curriculum")
+		writeError(w, http.StatusBadRequest, "origin must be private")
 	case errors.Is(err, words.ErrInvalidTargetLanguagePair), errors.Is(err, words.ErrInvalidTargetLang):
 		writeError(w, http.StatusBadRequest, "invalid target language")
 	default:

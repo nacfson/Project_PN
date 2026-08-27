@@ -77,21 +77,26 @@ export function uniqueText(
   return trimmed;
 }
 
-/** Simple headword (덮다) plus the current dictionary meaning, with no duplicates. */
-export function splitMeanings(item: MeaningFields): { simple: string | null; full: string | null } {
-  const full = uniqueText(item.localized_definition, item.definition);
-  const localizedSimple = uniqueText(
-    preferSimpleGloss(item.localized_short_definition, item.localized_definition),
-    item.definition,
-  );
-  const englishSimple = uniqueText(
-    preferSimpleGloss(item.short_definition, item.definition),
-    item.definition,
-  );
-  const simple = localizedSimple ?? englishSimple;
+/**
+ * Single display gloss for Select Words, flashcard back, and word detail.
+ * Prefers localized_short_definition → localized_definition → short_definition → definition.
+ */
+export function displayGloss(item: MeaningFields): string | null {
+  const localized = preferSimpleGloss(item.localized_short_definition, item.localized_definition);
+  if (localized) return localized;
 
-  if (simple && full && simple === full) {
-    return { simple, full: null };
-  }
-  return { simple, full };
+  const english = preferSimpleGloss(item.short_definition, item.definition);
+  if (english) return english;
+
+  return (
+    trimMeaning(item.localized_short_definition) ??
+    trimMeaning(item.localized_definition) ??
+    trimMeaning(item.short_definition) ??
+    trimMeaning(item.definition)
+  );
+}
+
+/** Display helpers: simple gloss only (full is unused / always null). */
+export function splitMeanings(item: MeaningFields): { simple: string | null; full: string | null } {
+  return { simple: displayGloss(item), full: null };
 }

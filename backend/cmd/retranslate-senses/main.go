@@ -22,12 +22,16 @@ func main() {
 	var (
 		limit           int
 		wordID          string
+		userID          string
+		email           string
 		dryRun          bool
 		continueOnError bool
 	)
 	flag.IntVar(&limit, "limit", 0, "max words to process (0 = all)")
 	flag.StringVar(&wordID, "word-id", "", "optional single word UUID")
-	flag.BoolVar(&dryRun, "dry-run", false, "list target words without retranslating")
+	flag.StringVar(&userID, "user-id", "", "only words in this user's active learning set")
+	flag.StringVar(&email, "email", "", "resolve -user-id from users.email (e.g. dev@project-pn.local)")
+	flag.BoolVar(&dryRun, "dry-run", false, "preview AutoMatch mappings without writing")
 	flag.BoolVar(&continueOnError, "continue-on-error", false, "continue after per-word errors")
 	flag.Parse()
 
@@ -51,12 +55,19 @@ func main() {
 	}
 	defer adminLogger.Close()
 
-	primary := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
-	var fallback enrich.Enricher
-	if cfg.EnrichFallbackBaseURL != "" {
-		fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
+	// Default origin: free WiktApi. Optional Gemini/OpenAI only as fallback.
+	primary := enrich.NewWiktAPI(cfg.OriginWiktAPIBaseURL)
+	var enricher enrich.Enricher = primary
+	if cfg.EnrichPrimaryAPIKey != "" {
+		legacy := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
+		var fallback enrich.Enricher
+		if cfg.EnrichFallbackBaseURL != "" {
+			fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
+		}
+		enricher = enrich.NewFallback(primary, enrich.NewFallback(legacy, fallback, slog.Default()), slog.Default())
 	}
-	enricher := enrich.NewFallback(primary, fallback, slog.Default())
+	slog.Info("retranslate enricher", "primary", "wiktapi", "base", cfg.OriginWiktAPIBaseURL)
+
 	learningLogger, err := learninglog.NewLogger(cfg.LearningLogDir)
 	if err != nil {
 		learningLogger = learninglog.NoopLogger{}
@@ -64,17 +75,53 @@ func main() {
 	defer learningLogger.Close()
 	svc := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
-	ids, err := listWordIDs(ctx, pool, strings.TrimSpace(wordID), limit)
+	resolvedUserID := strings.TrimSpace(userID)
+	if resolvedUserID == "" && strings.TrimSpace(email) != "" {
+		resolvedUserID, err = svc.ResolveUserIDByEmail(ctx, email)
+		if err != nil {
+			slog.Error("resolve email failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("resolved user", "email", email, "user_id", resolvedUserID)
+	}
+
+	ids, err := listWordIDs(ctx, pool, svc, strings.TrimSpace(wordID), resolvedUserID, limit)
 	if err != nil {
 		slog.Error("list words failed", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("retranslate-senses starting", "count", len(ids), "dry_run", dryRun)
+	slog.Info("retranslate-senses starting",
+		"count", len(ids),
+		"dry_run", dryRun,
+		"user_id", resolvedUserID,
+	)
 
 	ok, failed := 0, 0
 	for i, id := range ids {
 		if dryRun {
-			slog.Info("dry-run word", "index", i+1, "word_id", id)
+			previews, err := svc.PreviewRetranslateWord(ctx, id)
+			if err != nil {
+				failed++
+				slog.Error("dry-run preview failed", "word_id", id, "error", err)
+				if !continueOnError {
+					os.Exit(1)
+				}
+				continue
+			}
+			for _, p := range previews {
+				slog.Info("dry-run match",
+					"lemma", p.Lemma,
+					"pos", p.PartOfSpeech,
+					"old_def", p.OldDefinition,
+					"old_ko", p.OldLocalized,
+					"new_def", p.NewDefinition,
+					"new_ko", p.NewLocalized,
+					"active_cards", p.UserCardCount,
+				)
+			}
+			if len(previews) == 0 {
+				slog.Info("dry-run word has no existing senses", "word_id", id)
+			}
 			ok++
 			continue
 		}
@@ -97,9 +144,12 @@ func main() {
 	}
 }
 
-func listWordIDs(ctx context.Context, pool *pgxpool.Pool, wordID string, limit int) ([]string, error) {
+func listWordIDs(ctx context.Context, pool *pgxpool.Pool, svc *words.Service, wordID, userID string, limit int) ([]string, error) {
 	if wordID != "" {
 		return []string{wordID}, nil
+	}
+	if userID != "" {
+		return svc.ListWordIDsForUser(ctx, userID, limit)
 	}
 
 	var (

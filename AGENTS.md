@@ -91,7 +91,7 @@ This is an npm-workspaces monorepo plus a standalone Go backend module. Cloud VM
 - After Postgres is healthy, apply migrations once: `cd backend && set -a && source .env && set +a && go run ./cmd/migrate up`.
 - Local auth needs NO external central auth server: the backend accepts `Authorization: Bearer mock-dev-token` as the seeded dev user (`dev@project-pn.local`, admin, verified), and `EnsureCentralUser` auto-creates that user on the first authenticated request. For the web UI, open `http://localhost:8081/?token=mock-dev-token` to sign in as the dev user.
 - `scripts/start-web-dev.sh` currently FAILS at its `seed-dev-guest.sh` step: that seed targets the fixed dev-user id `00000000-...0001`, which no longer exists (the dev user is created with a random UUID), so the FK insert errors and the script (`set -e`) aborts before starting the API. For a reliable full stack, start Postgres, migrations, the API, and Expo web manually (or use `--skip-db`/`--skip-migrate` only after the stack is already up) and authenticate with `mock-dev-token` instead of relying on the guest seed.
-- Word enrichment in Cloud dev: set `ENRICH_PRIMARY_API_KEY` in **Cursor environment secrets** (or `backend/.env` locally). Without a key, `POST /api/words/lookup` on a cache miss returns HTTP 503. Cached/seeded words still work.
+- Word enrichment in Cloud dev: gloss lookup uses free public **WiktApi** by default (`ORIGIN_WIKTAPI_BASE_URL`, no API key). Optional `ENRICH_PRIMARY_API_KEY` is only a legacy Gemini fallback when WiktApi misses. Cached/seeded words still work offline from Postgres.
 
 ### Testing caveats (non-obvious)
 

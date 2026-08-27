@@ -1,7 +1,5 @@
 import { getJson, postJson } from './client';
-import type { BatchReviewResult, DueItem, LearningItemsPage, ReviewAttemptParams } from './types';
-
-export type DeckOrigin = 'private' | 'curriculum';
+import type { BatchReviewResult, DeckOrigin, DueItem, LearningItemsPage, ReviewAttemptParams } from './types';
 
 export interface ListLearningItemsParams {
   limit?: number;

@@ -18,7 +18,7 @@ import type { Rating } from '../../ui';
 import type { DueItem } from '../../types';
 import { SpeakButton } from '../../components/SpeakButton';
 import { getPosColor, getPosBadgeVariant } from '../../utils/text';
-import { splitMeanings } from '../../utils/meanings';
+import { displayGloss } from '../../utils/meanings';
 
 interface FlashcardProps {
   item: DueItem;
@@ -56,8 +56,8 @@ function formatPosBadgeLabel(
 
 export function Flashcard({
   item,
-  example,
-  blankedSentence,
+  example: _example,
+  blankedSentence: _blankedSentence,
   isFlipped,
   cardMode,
   userAnswer,
@@ -265,13 +265,7 @@ export function Flashcard({
     borderTopColor: posColor,
     ...shadows.md,
   };
-  const { simple: simpleMeaning, full: fullMeaning } = splitMeanings(item);
-  const localizedExample = (() => {
-    const trimmed = example?.localized_translation?.trim();
-    if (!trimmed) return null;
-    if (trimmed === example?.sentence?.trim()) return null;
-    return trimmed;
-  })();
+  const gloss = displayGloss(item);
 
   const renderFront = () => (
     <View style={styles.cardContent}>
@@ -303,28 +297,11 @@ export function Flashcard({
             <Text variant="caption" color="muted" style={styles.promptLabel}>
               {t('practice.typePrompt')}
             </Text>
-            {simpleMeaning && (
+            {gloss ? (
               <Text variant="headline" bold style={[styles.definitionText, { color: posColor }]}>
-                {simpleMeaning}
+                {gloss}
               </Text>
-            )}
-            {fullMeaning && (
-              <Text variant="body" color="muted" style={styles.definitionText}>
-                {fullMeaning}
-              </Text>
-            )}
-            <Text variant="title" bold style={styles.definitionText}>
-              {item.definition}
-            </Text>
-            {example ? (
-              <Text variant="body" style={styles.clozeText}>
-                &ldquo;{blankedSentence}&rdquo;
-              </Text>
-            ) : (
-              <Text variant="body" color="muted" style={styles.clozePlaceholder}>
-                {t('practice.noExample')}
-              </Text>
-            )}
+            ) : null}
           </>
         )}
       </View>
@@ -366,49 +343,11 @@ export function Flashcard({
             </Text>
           </View>
         )}
-        <View style={[styles.section, { gap: spacing.xs }]}>
-          {simpleMeaning && (
-            <>
-              <Text variant="caption" color="muted">
-                {t('practice.simpleMeaningLabel')}
-              </Text>
-              <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
-                {simpleMeaning}
-              </Text>
-            </>
-          )}
-          {fullMeaning && (
-            <>
-              <Text variant="caption" color="muted">
-                {t('practice.fullMeaningLabel')}
-              </Text>
-              <Text variant="title" style={styles.backDefinitionText}>
-                {fullMeaning}
-              </Text>
-            </>
-          )}
-          <Text variant="caption" color="muted">
-            {t('practice.definitionLabel')}
+        {gloss ? (
+          <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
+            {gloss}
           </Text>
-          <Text variant="title" style={styles.backDefinitionText}>
-            {item.definition}
-          </Text>
-        </View>
-        {example && (
-          <View style={[styles.section, { gap: spacing.xs, marginTop: spacing.sm }]}>
-            <Text variant="caption" color="muted">
-              {t('practice.exampleLabel')}
-            </Text>
-            <Text variant="body" style={styles.exampleSentence}>
-              &ldquo;{example.sentence}&rdquo;
-            </Text>
-            {localizedExample && (
-              <Text variant="caption" color="muted" style={styles.exampleTranslation}>
-                {localizedExample}
-              </Text>
-            )}
-          </View>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -558,15 +497,6 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     marginVertical: 10,
   },
-  clozeText: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  clozePlaceholder: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
   tapPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -596,20 +526,8 @@ const styles = StyleSheet.create({
   },
   backDefinitionText: {
     textAlign: 'center',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  section: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  exampleSentence: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  exampleTranslation: {
-    textAlign: 'center',
+    fontSize: 22,
+    lineHeight: 30,
   },
   hintOverlay: {
     ...StyleSheet.absoluteFillObject,

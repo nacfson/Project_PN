@@ -232,12 +232,8 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusNotFound, "deck not found")
 	case errors.Is(err, words.ErrDeckNotOwned), errors.Is(err, words.ErrDeckLanguageMismatch):
 		writeError(w, http.StatusForbidden, "deck not available for this user or language")
-	case errors.Is(err, words.ErrCurriculumDeckNotAddTarget):
-		writeError(w, http.StatusConflict, "cannot add private items to a curriculum deck")
-	case errors.Is(err, words.ErrCurriculumDeckImmutable):
-		writeError(w, http.StatusConflict, "curriculum deck cannot be modified")
 	case errors.Is(err, words.ErrInvalidDeckOrigin):
-		writeError(w, http.StatusBadRequest, "origin must be private or curriculum")
+		writeError(w, http.StatusBadRequest, "origin must be private")
 	case errors.Is(err, words.ErrInvalidDeckName):
 		writeError(w, http.StatusBadRequest, "invalid deck name")
 	case errors.Is(err, words.ErrDeckNameExists):

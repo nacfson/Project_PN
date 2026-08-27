@@ -16,8 +16,6 @@ import { StaggeredList } from '../../ui/StaggeredList';
 import { CinematicCard } from '../../ui/CinematicCard';
 import { AnimatedProgressBar } from '../../ui/AnimatedProgressBar';
 import { CountUpText } from '../../components/CountUpText';
-import { CurriculumSection } from './CurriculumSection';
-
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Learn'>;
 
 const XP_PER_REVIEW = 10;
@@ -666,8 +664,6 @@ export function HomeScreen() {
             </Text>
           </Card>
         ) : null}
-
-        <CurriculumSection />
 
         {statsError ? (
           <ErrorState

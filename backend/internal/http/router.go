@@ -13,14 +13,12 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
-	"project-pn/internal/curriculum"
 	"project-pn/internal/words"
 )
 
 type Dependencies struct {
 	DB               *pgxpool.Pool
 	Words            *words.Service
-	Curriculum       *curriculum.Service
 	Auth             *auth.Service
 	CentralAuth      *auth.CentralClient
 	AllowedOrigins   []string
@@ -124,13 +122,6 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Patch("/decks/{deck_id}", dh.renameDeck)
 				protected.Delete("/decks/{deck_id}", dh.deleteDeck)
 				protected.Post("/decks/{deck_id}/move-items", dh.moveItems)
-
-				if deps.Curriculum != nil {
-					chCurriculum := &curriculumHandler{svc: deps.Curriculum, logger: deps.AdminLogger}
-					protected.Get("/curriculum/packs", chCurriculum.listPacks)
-					protected.Get("/curriculum/packs/{slug}", chCurriculum.getPack)
-					protected.Post("/curriculum/packs/{slug}/enroll", chCurriculum.enroll)
-				}
 
 				nh := &notificationsHandler{svc: deps.Words}
 				protected.Post("/notifications/register", nh.registerPushToken)
