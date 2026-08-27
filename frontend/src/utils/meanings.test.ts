@@ -28,6 +28,16 @@ describe('extractKoreanHeadword', () => {
     expect(extractKoreanHeadword('시체를 땅에 묻다.')).toBe('묻다');
     expect(extractKoreanHeadword('어떤 일에 몰두하다')).toBe('몰두하다');
   });
+
+  it('skips hollow 것 endings and prefers a real verb lemma', () => {
+    expect(extractKoreanHeadword('무언가를 제공하거나 공급하는 것.')).toBe('공급하다');
+    expect(displayGloss({
+      definition: 'To make something needed available.',
+      short_definition: 'To provide or furnish something.',
+      localized_definition: '필요하거나 원하는 것을 누군가에게 제공하거나 갖추어 주는 것.',
+      localized_short_definition: '무언가를 제공하거나 공급하는 것.',
+    })).toBe('공급하다');
+  });
 });
 
 describe('preferSimpleGloss', () => {
