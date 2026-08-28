@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  type LayoutChangeEvent,
   type ListRenderItem,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -33,6 +34,7 @@ import { MoveToDeckModal } from './MoveToDeckModal';
 import { InspectorPanel } from '../web/InspectorPanel';
 import { ContextualCommandBar } from '../../ui/ContextualCommandBar';
 import { CinematicCard } from '../../ui/CinematicCard';
+import { distanceFromListBottom } from './scrollPagination';
 import type { WordsStackParamList } from '../../navigation/WordsStack';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
@@ -112,6 +114,8 @@ export function MyWordsScreen() {
   const [removeLoading, setRemoveLoading] = useState(false);
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const viewportHeightRef = useRef(0);
+  const contentHeightRef = useRef(0);
 
   const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } =
     useActiveTargetLanguage();
@@ -477,15 +481,32 @@ export function MyWordsScreen() {
     );
   };
 
+  const handleListLayout = useCallback((event: LayoutChangeEvent) => {
+    viewportHeightRef.current = event.nativeEvent.layout.height;
+  }, []);
+
+  const handleContentSizeChange = useCallback(
+    (_width: number, height: number) => {
+      contentHeightRef.current = height;
+      const distanceFromBottom = distanceFromListBottom(height, viewportHeightRef.current, 0);
+      if (distanceFromBottom != null) {
+        maybeLoadMoreFromScroll(distanceFromBottom);
+      }
+    },
+    [maybeLoadMoreFromScroll],
+  );
+
   const handleListScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const nativeEvent = event?.nativeEvent;
-      if (!nativeEvent?.layoutMeasurement || !nativeEvent?.contentOffset || !nativeEvent?.contentSize) {
-        return;
+      const offsetY = event?.nativeEvent?.contentOffset?.y ?? 0;
+      const distanceFromBottom = distanceFromListBottom(
+        contentHeightRef.current,
+        viewportHeightRef.current,
+        offsetY,
+      );
+      if (distanceFromBottom != null) {
+        maybeLoadMoreFromScroll(distanceFromBottom);
       }
-      const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-      const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-      maybeLoadMoreFromScroll(distanceFromBottom);
     },
     [maybeLoadMoreFromScroll],
   );
@@ -623,6 +644,8 @@ export function MyWordsScreen() {
         ]}
         onEndReached={() => void loadMore()}
         onEndReachedThreshold={0.2}
+        onLayout={handleListLayout}
+        onContentSizeChange={handleContentSizeChange}
         onScroll={handleListScroll}
         scrollEventThrottle={16}
         nestedScrollEnabled

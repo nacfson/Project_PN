@@ -28,6 +28,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
 
   const requestIdRef = useRef(0);
   const loadingMoreRef = useRef(false);
+  const nextCursorRef = useRef<string | null>(null);
 
   const fetchPage = useCallback(
     async (options: { cursor?: string | null; append: boolean; requestId: number }) => {
@@ -46,6 +47,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
 
       setItems((prev) => (options.append ? [...prev, ...page.items] : page.items));
       setNextCursor(page.next_cursor);
+      nextCursorRef.current = page.next_cursor;
       setStatus('ready');
       setError(null);
     },
@@ -56,6 +58,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     if (!enabled) {
       setItems([]);
       setNextCursor(null);
+      nextCursorRef.current = null;
       setStatus('ready');
       setError(null);
       return;
@@ -65,6 +68,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     setStatus('loading');
     setError(null);
     setNextCursor(null);
+    nextCursorRef.current = null;
 
     try {
       await fetchPage({ append: false, requestId });
@@ -82,7 +86,8 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
   }, [reload]);
 
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMoreRef.current || status === 'loading') {
+    const cursor = nextCursorRef.current;
+    if (!cursor || loadingMoreRef.current || status === 'loading') {
       return;
     }
 
@@ -91,7 +96,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     setIsLoadingMore(true);
 
     try {
-      await fetchPage({ cursor: nextCursor, append: true, requestId });
+      await fetchPage({ cursor, append: true, requestId });
     } catch (err) {
       if (requestId !== requestIdRef.current) {
         return;
@@ -101,7 +106,7 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
       loadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [fetchPage, nextCursor, status, t]);
+  }, [fetchPage, status, t]);
 
   const refresh = useCallback(async () => {
     const requestId = ++requestIdRef.current;
