@@ -114,6 +114,8 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 - `POST /api/words/lookup` with no cache hit and no enrichment API key configured returns 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually".
 - `POST /api/learning-items` with missing or empty `word_sense_id` returns 400.
 - `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.
+- `DELETE /api/learning-items/{id}` archives the item (204); unknown id returns 404. `POST /api/learning-items/archive` with `{ "item_ids": [...] }` returns `{ "archived": N }`.
+- Re-`POST /api/learning-items` for an archived `(user, word_sense)` clears `archived_at` and restores the card.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
 
 - `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled Review/New, buried, and suspended items. Unfinished Learning/Relearning retries are returned first even when their step interval has not elapsed and even when daily quotas are exhausted. Review cards are returned next, then new cards, respecting daily quotas.

@@ -160,6 +160,44 @@ func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, item)
 }
 
+func (h *wordsHandler) archiveLearningItem(w http.ResponseWriter, r *http.Request) {
+	itemID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if itemID == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	n, err := h.svc.ArchiveLearningItems(r.Context(), userIDFromRequest(r), []string{itemID})
+	if err != nil {
+		h.writeServiceError(w, r, err)
+		return
+	}
+	if n == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *wordsHandler) archiveLearningItems(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ItemIDs []string `json:"item_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if len(req.ItemIDs) == 0 {
+		writeError(w, http.StatusBadRequest, "item_ids is required")
+		return
+	}
+	n, err := h.svc.ArchiveLearningItems(r.Context(), userIDFromRequest(r), req.ItemIDs)
+	if err != nil {
+		h.writeServiceError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"archived": n})
+}
+
 func (h *wordsHandler) listLearningItems(w http.ResponseWriter, r *http.Request) {
 	params, err := parseListLearningItemsParams(r)
 	if err != nil {

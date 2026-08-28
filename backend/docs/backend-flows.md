@@ -85,6 +85,13 @@ This is the `POST /api/words/lookup` path with `force: true`:
 4. If another **active** card already has `(user_id, new_word_sense_id)`, return HTTP 409 `sense_already_in_learning_set`.
 5. Update `user_word_senses.word_sense_id` only. Do **not** modify `review_states`.
 
+## Archive Learning Item Flow
+
+1. Client sends `DELETE /api/learning-items/{id}` or `POST /api/learning-items/archive` with `{ "item_ids": ["..."] }`.
+2. API sets `user_word_senses.archived_at` and `learning_stage = 'archived'` for the user's active rows.
+3. Archived items are excluded from `GET /api/learning-items`, due-review queries, and deck item counts.
+4. Re-adding the same `(user_id, word_sense_id)` via `POST /api/learning-items` clears `archived_at` and restores the card (idempotent).
+
 ## Retranslate-Senses Command
 
 One-shot CLI (`go run ./cmd/retranslate-senses`) rebuilds selected `words` rows with WiktApi glosses (optional Gemini/OpenAI only when `ENRICH_PRIMARY_API_KEY` is set, as fallback):
@@ -163,6 +170,8 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |
 | `POST /api/learning-items` | Add-Word (steps 5-6); accepts optional `source_context` | `words.Service.AddLearningItem` |
+| `DELETE /api/learning-items/{id}` | Archive one learning item (remove from deck) | `words.Service.ArchiveLearningItems` |
+| `POST /api/learning-items/archive` | Batch archive `{ item_ids }` | `words.Service.ArchiveLearningItems` |
 | `PATCH /api/learning-items/{id}` | Change meaning (swap `word_sense_id`, keep schedule) | `words.Service.ChangeLearningItemSense` |
 | `GET /api/reviews/due` | Due Review List | `words.Service.GetDueReviewItems` |
 | `POST /api/reviews/batch` | Review | `words.Service.RecordBatchReviewAttempts` |
