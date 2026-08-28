@@ -39,6 +39,7 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 	cfg := SchedulerConfigFromSettings(settings)
 	now := time.Now().UTC()
 	today := now.UTC().Format("2006-01-02")
+	updatedItems := make([]BatchReviewItemUpdate, 0, len(attempts))
 
 	for _, attempt := range attempts {
 		var uwsID string
@@ -302,6 +303,14 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 					Lemma:       lemma,
 				}),
 			})
+		} else {
+			preview := PreviewIntervals(nextState, now, cfg)
+			updatedItems = append(updatedItems, BatchReviewItemUpdate{
+				UserWordSenseID:  attempt.UserWordSenseID,
+				LearningStage:    nextStage,
+				DueAt:            dueAt,
+				PreviewIntervals: &preview,
+			})
 		}
 	}
 
@@ -318,7 +327,7 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 	}
 
 	xpEarned := len(attempts) * 10
-	return BatchReviewResult{XPEarned: xpEarned, Success: true}, nil
+	return BatchReviewResult{XPEarned: xpEarned, Success: true, UpdatedItems: updatedItems}, nil
 }
 
 // ensureReviewSettingsTx loads the user's review_settings row, creating one

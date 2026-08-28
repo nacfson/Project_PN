@@ -152,10 +152,19 @@ type DueItem struct {
 	Examples                 []Example        `json:"examples"`
 }
 
+// BatchReviewItemUpdate carries the post-grade scheduling snapshot for one card.
+type BatchReviewItemUpdate struct {
+	UserWordSenseID  string           `json:"user_word_sense_id"`
+	LearningStage    string           `json:"learning_stage"`
+	DueAt            time.Time        `json:"due_at"`
+	PreviewIntervals *IntervalPreview `json:"preview_intervals,omitempty"`
+}
+
 // BatchReviewResult returns the result of the session batch processing.
 type BatchReviewResult struct {
-	XPEarned int  `json:"xp_earned"`
-	Success  bool `json:"success"`
+	XPEarned     int                     `json:"xp_earned"`
+	Success      bool                    `json:"success"`
+	UpdatedItems []BatchReviewItemUpdate `json:"updated_items,omitempty"`
 }
 
 // ReviewSettings holds per-user scheduling configuration (Anki deck-level equivalent).

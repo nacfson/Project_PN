@@ -10,7 +10,25 @@ import type { DueItem } from '../../types';
 jest.mock('../../api/learningItems', () => ({
   getDueLearningItems: jest.fn(),
   listLearningItems: jest.fn().mockResolvedValue({ items: [], next_cursor: null }),
-  recordBatchReviewAttempts: jest.fn().mockResolvedValue({}),
+  recordBatchReviewAttempts: jest.fn().mockResolvedValue({ xp_earned: 10, success: true }),
+}));
+
+jest.mock('../../api/reviewSettings', () => ({
+  getReviewSettings: jest.fn().mockResolvedValue({
+    user_id: 'u1',
+    new_cards_per_day: 20,
+    reviews_per_day: 200,
+    learning_steps: [1, 10],
+    relearning_steps: [10],
+    leech_threshold: 8,
+    leech_action: 'suspend',
+    fuzz_enabled: true,
+    desired_retention: 0.9,
+    daily_goal_xp: 100,
+    fsrs_weights: [],
+    weights_optimized_at: null,
+    weights_review_count: 0,
+  }),
 }));
 
 jest.mock('@react-navigation/native', () => ({
@@ -120,13 +138,44 @@ describe('PracticeScreen Integration', () => {
     await waitFor(() => expect(screen.getAllByText('Retrying').length).toBeGreaterThan(0));
   });
 
-  it('flips the card when rating trigger active', async () => {
+  it('shows learning-step previews immediately after Again on a retry card', async () => {
+    const itemA: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-a',
+      lemma: 'alpha',
+      normalized_text: 'alpha',
+    };
+    const itemB: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-b',
+      lemma: 'beta',
+      normalized_text: 'beta',
+    };
+
     const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
-    getDueMock.mockResolvedValue([mockItem]);
+    getDueMock.mockResolvedValue([itemA, itemB]);
+
     const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
 
     await render(<PracticeScreen />, { wrapper: Wrapper });
-    await waitFor(() => expect(screen.getByTestId('flashcard-3d-wrapper')).toBeTruthy());
+
+    await waitFor(() => expect(screen.getByText('alpha')).toBeTruthy());
+    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
+    fireEvent.press(screen.getByText('Forgot'));
+
+    await waitFor(() => expect(screen.getByText('beta')).toBeTruthy());
+    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
+    fireEvent.press(screen.getByText('Good'));
+
+    await waitFor(() => expect(screen.getByText('alpha')).toBeTruthy());
+    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
+
+    expect(screen.getAllByText('1m').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('10m').length).toBeGreaterThan(0);
+    expect(screen.queryByText('2.5d')).toBeNull();
 
     randomSpy.mockRestore();
   });

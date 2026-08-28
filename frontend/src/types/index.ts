@@ -157,9 +157,17 @@ export interface DueItem {
   examples: Example[];
 }
 
+export interface BatchReviewItemUpdate {
+  user_word_sense_id: string;
+  learning_stage: string;
+  due_at: string;
+  preview_intervals?: IntervalPreview;
+}
+
 export interface BatchReviewResult {
   xp_earned: number;
   success: boolean;
+  updated_items?: BatchReviewItemUpdate[];
 }
 
 export interface ReviewSettings {
