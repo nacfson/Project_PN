@@ -324,6 +324,11 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 		 on conflict (user_id, word_sense_id) do update set
 		   deck_id = excluded.deck_id,
 		   source_context = coalesce(nullif(excluded.source_context, ''), user_word_senses.source_context),
+		   archived_at = null,
+		   learning_stage = case
+		     when user_word_senses.archived_at is not null then 'new'
+		     else user_word_senses.learning_stage
+		   end,
 		   updated_at = now()
 		 returning id::text, word_sense_id::text, learning_stage, (xmax = 0) as inserted`,
 		userID, wordSenseID, deckID, sourceContext,
@@ -452,6 +457,110 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 	s.emitSenseChanged(ctx, userID, itemID, currentSenseID, newWordSenseID, displayLang)
 
 	return s.loadLearningItem(ctx, userID, itemID)
+}
+
+// ArchiveLearningItems soft-removes learning cards from lists and practice.
+// Unknown or foreign IDs return ErrLearningItemNotFound. Already-archived IDs are skipped.
+func (s *Service) ArchiveLearningItems(ctx context.Context, userID string, itemIDs []string) (int, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, fmt.Errorf("words: user id required")
+	}
+
+	seen := map[string]struct{}{}
+	unique := make([]string, 0, len(itemIDs))
+	for _, id := range itemIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return 0, fmt.Errorf("words: item ids required")
+	}
+
+	type row struct {
+		id          string
+		wordSenseID string
+		lemma       string
+		archived    bool
+	}
+	rows, err := s.pool.Query(ctx, `
+		select uws.id::text, uws.word_sense_id::text, w.normalized_text,
+		       (uws.archived_at is not null) as archived
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		join words w on w.id = ws.word_id
+		where uws.user_id = $1::uuid and uws.id = any($2::uuid[])`,
+		userID, unique,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("words: load items for archive: %w", err)
+	}
+	defer rows.Close()
+
+	var toArchive []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.wordSenseID, &r.lemma, &r.archived); err != nil {
+			return 0, err
+		}
+		toArchive = append(toArchive, r)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(toArchive) != len(unique) {
+		return 0, ErrLearningItemNotFound
+	}
+
+	activeIDs := make([]string, 0, len(toArchive))
+	for _, r := range toArchive {
+		if !r.archived {
+			activeIDs = append(activeIDs, r.id)
+		}
+	}
+	if len(activeIDs) == 0 {
+		return 0, nil
+	}
+
+	now := time.Now().UTC()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("words: begin archive tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx, `
+		update user_word_senses
+		set archived_at = $1, learning_stage = 'archived', updated_at = $1
+		where user_id = $2::uuid and id = any($3::uuid[]) and archived_at is null`,
+		now, userID, activeIDs,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("words: archive learning items: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("words: commit archive: %w", err)
+	}
+
+	archived := int(tag.RowsAffected())
+	activeSet := map[string]struct{}{}
+	for _, id := range activeIDs {
+		activeSet[id] = struct{}{}
+	}
+	for _, r := range toArchive {
+		if _, ok := activeSet[r.id]; !ok {
+			continue
+		}
+		s.emitLearningItemArchived(userID, r.id, r.wordSenseID, r.lemma, now)
+	}
+	return archived, nil
 }
 
 func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (LearningItem, error) {

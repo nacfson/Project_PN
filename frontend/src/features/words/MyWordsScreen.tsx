@@ -22,6 +22,7 @@ import { SpeakButton } from '../../components/SpeakButton';
 import { useLearningItems } from './useLearningItems';
 import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
 import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from '../../api/decks';
+import { archiveLearningItem, archiveLearningItems } from '../../api/learningItems';
 import { getPosBadgeVariant } from '../../utils/text';
 import { splitMeanings } from '../../utils/meanings';
 import { DeckCanvas } from './DeckCanvas';
@@ -106,6 +107,7 @@ export function MyWordsScreen() {
   const [moveExcludeDeckId, setMoveExcludeDeckId] = useState<string | null>(null);
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [removeLoading, setRemoveLoading] = useState(false);
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
@@ -268,6 +270,28 @@ export function MyWordsScreen() {
     [moveItemIds, t, refresh, closeMoveModal],
   );
 
+  const handleRemoveItems = useCallback(
+    async (itemIds: string[]) => {
+      if (itemIds.length === 0) return;
+      setRemoveLoading(true);
+      setOperationError(null);
+      try {
+        if (itemIds.length === 1) {
+          await archiveLearningItem(itemIds[0]!);
+        } else {
+          await archiveLearningItems(itemIds);
+        }
+        setSelectedItemIds(new Set());
+        await refresh();
+      } catch (err) {
+        setOperationError(err instanceof Error ? err.message : t('words.removeFromDeckFailed'));
+      } finally {
+        setRemoveLoading(false);
+      }
+    },
+    [t, refresh],
+  );
+
   const toggleItemSelection = useCallback((itemId: string) => {
     setSelectedItemIds((prev) => {
       const next = new Set(prev);
@@ -363,6 +387,15 @@ export function MyWordsScreen() {
               >
                 <Icon name="folder-open-outline" size="md" color={colors.primary} />
               </Pressable>
+              <Pressable
+                onPress={() => void handleRemoveItems([item.id])}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('words.removeFromDeck')}
+                disabled={removeLoading}
+              >
+                <Icon name="trash-outline" size="md" color={colors.error} />
+              </Pressable>
             </View>
           }
         >
@@ -403,7 +436,7 @@ export function MyWordsScreen() {
       </CinematicCard>
       );
     },
-    [spacing.sm, spacing.md, spacing.xs, t, navigation, language, colors, handleCardPress, handleCardLongPress, openMoveModal, selectedItemIds],
+    [spacing.sm, spacing.md, spacing.xs, t, language, colors, handleCardPress, handleCardLongPress, handleRemoveItems, openMoveModal, removeLoading, selectedItemIds],
   );
 
   const listEmpty = () => {
@@ -644,6 +677,13 @@ export function MyWordsScreen() {
                   label: t('words.moveToDeck'),
                   icon: 'folder-open-outline',
                   onPress: () => openMoveModal(Array.from(selectedItemIds), selectedDeckId),
+                },
+                {
+                  id: 'remove',
+                  label: t('words.removeFromDeck'),
+                  icon: 'trash-outline',
+                  onPress: () => void handleRemoveItems(Array.from(selectedItemIds)),
+                  disabled: removeLoading,
                 },
               ]
             : [

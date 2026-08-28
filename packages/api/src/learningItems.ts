@@ -1,4 +1,4 @@
-import { getJson, postJson } from './client';
+import { deleteJson, getJson, postJson } from './client';
 import type { BatchReviewResult, DeckOrigin, DueItem, LearningItemsPage, ReviewAttemptParams } from './types';
 
 export interface ListLearningItemsParams {
@@ -40,6 +40,14 @@ export function listLearningItems(params?: ListLearningItemsParams): Promise<Lea
   }
 
   return getJson<LearningItemsPage>(`/api/learning-items?${searchParams.toString()}`);
+}
+
+export function archiveLearningItem(itemId: string): Promise<void> {
+  return deleteJson<void>(`/api/learning-items/${encodeURIComponent(itemId)}`);
+}
+
+export function archiveLearningItems(itemIds: string[]): Promise<{ archived: number }> {
+  return postJson<{ archived: number }>('/api/learning-items/archive', { item_ids: itemIds });
 }
 
 export function getDueLearningItems(

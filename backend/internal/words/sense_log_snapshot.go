@@ -56,3 +56,12 @@ func (s *Service) emitLearningItemAdded(ctx context.Context, userID, uwsID, word
 		SourceContext:       sourceContext,
 	}))
 }
+
+func (s *Service) emitLearningItemArchived(userID, uwsID, wordSenseID, lemma string, ts time.Time) {
+	s.writeLearningLine(ts, learninglog.RowLearningItemArchived(ts, learninglog.LearningItemArchivedParams{
+		UserID:      userID,
+		UWSID:       uwsID,
+		WordSenseID: wordSenseID,
+		Lemma:       lemma,
+	}))
+}

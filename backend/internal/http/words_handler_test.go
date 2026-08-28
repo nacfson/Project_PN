@@ -270,6 +270,83 @@ func TestAddLearningItemPersistsSourceContext(t *testing.T) {
 	}
 }
 
+func TestArchiveLearningItemHidesFromListAndReAddUnarchives(t *testing.T) {
+	router, token, pool, _ := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	lemma := "architem" + time.Now().Format("150405.000000")
+	var senseID string
+	err := pool.QueryRow(ctx, `
+		with w as (
+			insert into words (language_code, lemma, normalized_text, part_of_speech)
+			values ('en', $1, $1, 'verb')
+			returning id
+		)
+		insert into word_senses (word_id, definition, meaning_order)
+		select id, 'to store energy', 1 from w
+		returning id::text
+	`, lemma).Scan(&senseID)
+	if err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '충전하다')
+	`, senseID); err != nil {
+		t.Fatalf("insert translation: %v", err)
+	}
+
+	addBody := `{"word_sense_id":"` + senseID + `","display_language_code":"ko"}`
+	addReq := authRequest(t, http.MethodPost, "/api/learning-items", addBody, token)
+	addRec := httptest.NewRecorder()
+	router.ServeHTTP(addRec, addReq)
+	if addRec.Code != http.StatusCreated {
+		t.Fatalf("add expected 201, got %d body=%s", addRec.Code, addRec.Body.String())
+	}
+	var item words.LearningItem
+	if err := json.NewDecoder(addRec.Body).Decode(&item); err != nil {
+		t.Fatal(err)
+	}
+
+	delReq := authRequest(t, http.MethodDelete, "/api/learning-items/"+item.ID, "", token)
+	delRec := httptest.NewRecorder()
+	router.ServeHTTP(delRec, delReq)
+	if delRec.Code != http.StatusNoContent {
+		t.Fatalf("delete expected 204, got %d body=%s", delRec.Code, delRec.Body.String())
+	}
+
+	listReq := authRequest(t, http.MethodGet, "/api/learning-items?limit=100&q="+lemma, "", token)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list expected 200, got %d", listRec.Code)
+	}
+	var page words.LearningItemsPage
+	if err := json.NewDecoder(listRec.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range page.Items {
+		if it.ID == item.ID {
+			t.Fatal("archived item still in list")
+		}
+	}
+
+	reAddReq := authRequest(t, http.MethodPost, "/api/learning-items", addBody, token)
+	reAddRec := httptest.NewRecorder()
+	router.ServeHTTP(reAddRec, reAddReq)
+	if reAddRec.Code != http.StatusCreated {
+		t.Fatalf("re-add expected 201, got %d body=%s", reAddRec.Code, reAddRec.Body.String())
+	}
+
+	var archivedAt *time.Time
+	if err := pool.QueryRow(ctx, `select archived_at from user_word_senses where id=$1::uuid`, item.ID).Scan(&archivedAt); err != nil {
+		t.Fatal(err)
+	}
+	if archivedAt != nil {
+		t.Fatal("re-add should clear archived_at")
+	}
+}
+
 func TestChangeMeaningConflictReturns409(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
