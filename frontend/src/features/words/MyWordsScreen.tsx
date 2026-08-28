@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
   RefreshControl,
@@ -554,7 +553,7 @@ export function MyWordsScreen() {
     );
   };
 
-  const ListHeaderComponent = useMemo(() => {
+  const listHeader = useMemo(() => {
     return (
       <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
         {languageLoading || decksLoading ? (
@@ -646,41 +645,23 @@ export function MyWordsScreen() {
     );
   }
 
-  return (
-    <>
-      <Screen
-        title={t('words.title')}
-        padded
-        as={Animated.FlatList}
-        data={filteredItems}
-        keyExtractor={(item: any) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: spacing.lg },
-          filteredItems.length === 0 && styles.listEmpty,
-        ]}
-        onEndReached={() => void loadMore()}
-        onEndReachedThreshold={0.2}
-        onLayout={handleListLayout}
-        onContentSizeChange={handleContentSizeChange}
-        onScroll={handleListScroll}
-        scrollEventThrottle={16}
-        nestedScrollEnabled
-        ListEmptyComponent={listEmpty}
-        ListFooterComponent={listFooter}
-        ListHeaderComponent={ListHeaderComponent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => void refresh()}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
-        style={[styles.flex, Platform.OS === 'web' && styles.listWeb]}
-      />
+  const refreshControl = (
+    <RefreshControl
+      refreshing={isRefreshing}
+      onRefresh={() => void refresh()}
+      tintColor={colors.primary}
+      colors={[colors.primary]}
+    />
+  );
 
+  const listContentStyle = [
+    styles.list,
+    { paddingBottom: spacing.lg },
+    filteredItems.length === 0 && styles.listEmpty,
+  ];
+
+  const overlays = (
+    <>
       <DeckFormModal
         visible={formMode !== null}
         mode={formMode ?? 'create'}
@@ -781,14 +762,70 @@ export function MyWordsScreen() {
       />
     </>
   );
+
+  if (Platform.OS === 'web') {
+    return (
+      <>
+        <Screen
+          title={t('words.title')}
+          padded
+          refreshControl={refreshControl}
+          contentContainerStyle={listContentStyle}
+        >
+          {listHeader}
+          {filteredItems.length === 0
+            ? listEmpty()
+            : filteredItems.map((item) => (
+                <View key={item.id}>
+                  {renderItem({
+                    item,
+                    index: 0,
+                    separators: {
+                      highlight: () => undefined,
+                      unhighlight: () => undefined,
+                      updateProps: () => undefined,
+                    },
+                  })}
+                </View>
+              ))}
+          {filteredItems.length > 0 ? listFooter() : null}
+        </Screen>
+        {overlays}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Screen
+        title={t('words.title')}
+        padded
+        as={Animated.FlatList}
+        data={filteredItems}
+        keyExtractor={(item: LearningItemListItem) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={listContentStyle}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.2}
+        onLayout={handleListLayout}
+        onContentSizeChange={handleContentSizeChange}
+        onScroll={handleListScroll}
+        scrollEventThrottle={16}
+        nestedScrollEnabled
+        ListEmptyComponent={listEmpty}
+        ListFooterComponent={listFooter}
+        ListHeaderComponent={listHeader}
+        refreshControl={refreshControl}
+        style={styles.flex}
+      />
+      {overlays}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-  },
-  listWeb: {
-    overflow: 'hidden',
   },
   header: {},
   filterRow: {
