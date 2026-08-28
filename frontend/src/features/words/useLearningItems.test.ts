@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useLearningItems } from './useLearningItems';
 import { listLearningItems } from '../../api/learningItems';
@@ -13,13 +14,27 @@ function Wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useLearningItems', () => {
+  let originalPlatform: string;
+
+  beforeAll(() => {
+    originalPlatform = Platform.OS;
+  });
+
   beforeEach(() => {
     jest.useFakeTimers();
+    Object.defineProperty(Platform, 'OS', {
+      get: () => originalPlatform,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
     jest.useRealTimers();
+    Object.defineProperty(Platform, 'OS', {
+      get: () => originalPlatform,
+      configurable: true,
+    });
   });
 
   it('loads items without a deck filter', async () => {
@@ -97,6 +112,29 @@ describe('useLearningItems', () => {
       expect.objectContaining({ cursor: 'cursor-2' }),
     );
     await waitFor(() => expect(result.current.items).toHaveLength(2));
+  });
+
+  it('auto-loads remaining pages on web', async () => {
+    Object.defineProperty(Platform, 'OS', {
+      get: () => 'web',
+      configurable: true,
+    });
+
+    mockedListLearningItems
+      .mockResolvedValueOnce({
+        items: [{ id: 'item-1' } as any],
+        next_cursor: 'cursor-2',
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: 'item-2' } as any],
+        next_cursor: null,
+      });
+
+    const { result } = await renderHook(() => useLearningItems(''), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(mockedListLearningItems).toHaveBeenCalledTimes(2);
+    expect(result.current.hasMore).toBe(false);
   });
 
   it('skips fetching when disabled', async () => {

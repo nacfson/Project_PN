@@ -21,6 +21,7 @@ export function WordsStack() {
     headerStyle: { backgroundColor: colors.surfaceContainer },
     headerTintColor: colors.primary,
     headerTitleStyle: { color: colors.onSurface },
+    contentStyle: { flex: 1, backgroundColor: colors.background },
   };
 
   return (

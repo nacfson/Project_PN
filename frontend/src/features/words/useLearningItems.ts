@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { listLearningItems } from '../../api/learningItems';
 import { ApiError } from '../../api/client';
 import { useAppLanguage } from '../../i18n';
@@ -142,6 +143,17 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     },
     [hasMore, loadMore, status],
   );
+
+  // Web FlatList scroll/end-reached is unreliable; eagerly fetch remaining pages.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !enabled) {
+      return;
+    }
+    if (!hasMore || loadingMoreRef.current || status === 'loading' || isLoadingMore) {
+      return;
+    }
+    void loadMore();
+  }, [enabled, hasMore, isLoadingMore, loadMore, status, items.length]);
 
   return {
     items,
