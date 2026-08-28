@@ -9,6 +9,8 @@ import {
   StyleSheet,
   View,
   type ListRenderItem,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { useFocusEffect, useNavigation, type CompositeNavigationProp, type NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -115,7 +117,7 @@ export function MyWordsScreen() {
     useActiveTargetLanguage();
 
   const deckFilter = selectedDeckId ?? undefined;
-  const { items, status, isSearching, isLoadingMore, isRefreshing, error, loadMore, refresh } = useLearningItems(
+  const { items, status, isSearching, isLoadingMore, isRefreshing, error, hasMore, loadMore, maybeLoadMoreFromScroll, refresh } = useLearningItems(
     q,
     deckFilter,
     !!targetLanguage,
@@ -475,13 +477,36 @@ export function MyWordsScreen() {
     );
   };
 
+  const handleListScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+      const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+      maybeLoadMoreFromScroll(distanceFromBottom);
+    },
+    [maybeLoadMoreFromScroll],
+  );
+
   const listFooter = () => {
-    if (!isLoadingMore) {
+    if (isLoadingMore) {
+      return (
+        <View style={styles.footer}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      );
+    }
+
+    if (!hasMore) {
       return null;
     }
+
     return (
       <View style={styles.footer}>
-        <ActivityIndicator color={colors.primary} />
+        <Button
+          label={t('words.loadMore')}
+          variant="tonal"
+          onPress={() => void loadMore()}
+          disabled={isLoadingMore}
+        />
       </View>
     );
   };
@@ -593,7 +618,10 @@ export function MyWordsScreen() {
           filteredItems.length === 0 && styles.listEmpty,
         ]}
         onEndReached={() => void loadMore()}
-        onEndReachedThreshold={0.4}
+        onEndReachedThreshold={0.2}
+        onScroll={handleListScroll}
+        scrollEventThrottle={16}
+        nestedScrollEnabled
         ListEmptyComponent={listEmpty}
         ListFooterComponent={listFooter}
         ListHeaderComponent={ListHeaderComponent}

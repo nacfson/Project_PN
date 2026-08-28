@@ -84,11 +84,14 @@ describe('MyWordsScreen', () => {
     mockedUseLearningItems.mockReturnValue({
       items: [],
       nextCursor: null,
+      hasMore: false,
       status: 'ready',
+      isSearching: false,
       isLoadingMore: false,
       isRefreshing: false,
       error: null,
       loadMore: jest.fn(),
+      maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
     });
     mockedListDecks.mockResolvedValue([defaultDeck]);
@@ -236,11 +239,14 @@ describe('MyWordsScreen', () => {
     mockedUseLearningItems.mockReturnValue({
       items: [mockItemWithDeck],
       nextCursor: null,
+      hasMore: false,
       status: 'ready',
+      isSearching: false,
       isLoadingMore: false,
       isRefreshing: false,
       error: null,
       loadMore: jest.fn(),
+      maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
     });
 
@@ -278,11 +284,14 @@ describe('MyWordsScreen', () => {
     mockedUseLearningItems.mockReturnValue({
       items: [mockItemMinimal],
       nextCursor: null,
+      hasMore: false,
       status: 'ready',
+      isSearching: false,
       isLoadingMore: false,
       isRefreshing: false,
       error: null,
       loadMore: jest.fn(),
+      maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
     });
 
@@ -291,6 +300,29 @@ describe('MyWordsScreen', () => {
     await waitFor(() => expect(screen.getByText('acquire')).toBeTruthy());
     expect(screen.queryByText(/📁/)).toBeNull();
     expect(screen.queryByText(/Reviewed/)).toBeNull();
+  });
+
+  it('shows load more when additional pages are available', async () => {
+    const loadMore = jest.fn();
+    mockedUseLearningItems.mockReturnValue({
+      items: [],
+      nextCursor: 'cursor-2',
+      hasMore: true,
+      status: 'ready',
+      isSearching: false,
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore,
+      maybeLoadMoreFromScroll: jest.fn(),
+      refresh: jest.fn(),
+    });
+
+    await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('Load more words')).toBeTruthy());
+    fireEvent.press(screen.getByText('Load more words'));
+    expect(loadMore).toHaveBeenCalled();
   });
 
   it('opens move-to-deck modal and moves a single item', async () => {
@@ -324,11 +356,14 @@ describe('MyWordsScreen', () => {
     mockedUseLearningItems.mockReturnValue({
       items: [mockItem],
       nextCursor: null,
+      hasMore: false,
       status: 'ready',
+      isSearching: false,
       isLoadingMore: false,
       isRefreshing: false,
       error: null,
       loadMore: jest.fn(),
+      maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
     });
 
