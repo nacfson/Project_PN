@@ -30,6 +30,7 @@ import { splitMeanings } from '../../utils/meanings';
 import { DeckCanvas } from './DeckCanvas';
 import { DeckFormModal } from './DeckFormModal';
 import { MoveToDeckModal } from './MoveToDeckModal';
+import { adjustDeckCountsForMove, adjustDeckCountsForRemovedItems } from './deckCounts';
 import { InspectorPanel } from '../web/InspectorPanel';
 import { ContextualCommandBar } from '../../ui/ContextualCommandBar';
 import { CinematicCard } from '../../ui/CinematicCard';
@@ -120,27 +121,41 @@ export function MyWordsScreen() {
     useActiveTargetLanguage();
 
   const deckFilter = selectedDeckId ?? undefined;
-  const { items, status, isSearching, isLoadingMore, isRefreshing, error, hasMore, loadMore, maybeLoadMoreFromScroll, refresh } = useLearningItems(
-    q,
-    deckFilter,
-    !!targetLanguage,
-    targetLanguage ?? undefined,
-  );
+  const {
+    items,
+    status,
+    isSearching,
+    isLoadingMore,
+    isRefreshing,
+    error,
+    hasMore,
+    loadMore,
+    maybeLoadMoreFromScroll,
+    refresh,
+    removeItemsLocally,
+  } = useLearningItems(q, deckFilter, !!targetLanguage, targetLanguage ?? undefined);
 
-  const loadDecks = useCallback(async () => {
-    if (!targetLanguage) return;
-    setDecksLoading(true);
-    setDecksError(null);
-    try {
-      const loaded = await listDecks(targetLanguage, 'private');
-      setDecks(loaded);
-      setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : null));
-    } catch (err) {
-      setDecksError(err instanceof Error ? err.message : t('words.deckLoadFailed'));
-    } finally {
-      setDecksLoading(false);
-    }
-  }, [targetLanguage, t]);
+  const loadDecks = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!targetLanguage) return;
+      if (!options?.silent) {
+        setDecksLoading(true);
+      }
+      setDecksError(null);
+      try {
+        const loaded = await listDecks(targetLanguage, 'private');
+        setDecks(loaded);
+        setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : null));
+      } catch (err) {
+        setDecksError(err instanceof Error ? err.message : t('words.deckLoadFailed'));
+      } finally {
+        if (!options?.silent) {
+          setDecksLoading(false);
+        }
+      }
+    },
+    [targetLanguage, t],
+  );
 
   useEffect(() => {
     void loadDecks();
@@ -149,7 +164,9 @@ export function MyWordsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshLanguage();
-    }, [refreshLanguage]),
+      void loadDecks({ silent: true });
+      void refresh();
+    }, [refreshLanguage, loadDecks, refresh]),
   );
 
   const handleCreate = useCallback(
@@ -259,27 +276,45 @@ export function MyWordsScreen() {
   const handleMoveToDeck = useCallback(
     async (deckId: string) => {
       if (moveItemIds.length === 0) return;
+      const movedItems = items.filter((item) => moveItemIds.includes(item.id));
+      const leavesCurrentDeck = selectedDeckId != null && selectedDeckId !== deckId;
+
       setMoveLoading(true);
       setMoveError(null);
+      setDecks((prev) => adjustDeckCountsForMove(prev, movedItems, deckId));
+      if (leavesCurrentDeck) {
+        removeItemsLocally(moveItemIds);
+      }
+
       try {
         await moveItemsToDeck(deckId, moveItemIds);
         closeMoveModal();
         setSelectedItemIds(new Set());
-        await refresh();
+        void loadDecks({ silent: true });
+        if (!leavesCurrentDeck) {
+          await refresh();
+        }
       } catch (err) {
         setMoveError(err instanceof Error ? err.message : t('words.moveToDeckFailed'));
+        await refresh();
+        await loadDecks({ silent: true });
       } finally {
         setMoveLoading(false);
       }
     },
-    [moveItemIds, t, refresh, closeMoveModal],
+    [moveItemIds, items, selectedDeckId, t, removeItemsLocally, loadDecks, refresh, closeMoveModal],
   );
 
   const handleRemoveItems = useCallback(
     async (itemIds: string[]) => {
       if (itemIds.length === 0) return;
+      const removedItems = items.filter((item) => itemIds.includes(item.id));
+
       setRemoveLoading(true);
       setOperationError(null);
+      removeItemsLocally(itemIds);
+      setDecks((prev) => adjustDeckCountsForRemovedItems(prev, removedItems));
+
       try {
         if (itemIds.length === 1) {
           await archiveLearningItem(itemIds[0]!);
@@ -287,14 +322,16 @@ export function MyWordsScreen() {
           await archiveLearningItems(itemIds);
         }
         setSelectedItemIds(new Set());
-        await refresh();
+        void loadDecks({ silent: true });
       } catch (err) {
         setOperationError(err instanceof Error ? err.message : t('words.removeFromDeckFailed'));
+        await refresh();
+        await loadDecks({ silent: true });
       } finally {
         setRemoveLoading(false);
       }
     },
-    [t, refresh],
+    [items, t, removeItemsLocally, loadDecks, refresh],
   );
 
   const toggleItemSelection = useCallback((itemId: string) => {
@@ -382,27 +419,6 @@ export function MyWordsScreen() {
             backgroundColor: selected ? colors.primaryContainer : undefined,
             borderColor: selected ? colors.primary : undefined,
           }}
-          revealActions={
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <Pressable
-                onPress={() => openMoveModal([item.id], item.deck_id ?? null)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t('words.moveToDeck')}
-              >
-                <Icon name="folder-open-outline" size="md" color={colors.primary} />
-              </Pressable>
-              <Pressable
-                onPress={() => void handleRemoveItems([item.id])}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t('words.removeFromDeck')}
-                disabled={removeLoading}
-              >
-                <Icon name="trash-outline" size="md" color={colors.error} />
-              </Pressable>
-            </View>
-          }
         >
         <View style={styles.row}>
           <View style={{ flex: 1, gap: spacing.xs }}>
@@ -421,7 +437,26 @@ export function MyWordsScreen() {
               {splitMeanings(item).simple ?? item.short_definition ?? item.definition}
             </Text>
           </View>
-          <Icon name="chevron-forward" size="md" />
+          <View style={[styles.cardActions, { gap: spacing.sm }]}>
+            <Pressable
+              onPress={() => openMoveModal([item.id], item.deck_id ?? null)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('words.moveToDeck')}
+            >
+              <Icon name="folder-open-outline" size="md" color={colors.primary} />
+            </Pressable>
+            <Pressable
+              onPress={() => void handleRemoveItems([item.id])}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('words.removeFromDeck')}
+              disabled={removeLoading}
+            >
+              <Icon name="trash-outline" size="md" color={colors.error} />
+            </Pressable>
+            <Icon name="chevron-forward" size="md" />
+          </View>
         </View>
         <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm, flexWrap: 'wrap' }]}>
           <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
@@ -843,6 +878,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   badgeRow: {
     flexDirection: 'row',

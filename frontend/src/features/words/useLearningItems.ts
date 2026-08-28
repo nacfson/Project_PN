@@ -129,6 +129,14 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     }
   }, [fetchPage, t]);
 
+  const removeItemsLocally = useCallback((itemIds: string[]) => {
+    if (itemIds.length === 0) {
+      return;
+    }
+    const ids = new Set(itemIds);
+    setItems((prev) => prev.filter((item) => !ids.has(item.id)));
+  }, []);
+
   const isSearching = status === 'loading' || q !== debouncedQ;
   const hasMore = nextCursor !== null;
 
@@ -167,5 +175,6 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
     loadMore,
     maybeLoadMoreFromScroll,
     refresh,
+    removeItemsLocally,
   };
 }

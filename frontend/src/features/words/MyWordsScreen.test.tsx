@@ -6,6 +6,7 @@ import { MyWordsScreen } from './MyWordsScreen';
 import * as useActiveTargetLanguageHook from '../../hooks/useActiveTargetLanguage';
 import * as useLearningItemsHook from './useLearningItems';
 import * as decksApi from '../../api/decks';
+import * as learningItemsApi from '../../api/learningItems';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import type { LearningItemListItem } from '../../types';
@@ -19,11 +20,13 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('../../hooks/useActiveTargetLanguage');
 jest.mock('./useLearningItems');
 jest.mock('../../api/decks');
+jest.mock('../../api/learningItems');
 
 const mockedUseActiveTargetLanguage = jest.mocked(useActiveTargetLanguageHook.useActiveTargetLanguage);
 const mockedUseLearningItems = jest.mocked(useLearningItemsHook.useLearningItems);
 const mockedListDecks = jest.mocked(decksApi.listDecks);
 const mockedMoveItemsToDeck = jest.mocked(decksApi.moveItemsToDeck);
+const mockedArchiveLearningItem = jest.mocked(learningItemsApi.archiveLearningItem);
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
@@ -80,6 +83,7 @@ describe('MyWordsScreen', () => {
       loading: false,
       error: null,
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
     mockedUseLearningItems.mockReturnValue({
       items: [],
@@ -93,8 +97,10 @@ describe('MyWordsScreen', () => {
       loadMore: jest.fn(),
       maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
     mockedListDecks.mockResolvedValue([defaultDeck]);
+    mockedArchiveLearningItem.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -183,6 +189,7 @@ describe('MyWordsScreen', () => {
       loading: false,
       error: null,
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
     rerender(<MyWordsScreen />);
 
@@ -248,6 +255,8 @@ describe('MyWordsScreen', () => {
       loadMore: jest.fn(),
       maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
 
     await render(<MyWordsScreen />, { wrapper: Wrapper });
@@ -293,6 +302,7 @@ describe('MyWordsScreen', () => {
       loadMore: jest.fn(),
       maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
 
     await render(<MyWordsScreen />, { wrapper: Wrapper });
@@ -316,6 +326,7 @@ describe('MyWordsScreen', () => {
       loadMore,
       maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
 
     await render(<MyWordsScreen />, { wrapper: Wrapper });
@@ -365,6 +376,7 @@ describe('MyWordsScreen', () => {
       loadMore: jest.fn(),
       maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
     });
 
     const { container } = await render(<MyWordsScreen />, { wrapper: Wrapper });
@@ -386,5 +398,63 @@ describe('MyWordsScreen', () => {
     fireEvent.press(verbsOptions[verbsOptions.length - 1]);
 
     await waitFor(() => expect(mockedMoveItemsToDeck).toHaveBeenCalledWith('d2', ['uws-3']));
+  });
+
+  it('shows remove action on word cards and archives the item', async () => {
+    const deckWithCards = { ...defaultDeck, item_count: 2 };
+    mockedListDecks.mockResolvedValue([deckWithCards]);
+    const removeItemsLocally = jest.fn();
+    const refresh = jest.fn();
+
+    const mockItem: LearningItemListItem = {
+      id: 'uws-remove',
+      word_sense_id: 'ws-remove',
+      word_id: 'w-remove',
+      language_code: 'en',
+      lemma: 'delete-me',
+      pronunciation: null,
+      part_of_speech: 'verb',
+      definition: 'to remove',
+      short_definition: 'remove',
+      localized_definition: '삭제하다',
+      localized_short_definition: '삭제하다',
+      cefr_level: 'B1',
+      meaning_order: 1,
+      learning_stage: 'learning',
+      due_at: '2026-06-28T00:00:00Z',
+      added_at: '2026-06-20T00:00:00Z',
+      deck_id: 'd1',
+      deck_name: 'Default',
+      last_reviewed_at: null,
+      examples: [],
+    };
+
+    mockedUseLearningItems.mockReturnValue({
+      items: [mockItem],
+      nextCursor: null,
+      hasMore: false,
+      status: 'ready',
+      isSearching: false,
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore: jest.fn(),
+      maybeLoadMoreFromScroll: jest.fn(),
+      refresh,
+      removeItemsLocally,
+    });
+
+    const { container } = await render(<MyWordsScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('delete-me')).toBeTruthy());
+
+    const trashIcons = container.queryAll(
+      (el) => el.type === 'Text' && el.props.children === 'trash-outline',
+    );
+    expect(trashIcons.length).toBeGreaterThanOrEqual(1);
+    fireEvent.press(trashIcons[0]);
+
+    await waitFor(() => expect(removeItemsLocally).toHaveBeenCalledWith(['uws-remove']));
+    await waitFor(() => expect(mockedArchiveLearningItem).toHaveBeenCalledWith('uws-remove'));
   });
 });

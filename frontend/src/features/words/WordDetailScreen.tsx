@@ -8,7 +8,6 @@ import type { WordsStackParamList } from '../../navigation/WordsStack';
 import { Badge, Button, Card, Screen, Text } from '../../ui';
 import { SpeakButton } from '../../components/SpeakButton';
 import { listDecks, moveItemsToDeck } from '../../api/decks';
-import { archiveLearningItem } from '../../api/learningItems';
 import type { Deck, LearningItemListItem } from '../../types';
 import { MoveToDeckModal } from './MoveToDeckModal';
 import { ChangeMeaningSheet } from './ChangeMeaningSheet';
@@ -42,8 +41,6 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
-  const [removeLoading, setRemoveLoading] = useState(false);
-  const [removeError, setRemoveError] = useState<string | null>(null);
   const [changeMeaningOpen, setChangeMeaningOpen] = useState(false);
 
   useEffect(() => {
@@ -82,19 +79,6 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
     },
     [item.id, navigation, t],
   );
-
-  const handleRemove = useCallback(async () => {
-    setRemoveLoading(true);
-    setRemoveError(null);
-    try {
-      await archiveLearningItem(item.id);
-      navigation.goBack();
-    } catch (err) {
-      setRemoveError(err instanceof Error ? err.message : t('words.removeFromDeckFailed'));
-    } finally {
-      setRemoveLoading(false);
-    }
-  }, [item.id, navigation, t]);
 
   const gloss = displayGloss(item);
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
@@ -168,20 +152,6 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           onPress={() => setMoveModalOpen(true)}
           style={{ marginTop: spacing.sm }}
         />
-
-        <Button
-          label={t('words.removeFromDeck')}
-          variant="outline"
-          iconLeft="trash-outline"
-          onPress={() => void handleRemove()}
-          loading={removeLoading}
-          style={{ marginTop: spacing.sm }}
-        />
-        {removeError ? (
-          <Text variant="caption" color="error" style={{ marginTop: spacing.xs }}>
-            {removeError}
-          </Text>
-        ) : null}
 
         <MoveToDeckModal
           visible={moveModalOpen}
