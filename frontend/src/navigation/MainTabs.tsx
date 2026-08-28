@@ -201,6 +201,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           tabBar={(props) => <CustomTabBar {...props} />}
           screenOptions={{
             headerShown: false,
+            sceneContainerStyle: styles.scene,
           }}
         >
           <Tab.Screen
@@ -254,6 +255,9 @@ export function MainTabs({ onLogout }: MainTabsProps) {
 
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+  },
+  scene: {
     flex: 1,
   },
   tabBar: {

@@ -34,7 +34,7 @@ import { MoveToDeckModal } from './MoveToDeckModal';
 import { InspectorPanel } from '../web/InspectorPanel';
 import { ContextualCommandBar } from '../../ui/ContextualCommandBar';
 import { CinematicCard } from '../../ui/CinematicCard';
-import { distanceFromListBottom } from './scrollPagination';
+import { distanceFromListBottom, readScrollMetrics } from './scrollPagination';
 import type { WordsStackParamList } from '../../navigation/WordsStack';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
@@ -482,33 +482,51 @@ export function MyWordsScreen() {
   };
 
   const handleListLayout = useCallback((event: LayoutChangeEvent) => {
-    viewportHeightRef.current = event.nativeEvent.layout.height;
+    const height = event.nativeEvent.layout.height;
+    if (height > 0) {
+      viewportHeightRef.current = height;
+    }
   }, []);
+
+  const webViewportFallback = Platform.OS === 'web' && typeof window !== 'undefined' ? window.innerHeight : 0;
+
+  const tryLoadMoreFromMetrics = useCallback(
+    (nativeEvent: NativeScrollEvent | null | undefined, offsetYOverride?: number) => {
+      const metrics = readScrollMetrics(nativeEvent, {
+        contentHeight: contentHeightRef.current,
+        viewportHeight: viewportHeightRef.current || webViewportFallback,
+      });
+      if (!metrics) {
+        return;
+      }
+      if (nativeEvent?.contentSize?.height) {
+        contentHeightRef.current = nativeEvent.contentSize.height;
+      }
+      if (nativeEvent?.layoutMeasurement?.height) {
+        viewportHeightRef.current = nativeEvent.layoutMeasurement.height;
+      }
+      const offsetY = offsetYOverride ?? metrics.offsetY;
+      const distanceFromBottom = distanceFromListBottom(metrics.contentHeight, metrics.viewportHeight, offsetY);
+      if (distanceFromBottom != null) {
+        maybeLoadMoreFromScroll(distanceFromBottom);
+      }
+    },
+    [maybeLoadMoreFromScroll, webViewportFallback],
+  );
 
   const handleContentSizeChange = useCallback(
     (_width: number, height: number) => {
       contentHeightRef.current = height;
-      const distanceFromBottom = distanceFromListBottom(height, viewportHeightRef.current, 0);
-      if (distanceFromBottom != null) {
-        maybeLoadMoreFromScroll(distanceFromBottom);
-      }
+      tryLoadMoreFromMetrics(null, 0);
     },
-    [maybeLoadMoreFromScroll],
+    [tryLoadMoreFromMetrics],
   );
 
   const handleListScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const offsetY = event?.nativeEvent?.contentOffset?.y ?? 0;
-      const distanceFromBottom = distanceFromListBottom(
-        contentHeightRef.current,
-        viewportHeightRef.current,
-        offsetY,
-      );
-      if (distanceFromBottom != null) {
-        maybeLoadMoreFromScroll(distanceFromBottom);
-      }
+      tryLoadMoreFromMetrics(event.nativeEvent);
     },
-    [maybeLoadMoreFromScroll],
+    [tryLoadMoreFromMetrics],
   );
 
   const listFooter = () => {
@@ -660,7 +678,7 @@ export function MyWordsScreen() {
             colors={[colors.primary]}
           />
         }
-        style={styles.flex}
+        style={[styles.flex, Platform.OS === 'web' && styles.listWeb]}
       />
 
       <DeckFormModal
@@ -768,6 +786,9 @@ export function MyWordsScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+  },
+  listWeb: {
+    overflow: 'hidden',
   },
   header: {},
   filterRow: {
