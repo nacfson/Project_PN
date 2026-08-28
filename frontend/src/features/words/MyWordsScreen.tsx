@@ -479,7 +479,11 @@ export function MyWordsScreen() {
 
   const handleListScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+      const nativeEvent = event?.nativeEvent;
+      if (!nativeEvent?.layoutMeasurement || !nativeEvent?.contentOffset || !nativeEvent?.contentSize) {
+        return;
+      }
+      const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
       const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
       maybeLoadMoreFromScroll(distanceFromBottom);
     },

@@ -67,7 +67,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
         lastScrollY.value = currentY;
 
         if (onScroll) {
-          runOnJS(onScroll)(event);
+          runOnJS(onScroll)({ nativeEvent: event });
         }
       },
     });
