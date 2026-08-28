@@ -869,6 +869,15 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	if batchRes.XPEarned != 10 {
 		t.Fatalf("expected 10 XP earned, got %d", batchRes.XPEarned)
 	}
+	if len(batchRes.UpdatedItems) != 1 {
+		t.Fatalf("expected 1 updated item, got %d", len(batchRes.UpdatedItems))
+	}
+	if batchRes.UpdatedItems[0].UserWordSenseID != uwsID {
+		t.Fatalf("expected updated item id %q, got %q", uwsID, batchRes.UpdatedItems[0].UserWordSenseID)
+	}
+	if batchRes.UpdatedItems[0].PreviewIntervals == nil {
+		t.Fatal("expected preview_intervals in batch updated item")
+	}
 
 	// Verify database persistence: check review_attempts table
 	var loggedRating string

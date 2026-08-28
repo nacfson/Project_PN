@@ -129,9 +129,22 @@ export interface ReviewAttemptParams {
   confidence_rating: number | null;
 }
 
+export interface BatchReviewItemUpdate {
+  user_word_sense_id: string;
+  learning_stage: string;
+  due_at: string;
+  preview_intervals?: {
+    again: string;
+    hard: string;
+    good: string;
+    easy: string;
+  };
+}
+
 export interface BatchReviewResult {
   xp_earned: number;
   success: boolean;
+  updated_items?: BatchReviewItemUpdate[];
 }
 
 export interface DueItem {

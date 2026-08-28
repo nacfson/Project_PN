@@ -26,10 +26,17 @@ import {
   listLearningItems,
   recordBatchReviewAttempts,
 } from '../../api/learningItems';
-import type { DueItem, LearningItemListItem, ReviewAttemptParams } from '../../types';
+import { getReviewSettings } from '../../api/reviewSettings';
+import type { DueItem, LearningItemListItem, ReviewAttemptParams, ReviewSettings } from '../../types';
 import { Flashcard } from './Flashcard';
 import { Confetti } from '../../components/Confetti';
 import { CountUpText } from '../../components/CountUpText';
+import {
+  applyDueItemUpdatesToList,
+  optimisticDueItemAfterAgain,
+  overridesFromBatchUpdates,
+  resolveDueItem,
+} from './practiceItemState';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Practice'>;
 type SessionMode = 'normal' | 'repeat';
@@ -155,6 +162,8 @@ export function PracticeScreen() {
 
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
+  const [itemOverrides, setItemOverrides] = useState<Record<string, Partial<DueItem>>>({});
+  const [reviewSettings, setReviewSettings] = useState<ReviewSettings | null>(null);
   const answerInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const statusRef = useRef(status);
@@ -267,6 +276,31 @@ export function PracticeScreen() {
     setRatingScore(2.0);
   }, []);
 
+  useEffect(() => {
+    getReviewSettings()
+      .then(setReviewSettings)
+      .catch(() => setReviewSettings(null));
+  }, []);
+
+  const applyDueItemUpdates = useCallback((updates: Parameters<typeof overridesFromBatchUpdates>[0]) => {
+    if (updates.length === 0) {
+      return;
+    }
+    const overrides = overridesFromBatchUpdates(updates);
+    setItemOverrides((prev) => ({ ...prev, ...overrides }));
+    setDueItems((prev) => applyDueItemUpdatesToList(prev, updates));
+    setQueue((prev) => applyDueItemUpdatesToList(prev, updates));
+    setFailedMap((prev) => {
+      const next = { ...prev };
+      for (const update of updates) {
+        if (update.learning_stage === 'learning') {
+          next[update.user_word_sense_id] = true;
+        }
+      }
+      return next;
+    });
+  }, []);
+
   const loadDueItems = useCallback(() => {
     setStatus('loading_due');
     setErrorMsg(null);
@@ -278,6 +312,7 @@ export function PracticeScreen() {
           setQueue([...items]);
           setCurrentIndex(0);
           setAttempts([]);
+          setItemOverrides({});
           setFailedMap(failedMapFromDueItems(items));
           setExampleIndexMap({});
           setCardMode(decideCardMode(items[0]));
@@ -316,6 +351,7 @@ export function PracticeScreen() {
           setQueue(repeatItems);
           setCurrentIndex(0);
           setAttempts([]);
+          setItemOverrides({});
           setFailedMap(failedMapFromDueItems(repeatItems));
           setExampleIndexMap({});
           setCardMode(decideCardMode(repeatItems[0]));
@@ -348,6 +384,9 @@ export function PracticeScreen() {
     try {
       const res = await recordBatchReviewAttempts(toFlush);
       setXpEarned((prev) => prev + res.xp_earned);
+      if (res.updated_items?.length) {
+        applyDueItemUpdates(res.updated_items);
+      }
     } catch (err) {
       console.error('Error flushing review attempts:', err);
       pendingRef.current = [...toFlush, ...pendingRef.current];
@@ -359,7 +398,7 @@ export function PracticeScreen() {
         setTimeout(flushPending, 1500);
       }
     }
-  }, [t]);
+  }, [applyDueItemUpdates, t]);
 
   const waitForPendingFlushes = useCallback(async () => {
     // eslint-disable-next-line no-unmodified-loop-condition
@@ -439,7 +478,16 @@ export function PracticeScreen() {
     const shouldRetry = finalScore < 0.75;
     const nextIndex = currentIndex + 1;
 
+    let gradedItem = currentItem;
     if (shouldRetry) {
+      gradedItem = optimisticDueItemAfterAgain(currentItem, reviewSettings);
+      setItemOverrides((prev) => ({
+        ...prev,
+        [currentItem.user_word_sense_id]: {
+          learning_stage: gradedItem.learning_stage,
+          preview_intervals: gradedItem.preview_intervals,
+        },
+      }));
       setFailedMap((prev) => ({ ...prev, [currentItem.user_word_sense_id]: true }));
       if (examplesList.length > 1) {
         setExampleIndexMap((prev) => {
@@ -450,7 +498,7 @@ export function PracticeScreen() {
     }
 
     const nextQueue = (() => {
-      let q = shouldRetry ? [...queue, currentItem] : [...queue];
+      let q = shouldRetry ? [...queue, gradedItem] : [...queue];
       if (sessionMode === 'repeat' && dueItems.length > 0 && nextIndex >= q.length) {
         q = [...q, ...dueItems];
       }
@@ -634,14 +682,16 @@ export function PracticeScreen() {
     );
   }
 
-  const currentItem = queue[currentIndex];
-  if (!currentItem) {
+  const rawCurrentItem = queue[currentIndex];
+  if (!rawCurrentItem) {
     return (
       <Screen padded>
         <LoadingState message={t('practice.syncing')} />
       </Screen>
     );
   }
+
+  const currentItem = resolveDueItem(rawCurrentItem, itemOverrides);
 
   const examplesList = currentItem.examples || [];
   const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
