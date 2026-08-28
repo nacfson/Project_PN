@@ -124,16 +124,31 @@ export function useLearningItems(q: string, deckId?: string, enabled: boolean = 
   }, [fetchPage, t]);
 
   const isSearching = status === 'loading' || q !== debouncedQ;
+  const hasMore = nextCursor !== null;
+
+  const maybeLoadMoreFromScroll = useCallback(
+    (distanceFromBottom: number, threshold = 320) => {
+      if (!hasMore || loadingMoreRef.current || status === 'loading') {
+        return;
+      }
+      if (distanceFromBottom <= threshold) {
+        void loadMore();
+      }
+    },
+    [hasMore, loadMore, status],
+  );
 
   return {
     items,
     nextCursor,
+    hasMore,
     status,
     isSearching,
     isLoadingMore,
     isRefreshing,
     error,
     loadMore,
+    maybeLoadMoreFromScroll,
     refresh,
   };
 }

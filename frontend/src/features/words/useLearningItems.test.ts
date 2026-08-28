@@ -55,6 +55,28 @@ describe('useLearningItems', () => {
     );
   });
 
+  it('loads the next page when scrolled near the bottom', async () => {
+    mockedListLearningItems
+      .mockResolvedValueOnce({
+        items: [{ id: 'item-1' } as any],
+        next_cursor: 'cursor-2',
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: 'item-2' } as any],
+        next_cursor: null,
+      });
+
+    const { result } = await renderHook(() => useLearningItems(''), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.hasMore).toBe(true);
+
+    result.current.maybeLoadMoreFromScroll(100);
+    await waitFor(() => expect(mockedListLearningItems).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(result.current.hasMore).toBe(false);
+  });
+
   it('skips fetching when disabled', async () => {
     const { result } = await renderHook(() => useLearningItems('', undefined, false), {
       wrapper: Wrapper,

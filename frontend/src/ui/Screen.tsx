@@ -206,6 +206,7 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
+    minHeight: 0,
     maxWidth: 720,
     width: '100%',
     alignSelf: 'center',
