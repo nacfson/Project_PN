@@ -5,7 +5,7 @@ import { ApiError } from '../../api/client';
 import { changeLearningItemSense, lookupWord } from '../../api/words';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, Text } from '../../ui';
+import { Badge, Button, Card, Icon, LoadingState, Text } from '../../ui';
 import type { LearningItemListItem, SenseOption } from '../../types';
 import { renderFormattedSentence } from '../../utils/text';
 import { SenseMeaning } from '../../components/SenseMeaning';
@@ -15,9 +15,16 @@ interface ChangeMeaningSheetProps {
   item: LearningItemListItem;
   onClose: () => void;
   onChanged: (next: LearningItemListItem) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
-export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: ChangeMeaningSheetProps) {
+export function ChangeMeaningSheet({
+  visible,
+  item,
+  onClose,
+  onChanged,
+  onBusyChange,
+}: ChangeMeaningSheetProps) {
   const { colors, radii, spacing } = useTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
@@ -26,6 +33,12 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const busy = loading || saving;
+
+  useEffect(() => {
+    onBusyChange?.(visible && busy);
+  }, [visible, busy, onBusyChange]);
 
   useEffect(() => {
     if (!visible) return;
@@ -50,6 +63,13 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
       active = false;
     };
   }, [visible, item.lemma, item.language_code, item.word_sense_id, t]);
+
+  const handleClose = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    onClose();
+  }, [onClose, saving]);
 
   const handleConfirm = useCallback(async () => {
     if (!selectedId || selectedId === item.word_sense_id) {
@@ -87,7 +107,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
   }, [selectedId, item, options, onChanged, onClose, t]);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={[styles.backdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <View
           style={[
@@ -105,10 +125,36 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
           </View>
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
             <Text variant="title">{t('words.changeMeaningTitle')}</Text>
-            <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button">
+            <Pressable
+              onPress={handleClose}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+              disabled={saving}
+              style={{ opacity: saving ? 0.4 : 1 }}
+            >
               <Icon name="close" size="lg" />
             </Pressable>
           </View>
+
+          {busy && (
+            <View
+              style={[
+                styles.statusBanner,
+                {
+                  backgroundColor: colors.primaryContainer,
+                  marginBottom: spacing.sm,
+                  gap: spacing.sm,
+                },
+              ]}
+              accessibilityLiveRegion="polite"
+            >
+              <ActivityIndicator color={colors.primary} />
+              <Text variant="caption" color="muted">
+                {saving ? t('words.changeMeaningSaving') : t('words.changeMeaningLoading')}
+              </Text>
+            </View>
+          )}
 
           {error && (
             <Text variant="body" color="danger" style={{ marginBottom: spacing.sm }}>
@@ -116,45 +162,61 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
             </Text>
           )}
 
-          <ScrollView style={styles.list} contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}>
-            {loading && (
-              <View style={[styles.loading, { gap: spacing.sm }]}>
-                <ActivityIndicator color={colors.primary} />
-                <Text color="muted">{t('sense.generating')}</Text>
+          <View style={styles.body}>
+            {loading ? (
+              <LoadingState message={t('words.changeMeaningLoading')} />
+            ) : (
+              <ScrollView
+                style={styles.list}
+                contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}
+              >
+                {options.map((option) => {
+                  const active = option.word_sense_id === selectedId;
+                  return (
+                    <Pressable
+                      key={option.word_sense_id}
+                      onPress={() => setSelectedId(option.word_sense_id)}
+                      disabled={saving}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Card
+                        variant="outlined"
+                        style={{
+                          borderColor: active ? colors.primary : colors.outlineVariant,
+                          backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
+                          marginBottom: 0,
+                          opacity: saving ? 0.6 : 1,
+                        }}
+                      >
+                        <View style={[styles.optionHead, { gap: spacing.sm }]}>
+                          <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
+                        </View>
+                        <SenseMeaning option={option} />
+                        {(option.examples ?? []).length > 0 && (
+                          <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
+                            &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}&rdquo;
+                          </Text>
+                        )}
+                      </Card>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {saving && (
+              <View
+                style={[
+                  styles.savingOverlay,
+                  { backgroundColor: `${colors.surfaceContainerLow}CC` },
+                ]}
+                accessibilityLiveRegion="polite"
+              >
+                <LoadingState message={t('words.changeMeaningSaving')} />
               </View>
             )}
-            {!loading &&
-              options.map((option) => {
-                const active = option.word_sense_id === selectedId;
-                return (
-                  <Pressable
-                    key={option.word_sense_id}
-                    onPress={() => setSelectedId(option.word_sense_id)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Card
-                      variant="outlined"
-                      style={{
-                        borderColor: active ? colors.primary : colors.outlineVariant,
-                        backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
-                        marginBottom: 0,
-                      }}
-                    >
-                      <View style={[styles.optionHead, { gap: spacing.sm }]}>
-                        <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
-                      </View>
-                      <SenseMeaning option={option} />
-                      {(option.examples ?? []).length > 0 && (
-                        <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
-                          &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}&rdquo;
-                        </Text>
-                      )}
-                    </Card>
-                  </Pressable>
-                );
-              })}
-          </ScrollView>
+          </View>
 
           <Button
             label={t('words.changeMeaningConfirm')}
@@ -177,7 +239,23 @@ const styles = StyleSheet.create({
   dragHandle: { alignItems: 'center', paddingVertical: 8 },
   dragIndicator: { width: 40, height: 4, borderRadius: 2 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  list: { flexGrow: 0 },
-  loading: { alignItems: 'center', paddingVertical: 24 },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  body: {
+    position: 'relative',
+    minHeight: 180,
+  },
+  list: { flexGrow: 0, maxHeight: 360 },
+  savingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   optionHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
 });
