@@ -79,8 +79,43 @@ func NormalizeMatchText(s string) string {
 
 // TokenJaccard returns Jaccard similarity of whitespace tokens after NormalizeMatchText.
 func TokenJaccard(a, b string) float64 {
-	ta := strings.Fields(NormalizeMatchText(a))
-	tb := strings.Fields(NormalizeMatchText(b))
+	return TokenJaccardExcluding(a, b)
+}
+
+func matchTokens(s string) []string {
+	fields := strings.Fields(NormalizeMatchText(s))
+	out := make([]string, 0, len(fields))
+	for _, t := range fields {
+		t = strings.TrimFunc(t, func(r rune) bool {
+			return unicode.IsPunct(r) || unicode.IsSymbol(r)
+		})
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// TokenJaccardExcluding is TokenJaccard after dropping each exclude token
+// (and every token in a multi-word exclude string) from both sides.
+func TokenJaccardExcluding(a, b string, exclude ...string) float64 {
+	skip := map[string]struct{}{}
+	for _, e := range exclude {
+		for _, tok := range matchTokens(e) {
+			skip[tok] = struct{}{}
+		}
+	}
+	filter := func(s string) []string {
+		out := make([]string, 0)
+		for _, t := range matchTokens(s) {
+			if _, ok := skip[t]; !ok {
+				out = append(out, t)
+			}
+		}
+		return out
+	}
+	ta := filter(a)
+	tb := filter(b)
 	if len(ta) == 0 && len(tb) == 0 {
 		return 1
 	}

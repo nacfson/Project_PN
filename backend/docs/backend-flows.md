@@ -63,7 +63,7 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 4. On a hit with missing display-language translations, app may call the enricher's `Translate` (WiktApi re-query) and upsert `sense_translations`.
 5. On a full miss, app calls the configured enricher. Default is **WiktApi** (`ORIGIN_WIKTAPI_BASE_URL`, no API key): `GET /v1/en/word/{lemma}/translations`, keep display-language glosses (e.g. `ko`), map each gloss to one sense (no examples required).
 6. In one transaction, upsert `words` and `appendSenses` (canonical text + display gloss in `sense_translations`).
-7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard (definition + localized gloss) and sets `similarity` on each option. Stored `meaning_order` is unchanged.
+7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard (definition + localized gloss, excluding the lemma and English stopwords so headword restatements do not dominate) and sets `similarity` on each option. Stored `meaning_order` is unchanged.
 
 If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases may miss on public WiktApi.
 

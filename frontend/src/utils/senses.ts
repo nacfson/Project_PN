@@ -1,6 +1,11 @@
 import type { SenseOption } from '../types';
 
-/** Minimum Jaccard to badge a sense as closest to the source sentence. */
+/**
+ * Minimum Jaccard to badge a sense as closest to the source sentence.
+ * Live scores are often below 0.15 once the lemma is excluded (English
+ * context vs a short English definition + Korean gloss), so 0.08 is the
+ * display cutoff. Ranking still uses the raw scores.
+ */
 export const CLOSEST_SIMILARITY_THRESHOLD = 0.08;
 
 function similarityOf(option: SenseOption): number | null {

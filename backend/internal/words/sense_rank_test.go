@@ -26,6 +26,29 @@ func TestRankSenseOptionsSetsSimilarityForSingleOption(t *testing.T) {
 	}
 }
 
+func TestRankSenseOptionsIgnoresLemmaOverlap(t *testing.T) {
+	options := []SenseOption{
+		{
+			WordSenseID:         "noun-charge",
+			Lemma:               "charge",
+			NormalizedText:      "charge",
+			Definition:          "The quantity of electrically charged particles; electric charge.",
+			LocalizedDefinition: "전하",
+		},
+		{
+			WordSenseID:         "verb-battery",
+			Lemma:               "charge",
+			NormalizedText:      "charge",
+			Definition:          "To replenish energy stored in a battery.",
+			LocalizedDefinition: "충전하다",
+		},
+	}
+	rankSenseOptions(options, "Please charge the battery overnight.")
+	if options[0].WordSenseID != "verb-battery" {
+		t.Fatalf("expected battery verb first after excluding lemma, got %q", options[0].WordSenseID)
+	}
+}
+
 func TestRankSenseOptionsNoopWithoutContext(t *testing.T) {
 	options := []SenseOption{
 		{WordSenseID: "a", Definition: "alpha"},
