@@ -1,7 +1,7 @@
 import type { SenseOption } from '../types';
 
 /** Minimum Jaccard to badge a sense as closest to the source sentence. */
-export const CLOSEST_SIMILARITY_THRESHOLD = 0.15;
+export const CLOSEST_SIMILARITY_THRESHOLD = 0.08;
 
 function similarityOf(option: SenseOption): number | null {
   return typeof option.similarity === 'number' ? option.similarity : null;
