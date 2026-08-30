@@ -10,8 +10,11 @@ interface SenseFlowCallbacks {
   onDismiss?: () => void;
 }
 
-function messageOf(error: unknown, fallback: string): string {
+function messageOf(error: unknown, fallback: string, noAdditional: string): string {
   if (error instanceof ApiError) {
+    if (/no additional distinct sense/i.test(error.message)) {
+      return noAdditional;
+    }
     return error.message;
   }
   return fallback;
@@ -62,7 +65,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setOptions(response.sense_options);
         return true;
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
         return false;
       } finally {
         setGenerating(false);
@@ -71,20 +74,29 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
     [t],
   );
 
+  const rememberContext = (sourceContext?: string) => {
+    const trimmed = (sourceContext ?? lastSourceContext.current).trim();
+    if (sourceContext !== undefined) {
+      lastSourceContext.current = trimmed;
+    }
+    return trimmed;
+  };
+
   const forceExisting = useCallback(
-    async (wordId: string) => {
+    async (wordId: string, sourceContext?: string) => {
       setError(null);
       setGenerating(true);
       try {
+        const context = rememberContext(sourceContext);
         const response = await lookupWord(lastText.current, {
           wordId,
           force: true,
-          sourceContext: lastSourceContext.current || undefined,
+          sourceContext: context || undefined,
           languageCode: lastLanguageCode.current,
         });
         setOptions(response.sense_options);
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
       } finally {
         setGenerating(false);
       }
@@ -93,19 +105,20 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   );
 
   const forceWithPos = useCallback(
-    async (pos: PartOfSpeech) => {
+    async (pos: PartOfSpeech, sourceContext?: string) => {
       setError(null);
       setGenerating(true);
       try {
+        const context = rememberContext(sourceContext);
         const response = await lookupWord(lastText.current, {
           partOfSpeech: pos,
           force: true,
-          sourceContext: lastSourceContext.current || undefined,
+          sourceContext: context || undefined,
           languageCode: lastLanguageCode.current,
         });
         setOptions(response.sense_options);
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
       } finally {
         setGenerating(false);
       }
@@ -129,7 +142,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setPickerVisible(false);
         callbacks.onAdded?.(wordSenseId);
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
       } finally {
         setGenerating(false);
       }

@@ -7,28 +7,32 @@ import (
 	"project-pn/internal/enrich"
 )
 
-// rankSenseOptions stable-sorts options by descending TokenJaccard against
-// sourceContext (definition + localized_definition). Empty context is a no-op.
+// rankSenseOptions scores options against sourceContext with TokenJaccard
+// (definition + localized_definition) and stable-sorts by descending score.
+// Empty context is a no-op and leaves Similarity unset.
 func rankSenseOptions(options []SenseOption, sourceContext string) {
 	ctx := strings.TrimSpace(sourceContext)
-	if ctx == "" || len(options) < 2 {
+	if ctx == "" || len(options) == 0 {
 		return
 	}
 	type scored struct {
-		idx   int
+		opt   SenseOption
 		score float64
 	}
-	scores := make([]scored, len(options))
+	rows := make([]scored, len(options))
 	for i, o := range options {
 		blob := o.Definition + " " + o.LocalizedDefinition
-		scores[i] = scored{idx: i, score: enrich.TokenJaccard(ctx, blob)}
+		rows[i] = scored{opt: o, score: enrich.TokenJaccard(ctx, blob)}
 	}
-	sort.SliceStable(scores, func(i, j int) bool {
-		return scores[i].score > scores[j].score
-	})
-	reordered := make([]SenseOption, len(options))
-	for i, s := range scores {
-		reordered[i] = options[s.idx]
+	if len(rows) >= 2 {
+		sort.SliceStable(rows, func(i, j int) bool {
+			return rows[i].score > rows[j].score
+		})
 	}
-	copy(options, reordered)
+	for i, row := range rows {
+		opt := row.opt
+		score := row.score
+		opt.Similarity = &score
+		options[i] = opt
+	}
 }

@@ -111,6 +111,8 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 
 - `POST /api/words/lookup` with empty `text` (and no `word_id`) returns 400.
 - `POST /api/words/lookup` with `force: true` and `part_of_speech=Any` (or empty) and no `word_id` returns 400 "force requires a concrete part_of_speech or a word_id".
+- `POST /api/words/lookup` with `force: true` that produces no new proper sense (filter emptied or enricher exhausted without fallback) returns 503 "no additional distinct sense" or the existing enrichment-unavailable 503.
+- `POST /api/words/lookup` with `source_context` returns `similarity` on sense options and orders the closest context match first.
 - `POST /api/words/lookup` with no cache hit and no enrichment API key configured returns 503 "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually".
 - `POST /api/learning-items` with missing or empty `word_sense_id` returns 400.
 - `GET /api/learning-items` returns only the authenticated user's active items, excludes archived rows, supports `limit`, `descending`, optional prefix search via `q`, and opaque cursor pagination, and caps `limit` at 100.

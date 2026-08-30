@@ -37,6 +37,7 @@ export interface SenseOption {
   localized_short_definition: string | null;
   cefr_level: string | null;
   meaning_order: number;
+  similarity?: number | null;
   examples: Example[];
 }
 

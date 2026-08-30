@@ -74,7 +74,7 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `POST` | `/api/words/lookup` | Look up senses for a word. Cache hit returns existing rows. Cache miss + enricher configured returns generated senses, persisted in the same transaction. Cache miss + no enricher returns 503. `force: true` runs Force-Generate. |
+| `POST` | `/api/words/lookup` | Look up senses for a word. Cache hit returns existing rows. Cache miss + enricher configured returns generated senses, persisted in the same transaction. Cache miss + no enricher returns 503. Optional `source_context` ranks options and sets `similarity`. `force: true` runs Force-Generate (filter + persist additional shared senses). |
 | `GET` | `/api/learning-items?limit=50&descending=true&cursor=...&q=app` | List the authenticated user's active learning items. Uses keyset pagination, excludes archived items, supports optional prefix search on `q`, and returns `next_cursor` when more rows are available. |
 | `POST` | `/api/learning-items` | Add a `(user, word_sense)` to the authenticated user's learning set. Idempotent. Returns the `user_word_senses` row and its current `due_at`. |
 | `GET` | `/api/reviews/due?limit=50` | Return due review items by joining `review_states` to active `user_word_senses`. Respects daily limits (`new_cards_per_day`, `reviews_per_day`), excludes buried and suspended cards, and returns reviews first then new cards. |

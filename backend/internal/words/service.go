@@ -22,23 +22,24 @@ import (
 
 // Sentinel errors mapped to HTTP statuses by the handler layer.
 var (
-	ErrSenseNotFound              = errors.New("words: word sense not found")
-	ErrForceAmbiguous             = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
-	ErrNoSenses                   = errors.New("words: no senses available and generation is disabled")
-	ErrInvalidCursor              = errors.New("words: invalid learning items cursor")
-	ErrTranslationUnavailable     = errors.New("words: localized translation unavailable")
-	ErrDeckNotFound               = errors.New("words: deck not found")
-	ErrDeckNotOwned               = errors.New("words: deck does not belong to user")
-	ErrDeckLanguageMismatch       = errors.New("words: deck target language does not match word language")
+	ErrSenseNotFound             = errors.New("words: word sense not found")
+	ErrForceAmbiguous            = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
+	ErrNoSenses                  = errors.New("words: no senses available and generation is disabled")
+	ErrNoAdditionalSense         = errors.New("words: no additional distinct sense")
+	ErrInvalidCursor             = errors.New("words: invalid learning items cursor")
+	ErrTranslationUnavailable    = errors.New("words: localized translation unavailable")
+	ErrDeckNotFound              = errors.New("words: deck not found")
+	ErrDeckNotOwned              = errors.New("words: deck does not belong to user")
+	ErrDeckLanguageMismatch      = errors.New("words: deck target language does not match word language")
 	ErrCannotDeleteDefaultDeck   = errors.New("words: cannot delete default deck")
 	ErrInvalidDeckName           = errors.New("words: invalid deck name")
 	ErrDeckNameExists            = errors.New("words: deck name already exists")
 	ErrInvalidDeckOrigin         = errors.New("words: invalid deck origin filter")
 	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
 	ErrInvalidTargetLang         = errors.New("words: invalid target language")
-	ErrLearningItemNotFound       = errors.New("words: learning item not found")
-	ErrSenseConflict              = errors.New("words: sense_already_in_learning_set")
-	ErrSenseWrongWord             = errors.New("words: sense belongs to a different word")
+	ErrLearningItemNotFound      = errors.New("words: learning item not found")
+	ErrSenseConflict             = errors.New("words: sense_already_in_learning_set")
+	ErrSenseWrongWord            = errors.New("words: sense belongs to a different word")
 )
 
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -169,6 +170,7 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 		return LookupResult{}, fmt.Errorf("words: empty lookup text")
 	}
 	existing, _ := s.existingDefinitionsByIdentity(ctx, langCode, normalized, posValue)
+	matchTexts, _ := s.existingSenseMatchTextsByIdentity(ctx, langCode, normalized, posValue, defLangCode)
 	result, err := s.enricher.Enrich(ctx, enrich.Request{
 		Text:                   normalized,
 		LanguageCode:           langCode,
@@ -179,6 +181,10 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 	})
 	if err != nil {
 		return LookupResult{}, err
+	}
+	result.Entries = filterForceEntries(result.Entries, matchTexts, defLangCode)
+	if !entriesHaveSenses(result.Entries) {
+		return LookupResult{}, ErrNoAdditionalSense
 	}
 	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries)
 	if err != nil {
@@ -205,6 +211,10 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 	if err != nil {
 		return LookupResult{}, err
 	}
+	matchTexts, err := s.existingSenseMatchTexts(ctx, wordID, defLangCode)
+	if err != nil {
+		return LookupResult{}, err
+	}
 
 	result, err := s.enricher.Enrich(ctx, enrich.Request{
 		Text:                   normalized,
@@ -228,6 +238,10 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 		for _, e := range result.Entries {
 			newSenses = append(newSenses, e.Senses...)
 		}
+	}
+	newSenses = enrich.FilterProperSenses(matchTexts, newSenses, defLangCode)
+	if len(newSenses) == 0 {
+		return LookupResult{}, ErrNoAdditionalSense
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -874,6 +888,84 @@ func (s *Service) existingDefinitions(ctx context.Context, wordID string) ([]str
 		defs = append(defs, d)
 	}
 	return defs, rows.Err()
+}
+
+func collectSenseMatchTexts(rows pgx.Rows) ([]string, error) {
+	defer rows.Close()
+	var texts []string
+	for rows.Next() {
+		var definition, shortDef, localized, localizedShort string
+		if err := rows.Scan(&definition, &shortDef, &localized, &localizedShort); err != nil {
+			return nil, err
+		}
+		for _, value := range []string{definition, shortDef, localized, localizedShort} {
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				texts = append(texts, trimmed)
+			}
+		}
+	}
+	return texts, rows.Err()
+}
+
+func (s *Service) existingSenseMatchTexts(ctx context.Context, wordID, displayLang string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		select ws.definition,
+		       coalesce(ws.short_definition, ''),
+		       coalesce(st.definition, ''),
+		       coalesce(st.short_definition, '')
+		from word_senses ws
+		left join sense_translations st
+		  on st.word_sense_id = ws.id and st.language_code = $2
+		where ws.word_id = $1::uuid
+		order by ws.meaning_order`, wordID, displayLang)
+	if err != nil {
+		return nil, fmt.Errorf("words: existing sense texts: %w", err)
+	}
+	return collectSenseMatchTexts(rows)
+}
+
+func (s *Service) existingSenseMatchTextsByIdentity(ctx context.Context, langCode, normalized, pos, displayLang string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		select ws.definition,
+		       coalesce(ws.short_definition, ''),
+		       coalesce(st.definition, ''),
+		       coalesce(st.short_definition, '')
+		from word_senses ws
+		join words w on w.id = ws.word_id
+		left join sense_translations st
+		  on st.word_sense_id = ws.id and st.language_code = $4
+		where w.language_code = $1 and w.normalized_text = $2 and w.part_of_speech = $3
+		order by ws.meaning_order`, langCode, normalized, pos, displayLang)
+	if err != nil {
+		return nil, fmt.Errorf("words: existing sense texts: %w", err)
+	}
+	return collectSenseMatchTexts(rows)
+}
+
+func filterForceEntries(entries []enrich.Entry, existing []string, displayLang string) []enrich.Entry {
+	matchTexts := append([]string{}, existing...)
+	out := make([]enrich.Entry, 0, len(entries))
+	for _, entry := range entries {
+		kept := enrich.FilterProperSenses(matchTexts, entry.Senses, displayLang)
+		if len(kept) == 0 {
+			continue
+		}
+		entry.Senses = kept
+		out = append(out, entry)
+		for _, sense := range kept {
+			matchTexts = append(matchTexts, sense.Definition, sense.NativeDefinition, sense.NativeShortDefinition)
+		}
+	}
+	return out
+}
+
+func entriesHaveSenses(entries []enrich.Entry) bool {
+	for _, entry := range entries {
+		if len(entry.Senses) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) existingDefinitionsByIdentity(ctx context.Context, langCode, normalized, pos string) ([]string, error) {

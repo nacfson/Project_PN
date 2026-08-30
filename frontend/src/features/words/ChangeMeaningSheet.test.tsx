@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
@@ -44,6 +44,10 @@ const item: LearningItemListItem = {
 };
 
 describe('ChangeMeaningSheet', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     (lookupWord as jest.Mock).mockResolvedValue({
       sense_options: [
@@ -128,5 +132,64 @@ describe('ChangeMeaningSheet', () => {
         }),
       );
     });
+  });
+
+  it('finds more senses with force lookup when context is set', async () => {
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          frame: { x: 0, y: 0, width: 375, height: 812 },
+        }}
+      >
+        <AppLanguageProvider>
+          <ThemeProvider>
+            <ChangeMeaningSheet visible item={item} onClose={jest.fn()} onChanged={jest.fn()} />
+          </ThemeProvider>
+        </AppLanguageProvider>
+      </SafeAreaProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
+    const contextInput = screen.getByPlaceholderText(/Optional sentence/);
+    fireEvent.changeText(contextInput, 'Please charge the invoice today.');
+    await waitFor(() => expect(contextInput.props.value).toBe('Please charge the invoice today.'));
+    fireEvent.press(screen.getByText('Find more senses'));
+
+    await waitFor(() => {
+      expect(lookupWord).toHaveBeenCalledWith(
+        'charge',
+        expect.objectContaining({
+          force: true,
+          wordId: 'w-1',
+          sourceContext: 'Please charge the invoice today.',
+        }),
+      );
+    });
+  });
+
+  it('does not force lookup when context is empty', async () => {
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          frame: { x: 0, y: 0, width: 375, height: 812 },
+        }}
+      >
+        <AppLanguageProvider>
+          <ThemeProvider>
+            <ChangeMeaningSheet visible item={item} onClose={jest.fn()} onChanged={jest.fn()} />
+          </ThemeProvider>
+        </AppLanguageProvider>
+      </SafeAreaProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
+    (lookupWord as jest.Mock).mockClear();
+    fireEvent.press(screen.getByText('Find more senses'));
+    await waitFor(() => {
+      expect(screen.getByText(/Add a sentence that shows the meaning/)).toBeTruthy();
+    });
+    expect(lookupWord).not.toHaveBeenCalled();
   });
 });

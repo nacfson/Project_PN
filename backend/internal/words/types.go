@@ -27,6 +27,7 @@ type SenseOption struct {
 	LocalizedShortDefinition *string   `json:"localized_short_definition"`
 	CEFRLevel                *string   `json:"cefr_level"`
 	MeaningOrder             int       `json:"meaning_order"`
+	Similarity               *float64  `json:"similarity,omitempty"`
 	Examples                 []Example `json:"examples"`
 }
 

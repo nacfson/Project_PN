@@ -140,6 +140,8 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         options={options}
         generating={generating}
         errorMessage={error}
+        sourceContext={context}
+        onSourceContextChange={setContext}
         onConfirm={(wordSenseId) => {
           void confirm(wordSenseId, selectedDeckId, context.trim() || undefined);
         }}

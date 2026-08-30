@@ -5,9 +5,10 @@ import { ApiError } from '../../api/client';
 import { changeLearningItemSense, lookupWord } from '../../api/words';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, Text } from '../../ui';
+import { Badge, Button, Card, Icon, Input, Text } from '../../ui';
 import type { LearningItemListItem, SenseOption } from '../../types';
 import { renderFormattedSentence } from '../../utils/text';
+import { isClosestToContext } from '../../utils/senses';
 import { SenseMeaning } from '../../components/SenseMeaning';
 
 interface ChangeMeaningSheetProps {
@@ -24,8 +25,10 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
   const [options, setOptions] = useState<SenseOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [finding, setFinding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [context, setContext] = useState('');
 
   useEffect(() => {
     if (!visible) return;
@@ -34,6 +37,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
     setError(null);
     setSelectedId(item.word_sense_id);
     setOptions([]);
+    setContext('');
     lookupWord(item.lemma, { languageCode: item.language_code })
       .then((response) => {
         if (!active) return;
@@ -50,6 +54,33 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
       active = false;
     };
   }, [visible, item.lemma, item.language_code, item.word_sense_id, t]);
+
+  const handleFindMore = useCallback(async () => {
+    const trimmed = context.trim();
+    if (!trimmed) {
+      setError(t('sense.needContext'));
+      return;
+    }
+    setFinding(true);
+    setError(null);
+    try {
+      const response = await lookupWord(item.lemma, {
+        languageCode: item.language_code,
+        wordId: item.word_id,
+        force: true,
+        sourceContext: trimmed,
+      });
+      setOptions(response.sense_options);
+    } catch (err) {
+      if (err instanceof ApiError && /no additional distinct sense/i.test(err.message)) {
+        setError(t('sense.noAdditional'));
+      } else {
+        setError(err instanceof Error ? err.message : t('common.somethingWrong'));
+      }
+    } finally {
+      setFinding(false);
+    }
+  }, [context, item.lemma, item.language_code, item.word_id, t]);
 
   const handleConfirm = useCallback(async () => {
     if (!selectedId || selectedId === item.word_sense_id) {
@@ -126,6 +157,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
             {!loading &&
               options.map((option) => {
                 const active = option.word_sense_id === selectedId;
+                const closest = isClosestToContext(option, options);
                 return (
                   <Pressable
                     key={option.word_sense_id}
@@ -143,6 +175,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
                     >
                       <View style={[styles.optionHead, { gap: spacing.sm }]}>
                         <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
+                        {closest && <Badge label={t('sense.closestToContext')} variant="success" />}
                       </View>
                       <SenseMeaning option={option} />
                       {(option.examples ?? []).length > 0 && (
@@ -154,6 +187,30 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
                   </Pressable>
                 );
               })}
+
+            <View style={{ gap: spacing.sm }}>
+              <Text variant="label" color="muted">
+                {t('add.contextLabel')}
+              </Text>
+              <Input
+                value={context}
+                onChangeText={setContext}
+                placeholder={t('add.contextPlaceholder')}
+                multiline
+                numberOfLines={3}
+                style={{ minHeight: 72 }}
+                onClear={() => setContext('')}
+              />
+              <Button
+                label={t('sense.findMore')}
+                variant="tonal"
+                onPress={() => {
+                  void handleFindMore();
+                }}
+                disabled={finding || loading}
+                loading={finding}
+              />
+            </View>
           </ScrollView>
 
           <Button
