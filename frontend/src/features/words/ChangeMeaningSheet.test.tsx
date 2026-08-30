@@ -129,4 +129,64 @@ describe('ChangeMeaningSheet', () => {
       );
     });
   });
+
+  it('shows loading feedback while senses are fetched', async () => {
+    const onBusyChange = jest.fn();
+    let resolveLookup: (value: unknown) => void = () => undefined;
+    (lookupWord as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLookup = resolve;
+        }),
+    );
+
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          frame: { x: 0, y: 0, width: 375, height: 812 },
+        }}
+      >
+        <AppLanguageProvider>
+          <ThemeProvider>
+            <ChangeMeaningSheet
+              visible
+              item={item}
+              onClose={jest.fn()}
+              onChanged={jest.fn()}
+              onBusyChange={onBusyChange}
+            />
+          </ThemeProvider>
+        </AppLanguageProvider>
+      </SafeAreaProvider>,
+    );
+
+    expect(screen.getAllByText('Loading meanings...').length).toBeGreaterThan(0);
+    expect(onBusyChange).toHaveBeenCalledWith(true);
+
+    resolveLookup({
+      sense_options: [
+        {
+          word_id: 'w-1',
+          word_sense_id: 'ws-1',
+          language_code: 'en',
+          lemma: 'charge',
+          normalized_text: 'charge',
+          part_of_speech: 'verb',
+          pronunciation: null,
+          display_language_code: 'ko',
+          definition: 'to accuse',
+          short_definition: null,
+          localized_definition: '기소하다',
+          localized_short_definition: null,
+          cefr_level: null,
+          meaning_order: 1,
+          examples: [],
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.queryByText('Loading meanings...')).toBeNull());
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+  });
 });

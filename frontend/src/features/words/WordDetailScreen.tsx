@@ -45,6 +45,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const [removeLoading, setRemoveLoading] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [changeMeaningOpen, setChangeMeaningOpen] = useState(false);
+  const [changeMeaningBusy, setChangeMeaningBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -158,6 +159,8 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           label={t('words.changeMeaning')}
           variant="outline"
           onPress={() => setChangeMeaningOpen(true)}
+          loading={changeMeaningBusy}
+          disabled={changeMeaningBusy}
           style={{ marginTop: spacing.md }}
         />
 
@@ -198,6 +201,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
           item={item}
           onClose={() => setChangeMeaningOpen(false)}
           onChanged={setItem}
+          onBusyChange={setChangeMeaningBusy}
         />
       </ScrollView>
     </Screen>
