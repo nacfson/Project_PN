@@ -189,4 +189,94 @@ describe('ChangeMeaningSheet', () => {
     await waitFor(() => expect(screen.queryByText('Loading meanings...')).toBeNull());
     expect(onBusyChange).toHaveBeenLastCalledWith(false);
   });
+
+  it('shows none of these match and force-generates additional senses', async () => {
+    (lookupWord as jest.Mock)
+      .mockResolvedValueOnce({
+        sense_options: [
+          {
+            word_id: 'w-1',
+            word_sense_id: 'ws-1',
+            language_code: 'en',
+            lemma: 'charge',
+            normalized_text: 'charge',
+            part_of_speech: 'verb',
+            pronunciation: null,
+            display_language_code: 'ko',
+            definition: 'to accuse',
+            localized_definition: '기소하다',
+            localized_short_definition: null,
+            short_definition: null,
+            cefr_level: null,
+            meaning_order: 1,
+            examples: [],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        sense_options: [
+          {
+            word_id: 'w-1',
+            word_sense_id: 'ws-1',
+            language_code: 'en',
+            lemma: 'charge',
+            normalized_text: 'charge',
+            part_of_speech: 'verb',
+            pronunciation: null,
+            display_language_code: 'ko',
+            definition: 'to accuse',
+            localized_definition: '기소하다',
+            localized_short_definition: null,
+            short_definition: null,
+            cefr_level: null,
+            meaning_order: 1,
+            examples: [],
+          },
+          {
+            word_id: 'w-1',
+            word_sense_id: 'ws-2',
+            language_code: 'en',
+            lemma: 'charge',
+            normalized_text: 'charge',
+            part_of_speech: 'verb',
+            pronunciation: null,
+            display_language_code: 'ko',
+            definition: 'to store energy',
+            localized_definition: '충전하다',
+            localized_short_definition: null,
+            short_definition: null,
+            cefr_level: null,
+            meaning_order: 2,
+            examples: [],
+          },
+        ],
+      });
+
+    const onChanged = jest.fn();
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          frame: { x: 0, y: 0, width: 375, height: 812 },
+        }}
+      >
+        <AppLanguageProvider>
+          <ThemeProvider>
+            <ChangeMeaningSheet visible item={item} onClose={jest.fn()} onChanged={onChanged} />
+          </ThemeProvider>
+        </AppLanguageProvider>
+      </SafeAreaProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('None of these match')).toBeTruthy());
+    fireEvent.press(screen.getByText('None of these match'));
+
+    await waitFor(() => {
+      expect(lookupWord).toHaveBeenCalledWith(
+        'charge',
+        expect.objectContaining({ wordId: 'w-1', force: true }),
+      );
+    });
+    await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
+  });
 });

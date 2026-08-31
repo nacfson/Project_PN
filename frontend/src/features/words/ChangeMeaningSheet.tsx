@@ -3,10 +3,11 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
 import { changeLearningItemSense, lookupWord } from '../../api/words';
+import { CONCRETE_POS } from '../../components/SensePicker';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, LoadingState, Text } from '../../ui';
-import type { LearningItemListItem, SenseOption } from '../../types';
+import type { LearningItemListItem, PartOfSpeech, SenseOption } from '../../types';
 import { renderFormattedSentence } from '../../utils/text';
 import { SenseMeaning } from '../../components/SenseMeaning';
 
@@ -16,6 +17,10 @@ interface ChangeMeaningSheetProps {
   onClose: () => void;
   onChanged: (next: LearningItemListItem) => void;
   onBusyChange?: (busy: boolean) => void;
+}
+
+function isNoAdditionalSensesError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 422 && error.message.includes('no_additional_senses');
 }
 
 export function ChangeMeaningSheet({
@@ -30,11 +35,13 @@ export function ChangeMeaningSheet({
   const insets = useSafeAreaInsets();
   const [options, setOptions] = useState<SenseOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [posPrompt, setPosPrompt] = useState(false);
 
-  const busy = loading || saving;
+  const busy = loading || generating || saving;
 
   useEffect(() => {
     onBusyChange?.(visible && busy);
@@ -44,7 +51,9 @@ export function ChangeMeaningSheet({
     if (!visible) return;
     let active = true;
     setLoading(true);
+    setGenerating(false);
     setError(null);
+    setPosPrompt(false);
     setSelectedId(item.word_sense_id);
     setOptions([]);
     lookupWord(item.lemma, { languageCode: item.language_code })
@@ -71,6 +80,63 @@ export function ChangeMeaningSheet({
     onClose();
   }, [onClose, saving]);
 
+  const forceExisting = useCallback(async () => {
+    setError(null);
+    setPosPrompt(false);
+    setGenerating(true);
+    try {
+      const response = await lookupWord(item.lemma, {
+        wordId: item.word_id,
+        force: true,
+        languageCode: item.language_code,
+      });
+      setOptions(response.sense_options);
+    } catch (err) {
+      if (isNoAdditionalSensesError(err)) {
+        setError(t('sense.noAdditionalSenses'));
+        setPosPrompt(true);
+      } else {
+        setError(err instanceof Error ? err.message : t('common.somethingWrong'));
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }, [item.lemma, item.word_id, item.language_code, t]);
+
+  const forceWithPos = useCallback(
+    async (pos: PartOfSpeech) => {
+      setError(null);
+      setPosPrompt(false);
+      setGenerating(true);
+      try {
+        const response = await lookupWord(item.lemma, {
+          partOfSpeech: pos,
+          force: true,
+          languageCode: item.language_code,
+        });
+        setOptions(response.sense_options);
+      } catch (err) {
+        if (isNoAdditionalSensesError(err)) {
+          setError(t('sense.noAdditionalSenses'));
+          setPosPrompt(true);
+        } else {
+          setError(err instanceof Error ? err.message : t('common.somethingWrong'));
+        }
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [item.lemma, item.language_code, t],
+  );
+
+  const handleNoneMatch = useCallback(() => {
+    if (selectedId) {
+      void forceExisting();
+    } else {
+      setPosPrompt(true);
+    }
+  }, [forceExisting, selectedId]);
+
   const handleConfirm = useCallback(async () => {
     if (!selectedId || selectedId === item.word_sense_id) {
       onClose();
@@ -84,6 +150,8 @@ export function ChangeMeaningSheet({
       onChanged({
         ...item,
         word_sense_id: updated.word_sense_id,
+        word_id: selected?.word_id ?? item.word_id,
+        part_of_speech: selected?.part_of_speech ?? item.part_of_speech,
         definition: selected?.definition ?? item.definition,
         short_definition: selected?.short_definition ?? item.short_definition,
         localized_definition: selected?.localized_definition ?? item.localized_definition,
@@ -151,7 +219,11 @@ export function ChangeMeaningSheet({
             >
               <ActivityIndicator color={colors.primary} />
               <Text variant="caption" color="muted">
-                {saving ? t('words.changeMeaningSaving') : t('words.changeMeaningLoading')}
+                {saving
+                  ? t('words.changeMeaningSaving')
+                  : generating
+                    ? t('sense.generating')
+                    : t('words.changeMeaningLoading')}
               </Text>
             </View>
           )}
@@ -176,7 +248,7 @@ export function ChangeMeaningSheet({
                     <Pressable
                       key={option.word_sense_id}
                       onPress={() => setSelectedId(option.word_sense_id)}
-                      disabled={saving}
+                      disabled={saving || generating}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                     >
@@ -186,7 +258,7 @@ export function ChangeMeaningSheet({
                           borderColor: active ? colors.primary : colors.outlineVariant,
                           backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
                           marginBottom: 0,
-                          opacity: saving ? 0.6 : 1,
+                          opacity: saving || generating ? 0.6 : 1,
                         }}
                       >
                         <View style={[styles.optionHead, { gap: spacing.sm }]}>
@@ -202,6 +274,40 @@ export function ChangeMeaningSheet({
                     </Pressable>
                   );
                 })}
+
+                {generating && (
+                  <View style={[styles.generating, { gap: spacing.sm }]}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text color="muted">{t('sense.generating')}</Text>
+                  </View>
+                )}
+
+                {posPrompt && (
+                  <View
+                    style={[
+                      styles.posPrompt,
+                      { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.md },
+                    ]}
+                  >
+                    <Text variant="label" color="muted">
+                      {t('sense.pickPartOfSpeech')}
+                    </Text>
+                    <View style={styles.posRow}>
+                      {CONCRETE_POS.map((pos) => (
+                        <Button
+                          key={pos}
+                          label={t(`pos.${pos}`)}
+                          variant="tonal"
+                          onPress={() => {
+                            void forceWithPos(pos);
+                          }}
+                          disabled={generating || saving}
+                          style={styles.posChip}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                )}
               </ScrollView>
             )}
 
@@ -218,15 +324,22 @@ export function ChangeMeaningSheet({
             )}
           </View>
 
-          <Button
-            label={t('words.changeMeaningConfirm')}
-            onPress={() => {
-              void handleConfirm();
-            }}
-            disabled={!selectedId || saving || loading}
-            loading={saving}
-            style={{ marginTop: spacing.md }}
-          />
+          <View style={[styles.actions, { marginTop: spacing.md, gap: spacing.md }]}>
+            <Button
+              label={t('sense.noneMatch')}
+              variant="ghost"
+              onPress={handleNoneMatch}
+              disabled={generating || saving || loading}
+            />
+            <Button
+              label={t('words.changeMeaningConfirm')}
+              onPress={() => {
+                void handleConfirm();
+              }}
+              disabled={!selectedId || saving || loading || generating}
+              loading={saving}
+            />
+          </View>
         </View>
       </View>
     </Modal>
@@ -252,10 +365,32 @@ const styles = StyleSheet.create({
     minHeight: 180,
   },
   list: { flexGrow: 0, maxHeight: 360 },
+  generating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  posPrompt: {
+    borderTopWidth: 1,
+  },
+  posRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  posChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
   savingOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
   optionHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
 });

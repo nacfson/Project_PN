@@ -282,6 +282,8 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusServiceUnavailable, "multilingual enrichment provider required for this target language")
 	case errors.Is(err, enrich.ErrNotConfigured):
 		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually")
+	case errors.Is(err, enrich.ErrNoAdditionalSenses):
+		writeError(w, http.StatusUnprocessableEntity, "no_additional_senses")
 	case errors.Is(err, enrich.ErrUnavailable):
 		writeError(w, http.StatusServiceUnavailable, "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings")
 	case errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):

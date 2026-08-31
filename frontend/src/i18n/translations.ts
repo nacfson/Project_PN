@@ -263,6 +263,7 @@ export const en = {
   'sense.generating': 'Generating a new meaning...',
   'sense.pickPartOfSpeech': 'Pick a part of speech to generate a new meaning:',
   'sense.noneMatch': 'None of these match',
+  'sense.noAdditionalSenses': 'No more dictionary meanings found. Try another part of speech or add a different word.',
   'sense.addBest': 'Add best match',
   'sense.add': 'Add',
 
@@ -569,6 +570,7 @@ export const ko: Record<TranslationKey, string> = {
   'sense.generating': '새 의미를 생성하는 중...',
   'sense.pickPartOfSpeech': '새 의미를 생성할 품사를 선택하세요:',
   'sense.noneMatch': '일치하는 의미가 없음',
+  'sense.noAdditionalSenses': '더 이상 사전에서 의미를 찾지 못했습니다. 다른 품사를 선택하거나 다른 단어를 추가해 보세요.',
   'sense.addBest': '가장 적절한 의미 추가',
   'sense.add': '추가',
 
