@@ -30,6 +30,10 @@ var ErrUnsupportedLanguage = errors.New("enrich: unsupported target language")
 // can distinguish provider outages from missing configuration.
 var ErrUnavailable = errors.New("enrich: endpoint unavailable")
 
+// ErrNoAdditionalSenses is returned when the enricher found the word but every
+// gloss/sense for the requested scope is already stored (typical WiktApi force path).
+var ErrNoAdditionalSenses = errors.New("enrich: no additional senses")
+
 const englishDictionaryFallbackModel = "english-dictionary-fallback-v1"
 
 var validCEFR = map[string]bool{

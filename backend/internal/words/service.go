@@ -229,6 +229,9 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 			newSenses = append(newSenses, e.Senses...)
 		}
 	}
+	if len(newSenses) == 0 {
+		return LookupResult{}, enrich.ErrNoAdditionalSenses
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

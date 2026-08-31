@@ -33,6 +33,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
     forceWithPos,
     confirm,
     close,
+    suggestPosPrompt,
   } = useSenseFlow({
     onAdded: () => {
       setWord('');
@@ -140,6 +141,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         options={options}
         generating={generating}
         errorMessage={error}
+        suggestPosPrompt={suggestPosPrompt}
         onConfirm={(wordSenseId) => {
           void confirm(wordSenseId, selectedDeckId, context.trim() || undefined);
         }}

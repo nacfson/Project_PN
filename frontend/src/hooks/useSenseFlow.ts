@@ -17,6 +17,10 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function isNoAdditionalSensesError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 422 && error.message.includes('no_additional_senses');
+}
+
 export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const { t } = useAppLanguage();
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -24,6 +28,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const [options, setOptions] = useState<SenseOption[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestPosPrompt, setSuggestPosPrompt] = useState(false);
 
   const lastText = useRef('');
   const lastPos = useRef<PosFilter>('Any');
@@ -50,6 +55,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       lastDeckId.current = deckId;
       setQuery(trimmed);
       setError(null);
+      setSuggestPosPrompt(false);
       setGenerating(true);
       setOptions([]);
       setPickerVisible(true);
@@ -62,7 +68,11 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setOptions(response.sense_options);
         return true;
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        if (isNoAdditionalSensesError(err)) {
+          setError(t('sense.noAdditionalSenses'));
+        } else {
+          setError(messageOf(err, t('common.somethingWrong')));
+        }
         return false;
       } finally {
         setGenerating(false);
@@ -74,6 +84,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const forceExisting = useCallback(
     async (wordId: string) => {
       setError(null);
+      setSuggestPosPrompt(false);
       setGenerating(true);
       try {
         const response = await lookupWord(lastText.current, {
@@ -84,7 +95,12 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         });
         setOptions(response.sense_options);
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        if (isNoAdditionalSensesError(err)) {
+          setError(t('sense.noAdditionalSenses'));
+          setSuggestPosPrompt(true);
+        } else {
+          setError(messageOf(err, t('common.somethingWrong')));
+        }
       } finally {
         setGenerating(false);
       }
@@ -95,6 +111,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const forceWithPos = useCallback(
     async (pos: PartOfSpeech) => {
       setError(null);
+      setSuggestPosPrompt(false);
       setGenerating(true);
       try {
         const response = await lookupWord(lastText.current, {
@@ -105,7 +122,12 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         });
         setOptions(response.sense_options);
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong')));
+        if (isNoAdditionalSensesError(err)) {
+          setError(t('sense.noAdditionalSenses'));
+          setSuggestPosPrompt(true);
+        } else {
+          setError(messageOf(err, t('common.somethingWrong')));
+        }
       } finally {
         setGenerating(false);
       }
@@ -148,6 +170,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
     options,
     generating,
     error,
+    suggestPosPrompt,
     lookup,
     forceExisting,
     forceWithPos,

@@ -495,6 +495,20 @@ func TestWriteServiceErrorMapsUnavailable(t *testing.T) {
 	}
 }
 
+func TestWriteServiceErrorMapsNoAdditionalSenses(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	(&wordsHandler{}).writeServiceError(rec, req, enrich.ErrNoAdditionalSenses)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "no_additional_senses") {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
 func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()

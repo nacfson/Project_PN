@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -93,5 +94,14 @@ func TestWiktAPIEnrichSkipsExistingAnd404(t *testing.T) {
 	_, err = client.Enrich(context.Background(), Request{Text: "missing", DefinitionLanguageCode: "ko"})
 	if err == nil {
 		t.Fatal("expected error for 404")
+	}
+
+	_, err = client.Enrich(context.Background(), Request{
+		Text:                   "have",
+		DefinitionLanguageCode: "ko",
+		Existing:               []string{"가지다", "있다"},
+	})
+	if !errors.Is(err, ErrNoAdditionalSenses) {
+		t.Fatalf("expected ErrNoAdditionalSenses when all glosses exist, got %v", err)
 	}
 }

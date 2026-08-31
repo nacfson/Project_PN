@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
@@ -10,7 +10,7 @@ import { bestMatch } from '../utils/senses';
 import { renderFormattedSentence } from '../utils/text';
 import { SenseMeaning } from './SenseMeaning';
 
-const CONCRETE_POS: PartOfSpeech[] = [
+export const CONCRETE_POS: PartOfSpeech[] = [
   'noun',
   'verb',
   'adjective',
@@ -28,6 +28,7 @@ interface SensePickerProps {
   options: SenseOption[];
   generating: boolean;
   errorMessage?: string | null;
+  suggestPosPrompt?: boolean;
   onConfirm: (wordSenseId: string) => void;
   onForceExisting: (wordId: string) => void;
   onForceWithPos: (pos: PartOfSpeech) => void;
@@ -40,6 +41,7 @@ export function SensePicker({
   options,
   generating,
   errorMessage,
+  suggestPosPrompt = false,
   onConfirm,
   onForceExisting,
   onForceWithPos,
@@ -50,6 +52,12 @@ export function SensePicker({
   const insets = useSafeAreaInsets();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [posPrompt, setPosPrompt] = useState(false);
+
+  useEffect(() => {
+    if (suggestPosPrompt) {
+      setPosPrompt(true);
+    }
+  }, [suggestPosPrompt]);
 
   const top = useMemo(() => bestMatch(options), [options]);
   const selected = options.find((o) => o.word_sense_id === selectedId) ?? null;
@@ -81,10 +89,12 @@ export function SensePicker({
   const handleNoneMatch = () => {
     if (selected) {
       onForceExisting(selected.word_id);
-      return;
+    } else {
+      setPosPrompt(true);
     }
-    setPosPrompt(true);
   };
+
+  const showPosPrompt = posPrompt || suggestPosPrompt;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -166,7 +176,7 @@ export function SensePicker({
               </View>
             )}
 
-            {posPrompt && !selected && (
+            {showPosPrompt && (
               <View style={[styles.posPrompt, { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.md }]}>
                 <Text variant="label" color="muted">
                   {t('sense.pickPartOfSpeech')}

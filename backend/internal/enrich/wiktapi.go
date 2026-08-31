@@ -116,6 +116,9 @@ func (w *WiktAPI) Enrich(ctx context.Context, req Request) (Result, error) {
 	}
 
 	if len(rows) == 0 {
+		if len(existing) > 0 || posFilter != "" {
+			return Result{}, fmt.Errorf("%w: no new %s glosses for %q", ErrNoAdditionalSenses, displayLang, lemma)
+		}
 		return Result{}, fmt.Errorf("%w: no %s glosses for %q", ErrUnavailable, displayLang, lemma)
 	}
 
