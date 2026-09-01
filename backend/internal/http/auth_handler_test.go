@@ -75,6 +75,44 @@ func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.
 	return router, authSvc
 }
 
+func TestRefreshSessionProxiesToCentral(t *testing.T) {
+	centralServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/auth/refresh" {
+			t.Fatalf("unexpected central request %s %s", r.Method, r.URL.Path)
+		}
+		var body struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RefreshToken != "old-refresh" {
+			t.Fatalf("unexpected refresh body: %v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"token":"new-access","refresh_token":"new-refresh","expires_at":"2099-01-01T00:00:00Z"}`))
+	}))
+	defer centralServer.Close()
+
+	router, _ := testAuthRouterWithCentral(t, auth.NewCentralClient(centralServer.URL, centralServer.Client()))
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", strings.NewReader(`{"refresh_token":"old-refresh"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var session struct {
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&session); err != nil {
+		t.Fatalf("decode refresh response: %v", err)
+	}
+	if session.Token != "new-access" || session.RefreshToken != "new-refresh" {
+		t.Fatalf("unexpected session %+v", session)
+	}
+}
+
 func TestCookieAuthMeLoadsLocalProfile(t *testing.T) {
 	var centralUserRequests int
 	centralServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

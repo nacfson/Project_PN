@@ -60,6 +60,7 @@ func NewRouter(deps Dependencies) http.Handler {
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
 			authRouter.Get("/language-options", ah.languageOptions)
+			authRouter.Post("/refresh", refreshSessionHandler(deps.CentralAuth, deps.AdminLogger))
 
 			authRouter.Group(func(protected chi.Router) {
 				protected.Use(authMW)

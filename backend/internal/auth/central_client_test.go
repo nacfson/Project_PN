@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -169,5 +170,47 @@ func TestCentralClientLogoutCookieSession(t *testing.T) {
 	client := NewCentralClientWithInternalAuth("", server.URL, "internal-secret", server.Client())
 	if err := client.LogoutCookieSession(context.Background(), "shared-cookie-value"); err != nil {
 		t.Fatalf("LogoutCookieSession: %v", err)
+	}
+}
+
+func TestCentralClientRefreshSession(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/auth/refresh" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RefreshToken != "old-refresh" {
+			t.Fatalf("unexpected refresh body: %v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"token":"new-access","refresh_token":"new-refresh","expires_at":"2026-12-01T00:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	client := NewCentralClient(server.URL, server.Client())
+	session, err := client.RefreshSession(context.Background(), "old-refresh")
+	if err != nil {
+		t.Fatalf("RefreshSession: %v", err)
+	}
+	if session.Token != "new-access" || session.RefreshToken != "new-refresh" {
+		t.Fatalf("unexpected session %+v", session)
+	}
+	if session.ExpiresAt.IsZero() {
+		t.Fatal("expected expires_at")
+	}
+}
+
+func TestCentralClientRefreshSessionRejectsUnauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client := NewCentralClient(server.URL, server.Client())
+	_, err := client.RefreshSession(context.Background(), "bad-refresh")
+	if !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected ErrInvalidToken, got %v", err)
 	}
 }

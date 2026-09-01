@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,12 @@ type CentralUser struct {
 type CentralSession struct {
 	ExpiresAt time.Time   `json:"expires_at"`
 	User      CentralUser `json:"user"`
+}
+
+type RefreshSessionResponse struct {
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresAt    time.Time `json:"expires_at"`
 }
 
 const CentralSessionCookieName = "nacfson_session"
@@ -173,6 +180,61 @@ func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue s
 			IsAdmin: payload.IsAdmin,
 		},
 	}, nil
+}
+
+func (c *CentralClient) RefreshSession(ctx context.Context, refreshToken string) (RefreshSessionResponse, error) {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "mock-dev-token" || refreshToken == "mock-dev-refresh" {
+		return RefreshSessionResponse{
+			Token:        "mock-dev-token",
+			RefreshToken: "mock-dev-refresh",
+			ExpiresAt:    time.Now().Add(720 * time.Hour),
+		}, nil
+	}
+	if refreshToken == "" {
+		return RefreshSessionResponse{}, ErrInvalidToken
+	}
+
+	endpoint, err := url.JoinPath(c.backendURL(), "/api/auth/refresh")
+	if err != nil {
+		return RefreshSessionResponse{}, fmt.Errorf("auth: central refresh URL: %w", err)
+	}
+	body, err := json.Marshal(map[string]string{"refresh_token": refreshToken})
+	if err != nil {
+		return RefreshSessionResponse{}, fmt.Errorf("auth: central refresh body: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return RefreshSessionResponse{}, fmt.Errorf("auth: central refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return RefreshSessionResponse{}, fmt.Errorf("auth: central refresh request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return RefreshSessionResponse{}, fmt.Errorf("auth: read central refresh response: %w", err)
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return RefreshSessionResponse{}, ErrInvalidToken
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return RefreshSessionResponse{}, fmt.Errorf("auth: central refresh status %d", resp.StatusCode)
+	}
+
+	var session RefreshSessionResponse
+	if err := json.Unmarshal(respBody, &session); err != nil {
+		slog.Error("auth: failed to decode central refresh response", "error", err, "body", string(respBody))
+		return RefreshSessionResponse{}, fmt.Errorf("auth: decode central refresh response: %w", err)
+	}
+	if strings.TrimSpace(session.Token) == "" || strings.TrimSpace(session.RefreshToken) == "" || session.ExpiresAt.IsZero() {
+		return RefreshSessionResponse{}, ErrInvalidToken
+	}
+	return session, nil
 }
 
 func (c *CentralClient) Logout(ctx context.Context, token string) error {

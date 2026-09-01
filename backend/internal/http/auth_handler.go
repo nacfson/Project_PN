@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"project-pn/internal/admin"
@@ -26,6 +29,49 @@ type meResponse struct {
 
 func (h *authHandler) languageOptions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.svc.LanguageOptions())
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type refreshResponse struct {
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+func refreshSessionHandler(central *auth.CentralClient, logger admin.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if central == nil {
+			writeError(w, http.StatusInternalServerError, "central auth is not configured")
+			return
+		}
+
+		var req refreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RefreshToken) == "" {
+			writeError(w, http.StatusBadRequest, "refresh_token required")
+			return
+		}
+
+		session, err := central.RefreshSession(r.Context(), req.RefreshToken)
+		if err != nil {
+			if errors.Is(err, auth.ErrInvalidToken) {
+				logger.Logf("AUTH_FAILURE", "refresh failed from %s: %v", r.RemoteAddr, err)
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+
+		logger.Logf("AUTH", "session refreshed from %s", r.RemoteAddr)
+		writeJSON(w, http.StatusOK, refreshResponse{
+			Token:        session.Token,
+			RefreshToken: session.RefreshToken,
+			ExpiresAt:    session.ExpiresAt,
+		})
+	}
 }
 
 func centralLogout(central *auth.CentralClient, logger admin.Logger) http.HandlerFunc {

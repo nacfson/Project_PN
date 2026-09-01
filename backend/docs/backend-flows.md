@@ -3,18 +3,16 @@
 ## Central Auth Flow
 
 1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
-2. Nacfson Cloud sends a magic-link email and, after the user opens the link, redirects back to the app with a session token in the URL (`?token=` or `#token=`).
-3. Client stores the token (`localStorage` on web, `expo-secure-store` on native).
-4. Client sends `Authorization: Bearer <token>` on all protected API requests.
-5. Backend middleware extracts the token and calls `CentralClient.ValidateSession()` (GET `{CENTRAL_AUTH_INTERNAL_URL}/api/auth/session`).
-6. Central auth returns `{ user: { id, email, is_admin }, expires_at }`.
-7. Backend calls `EnsureCentralUser()` which:
-   - Looks up `user_identities` by `(provider='nacfson', provider_subject=central_user_id)`.
-   - Falls back to email match if no identity link exists.
-   - Creates a new `users` row + `user_identities` link if neither exists.
-   - Creates a default `user_languages` entry for new users.
-8. The resolved `auth.User` is stored in request context for downstream handlers.
-9. `POST /api/auth/logout` proxies to the central auth server's `DELETE /api/auth/session`.
+2. Nacfson Cloud sends a magic-link email and, after the user opens the link, redirects back to the app with session credentials in the URL (`token`, `refresh_token`, `expires_at` via `?` or `#`).
+3. Bearer clients store the full session (`expo-secure-store` on native, `localStorage` on Tauri). Hosted browser web uses the HttpOnly `nacfson_session` cookie instead.
+4. Bearer clients send `Authorization: Bearer <token>` on protected API requests. Browser web sends the session cookie with `credentials: include`.
+5. Backend middleware validates the session via central auth (`GET /api/auth/session` for bearer, `GET /api/internal/cookie-session` for cookies).
+6. Central auth returns identity plus `expires_at`. Cookie validation slides `expires_at` forward on activity when the session is still valid.
+7. Bearer clients renew access tokens with `POST /api/auth/refresh` (proxied by Project PN) before expiry or after a 401.
+8. Backend calls `EnsureCentralUser()` which provisions or resolves the local user row.
+9. `POST /api/auth/logout` revokes the current central session.
+
+See `backend/docs/central-auth-session-renewal.md` for the external auth-service contract.
 
 Password login is not used. Sign-in is magic-link-only on the central auth service.
 

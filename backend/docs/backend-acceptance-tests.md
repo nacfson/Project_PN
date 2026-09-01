@@ -92,6 +92,8 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 - `POST /api/words/lookup`, `GET /api/learning-items`, `POST /api/learning-items`, and `GET /api/auth/me` return **401** without a valid cookie or `Authorization: Bearer`.
 - `GET /api/auth/me` with a valid central auth session token returns **200** with user profile.
 - `GET /api/auth/me` with a valid `nacfson_session` cookie forwards the cookie and backend-only internal token to Central Auth, then returns **200** with the local profile.
+- `POST /api/auth/refresh` with a valid refresh token returns **200** with `{ token, refresh_token, expires_at }`.
+- `POST /api/auth/refresh` with an invalid refresh token returns **401**.
 - Invalid or expired cookies return **401** and do not fall back to a simultaneous bearer credential.
 - `POST /api/auth/logout` revokes a cookie-backed central session and returns a clearing `Set-Cookie` header; native bearer logout still calls the bearer revoke path.
 - Cookie-authenticated browser mutations reject missing/untrusted `Origin`, missing or mismatched `X-CSRF-Token`, and accept a valid configured origin plus matching host-only CSRF cookie.
