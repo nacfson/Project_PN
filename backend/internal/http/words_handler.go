@@ -288,6 +288,8 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusServiceUnavailable, "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings")
 	case errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
 		writeError(w, http.StatusServiceUnavailable, "word enrichment failed to produce usable output; try again or add the sense manually")
+	case errors.Is(err, words.ErrNoAdditionalSense):
+		writeError(w, http.StatusServiceUnavailable, "no additional distinct sense")
 	default:
 		writeInternalError(w, r, err)
 	}

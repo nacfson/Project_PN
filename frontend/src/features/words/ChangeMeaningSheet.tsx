@@ -3,12 +3,12 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
 import { changeLearningItemSense, lookupWord } from '../../api/words';
-import { CONCRETE_POS } from '../../components/SensePicker';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, LoadingState, Text } from '../../ui';
-import type { LearningItemListItem, PartOfSpeech, SenseOption } from '../../types';
+import { Badge, Button, Card, Icon, Input, Text } from '../../ui';
+import type { LearningItemListItem, SenseOption } from '../../types';
 import { renderFormattedSentence } from '../../utils/text';
+import { isClosestToContext } from '../../utils/senses';
 import { SenseMeaning } from '../../components/SenseMeaning';
 
 interface ChangeMeaningSheetProps {
@@ -16,46 +16,28 @@ interface ChangeMeaningSheetProps {
   item: LearningItemListItem;
   onClose: () => void;
   onChanged: (next: LearningItemListItem) => void;
-  onBusyChange?: (busy: boolean) => void;
 }
 
-function isNoAdditionalSensesError(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 422 && error.message.includes('no_additional_senses');
-}
-
-export function ChangeMeaningSheet({
-  visible,
-  item,
-  onClose,
-  onChanged,
-  onBusyChange,
-}: ChangeMeaningSheetProps) {
+export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: ChangeMeaningSheetProps) {
   const { colors, radii, spacing } = useTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const [options, setOptions] = useState<SenseOption[]>([]);
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [finding, setFinding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [posPrompt, setPosPrompt] = useState(false);
-
-  const busy = loading || generating || saving;
-
-  useEffect(() => {
-    onBusyChange?.(visible && busy);
-  }, [visible, busy, onBusyChange]);
+  const [context, setContext] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     let active = true;
     setLoading(true);
-    setGenerating(false);
     setError(null);
-    setPosPrompt(false);
     setSelectedId(item.word_sense_id);
     setOptions([]);
+    setContext('');
     lookupWord(item.lemma, { languageCode: item.language_code })
       .then((response) => {
         if (!active) return;
@@ -73,69 +55,32 @@ export function ChangeMeaningSheet({
     };
   }, [visible, item.lemma, item.language_code, item.word_sense_id, t]);
 
-  const handleClose = useCallback(() => {
-    if (saving) {
+  const handleFindMore = useCallback(async () => {
+    const trimmed = context.trim();
+    if (!trimmed) {
+      setError(t('sense.needContext'));
       return;
     }
-    onClose();
-  }, [onClose, saving]);
-
-  const forceExisting = useCallback(async () => {
+    setFinding(true);
     setError(null);
-    setPosPrompt(false);
-    setGenerating(true);
     try {
       const response = await lookupWord(item.lemma, {
+        languageCode: item.language_code,
         wordId: item.word_id,
         force: true,
-        languageCode: item.language_code,
+        sourceContext: trimmed,
       });
       setOptions(response.sense_options);
     } catch (err) {
-      if (isNoAdditionalSensesError(err)) {
-        setError(t('sense.noAdditionalSenses'));
-        setPosPrompt(true);
+      if (err instanceof ApiError && /no additional distinct sense/i.test(err.message)) {
+        setError(t('sense.noAdditional'));
       } else {
         setError(err instanceof Error ? err.message : t('common.somethingWrong'));
       }
     } finally {
-      setGenerating(false);
+      setFinding(false);
     }
-  }, [item.lemma, item.word_id, item.language_code, t]);
-
-  const forceWithPos = useCallback(
-    async (pos: PartOfSpeech) => {
-      setError(null);
-      setPosPrompt(false);
-      setGenerating(true);
-      try {
-        const response = await lookupWord(item.lemma, {
-          partOfSpeech: pos,
-          force: true,
-          languageCode: item.language_code,
-        });
-        setOptions(response.sense_options);
-      } catch (err) {
-        if (isNoAdditionalSensesError(err)) {
-          setError(t('sense.noAdditionalSenses'));
-          setPosPrompt(true);
-        } else {
-          setError(err instanceof Error ? err.message : t('common.somethingWrong'));
-        }
-      } finally {
-        setGenerating(false);
-      }
-    },
-    [item.lemma, item.language_code, t],
-  );
-
-  const handleNoneMatch = useCallback(() => {
-    if (selectedId) {
-      void forceExisting();
-    } else {
-      setPosPrompt(true);
-    }
-  }, [forceExisting, selectedId]);
+  }, [context, item.lemma, item.language_code, item.word_id, t]);
 
   const handleConfirm = useCallback(async () => {
     if (!selectedId || selectedId === item.word_sense_id) {
@@ -150,8 +95,6 @@ export function ChangeMeaningSheet({
       onChanged({
         ...item,
         word_sense_id: updated.word_sense_id,
-        word_id: selected?.word_id ?? item.word_id,
-        part_of_speech: selected?.part_of_speech ?? item.part_of_speech,
         definition: selected?.definition ?? item.definition,
         short_definition: selected?.short_definition ?? item.short_definition,
         localized_definition: selected?.localized_definition ?? item.localized_definition,
@@ -175,7 +118,7 @@ export function ChangeMeaningSheet({
   }, [selectedId, item, options, onChanged, onClose, t]);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={[styles.backdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <View
           style={[
@@ -193,40 +136,10 @@ export function ChangeMeaningSheet({
           </View>
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
             <Text variant="title">{t('words.changeMeaningTitle')}</Text>
-            <Pressable
-              onPress={handleClose}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
-              disabled={saving}
-              style={{ opacity: saving ? 0.4 : 1 }}
-            >
+            <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button">
               <Icon name="close" size="lg" />
             </Pressable>
           </View>
-
-          {busy && (
-            <View
-              style={[
-                styles.statusBanner,
-                {
-                  backgroundColor: colors.primaryContainer,
-                  marginBottom: spacing.sm,
-                  gap: spacing.sm,
-                },
-              ]}
-              accessibilityLiveRegion="polite"
-            >
-              <ActivityIndicator color={colors.primary} />
-              <Text variant="caption" color="muted">
-                {saving
-                  ? t('words.changeMeaningSaving')
-                  : generating
-                    ? t('sense.generating')
-                    : t('words.changeMeaningLoading')}
-              </Text>
-            </View>
-          )}
 
           {error && (
             <Text variant="body" color="danger" style={{ marginBottom: spacing.sm }}>
@@ -234,112 +147,81 @@ export function ChangeMeaningSheet({
             </Text>
           )}
 
-          <View style={styles.body}>
-            {loading ? (
-              <LoadingState message={t('words.changeMeaningLoading')} />
-            ) : (
-              <ScrollView
-                style={styles.list}
-                contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}
-              >
-                {options.map((option) => {
-                  const active = option.word_sense_id === selectedId;
-                  return (
-                    <Pressable
-                      key={option.word_sense_id}
-                      onPress={() => setSelectedId(option.word_sense_id)}
-                      disabled={saving || generating}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                    >
-                      <Card
-                        variant="outlined"
-                        style={{
-                          borderColor: active ? colors.primary : colors.outlineVariant,
-                          backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
-                          marginBottom: 0,
-                          opacity: saving || generating ? 0.6 : 1,
-                        }}
-                      >
-                        <View style={[styles.optionHead, { gap: spacing.sm }]}>
-                          <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
-                        </View>
-                        <SenseMeaning option={option} />
-                        {(option.examples ?? []).length > 0 && (
-                          <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
-                            &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}&rdquo;
-                          </Text>
-                        )}
-                      </Card>
-                    </Pressable>
-                  );
-                })}
-
-                {generating && (
-                  <View style={[styles.generating, { gap: spacing.sm }]}>
-                    <ActivityIndicator color={colors.primary} />
-                    <Text color="muted">{t('sense.generating')}</Text>
-                  </View>
-                )}
-
-                {posPrompt && (
-                  <View
-                    style={[
-                      styles.posPrompt,
-                      { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.md },
-                    ]}
-                  >
-                    <Text variant="label" color="muted">
-                      {t('sense.pickPartOfSpeech')}
-                    </Text>
-                    <View style={styles.posRow}>
-                      {CONCRETE_POS.map((pos) => (
-                        <Button
-                          key={pos}
-                          label={t(`pos.${pos}`)}
-                          variant="tonal"
-                          onPress={() => {
-                            void forceWithPos(pos);
-                          }}
-                          disabled={generating || saving}
-                          style={styles.posChip}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                )}
-              </ScrollView>
-            )}
-
-            {saving && (
-              <View
-                style={[
-                  styles.savingOverlay,
-                  { backgroundColor: `${colors.surfaceContainerLow}CC` },
-                ]}
-                accessibilityLiveRegion="polite"
-              >
-                <LoadingState message={t('words.changeMeaningSaving')} />
+          <ScrollView style={styles.list} contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}>
+            {loading && (
+              <View style={[styles.loading, { gap: spacing.sm }]}>
+                <ActivityIndicator color={colors.primary} />
+                <Text color="muted">{t('sense.generating')}</Text>
               </View>
             )}
-          </View>
+            {!loading &&
+              options.map((option) => {
+                const active = option.word_sense_id === selectedId;
+                const closest = isClosestToContext(option, options);
+                return (
+                  <Pressable
+                    key={option.word_sense_id}
+                    onPress={() => setSelectedId(option.word_sense_id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Card
+                      variant="outlined"
+                      style={{
+                        borderColor: active ? colors.primary : colors.outlineVariant,
+                        backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
+                        marginBottom: 0,
+                      }}
+                    >
+                      <View style={[styles.optionHead, { gap: spacing.sm }]}>
+                        <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
+                        {closest && <Badge label={t('sense.closestToContext')} variant="success" />}
+                      </View>
+                      <SenseMeaning option={option} />
+                      {(option.examples ?? []).length > 0 && (
+                        <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
+                          &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}&rdquo;
+                        </Text>
+                      )}
+                    </Card>
+                  </Pressable>
+                );
+              })}
 
-          <View style={[styles.actions, { marginTop: spacing.md, gap: spacing.md }]}>
-            <Button
-              label={t('sense.noneMatch')}
-              variant="ghost"
-              onPress={handleNoneMatch}
-              disabled={generating || saving || loading}
-            />
-            <Button
-              label={t('words.changeMeaningConfirm')}
-              onPress={() => {
-                void handleConfirm();
-              }}
-              disabled={!selectedId || saving || loading || generating}
-              loading={saving}
-            />
-          </View>
+            <View style={{ gap: spacing.sm }}>
+              <Text variant="label" color="muted">
+                {t('add.contextLabel')}
+              </Text>
+              <Input
+                value={context}
+                onChangeText={setContext}
+                placeholder={t('add.contextPlaceholder')}
+                multiline
+                numberOfLines={3}
+                style={{ minHeight: 72 }}
+                onClear={() => setContext('')}
+              />
+              <Button
+                label={t('sense.findMore')}
+                variant="tonal"
+                onPress={() => {
+                  void handleFindMore();
+                }}
+                disabled={finding || loading}
+                loading={finding}
+              />
+            </View>
+          </ScrollView>
+
+          <Button
+            label={t('words.changeMeaningConfirm')}
+            onPress={() => {
+              void handleConfirm();
+            }}
+            disabled={!selectedId || saving || loading}
+            loading={saving}
+            style={{ marginTop: spacing.md }}
+          />
         </View>
       </View>
     </Modal>
@@ -352,45 +234,7 @@ const styles = StyleSheet.create({
   dragHandle: { alignItems: 'center', paddingVertical: 8 },
   dragIndicator: { width: 40, height: 4, borderRadius: 2 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  statusBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  body: {
-    position: 'relative',
-    minHeight: 180,
-  },
-  list: { flexGrow: 0, maxHeight: 360 },
-  generating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  posPrompt: {
-    borderTopWidth: 1,
-  },
-  posRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  posChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  savingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  list: { flexGrow: 0 },
+  loading: { alignItems: 'center', paddingVertical: 24 },
   optionHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
 });

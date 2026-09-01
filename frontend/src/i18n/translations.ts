@@ -266,6 +266,10 @@ export const en = {
   'sense.noAdditionalSenses': 'No more dictionary meanings found. Try another part of speech or add a different word.',
   'sense.addBest': 'Add best match',
   'sense.add': 'Add',
+  'sense.closestToContext': 'Closest to your sentence',
+  'sense.needContext': 'Add a sentence that shows the meaning you meant, then find more senses.',
+  'sense.findMore': 'Find more senses',
+  'sense.noAdditional': 'No additional distinct sense was found.',
 
   'import.title': 'Import from Anki',
   'import.help': 'Help',
@@ -573,6 +577,10 @@ export const ko: Record<TranslationKey, string> = {
   'sense.noAdditionalSenses': '더 이상 사전에서 의미를 찾지 못했습니다. 다른 품사를 선택하거나 다른 단어를 추가해 보세요.',
   'sense.addBest': '가장 적절한 의미 추가',
   'sense.add': '추가',
+  'sense.closestToContext': '문장과 가장 가까운 의미',
+  'sense.needContext': '의도한 의미가 드러나는 문장을 입력한 뒤 더 찾아보세요.',
+  'sense.findMore': '의미 더 찾기',
+  'sense.noAdditional': '추가로 쓸 수 있는 다른 의미를 찾지 못했습니다.',
 
   'import.title': 'Anki에서 가져오기',
   'import.help': '도움말',

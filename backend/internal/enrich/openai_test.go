@@ -206,6 +206,16 @@ func TestTokenJaccardIdentical(t *testing.T) {
 	}
 }
 
+func TestTokenJaccardExcludingDropsLemma(t *testing.T) {
+	ctx := "Please charge the battery overnight."
+	noun := "The quantity of electrically charged particles; electric charge. 전하"
+	verb := "To replenish energy stored in a battery. 충전하다"
+	stops := []string{"charge", "the", "a", "an", "to", "of", "in"}
+	if TokenJaccardExcluding(ctx, verb, stops...) <= TokenJaccardExcluding(ctx, noun, stops...) {
+		t.Fatal("expected battery verb to outrank electric-charge noun after excluding lemma and stopwords")
+	}
+}
+
 func TestDedupeSensesCollapsesNearDuplicates(t *testing.T) {
 	in := []Sense{
 		{Definition: "deliberately", NativeDefinition: "고의로", Examples: []Example{{Sentence: "a"}}},

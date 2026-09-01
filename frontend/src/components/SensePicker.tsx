@@ -4,13 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
 import type { TranslationKey } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, Text } from '../ui';
+import { Badge, Button, Card, Icon, Input, Text } from '../ui';
 import type { PartOfSpeech, SenseOption } from '../types';
-import { bestMatch } from '../utils/senses';
+import { bestMatch, isClosestToContext } from '../utils/senses';
 import { renderFormattedSentence } from '../utils/text';
 import { SenseMeaning } from './SenseMeaning';
 
-export const CONCRETE_POS: PartOfSpeech[] = [
+const CONCRETE_POS: PartOfSpeech[] = [
   'noun',
   'verb',
   'adjective',
@@ -29,9 +29,11 @@ interface SensePickerProps {
   generating: boolean;
   errorMessage?: string | null;
   suggestPosPrompt?: boolean;
+  sourceContext?: string;
+  onSourceContextChange?: (context: string) => void;
   onConfirm: (wordSenseId: string) => void;
-  onForceExisting: (wordId: string) => void;
-  onForceWithPos: (pos: PartOfSpeech) => void;
+  onForceExisting: (wordId: string, sourceContext?: string) => void;
+  onForceWithPos: (pos: PartOfSpeech, sourceContext?: string) => void;
   onClose: () => void;
 }
 
@@ -42,6 +44,8 @@ export function SensePicker({
   generating,
   errorMessage,
   suggestPosPrompt = false,
+  sourceContext = '',
+  onSourceContextChange,
   onConfirm,
   onForceExisting,
   onForceWithPos,
@@ -52,6 +56,8 @@ export function SensePicker({
   const insets = useSafeAreaInsets();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [posPrompt, setPosPrompt] = useState(false);
+  const [needContext, setNeedContext] = useState(false);
+  const [draftContext, setDraftContext] = useState('');
 
   useEffect(() => {
     if (suggestPosPrompt) {
@@ -61,10 +67,14 @@ export function SensePicker({
 
   const top = useMemo(() => bestMatch(options), [options]);
   const selected = options.find((o) => o.word_sense_id === selectedId) ?? null;
+  const resolvedContext = (draftContext || sourceContext).trim();
+  const showPosPrompt = posPrompt || suggestPosPrompt;
 
   const reset = () => {
     setSelectedId(null);
     setPosPrompt(false);
+    setNeedContext(false);
+    setDraftContext('');
   };
 
   const handleClose = () => {
@@ -86,15 +96,24 @@ export function SensePicker({
     }
   };
 
-  const handleNoneMatch = () => {
+  const proceedForce = (context: string) => {
+    onSourceContextChange?.(context);
     if (selected) {
-      onForceExisting(selected.word_id);
-    } else {
-      setPosPrompt(true);
+      onForceExisting(selected.word_id, context);
+      setNeedContext(false);
+      return;
     }
+    setNeedContext(false);
+    setPosPrompt(true);
   };
 
-  const showPosPrompt = posPrompt || suggestPosPrompt;
+  const handleNoneMatch = () => {
+    if (!resolvedContext) {
+      setNeedContext(true);
+      return;
+    }
+    proceedForce(resolvedContext);
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -139,6 +158,7 @@ export function SensePicker({
 
             {options.map((option) => {
               const active = option.word_sense_id === selectedId;
+              const closest = isClosestToContext(option, options);
               return (
                 <Pressable
                   key={option.word_sense_id}
@@ -157,6 +177,7 @@ export function SensePicker({
                     <View style={[styles.optionHead, { gap: spacing.sm }]}>
                       <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
                       {option.cefr_level && <Badge label={option.cefr_level} variant="info" />}
+                      {closest && <Badge label={t('sense.closestToContext')} variant="success" />}
                     </View>
                     <SenseMeaning option={option} />
                     {(option.examples ?? []).length > 0 && (
@@ -176,7 +197,33 @@ export function SensePicker({
               </View>
             )}
 
-            {showPosPrompt && (
+            {needContext && (
+              <View style={[styles.posPrompt, { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.sm }]}>
+                <Text variant="label" color="muted">
+                  {t('sense.needContext')}
+                </Text>
+                <Input
+                  value={draftContext}
+                  onChangeText={setDraftContext}
+                  placeholder={t('add.contextPlaceholder')}
+                  multiline
+                  numberOfLines={3}
+                  style={{ minHeight: 72 }}
+                  onClear={() => setDraftContext('')}
+                />
+                <Button
+                  label={t('sense.findMore')}
+                  onPress={() => {
+                    if (draftContext.trim()) {
+                      proceedForce(draftContext.trim());
+                    }
+                  }}
+                  disabled={!draftContext.trim() || generating}
+                />
+              </View>
+            )}
+
+            {showPosPrompt && !selected && (
               <View style={[styles.posPrompt, { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.md }]}>
                 <Text variant="label" color="muted">
                   {t('sense.pickPartOfSpeech')}
@@ -188,7 +235,7 @@ export function SensePicker({
                       label={t(`pos.${pos}`)}
                       variant="tonal"
                       onPress={() => {
-                        onForceWithPos(pos);
+                        onForceWithPos(pos, resolvedContext || undefined);
                         setPosPrompt(false);
                       }}
                       style={styles.posChip}
@@ -249,6 +296,7 @@ const styles = StyleSheet.create({
   optionHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   generating: {
     flexDirection: 'row',

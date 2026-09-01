@@ -61,17 +61,22 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 4. On a hit with missing display-language translations, app may call the enricher's `Translate` (WiktApi re-query) and upsert `sense_translations`.
 5. On a full miss, app calls the configured enricher. Default is **WiktApi** (`ORIGIN_WIKTAPI_BASE_URL`, no API key): `GET /v1/en/word/{lemma}/translations`, keep display-language glosses (e.g. `ko`), map each gloss to one sense (no examples required).
 6. In one transaction, upsert `words` and `appendSenses` (canonical text + display gloss in `sense_translations`).
-7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` still re-ranks options.
+7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard (definition + localized gloss, excluding the lemma and English stopwords so headword restatements do not dominate) and sets `similarity` on each option. Stored `meaning_order` is unchanged.
 
 If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases may miss on public WiktApi.
 
 ## Force-Generate Flow (none of these match)
 
-This is the `POST /api/words/lookup` path with `force: true`:
+This is the `POST /api/words/lookup` path with `force: true` (Select Words / Change Meaning “find more”):
 
 1. Require `force: true` plus `word_id` or a concrete `part_of_speech`.
-2. Load existing sense definitions and ask the enricher for additional glosses (WiktApi skips glosses already present).
-3. Append new senses and return them.
+2. Load existing sense definitions (for the LLM `Existing` list) and display-language gloss texts (for the propriety filter).
+3. Ask the enricher for additional glosses. WiktApi skips glosses already present. If WiktApi has nothing new it returns `ErrUnavailable`, and the Gemini/OpenAI fallback runs when `ENRICH_PRIMARY_API_KEY` is set. The LLM is steered by `source_context` and must not emit near-synonym pairs.
+4. Run `FilterProperSenses` on the new batch: drop empty rows, missing display-language glosses, long paraphrases that are not a simple gloss, and near-duplicates (token Jaccard ≥ 0.8 vs existing catalog text or others in the batch).
+5. If the filter empties the batch, return HTTP 503 `no additional distinct sense` (do not re-return the same list as success).
+6. Append survivors as shared `word_senses` / `sense_translations` and return the refreshed options, re-ranked when `source_context` is set.
+
+If no LLM key is configured and WiktApi has nothing new, force returns HTTP 503 (same enrichment-unavailable family). Typed / `personal_note` glosses are not accepted on this path.
 
 ## Change-Meaning Flow
 
