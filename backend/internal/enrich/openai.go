@@ -500,7 +500,8 @@ const systemPrompt = `You are a precise bilingual lexicographer. ` +
     }
   ]
 }
-Each sense MUST include exactly one object in "examples" (length 1).`
+Each sense MUST include exactly one object in "examples" (length 1).
+short_definition and native_short_definition must express usage meaning, never grammatical category names.`
 
 const translateSystemPrompt = `You are a precise bilingual lexicographer. ` +
 	`You return ONLY a single JSON object, no prose, no markdown fences. ` +
@@ -516,6 +517,29 @@ const translateSystemPrompt = `You are a precise bilingual lexicographer. ` +
     }
   ]
 }`
+
+func isMultiWordLemma(text string) bool {
+	return len(strings.Fields(strings.TrimSpace(text))) > 1
+}
+
+func appendGrammarLabelBan(b *strings.Builder) {
+	b.WriteString("NEVER use grammatical category names or meta labels as short_definition or native_short_definition.\n")
+	b.WriteString("Forbidden Korean examples: 관계대명사, 관계부사, 대명사, 부사, 접속사, 전치사, 조사.\n")
+	b.WriteString("Forbidden English examples: relative pronoun, relative adverb, conjunction, preposition, determiner, interjection.\n")
+	b.WriteString("Forbidden meta labels: relative reference, classificatory, subset identifier, causal, manner (as category names).\n")
+	b.WriteString("Instead use functional glosses that express what the lemma means in use (where, wherein, by which means).\n")
+}
+
+func appendPhraseGlossRules(b *strings.Builder, sourceContext string) {
+	b.WriteString("This is a multi-word phrase / function expression, not a single headword.\n")
+	b.WriteString("native_short_definition should be a short usage gloss (1-4 words or a compact pattern): ~하는 데, 그곳에서, ~인 경우에, ~하는 방식으로.\n")
+	b.WriteString("For multi-word phrases, compact ~… usage patterns ARE allowed in native_short_definition (unlike single-word headwords).\n")
+	b.WriteString("Return 2-4 clearly distinct functional senses; do not duplicate the same grammar label across senses.\n")
+	b.WriteString("Example for \"in which\": bad native_short_definition \"관계대명사\" or short_definition \"relative reference\"; good native_short_definition \"~하는 데\" or \"그곳에서\" with short_definition \"where\"; or native_short_definition \"~인 경우에\" with short_definition \"wherein\".\n")
+	if sourceContext != "" {
+		b.WriteString("Tie the primary sense's short gloss to the provided source context usage.\n")
+	}
+}
 
 func buildUserPrompt(req Request) string {
 	var b strings.Builder
@@ -549,8 +573,14 @@ func buildUserPrompt(req Request) string {
 
 	b.WriteString("Provide mutually distinct senses (different intents); do not emit near-synonym gloss pairs as separate senses.\n")
 	b.WriteString("Provide exactly one example sentence per sense.\n")
-	b.WriteString("short_definition must be a simple 1-3 word headword gloss in the word's language (cover, apple, expose) — not a sentence and not an infinitive paraphrase like \"To cover something with soil\".\n")
-	b.WriteString("native_short_definition must be a simple lexical gloss in the display language, typically one word: 덮다, 사과, 노출하다, 묻다. Do NOT write a dictionary paraphrase, pattern like \"~을 덮다\", or a clause like \"무엇을 흙이나 눈 등으로 덮어 감추다\".\n")
+	if isMultiWordLemma(req.Text) {
+		b.WriteString("short_definition must be a simple 1-3 word functional gloss in the word's language (where, wherein, by which means) — not a sentence and not a grammar-class label.\n")
+		appendPhraseGlossRules(&b, strings.TrimSpace(req.SourceContext))
+	} else {
+		b.WriteString("short_definition must be a simple 1-3 word headword gloss in the word's language (cover, apple, expose) — not a sentence and not an infinitive paraphrase like \"To cover something with soil\".\n")
+		b.WriteString("native_short_definition must be a simple lexical gloss in the display language, typically one word: 덮다, 사과, 노출하다, 묻다. Do NOT write a dictionary paraphrase, pattern like \"~을 덮다\", or a clause like \"무엇을 흙이나 눈 등으로 덮어 감추다\".\n")
+	}
+	appendGrammarLabelBan(&b)
 	b.WriteString("definition / native_definition stay the fuller current meaning (e.g. native_definition: 흙이나 눈 등으로 ~을 덮다).\n")
 	return b.String()
 }
@@ -562,7 +592,13 @@ func buildTranslatePrompt(req TranslateRequest) string {
 	fmt.Fprintf(&b, "Translate into display language code: %s\n", req.DisplayLang)
 	b.WriteString("Return one senses[] entry per input sense below, in the same order, with one examples[] translation per input example.\n")
 	b.WriteString("definition is the fuller current meaning in the display language.\n")
-	b.WriteString("short_definition must be a simple 1-word (or very short) lexical gloss in the display language, like 덮다, 사과, or 노출하다 — not a full explanatory translation.\n")
+	if isMultiWordLemma(req.WordText) {
+		b.WriteString("short_definition must be a simple functional gloss in the display language (~하는 데, 그곳에서) — not a full explanatory translation.\n")
+		b.WriteString("For this multi-word phrase, compact ~… usage patterns ARE allowed in short_definition.\n")
+	} else {
+		b.WriteString("short_definition must be a simple 1-word (or very short) lexical gloss in the display language, like 덮다, 사과, or 노출하다 — not a full explanatory translation.\n")
+	}
+	appendGrammarLabelBan(&b)
 	b.WriteString("Wrap the word's meaning in each example translation with **...** markers.\n\n")
 
 	for i, sense := range req.Senses {

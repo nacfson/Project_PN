@@ -192,6 +192,98 @@ func TestBuildUserPromptIncludesContextAndOneExample(t *testing.T) {
 	}
 }
 
+func TestBuildUserPromptForbidsGrammarClassLabels(t *testing.T) {
+	prompt := buildUserPrompt(Request{
+		Text:                   "cover",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if !strings.Contains(prompt, "NEVER use grammatical category names") {
+		t.Fatal("expected grammar-class ban in prompt")
+	}
+	if !strings.Contains(prompt, "관계대명사") {
+		t.Fatal("expected Korean grammar-label examples in ban")
+	}
+	if !strings.Contains(prompt, "relative pronoun") {
+		t.Fatal("expected English grammar-label examples in ban")
+	}
+}
+
+func TestBuildUserPromptPhraseBranchForInWhich(t *testing.T) {
+	prompt := buildUserPrompt(Request{
+		Text:                   "in which",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+		SourceContext:          "This is the house in which I was born.",
+	})
+	if !strings.Contains(prompt, "multi-word phrase / function expression") {
+		t.Fatal("expected phrase-specific block")
+	}
+	if !strings.Contains(prompt, "~하는 데") {
+		t.Fatal("expected Korean usage-pattern example")
+	}
+	if !strings.Contains(prompt, "where") {
+		t.Fatal("expected English functional gloss example")
+	}
+	if !strings.Contains(prompt, "관계대명사") {
+		t.Fatal("expected bad-example grammar label in phrase block")
+	}
+	if strings.Contains(prompt, "typically one word: 덮다") {
+		t.Fatal("single-word headword rule should not apply to phrases")
+	}
+	if !strings.Contains(prompt, "Tie the primary sense's short gloss") {
+		t.Fatal("expected source-context tie for phrase gloss")
+	}
+}
+
+func TestBuildUserPromptSingleWordOmitsPhraseOnlyRules(t *testing.T) {
+	prompt := buildUserPrompt(Request{
+		Text:                   "cover",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if strings.Contains(prompt, "multi-word phrase / function expression") {
+		t.Fatal("phrase-only block should not appear for single-word lemmas")
+	}
+	if !strings.Contains(prompt, "typically one word: 덮다") {
+		t.Fatal("expected single-word headword rule for content words")
+	}
+}
+
+func TestBuildTranslatePromptForbidsGrammarClassLabels(t *testing.T) {
+	prompt := buildTranslatePrompt(TranslateRequest{
+		WordText:     "in which",
+		LanguageCode: "en",
+		DisplayLang:  "ko",
+		Senses: []TranslateSenseInput{{
+			SenseID:    "s1",
+			Definition: "Used to refer to a place previously mentioned.",
+			Examples:   []TranslateExampleInput{{ExampleID: "e1", Sentence: "The house in which I was born."}},
+		}},
+	})
+	if !strings.Contains(prompt, "NEVER use grammatical category names") {
+		t.Fatal("expected grammar-class ban in translate prompt")
+	}
+	if !strings.Contains(prompt, "관계대명사") {
+		t.Fatal("expected Korean grammar-label examples in translate ban")
+	}
+	if !strings.Contains(prompt, "multi-word phrase") || !strings.Contains(prompt, "~하는 데") {
+		t.Fatal("expected multi-word phrase gloss guidance in translate prompt")
+	}
+}
+
+func TestIsMultiWordLemma(t *testing.T) {
+	if !isMultiWordLemma("in which") {
+		t.Fatal("expected in which to be multi-word")
+	}
+	if isMultiWordLemma("cover") {
+		t.Fatal("expected cover to be single-word")
+	}
+	if isMultiWordLemma("  ") {
+		t.Fatal("expected empty to be single-word")
+	}
+}
+
 func TestNormalizeMatchText(t *testing.T) {
 	got := NormalizeMatchText("  Intentionally,  고의로 ")
 	// Plan sample expected "intentionally 고의로"; Fields keeps punctuation on tokens.
