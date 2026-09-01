@@ -1,6 +1,6 @@
 # Central Auth Session Renewal Contract
 
-Project PN delegates authentication to `auth.nacfson.cloud`. Session renewal requires the following behaviors in the **nacfson-auth** service.
+Project PN delegates authentication to `auth.nacfson.cloud`. Session renewal is implemented in the [`central-auth/`](../../central-auth/) service (deployed as `auth-service` in the `nacfson-auth` namespace).
 
 ## Sliding cookie sessions (web)
 
