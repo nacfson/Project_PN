@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import {
+  extractSessionFromUrl,
   extractTokenFromUrl,
   parseTokenFromLaunchUrl,
   parseVerifiedEmailFromLaunchUrl,
@@ -56,6 +57,28 @@ describe('authLaunch utils', () => {
 
     it('returns null on invalid URLs', () => {
       expect(extractTokenFromUrl('')).toBeNull();
+    });
+  });
+
+  describe('extractSessionFromUrl', () => {
+    it('extracts full session from redirect URL', () => {
+      expect(
+        extractSessionFromUrl(
+          'projectpn://auth?token=access&refresh_token=refresh&expires_at=2026-12-01T00:00:00Z',
+        ),
+      ).toEqual({
+        token: 'access',
+        refresh_token: 'refresh',
+        expires_at: '2026-12-01T00:00:00Z',
+      });
+    });
+
+    it('falls back refresh token to access token when missing', () => {
+      expect(extractSessionFromUrl('projectpn://auth?token=access')).toEqual({
+        token: 'access',
+        refresh_token: 'access',
+        expires_at: expect.any(String),
+      });
     });
   });
 

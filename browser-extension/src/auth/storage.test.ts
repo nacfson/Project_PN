@@ -19,9 +19,15 @@ const store: Record<string, unknown> = {};
 } as unknown as typeof chrome;
 
 test('token round-trip', async () => {
-  await extensionStorage.setToken('abc');
+  await extensionStorage.setSession({
+    token: 'abc',
+    refresh_token: 'refresh-abc',
+    expires_at: '2099-01-01T00:00:00Z',
+  });
   expect(await extensionStorage.getToken()).toBe('abc');
-  await extensionStorage.removeToken();
+  expect(await extensionStorage.getRefreshToken()).toBe('refresh-abc');
+  expect(await extensionStorage.getExpiresAt()).toBe('2099-01-01T00:00:00Z');
+  await extensionStorage.clearSession();
   expect(await extensionStorage.getToken()).toBeNull();
 });
 

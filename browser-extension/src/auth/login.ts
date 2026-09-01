@@ -16,7 +16,13 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return;
   }
   if (message?.token && typeof message.token === 'string') {
-    extensionStorage.setToken(message.token).then(() => {
+    extensionStorage.setSession({
+      token: message.token,
+      refresh_token: typeof message.refresh_token === 'string' ? message.refresh_token : message.token,
+      expires_at: typeof message.expires_at === 'string'
+        ? message.expires_at
+        : new Date(Date.now() + 3600_000).toISOString(),
+    }).then(() => {
       sendResponse({ success: true });
     });
     return true;

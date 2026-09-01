@@ -6,7 +6,7 @@ import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
 import { sessionStorage } from '../api/sessionStorage';
-import { extractTokenFromUrl } from '../utils/authLaunch';
+import { extractSessionFromUrl } from '../utils/authLaunch';
 import { isBrowserWeb } from '../utils/platform';
 
 interface CentralAuthScreenProps {
@@ -30,9 +30,9 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
       } else {
         const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
         if (result.type === 'success') {
-          const token = extractTokenFromUrl(result.url);
-          if (token) {
-            await sessionStorage.setToken(token);
+          const session = extractSessionFromUrl(result.url);
+          if (session) {
+            await sessionStorage.setSession(session);
             if (onTokenReceived) {
               onTokenReceived();
             }

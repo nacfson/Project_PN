@@ -6,13 +6,15 @@ import { me } from './src/api/auth';
 import { onboardingStorage } from './src/api/storage';
 import { sessionStorage } from './src/api/sessionStorage';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
+import { useSessionRenewal } from './src/hooks/useSessionRenewal';
 import { AppLanguageProvider } from './src/i18n';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
-import { parseTokenFromLaunchUrl, extractTokenFromUrl } from './src/utils/authLaunch';
+import { extractSessionFromUrl, parseSessionFromLaunchUrl } from './src/utils/authLaunch';
+import { isExtensionLoginFlow, sendSessionToExtension } from './src/utils/extensionAuth';
 import { isBrowserWeb } from './src/utils/platform';
 import { onUnauthorized } from './src/api/client';
 
@@ -31,6 +33,8 @@ function LoadingScreen() {
 }
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  useSessionRenewal(true);
+
   return (
     <LanguageProvider>
       <AddQueueProvider>
@@ -64,6 +68,21 @@ function AppContent() {
     };
   }, []);
 
+  const notifyExtensionIfNeeded = useCallback(async () => {
+    if (!isBrowserWeb() || !isExtensionLoginFlow()) {
+      return;
+    }
+    const token = await sessionStorage.getToken();
+    if (!token) {
+      return;
+    }
+    sendSessionToExtension({
+      token,
+      refresh_token: (await sessionStorage.getRefreshToken()) ?? token,
+      expires_at: (await sessionStorage.getExpiresAt()) ?? new Date(Date.now() + 3600_000).toISOString(),
+    });
+  }, []);
+
   const checkAuth = useCallback(async () => {
     try {
       if (!isBrowserWeb()) {
@@ -77,15 +96,15 @@ function AppContent() {
       await me();
       setAuthState('authenticated');
       setConnectionError(null);
+      await notifyExtensionIfNeeded();
     } catch (err: any) {
       if (err && err.status === 401) {
         if (!isBrowserWeb()) {
-          await sessionStorage.removeToken();
+          await sessionStorage.clearSession();
         }
         setAuthState('unauthenticated');
         setConnectionError(null);
       } else {
-        // Keep the token saved.
         const current = authStateRef.current;
         if (current === 'unauthenticated') {
           setConnectionError(err.message || 'Could not connect to the backend server.');
@@ -96,15 +115,15 @@ function AppContent() {
         }
       }
     }
-  }, []);
+  }, [notifyExtensionIfNeeded]);
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         if (!isBrowserWeb()) {
-          const incomingToken = await parseTokenFromLaunchUrl();
-          if (incomingToken) {
-            await sessionStorage.setToken(incomingToken);
+          const incomingSession = await parseSessionFromLaunchUrl();
+          if (incomingSession) {
+            await sessionStorage.setSession(incomingSession);
           }
         }
         await checkAuth();
@@ -118,9 +137,9 @@ function AppContent() {
   useEffect(() => {
     const handleOpenURL = async (event: { url: string }) => {
       if (isBrowserWeb()) return;
-      const token = extractTokenFromUrl(event.url);
-      if (token) {
-        await sessionStorage.setToken(token);
+      const session = extractSessionFromUrl(event.url);
+      if (session) {
+        await sessionStorage.setSession(session);
         void checkAuth();
       }
     };
@@ -133,7 +152,7 @@ function AppContent() {
   useEffect(() => {
     const unsubscribe = onUnauthorized(async () => {
       if (!isBrowserWeb()) {
-        await sessionStorage.removeToken();
+        await sessionStorage.clearSession();
       }
       setAuthState('unauthenticated');
     });

@@ -32,7 +32,7 @@ async function render() {
       <button id="signOutBtn">Sign Out</button>
     `;
     document.getElementById('signOutBtn')!.addEventListener('click', async () => {
-      await extensionStorage.removeToken();
+      await extensionStorage.clearSession();
       await render();
     });
   } catch (err) {

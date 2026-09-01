@@ -1,22 +1,20 @@
 import { Linking } from 'react-native';
+import type { SessionResponse } from '@project-pn/api';
 import { isBrowserWeb } from './platform';
 
-export function extractTokenFromUrl(urlStr: string): string | null {
+function extractParamFromUrl(urlStr: string, param: string): string | null {
   try {
-    // Split into the part before # and the hash fragment.
     const hashIndex = urlStr.indexOf('#');
     const beforeHash = hashIndex === -1 ? urlStr : urlStr.substring(0, hashIndex);
     const hashPart = hashIndex === -1 ? '' : urlStr.substring(hashIndex + 1);
+    const pattern = new RegExp(`[?&]${param}=([^&#]+)`);
 
-    // 1. Look for '?token=...' or '&token=...' in the query string (before #).
-    const searchMatch = beforeHash.match(/[?&]token=([^&#]+)/);
+    const searchMatch = beforeHash.match(pattern);
     if (searchMatch) {
       return decodeURIComponent(searchMatch[1]);
     }
 
-    // 2. Look for 'token=...' inside the hash fragment.
-    //    Supports '#/dashboard?token=...' and the raw '#token=...' style used by the central auth server.
-    const hashMatch = hashPart.match(/(?:^|[?&])token=([^&#]+)/);
+    const hashMatch = hashPart.match(new RegExp(`(?:^|[?&])${param}=([^&#]+)`));
     if (hashMatch) {
       return decodeURIComponent(hashMatch[1]);
     }
@@ -27,21 +25,41 @@ export function extractTokenFromUrl(urlStr: string): string | null {
   }
 }
 
-export async function parseTokenFromLaunchUrl(): Promise<string | null> {
+export function extractTokenFromUrl(urlStr: string): string | null {
+  return extractParamFromUrl(urlStr, 'token');
+}
+
+export function extractSessionFromUrl(urlStr: string): SessionResponse | null {
+  const token = extractParamFromUrl(urlStr, 'token');
+  if (!token) {
+    return null;
+  }
+
+  return {
+    token,
+    refresh_token: extractParamFromUrl(urlStr, 'refresh_token') ?? token,
+    expires_at: extractParamFromUrl(urlStr, 'expires_at') ?? new Date(Date.now() + 3600_000).toISOString(),
+  };
+}
+
+export async function parseSessionFromLaunchUrl(): Promise<SessionResponse | null> {
   try {
     if (isBrowserWeb()) {
-      // Hosted browser web uses the HttpOnly central cookie. Tokens must never
-      // be read from, stored in, or removed from browser URLs.
       return null;
     }
     const initialUrl = await Linking.getInitialURL();
     if (initialUrl) {
-      return extractTokenFromUrl(initialUrl);
+      return extractSessionFromUrl(initialUrl);
     }
     return null;
   } catch {
     return null;
   }
+}
+
+export async function parseTokenFromLaunchUrl(): Promise<string | null> {
+  const session = await parseSessionFromLaunchUrl();
+  return session?.token ?? null;
 }
 
 export async function parseVerifiedEmailFromLaunchUrl(): Promise<string | null> {

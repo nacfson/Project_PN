@@ -1,15 +1,20 @@
+import type { SessionResponse } from './types';
+
 export interface ApiConfig {
   baseUrls: string[];
   fetchImpl?: typeof fetch;
   getToken: () => Promise<string | null>;
   authMode?: 'bearer' | 'cookie';
   getCsrfToken?: () => string | null | Promise<string | null>;
+  getRefreshToken?: () => Promise<string | null>;
+  onSessionRefreshed?: (session: SessionResponse) => void | Promise<void>;
   onUnauthorized?: () => void;
 }
 
 let config: ApiConfig | undefined;
 let lastWorkingBaseUrl: string | undefined;
 const bearerScheme = String.fromCharCode(66, 101, 97, 114, 101, 114);
+let refreshPromise: Promise<SessionResponse | null> | null = null;
 
 export function configureApi(c: ApiConfig): void {
   config = c;
@@ -65,6 +70,41 @@ function requestCredentials(): RequestCredentials | undefined {
   return usesCookieAuth() ? 'include' : undefined;
 }
 
+function canRefreshSession(path: string, options?: RequestOptions): boolean {
+  if (usesCookieAuth() || options?.auth === false || path === '/api/auth/refresh') {
+    return false;
+  }
+  return typeof getConfig().getRefreshToken === 'function';
+}
+
+async function attemptRefresh(): Promise<SessionResponse | null> {
+  const cfg = getConfig();
+  if (!cfg.getRefreshToken) {
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const refreshToken = await cfg.getRefreshToken!();
+        if (!refreshToken) {
+          return null;
+        }
+        const { refreshSession } = await import('./auth');
+        const session = await refreshSession(refreshToken);
+        await cfg.onSessionRefreshed?.(session);
+        return session;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+
+  return refreshPromise;
+}
+
 async function buildHeaders(options?: RequestOptions, mutation = false): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (!usesCookieAuth() && options?.auth !== false) {
@@ -93,7 +133,7 @@ async function fetchWithTimeout(
   init: RequestInit,
   timeoutMs: number
 ): Promise<Response> {
-  let timeoutId: any;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       reject(new Error('Request timed out'));
@@ -146,21 +186,39 @@ async function fetchWithFallback(path: string, init: RequestInit): Promise<Respo
   throw new Error(`All API endpoints failed: ${errors.join('; ')}`);
 }
 
+async function handleUnauthorized(
+  response: Response,
+  parsed: unknown,
+  path: string,
+  options: RequestOptions | undefined,
+  retry: () => Promise<Response>,
+): Promise<Response> {
+  if (response.status !== 401) {
+    return response;
+  }
+
+  if (canRefreshSession(path, options)) {
+    const refreshed = await attemptRefresh();
+    if (refreshed) {
+      return retry();
+    }
+  }
+
+  notifyUnauthorized();
+  return response;
+}
+
 function throwOnError(response: Response, parsed: unknown): void {
   if (!response.ok) {
-    if (response.status === 401) {
-      notifyUnauthorized();
-    }
     const message = (parsed as ErrorBody | null)?.error ?? `Request failed (${response.status})`;
     throw new ApiError(response.status, message);
   }
 }
 
 export async function getJson<TResponse>(path: string, options?: RequestOptions): Promise<TResponse> {
-  let response: Response;
-  try {
+  const execute = async (): Promise<Response> => {
     const headers = await buildHeaders(options);
-    response = await fetchWithFallback(path, {
+    return fetchWithFallback(path, {
       method: 'GET',
       headers: {
         ...headers,
@@ -169,12 +227,22 @@ export async function getJson<TResponse>(path: string, options?: RequestOptions)
       },
       credentials: requestCredentials(),
     });
+  };
+
+  let response: Response;
+  try {
+    response = await execute();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new ApiError(0, 'Network request failed: ' + msg);
   }
 
-  const parsed = await parseResponse(response);
+  let parsed = await parseResponse(response);
+  const originalOk = response.ok;
+  response = await handleUnauthorized(response, parsed, path, options, execute);
+  if (!originalOk || !response.ok) {
+    parsed = await parseResponse(response);
+  }
   throwOnError(response, parsed);
   return parsed as TResponse;
 }
@@ -184,19 +252,28 @@ export async function postJson<TResponse>(
   body: unknown,
   options?: RequestOptions,
 ): Promise<TResponse> {
-  let response: Response;
-  try {
-    response = await fetchWithFallback(path, {
+  const execute = async (): Promise<Response> => {
+    return fetchWithFallback(path, {
       method: 'POST',
       headers: await buildHeaders(options, true),
       body: JSON.stringify(body),
       credentials: requestCredentials(),
     });
+  };
+
+  let response: Response;
+  try {
+    response = await execute();
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
   }
 
-  const parsed = await parseResponse(response);
+  let parsed = await parseResponse(response);
+  const originalOk = response.ok;
+  response = await handleUnauthorized(response, parsed, path, options, execute);
+  if (!originalOk || !response.ok) {
+    parsed = await parseResponse(response);
+  }
   throwOnError(response, parsed);
   return parsed as TResponse;
 }
@@ -206,19 +283,28 @@ export async function patchJson<TResponse>(
   body: unknown,
   options?: RequestOptions,
 ): Promise<TResponse> {
-  let response: Response;
-  try {
-    response = await fetchWithFallback(path, {
+  const execute = async (): Promise<Response> => {
+    return fetchWithFallback(path, {
       method: 'PATCH',
       headers: await buildHeaders(options, true),
       body: JSON.stringify(body),
       credentials: requestCredentials(),
     });
+  };
+
+  let response: Response;
+  try {
+    response = await execute();
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
   }
 
-  const parsed = await parseResponse(response);
+  let parsed = await parseResponse(response);
+  const originalOk = response.ok;
+  response = await handleUnauthorized(response, parsed, path, options, execute);
+  if (!originalOk || !response.ok) {
+    parsed = await parseResponse(response);
+  }
   throwOnError(response, parsed);
   return parsed as TResponse;
 }
@@ -227,18 +313,27 @@ export async function deleteJson<TResponse>(
   path: string,
   options?: RequestOptions,
 ): Promise<TResponse> {
-  let response: Response;
-  try {
-    response = await fetchWithFallback(path, {
+  const execute = async (): Promise<Response> => {
+    return fetchWithFallback(path, {
       method: 'DELETE',
       headers: await buildHeaders(options, true),
       credentials: requestCredentials(),
     });
+  };
+
+  let response: Response;
+  try {
+    response = await execute();
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
   }
 
-  const parsed = await parseResponse(response);
+  let parsed = await parseResponse(response);
+  const originalOk = response.ok;
+  response = await handleUnauthorized(response, parsed, path, options, execute);
+  if (!originalOk || !response.ok) {
+    parsed = await parseResponse(response);
+  }
   throwOnError(response, parsed);
   return parsed as TResponse;
 }
@@ -248,33 +343,42 @@ export async function postFormData<TResponse>(
   formData: FormData,
   options?: RequestOptions,
 ): Promise<TResponse> {
-  const headers: Record<string, string> = {};
-  if (!usesCookieAuth() && options?.auth !== false) {
-    const token = await getConfig().getToken();
-    if (token) {
-      headers.Authorization = `${bearerScheme} ${token}`;
+  const execute = async (): Promise<Response> => {
+    const headers: Record<string, string> = {};
+    if (!usesCookieAuth() && options?.auth !== false) {
+      const token = await getConfig().getToken();
+      if (token) {
+        headers.Authorization = `${bearerScheme} ${token}`;
+      }
     }
-  }
-  if (usesCookieAuth()) {
-    const csrfToken = await getConfig().getCsrfToken?.();
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
+    if (usesCookieAuth()) {
+      const csrfToken = await getConfig().getCsrfToken?.();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
     }
-  }
 
-  let response: Response;
-  try {
-    response = await fetchWithFallback(path, {
+    return fetchWithFallback(path, {
       method: 'POST',
       headers,
       body: formData,
       credentials: requestCredentials(),
     });
+  };
+
+  let response: Response;
+  try {
+    response = await execute();
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
   }
 
-  const parsed = await parseResponse(response);
+  let parsed = await parseResponse(response);
+  const originalOk = response.ok;
+  response = await handleUnauthorized(response, parsed, path, options, execute);
+  if (!originalOk || !response.ok) {
+    parsed = await parseResponse(response);
+  }
   throwOnError(response, parsed);
   return parsed as TResponse;
 }
@@ -284,20 +388,28 @@ export async function postNoContent(
   body?: unknown,
   options?: RequestOptions,
 ): Promise<void> {
-  let response: Response;
-  try {
-    response = await fetchWithFallback(path, {
+  const execute = async (): Promise<Response> => {
+    return fetchWithFallback(path, {
       method: 'POST',
       headers: await buildHeaders(options, true),
       body: body !== undefined ? JSON.stringify(body) : undefined,
       credentials: requestCredentials(),
     });
+  };
+
+  let response: Response;
+  try {
+    response = await execute();
   } catch {
     throw new ApiError(0, 'Network request failed. Is the backend running?');
   }
 
   if (!response.ok) {
-    const parsed = await parseResponse(response);
-    throwOnError(response, parsed);
+    let parsed = await parseResponse(response);
+    response = await handleUnauthorized(response, parsed, path, options, execute);
+    if (!response.ok) {
+      parsed = await parseResponse(response);
+      throwOnError(response, parsed);
+    }
   }
 }

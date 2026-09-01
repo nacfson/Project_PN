@@ -38,11 +38,20 @@ configureApi({
     }
     return sessionStorage.getToken();
   },
+  getRefreshToken: async () => {
+    if (resolveAuthMode() === 'cookie') {
+      return null;
+    }
+    return sessionStorage.getRefreshToken();
+  },
+  onSessionRefreshed: async (session) => {
+    await sessionStorage.setSession(session);
+  },
   getCsrfToken,
   onUnauthorized: () => {
     if (!isBrowserWeb()) {
-      sessionStorage.removeToken().catch((err) => {
-        console.error('Failed to clear token on 401:', err);
+      sessionStorage.clearSession().catch((err) => {
+        console.error('Failed to clear session on 401:', err);
       });
     }
   },

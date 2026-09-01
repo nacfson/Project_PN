@@ -176,6 +176,7 @@ export interface DueItem {
 
 export interface SessionResponse {
   token: string;
+  refresh_token: string;
   expires_at: string;
 }
 

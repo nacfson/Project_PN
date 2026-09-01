@@ -58,6 +58,48 @@ test('throws ApiError on non-ok response', async () => {
   await expect(getJson('/test')).rejects.toBeInstanceOf(ApiError);
 });
 
+test('retries once after refreshing an expired bearer session', async () => {
+  const onSessionRefreshed = jest.fn();
+  configureApi({
+    baseUrls: ['http://localhost:9999'],
+    getToken: async () => 'new-access',
+    getRefreshToken: async () => 'old-refresh',
+    onSessionRefreshed,
+  });
+
+  global.fetch = jest
+    .fn()
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => JSON.stringify({ error: 'unauthorized' }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_at: '2099-01-01T00:00:00Z',
+        }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+
+  const result = await getJson<{ ok: boolean }>('/api/auth/me');
+  expect(result.ok).toBe(true);
+  expect(global.fetch).toHaveBeenCalledTimes(3);
+  expect(onSessionRefreshed).toHaveBeenCalledWith({
+    token: 'new-access',
+    refresh_token: 'new-refresh',
+    expires_at: '2099-01-01T00:00:00Z',
+  });
+});
+
 test('tries fallback URLs', async () => {
   configureApi({
     baseUrls: ['http://first', 'http://second'],
