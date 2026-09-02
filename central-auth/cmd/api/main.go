@@ -18,6 +18,8 @@ import (
 	"github.com/nacfson/central-auth/internal/config"
 	"github.com/nacfson/central-auth/internal/db"
 	httpapi "github.com/nacfson/central-auth/internal/httpapi"
+	"github.com/nacfson/central-auth/internal/mail"
+	"github.com/nacfson/central-auth/internal/oauth"
 	"github.com/nacfson/central-auth/internal/session"
 )
 
@@ -41,7 +43,12 @@ func main() {
 	defer pool.Close()
 
 	sessions := session.NewService(pool, cfg)
-	router := httpapi.NewRouter(sessions, cfg)
+	google := oauth.NewGoogleService(pool, cfg, sessions)
+	var mailer mail.Mailer
+	if cfg.EmailProvider == "resend" && cfg.ResendAPIKey != "" && cfg.ResendFromEmail != "" {
+		mailer = mail.NewResendMailer(cfg.ResendAPIKey, cfg.ResendFromEmail)
+	}
+	router := httpapi.NewRouter(sessions, google, mailer, cfg)
 	server := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           router,
