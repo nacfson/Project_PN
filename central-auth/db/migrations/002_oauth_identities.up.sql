@@ -1,4 +1,4 @@
-create table user_identities (
+create table if not exists user_identities (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references users(id) on delete cascade,
     provider text not null check (provider in ('google', 'magic_link')),
@@ -15,7 +15,7 @@ create unique index user_identities_one_google_per_user
 create unique index user_identities_one_magic_per_user
     on user_identities (user_id) where provider = 'magic_link';
 
-create table oauth_states (
+create table if not exists oauth_states (
     state_hash text primary key,
     redirect_url text not null,
     expires_at timestamptz not null

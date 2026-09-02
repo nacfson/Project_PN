@@ -27,6 +27,11 @@ type Config struct {
 	EmailProvider        string
 	ResendAPIKey         string
 	ResendFromEmail      string
+	SMTPHost             string
+	SMTPPort             string
+	SMTPUser             string
+	SMTPPass             string
+	SMTPFrom             string
 }
 
 func Load() Config {
@@ -62,7 +67,16 @@ func Load() Config {
 		EmailProvider:        strings.ToLower(strings.TrimSpace(os.Getenv("EMAIL_PROVIDER"))),
 		ResendAPIKey:         strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
 		ResendFromEmail:      strings.TrimSpace(os.Getenv("RESEND_FROM_EMAIL")),
+		SMTPHost:             strings.TrimSpace(os.Getenv("SMTP_HOST")),
+		SMTPPort:             strings.TrimSpace(os.Getenv("SMTP_PORT")),
+		SMTPUser:             strings.TrimSpace(os.Getenv("SMTP_USER")),
+		SMTPPass:             os.Getenv("SMTP_PASS"),
+		SMTPFrom:             strings.TrimSpace(os.Getenv("SMTP_FROM")),
 	}
+}
+
+func (c Config) SMTPConfigured() bool {
+	return c.SMTPHost != "" && c.SMTPFrom != ""
 }
 
 func (c Config) GoogleConfigured() bool {
