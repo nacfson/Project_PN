@@ -199,6 +199,32 @@ export interface MeResponse {
   target_language: string;
   ui_language: string;
   active_language: UserLanguage;
+  link_recommendation?: LinkRecommendation | null;
+  merge_suggestion?: MergeSuggestion | null;
+  linked_providers?: LinkedProvider[];
+}
+
+export type AuthProvider = 'google' | 'nacfson' | 'magic_link';
+
+export interface LinkedProvider {
+  provider: AuthProvider;
+  email: string;
+  linked_at: string;
+}
+
+export interface LinkRecommendation {
+  provider: AuthProvider;
+  email: string;
+}
+
+export interface MergeSuggestion {
+  source_user_id: string;
+  source_email: string;
+  domain: string;
+}
+
+export interface MergeRequestResponse {
+  id: string;
 }
 
 export interface LanguagePair {

@@ -32,6 +32,20 @@ Optional enricher overrides (defaults apply when empty):
 
 Configure these in **Cursor environment secrets** for the production environment linked to Oracle Cloud. After updating a secret, roll out the affected Deployment so pods pick up the new value (or rely on your Cursor-managed sync if configured).
 
+## nacfson-auth secrets (`auth-service` namespace)
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_CLIENT_ID` | Google OAuth web client id |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `PUBLIC_BASE_URL` | `https://auth.nacfson.cloud` |
+| `ADMIN_EMAILS` | Comma-separated admin emails (e.g. `nacfson@gmail.com`) |
+| `RESEND_API_KEY` | Magic-link email delivery (Resend) |
+| `RESEND_FROM_EMAIL` | Sender address for magic-link mail |
+| `AUTH_SESSION_INTERNAL_TOKEN` | Must match Project PN backend |
+
+Rollout note: migration `002_oauth_identities` revokes all active sessions (forced re-login).
+
 ## Cloud Agent development secrets
 
 For Cursor Cloud Agents working in this repo:

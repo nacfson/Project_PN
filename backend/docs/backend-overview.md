@@ -65,7 +65,12 @@ Requires `Authorization: Bearer <token>`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/auth/me` | Current user profile (`email_verified`, languages, etc.). |
+| `GET` | `/api/auth/me` | Current user profile, linked providers, and optional same-email link recommendation. |
+| `GET` | `/api/auth/linked-providers` | List provider identities linked to the current user. |
+| `POST` | `/api/auth/link-provider` | Confirm linking the current sign-in provider to the existing account (same email). |
+| `GET` | `/api/auth/merge-suggestions` | Soft hints for manual account merge (e.g. matching email domain). |
+| `POST` | `/api/auth/merge-requests` | Start a merge request to another account (target must confirm while logged in). |
+| `POST` | `/api/auth/merge-requests/{id}/confirm` | Confirm merge as the target user; unions vocabulary and deletes the source user. |
 | `POST` | `/api/auth/logout` | Revoke current bearer session. 204. |
 
 ### Learning (protected)
@@ -84,11 +89,16 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 ## Authentication
 
-The backend delegates authentication to an external Nacfson Cloud service (`CENTRAL_AUTH_URL`). Users sign in with a magic link on `auth.nacfson.cloud`; the client then sends the session token as `Authorization: Bearer <token>` on every API request. The backend validates each token by calling the central auth server's `GET /api/auth/session` endpoint via `CentralClient.ValidateSession()`.
+The backend delegates authentication to **central-auth** (`CENTRAL_AUTH_URL`, public host `auth.nacfson.cloud`). Users sign in on the hosted login page with **Google OAuth** (primary) or **magic link** (secondary). The client sends the session token as `Authorization: Bearer <token>` on every API request. The backend validates each token via `CentralClient.ValidateSession()` (`GET /api/auth/session`), which returns `auth_provider` and `identity` (`provider`, `provider_subject`).
 
-On first contact, `EnsureCentralUser()` provisions a local `users` row (with `user_identities` linking) using the identity returned by the central auth server. Subsequent requests resolve the existing local user via `user_identities(provider='nacfson', provider_subject)`.
+`EnsureCentralUser()` provisions or resolves a local `users` row and `user_identities` rows:
 
-Auth configuration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`) is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
+- Magic link → `user_identities(provider='nacfson', provider_subject=<central user id>)`
+- Google → `user_identities(provider='google', provider_subject=<google sub>)`
+
+When the same email already exists under another provider, the backend returns a **link recommendation** in `GET /api/auth/me` but does **not** auto-insert the identity until the user confirms via `POST /api/auth/link-provider`. Different emails require manual merge (`account_merge_requests`). Provider unlink is not supported in v1.
+
+Auth configuration is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
 
 ## Production Deployment (Oracle Cloud)
 

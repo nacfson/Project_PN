@@ -15,6 +15,6 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 describe('CentralAuthScreen', () => {
   it('renders the central redirect buttons', async () => {
     await render(<CentralAuthScreen />, { wrapper: Wrapper });
-    expect(screen.getByText('Sign In with Nacfson Cloud')).toBeTruthy();
+    expect(screen.getByText('Continue to Sign In')).toBeTruthy();
   });
 });

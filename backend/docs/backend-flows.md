@@ -3,18 +3,25 @@
 ## Central Auth Flow
 
 1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
-2. Nacfson Cloud sends a magic-link email and, after the user opens the link, redirects back to the app with session credentials in the URL (`token`, `refresh_token`, `expires_at` via `?` or `#`).
-3. Bearer clients store the full session (`expo-secure-store` on native, `localStorage` on Tauri). Hosted browser web uses the HttpOnly `nacfson_session` cookie instead.
-4. Bearer clients send `Authorization: Bearer <token>` on protected API requests. Browser web sends the session cookie with `credentials: include`.
-5. Backend middleware validates the session via central auth (`GET /api/auth/session` for bearer, `GET /api/internal/cookie-session` for cookies).
-6. Central auth returns identity plus `expires_at`. Cookie validation slides `expires_at` forward on activity when the session is still valid.
-7. Bearer clients renew access tokens with `POST /api/auth/refresh` (proxied by Project PN) before expiry or after a 401.
-8. Backend calls `EnsureCentralUser()` which provisions or resolves the local user row.
-9. `POST /api/auth/logout` revokes the current central session.
+2. User signs in with **Google (primary)** or requests a **magic-link email** (secondary).
+3. After authentication, central auth redirects back to the app with session credentials in the URL (`token`, `refresh_token`, `expires_at` via `?` or `#`) or sets the HttpOnly `nacfson_session` cookie for hosted web.
+4. Bearer clients store the full session (`expo-secure-store` on native, `localStorage` on Tauri). Hosted browser web uses the HttpOnly `nacfson_session` cookie instead.
+5. Bearer clients send `Authorization: Bearer <token>` on protected API requests. Browser web sends the session cookie with `credentials: include`.
+6. Backend middleware validates the session via central auth (`GET /api/auth/session` for bearer, `GET /api/internal/cookie-session` for cookies).
+7. Central auth returns `auth_provider`, `identity`, user, and `expires_at`. Cookie validation slides `expires_at` forward on activity when the session is still valid.
+8. Bearer clients renew access tokens with `POST /api/auth/refresh` (proxied by Project PN) before expiry or after a 401.
+9. Backend calls `EnsureCentralUser()` which provisions or resolves the local user row and may return a `link_recommendation` when a second provider matches an existing email.
+10. `POST /api/auth/link-provider` confirms linking a recommended provider identity to the existing user.
+11. `POST /api/auth/logout` revokes the current central session.
 
 See `backend/docs/central-auth-session-renewal.md` for the external auth-service contract.
 
-Password login is not used. Sign-in is magic-link-only on the central auth service.
+## Integrated Accounts
+
+- Providers: `google` (Google OAuth) and `nacfson` (magic link / central auth user id).
+- Same verified email: UI recommends linking; user confirms via `POST /api/auth/link-provider`.
+- Different emails, same domain: soft merge hint in Settings; manual merge via `POST /api/auth/merge-requests` + confirm (target user logged in).
+- Word lists are unioned on merge; duplicate `(user, word_sense)` rows keep the target account schedule.
 
 ## Add-Word Flow
 

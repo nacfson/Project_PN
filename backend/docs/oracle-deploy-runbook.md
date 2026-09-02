@@ -99,6 +99,16 @@ Do not put secrets in this repo or in GHCR image layers.
 
 Auth service and ProcessManager use separate namespaces and images. See `~/.cursor/skills/deploy-nacfson-project/SKILL.md` on your machine (ProcessManager repo), not this runbook.
 
+### Integrated accounts rollout (Google OAuth + migration 000023)
+
+Deploy **central-auth first**, then Project PN backend, then frontend:
+
+1. **central-auth** (`nacfson-auth` namespace): apply migration `002_oauth_identities` (revokes all sessions — users must sign in again). Configure Cursor secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL`, `ADMIN_EMAILS`, and optional `RESEND_API_KEY` for magic-link email. GCP OAuth redirect URI: `https://auth.nacfson.cloud/auth/google/callback`.
+2. **Project PN backend**: run migration `000023_integrated_accounts` (adds `linked_at`, merge tables, provider unique indexes).
+3. **Frontend**: roll out SPA so web users see Google login redirect and link/merge UI.
+
+Expect a **forced re-login** for all users after central-auth migration 002. No pre-deploy SQL on the PN database is required.
+
 ## Troubleshooting
 
 See [`deploy/deploy-exception-runbook.md`](../../deploy/deploy-exception-runbook.md).
