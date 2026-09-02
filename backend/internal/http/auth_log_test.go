@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -75,21 +76,28 @@ func TestAuthRequireVerifiedLogsForUnverifiedUser(t *testing.T) {
 
 func TestAuthMeLogsIdentityConfirmation(t *testing.T) {
 	logger := &fakeLogger{}
-	h := &authHandler{logger: logger}
+	_, authSvc := testAuthRouter(t)
+	h := &authHandler{svc: authSvc, logger: logger}
 
+	ctx := context.Background()
+	email := uniqueEmail("me-log")
+	authResult, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
+		ID:    "central-" + email,
+		Email: email,
+	}, "magic_link"))
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	user := authResult.User
 	verifiedAt := time.Now().UTC()
+	user.EmailVerifiedAt = &verifiedAt
+
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	ctx := withUser(req.Context(), auth.User{
-		ID:              "user-1",
-		Email:           "me@example.com",
-		EmailVerifiedAt: &verifiedAt,
-		NativeLanguage:  "ko",
-		TargetLanguage:  "en",
-		UILanguage:      "ko",
-	})
+	reqCtx := withUser(req.Context(), user)
+	reqCtx = withAuthResult(reqCtx, authResult)
 	rec := httptest.NewRecorder()
 
-	h.me(rec, req.WithContext(ctx))
+	h.me(rec, req.WithContext(reqCtx))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)

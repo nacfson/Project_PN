@@ -20,13 +20,14 @@ func TestDeckCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	emailAddr := token[6:]
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("ensure central user: %v", err)
 	}
+	user := result.User
 
 	// List decks ensures a default deck for the active language.
 	listReq := authRequest(t, http.MethodGet, "/api/decks", "", token)
@@ -135,13 +136,14 @@ func TestDeckMoveItemsRequiresMatchingLanguage(t *testing.T) {
 	ctx := context.Background()
 
 	emailAddr := token[6:]
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("ensure central user: %v", err)
 	}
+	user := result.User
 
 	// Add a second language pair so we can create a deck for it.
 	if _, err := authSvc.AddUserLanguage(ctx, user.ID, "es", "en", false); err != nil {

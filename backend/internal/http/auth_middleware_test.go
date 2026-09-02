@@ -14,8 +14,8 @@ type fakeCentralUserService struct {
 	user auth.User
 }
 
-func (f fakeCentralUserService) EnsureCentralUser(_ context.Context, _ auth.CentralUser) (auth.User, error) {
-	return f.user, nil
+func (f fakeCentralUserService) EnsureCentralUser(_ context.Context, _ auth.CentralSession) (auth.AuthResult, error) {
+	return auth.AuthResult{User: f.user}, nil
 }
 
 func TestCentralAuthMiddleware_RejectsProxyHeaders(t *testing.T) {

@@ -47,7 +47,7 @@ func testServiceWithOptions(t *testing.T, opts Options) *Service {
 	}
 	t.Cleanup(pool.Close)
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, user_identities, account_merge_requests CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -66,15 +66,16 @@ func TestEnsureCentralUser(t *testing.T) {
 	ctx := context.Background()
 	emailAddr := uniqueEmail("central")
 
-	central := CentralUser{
+	central := SessionFromCentralUser(CentralUser{
 		ID:    "provider-id-123",
 		Email: emailAddr,
-	}
+	}, "magic_link")
 
-	user, err := svc.EnsureCentralUser(ctx, central)
+	result, err := svc.EnsureCentralUser(ctx, central)
 	if err != nil {
 		t.Fatalf("EnsureCentralUser: %v", err)
 	}
+	user := result.User
 
 	if user.Email != emailAddr {
 		t.Fatalf("expected email %q, got %q", emailAddr, user.Email)

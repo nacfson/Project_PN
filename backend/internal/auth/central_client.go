@@ -20,8 +20,10 @@ type CentralUser struct {
 }
 
 type CentralSession struct {
-	ExpiresAt time.Time   `json:"expires_at"`
-	User      CentralUser `json:"user"`
+	ExpiresAt    time.Time       `json:"expires_at"`
+	AuthProvider string          `json:"auth_provider"`
+	Identity     CentralIdentity `json:"identity"`
+	User         CentralUser     `json:"user"`
 }
 
 type RefreshSessionResponse struct {
@@ -65,10 +67,16 @@ func NewCentralClientWithInternalAuth(publicURL, internalURL, internalToken stri
 
 func (c *CentralClient) ValidateSession(ctx context.Context, token string) (CentralSession, error) {
 	if token == "mock-dev-token" {
+		devID := "00000000-0000-0000-0000-000000000001"
 		return CentralSession{
-			ExpiresAt: time.Now().Add(720 * time.Hour),
+			ExpiresAt:    time.Now().Add(720 * time.Hour),
+			AuthProvider: "magic_link",
+			Identity: CentralIdentity{
+				Provider:        "magic_link",
+				ProviderSubject: devID,
+			},
 			User: CentralUser{
-				ID:      "00000000-0000-0000-0000-000000000001",
+				ID:      devID,
 				Email:   "dev@project-pn.local",
 				IsAdmin: true,
 			},
@@ -155,10 +163,12 @@ func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue s
 	}
 
 	var payload struct {
-		UserID    string    `json:"user_id"`
-		Email     string    `json:"email"`
-		IsAdmin   bool      `json:"is_admin"`
-		ExpiresAt time.Time `json:"expires_at"`
+		UserID        string    `json:"user_id"`
+		Email         string    `json:"email"`
+		IsAdmin       bool      `json:"is_admin"`
+		ExpiresAt     time.Time `json:"expires_at"`
+		AuthProvider  string    `json:"auth_provider"`
+		Identity      CentralIdentity `json:"identity"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		slog.Error("auth: failed to decode central cookie session", "error", err)
@@ -172,8 +182,19 @@ func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue s
 		return CentralSession{}, ErrInvalidToken
 	}
 
+	authProvider := payload.AuthProvider
+	identity := payload.Identity
+	if authProvider == "" {
+		authProvider = "magic_link"
+	}
+	if identity.ProviderSubject == "" {
+		identity = CentralIdentity{Provider: authProvider, ProviderSubject: payload.UserID}
+	}
+
 	return CentralSession{
-		ExpiresAt: payload.ExpiresAt,
+		ExpiresAt:    payload.ExpiresAt,
+		AuthProvider: authProvider,
+		Identity:     identity,
 		User: CentralUser{
 			ID:      payload.UserID,
 			Email:   NormalizeEmail(payload.Email),
