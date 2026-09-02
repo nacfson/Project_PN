@@ -32,19 +32,50 @@ Optional enricher overrides (defaults apply when empty):
 
 Configure these in **Cursor environment secrets** for the production environment linked to Oracle Cloud. After updating a secret, roll out the affected Deployment so pods pick up the new value (or rely on your Cursor-managed sync if configured).
 
-## nacfson-auth secrets (`auth-service` namespace)
+## nacfson-auth secrets (`nacfson-auth` namespace)
+
+Production `auth-service` runs **central-auth** (`ghcr.io/nacfson/central-auth`), not ProcessManager. Secrets are mounted from k8s `auth-bootstrap` and `auth-oauth-secrets`.
 
 | Variable | Purpose |
 |----------|---------|
 | `GOOGLE_CLIENT_ID` | Google OAuth web client id |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `PUBLIC_BASE_URL` | `https://auth.nacfson.cloud` |
-| `ADMIN_EMAILS` | Comma-separated admin emails (e.g. `nacfson@gmail.com`) |
-| `RESEND_API_KEY` | Magic-link email delivery (Resend) |
-| `RESEND_FROM_EMAIL` | Sender address for magic-link mail |
+| `ADMIN_EMAILS` | Comma-separated admin emails |
 | `AUTH_SESSION_INTERNAL_TOKEN` | Must match Project PN backend |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Magic-link email (production uses SMTP via `auth-bootstrap`) |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Optional Resend fallback when SMTP is not configured |
+
+GCP OAuth redirect URI (Web client): `https://auth.nacfson.cloud/auth/google/callback`.
 
 Rollout note: migration `002_oauth_identities` revokes all active sessions (forced re-login).
+
+### Sync Google OAuth to production
+
+After adding or rotating `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in **Cursor environment secrets**, sync them into the cluster (never commit values):
+
+```bash
+# Verify lengths only — never log secret values
+echo "GOOGLE_CLIENT_ID len=${#GOOGLE_CLIENT_ID}"
+echo "GOOGLE_CLIENT_SECRET len=${#GOOGLE_CLIENT_SECRET}"
+
+./scripts/sync-auth-google-secrets.sh
+```
+
+Requires Cursor secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DEPLOY_SSH_HOST`, `SSH_PRIVATE_KEY` (optional `DEPLOY_SSH_USER`, default `opc`).
+
+The script updates both `auth-oauth-secrets` and `auth-bootstrap` (deployment reads Google keys from both), then restarts `auth-service`.
+
+Verify:
+
+```bash
+curl -sS https://auth.nacfson.cloud/login | grep -E 'google-btn disabled|Sign in with Google'
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+  "https://auth.nacfson.cloud/auth/google?rd=${APP_PUBLIC_URL}"
+# Expect: active button (no "disabled"), 302 redirect to accounts.google.com
+```
+
+Do **not** create empty placeholder secrets — empty keys disable the Google button with "Google sign-in is not configured for this build."
 
 ## Cloud Agent development secrets
 
@@ -76,3 +107,4 @@ curl -sS -X POST '${APP_PUBLIC_URL}/api/words/lookup' \
 - [`oracle-deploy-runbook.md`](oracle-deploy-runbook.md) — image publish and k3s rollout
 - [`ghcr-deploy.md`](ghcr-deploy.md) — GHCR image workflow
 - [`go-backend-setup.md`](go-backend-setup.md) — local dev env vars
+- [`../../docs/git-branches-and-worktrees.md`](../../docs/git-branches-and-worktrees.md) — branch and worktree conventions

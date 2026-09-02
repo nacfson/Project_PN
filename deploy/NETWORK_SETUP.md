@@ -11,7 +11,7 @@ Client → Oracle host nginx (TLS :443)
       → project-pn-frontend / project-pn-backend (namespace project-pn)
 ```
 
-Central auth: `auth.nacfson.cloud` → `auth-service` in namespace `nacfson-auth`.
+Central auth: `auth.nacfson.cloud` → `auth-service` (central-auth) in namespace `nacfson-auth`.
 
 ## Public endpoints
 
@@ -50,7 +50,7 @@ If you need the same hostname on home Wi‑Fi without hairpin NAT, use split DNS
 
 See [`backend/docs/oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md).
 
-Secrets: [`backend/docs/cursor-secrets.md`](../backend/docs/cursor-secrets.md).
+Secrets: [`backend/docs/cursor-secrets.md`](../backend/docs/cursor-secrets.md) (includes `scripts/sync-auth-google-secrets.sh` for Google OAuth).
 
 ## Removed legacy
 
