@@ -53,7 +53,30 @@ Wrong message vs bad key:
 
 **Cause:** Central auth misconfiguration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`, or `AUTH_SESSION_INTERNAL_TOKEN`).
 
-**Fix:** Verify auth pods in `nacfson-auth` and session secret alignment. Auth rolls use ProcessManager deploy skill, not Project PN Compose.
+**Fix:** Verify `auth-service` pods in `nacfson-auth` (central-auth, not ProcessManager). Align `AUTH_SESSION_INTERNAL_TOKEN` between Project PN backend and `auth-bootstrap`. Roll auth via [`oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md).
+
+---
+
+## Google sign-in disabled on `auth.nacfson.cloud/login`
+
+**Symptom:** Grey “Sign in with Google” button; hint “Google sign-in is not configured for this build.”
+
+**Cause:** `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` empty in k8s (`auth-oauth-secrets` or `auth-bootstrap`).
+
+**Fix:**
+
+1. Add both values to **Cursor environment secrets** (not git).
+2. From a Cloud Agent session with deploy SSH secrets:
+
+```sh
+echo "GOOGLE_CLIENT_ID len=${#GOOGLE_CLIENT_ID}"
+echo "GOOGLE_CLIENT_SECRET len=${#GOOGLE_CLIENT_SECRET}"
+./scripts/sync-auth-google-secrets.sh
+```
+
+3. Confirm `/auth/google?rd=...` returns `302` to `accounts.google.com` (not `200` HTML error).
+
+GCP Console OAuth client must include redirect URI `https://auth.nacfson.cloud/auth/google/callback`.
 
 ---
 

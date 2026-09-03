@@ -11,7 +11,7 @@ import (
 )
 
 type centralUserEnsurer interface {
-	EnsureCentralUser(ctx context.Context, central auth.CentralUser) (auth.User, error)
+	EnsureCentralUser(ctx context.Context, session auth.CentralSession) (auth.AuthResult, error)
 }
 
 func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger admin.Logger) func(http.Handler) http.Handler {
@@ -67,13 +67,14 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 				}
 			}
 
-			user, err := svc.EnsureCentralUser(r.Context(), session.User)
+			authResult, err := svc.EnsureCentralUser(r.Context(), session)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "internal error")
 				return
 			}
 			ctx := withAuthSession(r.Context(), credentials)
-			next.ServeHTTP(w, r.WithContext(withUser(ctx, user)))
+			ctx = withAuthResult(ctx, authResult)
+			next.ServeHTTP(w, r.WithContext(withUser(ctx, authResult.User)))
 		})
 	}
 }

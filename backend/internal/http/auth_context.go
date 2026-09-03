@@ -13,6 +13,7 @@ type contextKey string
 const (
 	userContextKey        contextKey = "authUser"
 	authSessionContextKey contextKey = "authSession"
+	authResultContextKey  contextKey = "authResult"
 )
 
 type authSession struct {
@@ -35,6 +36,10 @@ func withAuthSession(ctx context.Context, session authSession) context.Context {
 	return context.WithValue(ctx, authSessionContextKey, session)
 }
 
+func withAuthResult(ctx context.Context, result auth.AuthResult) context.Context {
+	return context.WithValue(ctx, authResultContextKey, result)
+}
+
 func userFromContext(ctx context.Context) (auth.User, bool) {
 	user, ok := ctx.Value(userContextKey).(auth.User)
 	return user, ok
@@ -43,6 +48,11 @@ func userFromContext(ctx context.Context) (auth.User, bool) {
 func authSessionFromContext(ctx context.Context) (authSession, bool) {
 	session, ok := ctx.Value(authSessionContextKey).(authSession)
 	return session, ok
+}
+
+func authResultFromContext(ctx context.Context) (auth.AuthResult, bool) {
+	result, ok := ctx.Value(authResultContextKey).(auth.AuthResult)
+	return result, ok
 }
 
 // userIdentifierFromRequest returns the user's email when available, falling

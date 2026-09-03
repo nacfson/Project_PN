@@ -18,6 +18,8 @@ import (
 	"github.com/nacfson/central-auth/internal/config"
 	"github.com/nacfson/central-auth/internal/db"
 	httpapi "github.com/nacfson/central-auth/internal/httpapi"
+	"github.com/nacfson/central-auth/internal/mail"
+	"github.com/nacfson/central-auth/internal/oauth"
 	"github.com/nacfson/central-auth/internal/session"
 )
 
@@ -41,7 +43,13 @@ func main() {
 	defer pool.Close()
 
 	sessions := session.NewService(pool, cfg)
-	router := httpapi.NewRouter(sessions, cfg)
+	google := oauth.NewGoogleService(pool, cfg, sessions)
+	mailer, err := buildMailer(cfg)
+	if err != nil {
+		slog.Error("mailer configuration failed", "error", err)
+		os.Exit(1)
+	}
+	router := httpapi.NewRouter(sessions, google, mailer, cfg)
 	server := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           router,
@@ -85,4 +93,25 @@ func runMigrations(cfg config.Config) error {
 
 func hasScheme(path string) bool {
 	return len(path) > 7 && path[:7] == "file://"
+}
+
+func buildMailer(cfg config.Config) (mail.Mailer, error) {
+	switch cfg.EmailProvider {
+	case "resend":
+		if cfg.ResendAPIKey != "" && cfg.ResendFromEmail != "" {
+			return mail.NewResendMailer(cfg.ResendAPIKey, cfg.ResendFromEmail), nil
+		}
+	case "smtp":
+		if cfg.SMTPConfigured() {
+			return mail.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
+		}
+	default:
+		if cfg.ResendAPIKey != "" && cfg.ResendFromEmail != "" {
+			return mail.NewResendMailer(cfg.ResendAPIKey, cfg.ResendFromEmail), nil
+		}
+		if cfg.SMTPConfigured() {
+			return mail.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
+		}
+	}
+	return nil, nil
 }

@@ -81,13 +81,14 @@ func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler
 	emailAddr := uniqueEmail("words-validation")
 	token := "token-" + emailAddr
 	registerTestToken(token, emailAddr)
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("ensure test central user: %v", err)
 	}
+	user := result.User
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
 		t.Fatalf("ensure default deck: %v", err)
 	}
@@ -195,13 +196,14 @@ func TestLookupAcceptsSourceContext(t *testing.T) {
 	emailAddr := uniqueEmail("lookup-context")
 	token := "token-" + emailAddr
 	registerTestToken(token, emailAddr)
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
+	user := result.User
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
 		t.Fatalf("ensure deck: %v", err)
 	}
@@ -350,16 +352,15 @@ func TestArchiveLearningItemHidesFromListAndReAddUnarchives(t *testing.T) {
 func TestChangeMeaningConflictReturns409(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
-	emailAddr := uniqueEmail("change-meaning")
-	// Re-ensure to get user id matching token from validationRouter — use latest user.
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	// Re-ensure to get user id matching token from validationRouter.
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + strings.TrimPrefix(token, "token-"),
 		Email: strings.TrimPrefix(token, "token-"),
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	_ = emailAddr
+	user := result.User
 
 	lemma := "chgmean" + time.Now().Format("150405.000000")
 	var wordID, senseA, senseB string
@@ -514,23 +515,25 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	ctx := context.Background()
 
 	emailAddr := token[6:]
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("authenticate primary user: %v", err)
 	}
+	user := result.User
 	otherEmail := uniqueEmail("words-other")
 	otherToken := "token-" + otherEmail
 	registerTestToken(otherToken, otherEmail)
-	otherUser, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	otherResult, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + otherEmail,
 		Email: otherEmail,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
 	}
+	otherUser := otherResult.User
 	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "", "")
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, otherUser.ID, "en"); err != nil {
 		t.Fatalf("ensure other default deck: %v", err)
@@ -773,13 +776,14 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	ctx := context.Background()
 
 	emailAddr := token[6:]
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
+	user := result.User
 
 	suffix := time.Now().Format("150405.000000")
 	dueLemma := "due-" + suffix
@@ -1018,13 +1022,14 @@ func TestGetStatsSummary(t *testing.T) {
 	ctx := context.Background()
 
 	emailAddr := token[6:]
-	user, err := authSvc.EnsureCentralUser(ctx, auth.CentralUser{
+	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	})
+	}, "magic_link"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
+	user := result.User
 
 	suffix := time.Now().Format("150405.000000")
 	dueLemma := "stats-due-" + suffix

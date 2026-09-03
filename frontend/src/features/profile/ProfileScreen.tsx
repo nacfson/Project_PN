@@ -246,6 +246,28 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           <SettingRow icon="person-outline" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />
           <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow
+            icon="link-outline"
+            label={t('settings.connectedAccounts')}
+            onPress={() => navigation.navigate('ConnectedAccounts')}
+          />
+          {user?.merge_suggestion ? (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+              <SettingRow
+                icon="people-outline"
+                label={t('auth.mergeSuggestion', { domain: user.merge_suggestion.domain })}
+                onPress={() =>
+                  navigation.navigate('AccountMerge', {
+                    sourceUserId: user.merge_suggestion!.source_user_id,
+                    sourceEmail: user.merge_suggestion!.source_email,
+                    targetEmail: user.email,
+                  })
+                }
+              />
+            </>
+          ) : null}
+          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+          <SettingRow
             icon="language-outline"
             label={t('settings.languagePairs')}
             value={`${languageLabel(user?.target_language)}${user?.target_language ? ' → ' : ''}${languageLabel(user?.native_language)}`}

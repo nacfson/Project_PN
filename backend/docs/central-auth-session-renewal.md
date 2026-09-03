@@ -10,7 +10,9 @@ On `GET /api/internal/cookie-session`:
 2. If the session is valid and `expires_at` is in the future, extend it:
    - `expires_at = min(now + SESSION_IDLE_TIMEOUT, login_at + SESSION_MAX_AGE)`
 3. Persist the updated `expires_at`.
-4. Return `{ user_id, email, is_admin, expires_at }`.
+4. Return `{ user_id, email, is_admin, expires_at, auth_provider, identity }`.
+
+`identity` shape: `{ "provider": "google" | "magic_link", "provider_subject": "<google sub or central user id>" }`.
 
 Suggested defaults:
 

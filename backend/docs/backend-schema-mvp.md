@@ -185,6 +185,7 @@ user_identities
 - provider text not null
 - provider_subject text not null
 - email_at_provider text
+- linked_at timestamptz not null default now()
 - created_at timestamptz not null default now()
 ```
 
@@ -197,9 +198,27 @@ create index user_identities_user_id_idx on user_identities (user_id)
 
 Rules:
 
-- `provider` values include `nacfson` (central auth).
-- Account linking to an existing user happens when central auth verifies the email and the normalized emails match.
+- `provider` values include `nacfson` (magic link / central auth) and `google` (Google OAuth sub).
+- Account linking to an existing user happens when the user confirms a link recommendation for a matching verified email.
+- At most one row per provider per user (`user_identities_one_google_per_user`, `user_identities_one_nacfson_per_user`).
 
+## account_merge_requests
+
+Manual merge workflow for different emails (same person). Target user must be logged in to confirm.
+
+```sql
+account_merge_requests
+- id uuid primary key
+- source_user_id uuid not null references users(id)
+- target_user_id uuid not null references users(id)
+- initiated_by_user_id uuid not null references users(id)
+- status text not null check (status in ('pending', 'completed', 'cancelled'))
+- source_email text not null
+- target_email text not null
+- expires_at timestamptz not null
+- completed_at timestamptz
+- created_at timestamptz not null default now()
+```
 
 ## words
 

@@ -54,7 +54,7 @@ func TestRefreshRotatesTokens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	initial, err := svc.createSession(ctx, user, false)
+	initial, err := svc.createSession(ctx, user, false, "magic_link", user.ID)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestCookieSessionSlidesExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	creds, err := svc.createSession(ctx, user, true)
+	creds, err := svc.createSession(ctx, user, true, "magic_link", user.ID)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}

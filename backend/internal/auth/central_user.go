@@ -4,89 +4,126 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-const centralIdentityProvider = "nacfson"
-
-func (s *Service) EnsureCentralUser(ctx context.Context, central CentralUser) (User, error) {
-	emailAddr := NormalizeEmail(central.Email)
-	if central.ID == "" || emailAddr == "" {
-		return User{}, ErrInvalidToken
+// EnsureCentralUser provisions or resolves a local user from a central auth session.
+func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession) (AuthResult, error) {
+	emailAddr := NormalizeEmail(session.User.Email)
+	if session.User.ID == "" || emailAddr == "" {
+		return AuthResult{}, ErrInvalidToken
 	}
+
+	authProvider := session.AuthProvider
+	providerSubject := session.Identity.ProviderSubject
+	if authProvider == "" {
+		authProvider = "magic_link"
+	}
+	if providerSubject == "" {
+		providerSubject = session.User.ID
+	}
+
+	pnProvider, pnSubject := MapCentralProvider(authProvider, providerSubject, session.User.ID)
 
 	nativeLang, err := s.resolveDefinitionLang("")
 	if err != nil {
-		return User{}, err
+		return AuthResult{}, err
 	}
 	targetLang, err := s.resolveTargetLang("")
 	if err != nil {
-		return User{}, err
+		return AuthResult{}, err
 	}
 	uiLang, err := s.resolveUILang("")
 	if err != nil {
-		return User{}, err
+		return AuthResult{}, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return User{}, fmt.Errorf("auth: begin central user sync: %w", err)
+		return AuthResult{}, fmt.Errorf("auth: begin user sync: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	var userID string
+	var (
+		userID             string
+		linkRecommendation *LinkRecommendation
+		pendingIdentity    *PendingIdentity
+	)
+
 	err = tx.QueryRow(ctx, `
 		select user_id::text
 		from user_identities
 		where provider = $1 and provider_subject = $2
-	`, centralIdentityProvider, central.ID).Scan(&userID)
+	`, pnProvider, pnSubject).Scan(&userID)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return User{}, fmt.Errorf("auth: lookup central identity: %w", err)
+			return AuthResult{}, fmt.Errorf("auth: lookup identity: %w", err)
 		}
 
+		var existingUserID string
 		err = tx.QueryRow(ctx, `
 			select id::text
 			from users
 			where lower(email) = $1
-		`, emailAddr).Scan(&userID)
-		if err != nil {
-			if !errors.Is(err, pgx.ErrNoRows) {
-				return User{}, fmt.Errorf("auth: lookup central user email: %w", err)
-			}
+		`, emailAddr).Scan(&existingUserID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return AuthResult{}, fmt.Errorf("auth: lookup user email: %w", err)
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
 			err = tx.QueryRow(ctx, `
 				insert into users (email, email_verified_at, native_language, target_language, ui_language)
 				values ($1, now(), $2, $3, $4)
 				returning id::text
 			`, emailAddr, nativeLang, targetLang, uiLang).Scan(&userID)
 			if err != nil {
-				return User{}, fmt.Errorf("auth: insert central user: %w", err)
+				return AuthResult{}, fmt.Errorf("auth: insert user: %w", err)
 			}
-		}
-
-		_, err = tx.Exec(ctx, `
-			insert into user_identities (user_id, provider, provider_subject, email_at_provider)
-			values ($1::uuid, $2, $3, $4)
-			on conflict (provider, provider_subject) do update
-			set email_at_provider = excluded.email_at_provider
-		`, userID, centralIdentityProvider, central.ID, emailAddr)
-		if err != nil {
-			return User{}, fmt.Errorf("auth: upsert central identity: %w", err)
+			_, err = tx.Exec(ctx, `
+				insert into user_identities (user_id, provider, provider_subject, email_at_provider)
+				values ($1::uuid, $2, $3, $4)
+			`, userID, pnProvider, pnSubject, emailAddr)
+			if err != nil {
+				return AuthResult{}, fmt.Errorf("auth: insert identity: %w", err)
+			}
+		} else {
+			userID = existingUserID
+			var hasProvider bool
+			err = tx.QueryRow(ctx, `
+				select exists(
+					select 1 from user_identities
+					where user_id = $1::uuid and provider = $2
+				)
+			`, userID, pnProvider).Scan(&hasProvider)
+			if err != nil {
+				return AuthResult{}, fmt.Errorf("auth: check provider link: %w", err)
+			}
+			if !hasProvider {
+				linkRecommendation = &LinkRecommendation{
+					Provider: pnProvider,
+					Email:    emailAddr,
+				}
+				pendingIdentity = &PendingIdentity{
+					Provider:        pnProvider,
+					ProviderSubject: pnSubject,
+					Email:           emailAddr,
+				}
+			}
 		}
 	}
 
 	_, err = tx.Exec(ctx, `
 		update users
-		set email = $2,
-		    email_verified_at = coalesce(email_verified_at, now()),
-		    ui_language = coalesce(nullif(ui_language, ''), $3),
+		set email_verified_at = coalesce(email_verified_at, now()),
+		    ui_language = coalesce(nullif(ui_language, ''), $2),
 		    updated_at = now()
 		where id = $1::uuid
-	`, userID, emailAddr, uiLang)
+	`, userID, uiLang)
 	if err != nil {
-		return User{}, fmt.Errorf("auth: update central user: %w", err)
+		return AuthResult{}, fmt.Errorf("auth: update user: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `
@@ -98,14 +135,103 @@ func (s *Service) EnsureCentralUser(ctx context.Context, central CentralUser) (U
 		on conflict (user_id, target_language) do nothing
 	`, userID, targetLang, nativeLang)
 	if err != nil {
-		return User{}, fmt.Errorf("auth: ensure central user language: %w", err)
+		return AuthResult{}, fmt.Errorf("auth: ensure user language: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return User{}, fmt.Errorf("auth: commit central user sync: %w", err)
+		return AuthResult{}, fmt.Errorf("auth: commit user sync: %w", err)
 	}
 
-	return s.userByID(ctx, userID)
+	user, err := s.userByID(ctx, userID)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	return AuthResult{
+		User:               user,
+		LinkRecommendation: linkRecommendation,
+		PendingIdentity:    pendingIdentity,
+	}, nil
+}
+
+func (s *Service) LinkProvider(ctx context.Context, userID string, pending PendingIdentity) error {
+	if pending.Provider == "" || pending.ProviderSubject == "" {
+		return ErrInvalidToken
+	}
+	email := NormalizeEmail(pending.Email)
+	_, err := s.pool.Exec(ctx, `
+		insert into user_identities (user_id, provider, provider_subject, email_at_provider)
+		values ($1::uuid, $2, $3, $4)
+		on conflict (provider, provider_subject) do update
+		set user_id = excluded.user_id,
+		    email_at_provider = excluded.email_at_provider,
+		    linked_at = now()
+	`, userID, pending.Provider, pending.ProviderSubject, email)
+	if err != nil {
+		return fmt.Errorf("auth: link provider: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) ListLinkedProviders(ctx context.Context, userID string) ([]LinkedProvider, error) {
+	rows, err := s.pool.Query(ctx, `
+		select provider, coalesce(email_at_provider, ''), linked_at
+		from user_identities
+		where user_id = $1::uuid
+		order by linked_at asc
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list linked providers: %w", err)
+	}
+	defer rows.Close()
+
+	var providers []LinkedProvider
+	for rows.Next() {
+		var item LinkedProvider
+		if err := rows.Scan(&item.Provider, &item.Email, &item.LinkedAt); err != nil {
+			return nil, err
+		}
+		providers = append(providers, item)
+	}
+	return providers, rows.Err()
+}
+
+func EmailDomain(email string) string {
+	email = NormalizeEmail(email)
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return ""
+	}
+	return strings.ToLower(parts[1])
+}
+
+func (s *Service) MergeSuggestions(ctx context.Context, userID, email string) ([]MergeSuggestion, error) {
+	domain := EmailDomain(email)
+	if domain == "" {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		select distinct u.id::text, u.email
+		from users u
+		where u.id <> $1::uuid
+		  and split_part(lower(u.email), '@', 2) = $2
+		order by u.email
+		limit 5
+	`, userID, domain)
+	if err != nil {
+		return nil, fmt.Errorf("auth: merge suggestions: %w", err)
+	}
+	defer rows.Close()
+
+	var suggestions []MergeSuggestion
+	for rows.Next() {
+		var item MergeSuggestion
+		if err := rows.Scan(&item.SourceUserID, &item.SourceEmail); err != nil {
+			return nil, err
+		}
+		item.Domain = domain
+		suggestions = append(suggestions, item)
+	}
+	return suggestions, rows.Err()
 }
 
 func (s *Service) userByID(ctx context.Context, userID string) (User, error) {

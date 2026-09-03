@@ -73,4 +73,5 @@ Authenticated lookup of an unknown word should return **200** (not enrichment 50
 ## Related skills
 
 - `.cursor/skills/push-ghcr-images/SKILL.md` — build and push both images
-- `~/.cursor/skills/deploy-nacfson-project/SKILL.md` — auth-service / ProcessManager (separate repo)
+- `backend/docs/oracle-deploy-runbook.md` — central-auth (`auth-service`) rolls and Google OAuth sync
+- `~/.cursor/skills/deploy-nacfson-project/SKILL.md` — ProcessManager and other nacfson.cloud services (separate repo)

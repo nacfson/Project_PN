@@ -1,5 +1,7 @@
 import { createNativeStackNavigator, type NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
+import { ConnectedAccountsScreen } from '../features/profile/ConnectedAccountsScreen';
+import { AccountMergeScreen } from '../features/auth/AccountMergeScreen';
 import { LanguagePairsScreen } from '../features/profile/LanguagePairsScreen';
 import { AddLanguagePairScreen } from '../features/profile/AddLanguagePairScreen';
 import { EditLanguagePairScreen } from '../features/profile/EditLanguagePairScreen';
@@ -11,6 +13,8 @@ export type SettingsStackParamList = {
   LanguagePairs: undefined;
   AddLanguagePair: undefined;
   EditLanguagePair: { targetLanguage: string; displayLanguage: string };
+  ConnectedAccounts: undefined;
+  AccountMerge: { sourceUserId: string; sourceEmail: string; targetEmail: string };
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -52,6 +56,16 @@ export function SettingsStack({ onLogout }: SettingsStackProps) {
         name="EditLanguagePair"
         component={EditLanguagePairScreen}
         options={{ title: t('settings.editLanguagePair') }}
+      />
+      <Stack.Screen
+        name="ConnectedAccounts"
+        component={ConnectedAccountsScreen}
+        options={{ title: t('settings.connectedAccounts') }}
+      />
+      <Stack.Screen
+        name="AccountMerge"
+        component={AccountMergeScreen}
+        options={{ title: t('auth.mergeTitle') }}
       />
     </Stack.Navigator>
   );

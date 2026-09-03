@@ -34,6 +34,8 @@ type Credentials struct {
 type Session struct {
 	ID               string
 	User             User
+	AuthProvider     string
+	ProviderSubject  string
 	AccessTokenHash  string
 	RefreshTokenHash string
 	CookieValue      string
@@ -116,8 +118,25 @@ func (s *Service) CompleteMagicLink(ctx context.Context, rawToken string, issueC
 	if err != nil {
 		return Credentials{}, User{}, err
 	}
-	creds, err := s.createSession(ctx, user, issueCookie)
+	if err := s.ensureMagicLinkIdentity(ctx, user.ID, user.Email); err != nil {
+		return Credentials{}, User{}, err
+	}
+	creds, err := s.createSession(ctx, user, issueCookie, "magic_link", user.ID)
 	return creds, user, err
+}
+
+func (s *Service) CreateSessionForUser(ctx context.Context, user User, issueCookie bool, authProvider, providerSubject string) (Credentials, error) {
+	return s.createSession(ctx, user, issueCookie, authProvider, providerSubject)
+}
+
+func (s *Service) ensureMagicLinkIdentity(ctx context.Context, userID, email string) error {
+	_, err := s.pool.Exec(ctx, `
+		insert into user_identities (user_id, provider, provider_subject, email_at_provider)
+		values ($1, 'magic_link', $1, $2)
+		on conflict (provider, provider_subject) do update
+		set email_at_provider = excluded.email_at_provider
+	`, userID, strings.ToLower(strings.TrimSpace(email)))
+	return err
 }
 
 func (s *Service) ValidateAccess(ctx context.Context, accessToken string) (Session, error) {
@@ -157,7 +176,13 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (Credentials
 	if _, err := s.pool.Exec(ctx, `update sessions set revoked_at = now() where id = $1`, session.ID); err != nil {
 		return Credentials{}, err
 	}
-	return s.createSession(ctx, session.User, session.CookieValue != "")
+	authProvider := session.AuthProvider
+	providerSubject := session.ProviderSubject
+	if authProvider == "" {
+		authProvider = "magic_link"
+		providerSubject = session.User.ID
+	}
+	return s.createSession(ctx, session.User, session.CookieValue != "", authProvider, providerSubject)
 }
 
 func (s *Service) RevokeAccess(ctx context.Context, accessToken string) error {
@@ -178,7 +203,7 @@ func (s *Service) RevokeCookie(ctx context.Context, cookieValue string) error {
 	return err
 }
 
-func (s *Service) createSession(ctx context.Context, user User, issueCookie bool) (Credentials, error) {
+func (s *Service) createSession(ctx context.Context, user User, issueCookie bool, authProvider, providerSubject string) (Credentials, error) {
 	accessToken, err := token.Generate()
 	if err != nil {
 		return Credentials{}, err
@@ -200,9 +225,10 @@ func (s *Service) createSession(ctx context.Context, user User, issueCookie bool
 	_, err = s.pool.Exec(ctx, `
 		insert into sessions (
 			user_id, access_token_hash, refresh_token_hash, cookie_value,
-			access_expires_at, refresh_expires_at, login_at
-		) values ($1, $2, $3, nullif($4, ''), $5, $6, $7)
-	`, user.ID, token.Hash(accessToken), token.Hash(refreshToken), cookieValue, accessExpires, refreshExpires, now)
+			access_expires_at, refresh_expires_at, login_at,
+			auth_provider, provider_subject
+		) values ($1, $2, $3, nullif($4, ''), $5, $6, $7, nullif($8, ''), nullif($9, ''))
+	`, user.ID, token.Hash(accessToken), token.Hash(refreshToken), cookieValue, accessExpires, refreshExpires, now, authProvider, providerSubject)
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -239,6 +265,7 @@ func (s *Service) slideSession(ctx context.Context, session Session) (Session, e
 func (s *Service) getSessionByAccessHash(ctx context.Context, hash string) (Session, error) {
 	return s.scanSession(ctx, `
 		select s.id::text, u.id::text, lower(u.email), u.is_admin,
+		       coalesce(s.auth_provider, ''), coalesce(s.provider_subject, ''),
 		       s.access_token_hash, s.refresh_token_hash, coalesce(s.cookie_value, ''),
 		       s.access_expires_at, s.refresh_expires_at, s.login_at, s.revoked_at
 		from sessions s
@@ -250,6 +277,7 @@ func (s *Service) getSessionByAccessHash(ctx context.Context, hash string) (Sess
 func (s *Service) getSessionByRefreshHash(ctx context.Context, hash string) (Session, error) {
 	return s.scanSession(ctx, `
 		select s.id::text, u.id::text, lower(u.email), u.is_admin,
+		       coalesce(s.auth_provider, ''), coalesce(s.provider_subject, ''),
 		       s.access_token_hash, s.refresh_token_hash, coalesce(s.cookie_value, ''),
 		       s.access_expires_at, s.refresh_expires_at, s.login_at, s.revoked_at
 		from sessions s
@@ -261,6 +289,7 @@ func (s *Service) getSessionByRefreshHash(ctx context.Context, hash string) (Ses
 func (s *Service) getSessionByCookie(ctx context.Context, cookieValue string) (Session, error) {
 	return s.scanSession(ctx, `
 		select s.id::text, u.id::text, lower(u.email), u.is_admin,
+		       coalesce(s.auth_provider, ''), coalesce(s.provider_subject, ''),
 		       s.access_token_hash, s.refresh_token_hash, coalesce(s.cookie_value, ''),
 		       s.access_expires_at, s.refresh_expires_at, s.login_at, s.revoked_at
 		from sessions s
@@ -276,6 +305,8 @@ func (s *Service) scanSession(ctx context.Context, query string, arg string) (Se
 		&session.User.ID,
 		&session.User.Email,
 		&session.User.IsAdmin,
+		&session.AuthProvider,
+		&session.ProviderSubject,
 		&session.AccessTokenHash,
 		&session.RefreshTokenHash,
 		&session.CookieValue,
