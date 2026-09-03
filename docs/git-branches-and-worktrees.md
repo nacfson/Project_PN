@@ -5,13 +5,29 @@
 | Item | Value |
 |------|-------|
 | Open PR | [#42](https://github.com/nacfson/Project_PN/pull/42) → `main` (**MERGEABLE**) |
-| Merge branch (use this) | `cursor/google-oauth-integrated-auth-dc8c` @ `1a70d8a` |
-| Agent duplicate (same tip) | `cursor/google-oauth-integrated-auth-a015` @ `1a70d8a` |
-| Commits ahead of `main` | **6** (fast-forward or merge both OK) |
-| Extra worktrees | **none** (only `/workspace`) |
+| Merge branch (only one left) | `cursor/google-oauth-integrated-auth-dc8c` @ `131d115` |
+| Agent duplicate `…-a015` | **deleted** on remote (was identical tip) |
+| Commits ahead of `main` | **7** |
+| Git worktrees | **1** (`/workspace` on `dc8c`) |
 | Stashes | **none** |
 
-Both feature branches point at the **same commit**. Merge **only** `dc8c` via PR #42. Delete `a015` after merge.
+Merge **only** via PR #42 (`dc8c` → `main`).
+
+### Cursor UI “worktrees” vs git worktrees
+
+The branch picker that shows `main` + `cursor/google-oauth-…` entries is **Cursor Cloud Agent sessions**, not `git worktree`. Deleting a git branch does not remove those rows until you archive/kill the agent run in [Cursor Agents](https://cursor.com/agents).
+
+Related agent runs (archive when done):
+
+| Agent | Branch | Status |
+|-------|--------|--------|
+| Google sign-in enablement | `…-dc8c` | RUNNING (this cleanup session) |
+| Google oauth email verification | `…-dc8c` | IDLE — safe to archive |
+| Login session stability | `cursor/session-renewal-c208` | IDLE — unrelated leftover |
+| Deck conversion none match | `cursor/fix-none-match-sense-picker-2527` | IDLE — unrelated leftover |
+| Dictionary meaning improvement | `cursor/shared-similar-meanings-986e` | IDLE — unrelated leftover |
+
+After merging PR #42, archive those IDLE agents and delete local/remote feature branches so the picker only shows `main`.
 
 ### Commits that land on `main`
 
