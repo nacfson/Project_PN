@@ -8,7 +8,7 @@ Living inventory for Project PN. Refresh this file after merges or when the Curs
 |------|-------|
 | Default branch | `main` @ `48cd23b` (includes merged PR #42 Google OAuth) |
 | Open PRs | [#43](https://github.com/nacfson/Project_PN/pull/43) draft — Cloudflare DNS docs |
-| Remote heads | `main`, `cursor/cloudflare-dns-docs-de34` only |
+| Remote heads | `main`, `cursor/cloudflare-dns-docs-de34`, `cursor/organize-branches-worktrees-053b` |
 | Local git worktrees | **1** (`/workspace` on whatever branch this checkout uses) |
 | Stashes | none |
 | Merged `cursor/*` remotes | already pruned (no leftovers from PRs #1–#42) |
