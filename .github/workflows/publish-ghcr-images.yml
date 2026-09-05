@@ -1,5 +1,14 @@
 name: Publish Project PN images
 
+# Publishes backend + frontend images to GHCR on every push to main.
+#
+# Important: GHCR packages must be linked to this repository for
+# GITHUB_TOKEN to push. If publish-frontend fails with
+# `permission_denied: read_package`, link the package at
+# https://github.com/users/nacfson/packages/container/package/project-pn-frontend
+# → Package settings → "Connect repository", or push once with a PAT that
+# includes LABEL org.opencontainers.image.source=https://github.com/nacfson/Project_PN.
+
 on:
   push:
     branches:
@@ -21,6 +30,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -39,13 +51,17 @@ jobs:
           tags: |
             type=sha,prefix=,format=short
             type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Project PN backend API
 
       - name: Build and publish backend image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          platforms: linux/amd64
+          # Oracle Cloud Ampere needs arm64; keep amd64 for local/x86 runners.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -69,6 +85,9 @@ jobs:
           cd frontend
           EXPO_PUBLIC_API_BASE_URL= EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud npm run web:export
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -87,13 +106,16 @@ jobs:
           tags: |
             type=sha,prefix=,format=short
             type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Project PN frontend (Expo web / nginx)
 
       - name: Build and publish frontend image
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.web
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

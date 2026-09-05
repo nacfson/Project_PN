@@ -61,6 +61,8 @@ push_image() {
   docker buildx build \
     --builder "$BUILDX_BUILDER" \
     --platform "$PLATFORMS" \
+    --label "org.opencontainers.image.source=https://github.com/nacfson/Project_PN" \
+    --annotation "index:org.opencontainers.image.source=https://github.com/nacfson/Project_PN" \
     "${tags[@]}" \
     -f "$dockerfile" \
     --push \

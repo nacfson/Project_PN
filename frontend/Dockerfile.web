@@ -1,3 +1,7 @@
 FROM nginx:1.27-alpine
 
+# Link this image to the GitHub repo so Actions GITHUB_TOKEN can publish to GHCR.
+LABEL org.opencontainers.image.source="https://github.com/nacfson/Project_PN"
+LABEL org.opencontainers.image.description="Project PN frontend (Expo web / nginx)"
+
 COPY dist /usr/share/nginx/web
