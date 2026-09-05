@@ -6,21 +6,15 @@ Living inventory for Project PN. Refresh this file after merges or when the Curs
 
 | Item | Value |
 |------|-------|
-| Default branch | `main` @ `48cd23b` (includes merged PR #42 Google OAuth) |
-| Open PRs | [#43](https://github.com/nacfson/Project_PN/pull/43) draft — Cloudflare DNS docs |
-| Remote heads | `main`, `cursor/cloudflare-dns-docs-de34`, `cursor/organize-branches-worktrees-053b` |
-| Local git worktrees | **1** (`/workspace` on whatever branch this checkout uses) |
+| Default branch | `main` (this worktree) |
+| Open PRs | **none** |
+| Remote heads | `main` only |
+| Local git worktrees | **1** (`/workspace` on `main`) |
+| Local branches | `main` only |
 | Stashes | none |
-| Merged `cursor/*` remotes | already pruned (no leftovers from PRs #1–#42) |
+| Merged `cursor/*` remotes | pruned |
 
-Git side is clean. Remaining clutter is **Cursor Cloud Agent sessions**, not `git worktree` checkouts.
-
-### Active work
-
-| Branch | PR | Agent | Notes |
-|--------|-----|-------|-------|
-| `cursor/cloudflare-dns-docs-de34` | [#43](https://github.com/nacfson/Project_PN/pull/43) (draft) | [Cloudflare DNS access issue](https://cursor.com/agents/bc-d0f69ec1-1b05-4b70-89f5-aea20ab7de34) | Keep until merged |
-| `cursor/organize-branches-worktrees-053b` | this doc refresh | [Branches worktrees structure](https://cursor.com/agents/bc-daef05ff-0565-47cd-a72e-89eb7c26053b) | Ephemeral hygiene PR |
+Git remotes, local branches, and this worktree are fully organized. Remaining clutter (if any) is **Cursor Cloud Agent sessions**, not `git worktree` checkouts.
 
 ### Cursor UI “worktrees” vs git worktrees
 
@@ -32,11 +26,11 @@ The branch / worktree picker in Cursor that lists many `cursor/…` names is usu
 | Git worktrees | `git worktree list` | `git worktree remove <path>` · `git worktree prune` |
 | Cursor agent sessions | [cursor.com/agents](https://cursor.com/agents) | **Archive** IDLE runs after their PR merges |
 
-Archive IDLE agents so the picker collapses toward `main` plus in-flight feature branches.
+Archive IDLE agents so the picker collapses to `main`.
 
 ### Archive these IDLE Cloud Agents
 
-Safe to archive (branch gone from remote and/or PR already merged):
+Safe to archive (PR merged and/or branch gone from remote):
 
 | Agent | Stale branch ref | Why |
 |-------|------------------|-----|
@@ -46,15 +40,10 @@ Safe to archive (branch gone from remote and/or PR already merged):
 | Login session stability | `session-renewal-c208` | PR #40 merged |
 | Deck conversion none match | `fix-none-match-…` | PR #39 merged |
 | Dictionary meaning improvement | `shared-similar-meanings-…` | PR #37 merged |
+| Cloudflare DNS access issue | `cloudflare-dns-docs-de34` | PR #43 merged |
+| Branches worktrees structure | `organize-branches-worktrees-053b` | PR #44 merged |
 
-Also archive short-lived **Explore / Review / Test / Browser verify** internal runs (no branch). They do not own remotes; keeping them only clutters the agent list. Keep only agents you still chat with.
-
-Keep (do not archive yet):
-
-| Agent | Branch |
-|-------|--------|
-| Cloudflare DNS access issue | `cursor/cloudflare-dns-docs-de34` |
-| Branches worktrees structure (this run) | `cursor/organize-branches-worktrees-053b` |
+Also archive short-lived **Explore / Review / Test / Browser verify** internal runs (no branch). They do not own remotes; keeping them only clutters the agent list.
 
 ---
 
@@ -94,13 +83,13 @@ Do not leave merged `cursor/*` branches on `origin`. Prefer one open PR head per
 
 ## Worktrees
 
-Default: one checkout at the repo root.
+Default: one checkout at the repo root on `main`.
 
-Optional parallel `main` while a feature is checked out:
+Optional parallel feature worktree while staying on `main` here:
 
 ```bash
-git worktree add ../Project_PN-main origin/main
-git worktree remove ../Project_PN-main
+git worktree add ../Project_PN-<topic> -b cursor/<topic>-<suffix> origin/main
+git worktree remove ../Project_PN-<topic>
 ```
 
 Do not check out the same branch in two worktrees.
@@ -111,7 +100,7 @@ Do not check out the same branch in two worktrees.
 
 | Topic | Doc |
 |-------|-----|
-| Network / Cloudflare DNS (PR #43) | `deploy/NETWORK_SETUP.md` |
+| Network / Cloudflare DNS | `deploy/NETWORK_SETUP.md` |
 | Oracle k3s / GHCR deploy | `backend/docs/oracle-deploy-runbook.md` |
 | Cursor secrets | `backend/docs/cursor-secrets.md` |
 | Google OAuth sync | `scripts/sync-auth-google-secrets.sh` |
