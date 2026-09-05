@@ -8,11 +8,12 @@ import {
   type ReactNode,
 } from 'react';
 import { addLearningItem, lookupWord } from '../api/words';
-import { ApiError } from '../api/client';
 import { DEFAULT_DEFINITION_LANGUAGE_CODE } from '../config';
 import { useAppLanguage } from '../i18n';
+import type { TranslationKey } from '../i18n';
 import type { WordStatus } from '../components/WordChip';
 import type { PosFilter } from '../types';
+import { classifyAddError } from '../utils/addErrors';
 import { bestMatch } from '../utils/senses';
 
 export type AddJobStatus = 'queued' | 'processing' | 'done' | 'error';
@@ -40,11 +41,9 @@ interface AddQueueContextValue {
 
 const AddQueueContext = createContext<AddQueueContextValue | null>(null);
 
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-  return fallback;
+function messageOf(error: unknown, t: (key: TranslationKey) => string): string {
+  const info = classifyAddError(error);
+  return `${info.code}: ${t(info.messageKey)}`;
 }
 
 function nextJobId(): string {
@@ -92,14 +91,14 @@ export function AddQueueProvider({ children }: { children: ReactNode }) {
           });
           const match = bestMatch(response.sense_options);
           if (!match) {
-            updateJob(next.id, { status: 'error', error: t('sense.noneFound') });
+            updateJob(next.id, { status: 'error', error: `ADD-303: ${t('add.error.noAdditionalSense')}` });
             continue;
           }
 
           await addLearningItem(match.word_sense_id, DEFAULT_DEFINITION_LANGUAGE_CODE, next.deckId);
           updateJob(next.id, { status: 'done', wordSenseId: match.word_sense_id });
         } catch (err) {
-          updateJob(next.id, { status: 'error', error: messageOf(err, t('common.somethingWrong')) });
+          updateJob(next.id, { status: 'error', error: messageOf(err, t) });
         }
       }
     } finally {

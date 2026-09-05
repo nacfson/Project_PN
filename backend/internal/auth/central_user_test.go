@@ -6,7 +6,14 @@ import (
 )
 
 func TestEnsureCentralUser_LinkRecommendationForSecondProvider(t *testing.T) {
-	svc := testService(t)
+	mailer := &fakeMagicLinks{}
+	svc := testServiceWithOptions(t, Options{
+		DefaultDefinitionLang: "ko",
+		DefaultTargetLang:     "en",
+		DefaultUILang:         "en",
+		MagicLinkSender:       mailer,
+		PublicAppURL:          "http://localhost:8081",
+	})
 	ctx := context.Background()
 	email := uniqueEmail("link-rec")
 
@@ -34,9 +41,14 @@ func TestEnsureCentralUser_LinkRecommendationForSecondProvider(t *testing.T) {
 		t.Fatalf("expected google provider recommendation, got %q", second.LinkRecommendation.Provider)
 	}
 
-	if err := svc.LinkProvider(ctx, second.User.ID, *second.PendingIdentity); err != nil {
-		t.Fatalf("link provider: %v", err)
+	req, err := svc.CreateLinkRequest(ctx, second.User.ID, *second.PendingIdentity)
+	if err != nil {
+		t.Fatalf("create link request: %v", err)
 	}
+	if err := svc.ConfirmLinkRequest(ctx, first.User.ID, first.SessionProvider, first.User.Email, req.ID); err != nil {
+		t.Fatalf("confirm link: %v", err)
+	}
+
 	third, err := svc.EnsureCentralUser(ctx, google)
 	if err != nil {
 		t.Fatalf("third ensure: %v", err)

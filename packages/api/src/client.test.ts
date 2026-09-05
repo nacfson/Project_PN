@@ -58,6 +58,38 @@ test('throws ApiError on non-ok response', async () => {
   await expect(getJson('/test')).rejects.toBeInstanceOf(ApiError);
 });
 
+test('preserves an API error code and retryability', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: false,
+    status: 503,
+    text: async () => JSON.stringify({
+      error: 'Dictionary service is temporarily unavailable.',
+      code: 'ADD-403',
+      retryable: true,
+    }),
+  });
+
+  await expect(postJson('/api/learning-items', {})).rejects.toMatchObject({
+    status: 503,
+    code: 'ADD-403',
+    retryable: true,
+  });
+});
+
+test('classifies a malformed error response as an unknown API failure', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: false,
+    status: 502,
+    text: async () => '<html>Bad Gateway</html>',
+  });
+
+  await expect(postJson('/api/learning-items', {})).rejects.toMatchObject({
+    status: 502,
+    code: 'API-599',
+    retryable: true,
+  });
+});
+
 test('retries once after refreshing an expired bearer session', async () => {
   const onSessionRefreshed = jest.fn();
   configureApi({

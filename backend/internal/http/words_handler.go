@@ -66,11 +66,11 @@ type addLearningItemRequest struct {
 func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 	var req lookupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "invalid JSON body", false)
 		return
 	}
 	if strings.TrimSpace(req.Text) == "" && req.WordID == nil {
-		writeError(w, http.StatusBadRequest, "text is required")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "text is required", false)
 		return
 	}
 
@@ -93,7 +93,7 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 	)
 	if req.Force {
 		if wordID == nil && pos == nil {
-			writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
+			writeCodedError(w, http.StatusBadRequest, "ADD-301", "force requires a concrete part_of_speech or a word_id", false)
 			return
 		}
 		result, err = h.svc.ForceGenerate(r.Context(), userID, wordID, req.Text, req.LanguageCode, displayLang, req.SourceContext, pos)
@@ -114,11 +114,11 @@ func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
 func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 	var req addLearningItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "invalid JSON body", false)
 		return
 	}
 	if strings.TrimSpace(req.WordSenseID) == "" {
-		writeError(w, http.StatusBadRequest, "word_sense_id is required")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "word_sense_id is required", false)
 		return
 	}
 
@@ -255,41 +255,41 @@ func parseListLearningItemsParams(r *http.Request) (words.ListLearningItemsParam
 func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, words.ErrSenseNotFound):
-		writeError(w, http.StatusUnprocessableEntity, "word sense not found")
+		writeCodedError(w, http.StatusUnprocessableEntity, "ADD-302", "word sense not found", false)
 	case errors.Is(err, words.ErrLearningItemNotFound):
-		writeError(w, http.StatusNotFound, "learning item not found")
+		writeCodedError(w, http.StatusNotFound, "ADD-302", "learning item not found", false)
 	case errors.Is(err, words.ErrSenseConflict):
-		writeError(w, http.StatusConflict, "sense_already_in_learning_set")
+		writeCodedError(w, http.StatusConflict, "ADD-308", "sense_already_in_learning_set", false)
 	case errors.Is(err, words.ErrSenseWrongWord):
-		writeError(w, http.StatusUnprocessableEntity, "word sense does not belong to the same word")
+		writeCodedError(w, http.StatusUnprocessableEntity, "ADD-302", "word sense does not belong to the same word", false)
 	case errors.Is(err, words.ErrTranslationUnavailable):
-		writeError(w, http.StatusUnprocessableEntity, "localized translation unavailable for this word sense")
+		writeCodedError(w, http.StatusUnprocessableEntity, "ADD-304", "localized translation unavailable for this word sense", false)
 	case errors.Is(err, words.ErrForceAmbiguous):
-		writeError(w, http.StatusBadRequest, "force requires a concrete part_of_speech or a word_id")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "force requires a concrete part_of_speech or a word_id", false)
 	case errors.Is(err, words.ErrDeckNotFound):
-		writeError(w, http.StatusNotFound, "deck not found")
+		writeCodedError(w, http.StatusNotFound, "ADD-305", "deck not found", false)
 	case errors.Is(err, words.ErrDeckNotOwned), errors.Is(err, words.ErrDeckLanguageMismatch):
-		writeError(w, http.StatusForbidden, "deck not available for this user or language")
+		writeCodedError(w, http.StatusForbidden, "ADD-306", "deck not available for this user or language", false)
 	case errors.Is(err, words.ErrInvalidDeckOrigin):
-		writeError(w, http.StatusBadRequest, "origin must be private")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "origin must be private", false)
 	case errors.Is(err, words.ErrInvalidDeckName):
-		writeError(w, http.StatusBadRequest, "invalid deck name")
+		writeCodedError(w, http.StatusBadRequest, "ADD-301", "invalid deck name", false)
 	case errors.Is(err, words.ErrDeckNameExists):
-		writeError(w, http.StatusConflict, "deck name already exists")
+		writeCodedError(w, http.StatusConflict, "ADD-301", "deck name already exists", false)
 	case errors.Is(err, words.ErrInvalidTargetLanguagePair), errors.Is(err, words.ErrInvalidTargetLang):
-		writeError(w, http.StatusBadRequest, "invalid target language")
+		writeCodedError(w, http.StatusBadRequest, "ADD-307", "invalid target language", false)
 	case errors.Is(err, enrich.ErrUnsupportedLanguage):
-		writeError(w, http.StatusServiceUnavailable, "multilingual enrichment provider required for this target language")
+		writeCodedError(w, http.StatusServiceUnavailable, "ADD-401", "multilingual enrichment provider required for this target language", false)
 	case errors.Is(err, enrich.ErrNotConfigured):
-		writeError(w, http.StatusServiceUnavailable, "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually")
+		writeCodedError(w, http.StatusServiceUnavailable, "ADD-402", "word enrichment is not available; set ENRICH_PRIMARY_API_KEY or add the sense manually", false)
 	case errors.Is(err, enrich.ErrNoAdditionalSenses):
-		writeError(w, http.StatusUnprocessableEntity, "no_additional_senses")
+		writeCodedError(w, http.StatusUnprocessableEntity, "ADD-303", "no_additional_senses", false)
 	case errors.Is(err, enrich.ErrUnavailable):
-		writeError(w, http.StatusServiceUnavailable, "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings")
+		writeCodedError(w, http.StatusServiceUnavailable, "ADD-403", "word enrichment provider unreachable or rejected the request; check ENRICH_PRIMARY_* settings", true)
 	case errors.Is(err, enrich.ErrInvalidOutput), errors.Is(err, words.ErrNoSenses):
-		writeError(w, http.StatusServiceUnavailable, "word enrichment failed to produce usable output; try again or add the sense manually")
+		writeCodedError(w, http.StatusServiceUnavailable, "ADD-404", "word enrichment failed to produce usable output", true)
 	case errors.Is(err, words.ErrNoAdditionalSense):
-		writeError(w, http.StatusServiceUnavailable, "no additional distinct sense")
+		writeCodedError(w, http.StatusServiceUnavailable, "ADD-303", "no additional distinct sense", false)
 	default:
 		writeInternalError(w, r, err)
 	}
@@ -297,6 +297,14 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeCodedError(w http.ResponseWriter, status int, code, message string, retryable bool) {
+	writeJSON(w, status, map[string]any{
+		"error":     message,
+		"code":      code,
+		"retryable": retryable,
+	})
 }
 
 func logHandlerError(r *http.Request, err error) {
@@ -314,7 +322,7 @@ func logHandlerError(r *http.Request, err error) {
 
 func writeInternalError(w http.ResponseWriter, r *http.Request, err error) {
 	logHandlerError(r, err)
-	writeError(w, http.StatusInternalServerError, "internal error")
+	writeCodedError(w, http.StatusInternalServerError, "ADD-599", "internal error", true)
 }
 
 func userIDFromRequest(r *http.Request) string {

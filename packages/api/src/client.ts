@@ -45,16 +45,22 @@ function getConfig(): ApiConfig {
 
 export class ApiError extends Error {
   readonly status: number;
+  readonly code?: string;
+  readonly retryable: boolean;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string, retryable = false) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
+    this.retryable = retryable;
   }
 }
 
 interface ErrorBody {
   error?: string;
+  code?: string;
+  retryable?: boolean;
 }
 
 export interface RequestOptions {
@@ -124,7 +130,14 @@ async function buildHeaders(options?: RequestOptions, mutation = false): Promise
 
 async function parseResponse(response: Response): Promise<unknown> {
   const text = await response.text();
-  return text.length > 0 ? (JSON.parse(text) as unknown) : null;
+  if (text.length === 0) {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new ApiError(response.status, 'The server returned an invalid response.', 'API-599', true);
+  }
 }
 
 async function fetchWithTimeout(
@@ -210,8 +223,9 @@ async function handleUnauthorized(
 
 function throwOnError(response: Response, parsed: unknown): void {
   if (!response.ok) {
-    const message = (parsed as ErrorBody | null)?.error ?? `Request failed (${response.status})`;
-    throw new ApiError(response.status, message);
+    const body = parsed as ErrorBody | null;
+    const message = body?.error ?? `Request failed (${response.status})`;
+    throw new ApiError(response.status, message, body?.code, body?.retryable === true);
   }
 }
 

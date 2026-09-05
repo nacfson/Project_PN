@@ -21,6 +21,7 @@ These env vars must be available to the `project-pn-backend` Deployment (and the
 | `DATABASE_URL` | In-cluster Postgres connection string |
 | `AUTH_SESSION_INTERNAL_TOKEN` | Validates central auth session cookies |
 | `CENTRAL_AUTH_INTERNAL_URL` | Internal URL for session validation |
+| `PUBLIC_APP_URL` | Frontend origin for magic-link redirect (`/link-approve?requestId=…`); default `http://localhost:8081` |
 
 Optional enricher overrides (defaults apply when empty):
 

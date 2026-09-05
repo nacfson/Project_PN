@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,11 +56,12 @@ func TestCSRFProtectionRejectsInvalidOriginAndToken(t *testing.T) {
 		header     string
 		cookie     string
 		wantStatus int
+		wantCode   string
 	}{
-		{name: "missing origin", header: "csrf", cookie: "csrf", wantStatus: http.StatusForbidden},
-		{name: "untrusted origin", origin: "https://attacker.example", header: "csrf", cookie: "csrf", wantStatus: http.StatusForbidden},
-		{name: "missing token header", origin: "https://pn.nacfson.cloud", cookie: "csrf", wantStatus: http.StatusForbidden},
-		{name: "mismatched token", origin: "https://pn.nacfson.cloud", header: "wrong", cookie: "csrf", wantStatus: http.StatusForbidden},
+		{name: "missing origin", header: "csrf", cookie: "csrf", wantStatus: http.StatusForbidden, wantCode: "SEC-101"},
+		{name: "untrusted origin", origin: "https://attacker.example", header: "csrf", cookie: "csrf", wantStatus: http.StatusForbidden, wantCode: "SEC-101"},
+		{name: "missing token header", origin: "https://pn.nacfson.cloud", cookie: "csrf", wantStatus: http.StatusForbidden, wantCode: "SEC-102"},
+		{name: "mismatched token", origin: "https://pn.nacfson.cloud", header: "wrong", cookie: "csrf", wantStatus: http.StatusForbidden, wantCode: "SEC-102"},
 	}
 
 	for _, tt := range tests {
@@ -80,6 +82,15 @@ func TestCSRFProtectionRejectsInvalidOriginAndToken(t *testing.T) {
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("expected %d, got %d", tt.wantStatus, rec.Code)
+			}
+			var response struct {
+				Code string `json:"code"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode error response: %v", err)
+			}
+			if response.Code != tt.wantCode {
+				t.Fatalf("expected %s, got %q", tt.wantCode, response.Code)
 			}
 		})
 	}

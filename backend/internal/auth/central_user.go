@@ -148,28 +148,22 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 	}
 	return AuthResult{
 		User:               user,
+		SessionProvider:    pnProvider,
 		LinkRecommendation: linkRecommendation,
 		PendingIdentity:    pendingIdentity,
 	}, nil
 }
 
 func (s *Service) LinkProvider(ctx context.Context, userID string, pending PendingIdentity) error {
-	if pending.Provider == "" || pending.ProviderSubject == "" {
-		return ErrInvalidToken
-	}
-	email := NormalizeEmail(pending.Email)
-	_, err := s.pool.Exec(ctx, `
-		insert into user_identities (user_id, provider, provider_subject, email_at_provider)
-		values ($1::uuid, $2, $3, $4)
-		on conflict (provider, provider_subject) do update
-		set user_id = excluded.user_id,
-		    email_at_provider = excluded.email_at_provider,
-		    linked_at = now()
-	`, userID, pending.Provider, pending.ProviderSubject, email)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("auth: link provider: %w", err)
+		return fmt.Errorf("auth: begin link provider: %w", err)
 	}
-	return nil
+	defer tx.Rollback(ctx)
+	if err := linkProviderTx(ctx, tx, userID, pending); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Service) ListLinkedProviders(ctx context.Context, userID string) ([]LinkedProvider, error) {

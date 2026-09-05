@@ -1,7 +1,8 @@
 import React, { ReactNode } from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { AddQueueProvider, useAddQueue } from './useAddQueue';
-import { addLearningItem } from '../api/words';
+import { addLearningItem, lookupWord } from '../api/words';
+import { ApiError } from '../api/client';
 import { AppLanguageProvider } from '../i18n';
 
 jest.mock('../api/words', () => ({
@@ -83,6 +84,40 @@ describe('useAddQueue deck-aware', () => {
       expect(lookupWord).toHaveBeenCalledWith('hello', expect.objectContaining({
         languageCode: 'zh',
       }));
+    });
+  });
+
+  it('keeps a coded, user-facing reason when lookup fails', async () => {
+    (lookupWord as jest.Mock).mockRejectedValueOnce(
+      new ApiError(503, 'word enrichment provider unavailable', 'ADD-403', true),
+    );
+    const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
+
+    await act(() => {
+      result.current.enqueue('hello', 'Any');
+    });
+
+    await waitFor(() => {
+      expect(result.current.jobs[0]).toMatchObject({
+        status: 'error',
+        error: 'ADD-403: The dictionary service is temporarily unavailable. Try again.',
+      });
+    });
+  });
+
+  it('classifies an empty lookup result as no dictionary meaning', async () => {
+    (lookupWord as jest.Mock).mockResolvedValueOnce({ sense_options: [] });
+    const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
+
+    await act(() => {
+      result.current.enqueue('unlisted', 'Any');
+    });
+
+    await waitFor(() => {
+      expect(result.current.jobs[0]).toMatchObject({
+        status: 'error',
+        error: 'ADD-303: No additional dictionary meaning was found.',
+      });
     });
   });
 });

@@ -25,20 +25,20 @@ func csrfProtection(allowedOrigins []string) func(http.Handler) http.Handler {
 			}
 
 			if _, err := ensureCSRFToken(w, r); err != nil {
-				writeError(w, http.StatusInternalServerError, "could not initialize csrf protection")
+				writeCodedError(w, http.StatusInternalServerError, "SEC-599", "could not initialize csrf protection", true)
 				return
 			}
 
 			if isMutationMethod(r.Method) {
 				if !originAllowed(r.Header.Get("Origin"), allowedOrigins) {
-					writeError(w, http.StatusForbidden, "csrf origin validation failed")
+					writeCodedError(w, http.StatusForbidden, "SEC-101", "csrf origin validation failed", false)
 					return
 				}
 
 				cookie, err := r.Cookie(csrfCookieName)
 				headerToken := strings.TrimSpace(r.Header.Get(csrfHeaderName))
 				if err != nil || cookie.Value == "" || headerToken == "" || cookie.Value != headerToken {
-					writeError(w, http.StatusForbidden, "csrf validation failed")
+					writeCodedError(w, http.StatusForbidden, "SEC-102", "csrf validation failed", true)
 					return
 				}
 			}

@@ -109,7 +109,10 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 - First-time login with Nacfson Cloud user → provisions a local `users` row and a `user_identities` link.
 - Google OAuth session (`auth_provider=google`) maps to `user_identities(provider=google, provider_subject=<sub>)`.
 - Magic-link session maps to `user_identities(provider=nacfson, provider_subject=<central user id>)`.
-- Second provider with same verified email → `GET /api/auth/me` returns `link_recommendation`; no new `user_identities` row until `POST /api/auth/link-provider`.
+- Second provider with same verified email → `GET /api/auth/me` returns `link_recommendation`; no new `user_identities` row until link-request confirm.
+- `POST /api/auth/link-requests` creates a pending `account_link_requests` row (15m TTL) and triggers central-auth magic link.
+- Confirm with email (`nacfson`) session → identity inserted; confirm with pending Google session → rejected.
+- `POST /api/auth/link-provider` returns 410 Gone.
 - `GET /api/auth/linked-providers` lists connected providers for Settings.
 - Manual merge: `POST /api/auth/merge-requests` + `POST /api/auth/merge-requests/{id}/confirm` unions word lists and deletes the source user.
 - Subsequent requests with the same user resolve to the same local user ID.

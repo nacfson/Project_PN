@@ -75,6 +75,7 @@ type Config struct {
 	CentralAuthURL           string
 	CentralAuthInternalURL   string
 	AuthSessionInternalToken string
+	PublicAppURL             string
 
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
@@ -83,6 +84,7 @@ type Config struct {
 	AdminLogPath string
 
 	LearningLogDir string
+	AnalyticsEnabled bool
 }
 
 func Load() Config {
@@ -132,6 +134,7 @@ func Load() Config {
 		CentralAuthURL:           strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
 		CentralAuthInternalURL:   strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
 		AuthSessionInternalToken: strings.TrimSpace(os.Getenv("AUTH_SESSION_INTERNAL_TOKEN")),
+		PublicAppURL:             strings.TrimRight(strings.TrimSpace(envOrDefault("PUBLIC_APP_URL", "http://localhost:8081")), "/"),
 
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
@@ -140,6 +143,7 @@ func Load() Config {
 		AdminLogPath: envOrDefault("ADMIN_LOG_PATH", defaultAdminLogPath),
 
 		LearningLogDir: os.Getenv("LEARNING_LOG_DIR"),
+		AnalyticsEnabled: envBool("ANALYTICS_ENABLED", false),
 	}
 }
 

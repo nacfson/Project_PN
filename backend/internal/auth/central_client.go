@@ -320,6 +320,43 @@ func (c *CentralClient) LogoutCookieSession(ctx context.Context, cookieValue str
 	return nil
 }
 
+func (c *CentralClient) SendMagicLink(ctx context.Context, email, redirectURL string) error {
+	email = NormalizeEmail(email)
+	if email == "" {
+		return ErrInvalidToken
+	}
+	endpoint, err := url.Parse(c.backendURL() + "/api/auth/magic-link")
+	if err != nil {
+		return fmt.Errorf("auth: magic link URL: %w", err)
+	}
+	q := endpoint.Query()
+	if strings.TrimSpace(redirectURL) != "" {
+		q.Set("rd", redirectURL)
+	}
+	endpoint.RawQuery = q.Encode()
+
+	body, err := json.Marshal(map[string]string{"email": email})
+	if err != nil {
+		return fmt.Errorf("auth: magic link body: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("auth: magic link request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("auth: magic link request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("auth: magic link status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	return nil
+}
+
 func (c *CentralClient) backendURL() string {
 	if c.internalURL != "" {
 		return c.internalURL

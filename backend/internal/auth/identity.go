@@ -37,8 +37,18 @@ type PendingIdentity struct {
 
 type AuthResult struct {
 	User               User
+	SessionProvider    string // mapped PN provider for this session ('google' | 'nacfson')
 	LinkRecommendation *LinkRecommendation
 	PendingIdentity    *PendingIdentity
+}
+
+// LinkRequest is a pending or recent same-email provider link request.
+type LinkRequest struct {
+	ID              string    `json:"id"`
+	Status          string    `json:"status"`
+	PendingProvider string    `json:"pending_provider"`
+	Email           string    `json:"email"`
+	ExpiresAt       time.Time `json:"expires_at"`
 }
 
 func MapCentralProvider(authProvider, providerSubject, centralUserID string) (pnProvider, pnSubject string) {

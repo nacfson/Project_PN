@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Link account — target approval mockup</title>
+  <style>
+    :root {
+      --bg: #eef1f8;
+      --ink: #1c1b1f;
+      --muted: #5c6370;
+      --line: #C8CDD8;
+      --card: #ffffff;
+      --primary: #4F6AFF;
+      --primary-soft: #E8EDFF;
+      --on-primary: #ffffff;
+      --danger: #b3261e;
+      --danger-soft: #f9dedc;
+      --ok: #0f766e;
+      --ok-soft: #ccfbf1;
+      --warn: #b45309;
+      --warn-soft: #fef3c7;
+      --chrome: #e8ebf2;
+      --surface: #F5F7FC;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 480px at 0% 0%, #4F6AFF18, transparent),
+        radial-gradient(800px 420px at 100% 8%, #00B4A014, transparent),
+        var(--bg);
+      line-height: 1.4;
+    }
+
+    header {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 24px 12px;
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.5rem, 2.6vw, 2rem);
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 68ch;
+      font-size: 0.95rem;
+    }
+
+    .principle {
+      max-width: 1180px;
+      margin: 16px auto 0;
+      padding: 0 24px;
+    }
+    .principle-box {
+      background: var(--primary-soft);
+      border: 1px solid #c5ceff;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+    }
+    .principle-box strong { color: var(--primary); }
+
+    /* State machine */
+    .flow {
+      max-width: 1180px;
+      margin: 22px auto 8px;
+      padding: 0 24px;
+    }
+    .flow h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+    }
+    .steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .step-chip {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .step-chip[aria-current="true"] {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .step-chip:hover { border-color: var(--primary); }
+    .arrow { color: var(--muted); font-size: 0.85rem; user-select: none; }
+
+    /* Compare strip */
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      max-width: 1180px;
+      margin: 20px auto 0;
+      padding: 0 24px;
+    }
+    @media (max-width: 720px) {
+      .compare { grid-template-columns: 1fr; }
+    }
+    .compare-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    .tag.bad { background: #fecaca; color: #7f1d1d; }
+    .tag.good { background: #bbf7d0; color: #14532d; }
+    .compare-card h3 { margin: 0 0 6px; font-size: 1rem; }
+    .compare-card p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+
+    /* Stage grid */
+    .stage-wrap {
+      max-width: 1180px;
+      margin: 24px auto 56px;
+      padding: 0 24px;
+    }
+    .stage {
+      display: none;
+      gap: 28px;
+      align-items: start;
+    }
+    .stage.active {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) 1fr;
+    }
+    @media (max-width: 860px) {
+      .stage.active { grid-template-columns: 1fr; justify-items: center; }
+    }
+
+    .phone {
+      width: 100%;
+      max-width: 340px;
+      height: 680px;
+      border: 2px solid #2a2f3a;
+      border-radius: 28px;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: 0 24px 48px -28px rgba(20, 30, 80, 0.55);
+      display: flex;
+      flex-direction: column;
+    }
+    .status-bar {
+      height: 28px;
+      background: var(--chrome);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .app-bar {
+      padding: 12px 16px 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .app-bar h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      flex: 1;
+    }
+    .back {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .phone-body {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 16px 20px;
+    }
+    .phone-footer {
+      padding: 12px 16px 18px;
+      border-top: 1px solid var(--line);
+      background: rgba(245, 247, 252, 0.92);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .role-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+    .role-pill.initiator { background: var(--primary-soft); color: #2a3db8; }
+    .role-pill.target { background: var(--warn-soft); color: #92400e; }
+    .role-pill.system { background: #e5e7eb; color: #374151; }
+
+    .banner {
+      border: 1px solid #c5ceff;
+      background: var(--primary-soft);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .banner.pending {
+      border-color: #fcd34d;
+      background: var(--warn-soft);
+    }
+    .banner.ok {
+      border-color: #5eead4;
+      background: var(--ok-soft);
+    }
+    .banner .title {
+      font-weight: 700;
+      font-size: 0.92rem;
+      margin-bottom: 4px;
+    }
+    .banner .body {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .identities {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .id-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .id-row.you { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary-soft); }
+    .id-row.them { border-style: dashed; }
+    .avatar {
+      width: 40px; height: 40px;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+    .avatar.google { background: #fee2e2; color: #dc2626; }
+    .avatar.mail { background: #e0e7ff; color: #4338ca; }
+    .id-copy { flex: 1; min-width: 0; }
+    .id-copy .name { font-weight: 650; font-size: 0.9rem; }
+    .id-copy .email { font-size: 0.78rem; color: var(--muted); }
+    .id-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--primary-soft);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .id-badge.wait { color: var(--warn); background: var(--warn-soft); }
+
+    .link-line {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin: -2px 0;
+    }
+
+    .checklist {
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .checklist li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .checklist .box {
+      width: 18px; height: 18px;
+      border: 1.5px solid var(--line);
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      background: #fff;
+    }
+    .checklist .box.on {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: inset 0 0 0 2px #fff;
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      border-radius: 12px;
+      padding: 13px 16px;
+      font-size: 0.92rem;
+      font-weight: 650;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn.primary { background: var(--primary); color: var(--on-primary); }
+    .btn.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.secondary {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .btn.ghost {
+      background: transparent;
+      color: var(--muted);
+      font-weight: 550;
+      padding: 8px;
+      font-size: 0.85rem;
+    }
+    .btn.danger { background: var(--danger); color: #fff; }
+
+    .otp-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 18px 0 8px;
+    }
+    .otp-box {
+      width: 42px; height: 48px;
+      border: 1.5px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .otp-box.filled { border-color: var(--primary); color: var(--primary); }
+
+    .email-mock {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 8px;
+    }
+    .email-mock .from {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .email-mock .subject {
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+    .email-mock .preview {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .note {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px 20px;
+    }
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 1.1rem;
+    }
+    .note p, .note li {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .note ul {
+      margin: 10px 0 0;
+      padding-left: 1.15rem;
+    }
+    .note li { margin-bottom: 6px; }
+    .note code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82em;
+      background: var(--chrome);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .nav-btns {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      background: var(--chrome);
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .tab {
+      flex: 1;
+      appearance: none;
+      border: none;
+      background: transparent;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 650;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .tab.on {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    .timer {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .success-mark {
+      width: 64px; height: 64px;
+      border-radius: 32px;
+      background: var(--ok-soft);
+      color: var(--ok);
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      margin: 24px auto 12px;
+    }
+
+    .muted-center {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .legend .l-init::before { background: var(--primary); }
+    .legend .l-target::before { background: var(--warn); }
+    .legend .l-done::before { background: var(--ok); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Link account — target must approve</h1>
+    <p>
+      Mockup for replacing one-tap <code style="font-family:ui-monospace,monospace;font-size:0.85em">LinkAccountBanner</code>
+      with a two-sided flow: initiator proposes, target approves via <strong>central-auth magic link</strong> (15&nbsp;min TTL), then link completes.
+    </p>
+  </header>
+
+  <div class="principle">
+    <div class="principle-box">
+      <strong>Principle:</strong> Initiator can only <em>request</em>.
+      Target approves by completing the existing central-auth <em>magic link</em> email
+      (same mailer / <code style="font-family:ui-monospace,monospace;font-size:0.85em">magic_link_tokens</code>, 15&nbsp;min TTL) — no separate PN OTP.
+    </div>
+  </div>
+
+  <div class="compare">
+    <div class="compare-card">
+      <span class="tag bad">Current</span>
+      <h3>Home banner → one tap → linked</h3>
+      <p>Only the signed-in session consents. Target never sees or confirms the request.</p>
+    </div>
+    <div class="compare-card">
+      <span class="tag good">Proposed</span>
+      <h3>Propose → pending → target approve → linked</h3>
+      <p>Same email discovery, but link stays pending until the other identity proves itself.</p>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h2>Walk the flow</h2>
+    <div class="steps" role="tablist" aria-label="Link flow steps">
+      <button type="button" class="step-chip" data-step="0" aria-current="true">1. Notice</button>
+      <span class="arrow">→</span>
+      <button type="button" class="step-chip" data-step="1">2. Propose</button>
+      <span class="arrow">→</span>
+      <button type="button" class="step-chip" data-step="2">3. Pending</button>
+      <span class="arrow">→</span>
+      <button type="button" class="step-chip" data-step="3">4. Target approves</button>
+      <span class="arrow">→</span>
+      <button type="button" class="step-chip" data-step="4">5. Linked</button>
+    </div>
+    <div class="legend">
+      <span class="l-init">Initiator session</span>
+      <span class="l-target">Target (email / other device)</span>
+      <span class="l-done">Both sides synced</span>
+    </div>
+  </div>
+
+  <div class="stage-wrap">
+    <!-- 0 Notice -->
+    <section class="stage active" data-stage="0">
+      <div class="phone">
+        <div class="status-bar">9:41 · Project PN</div>
+        <div class="app-bar"><h3>Home</h3></div>
+        <div class="phone-body">
+          <span class="role-pill initiator">Initiator · signed in with Google</span>
+          <div class="banner">
+            <div class="title">Another sign-in method found</div>
+            <div class="body">
+              We found an email account for <strong>you@example.com</strong>.
+              You can request to link it — the email inbox must approve.
+            </div>
+          </div>
+          <div style="height: 120px; border: 1px dashed var(--line); border-radius: 12px; display:grid; place-items:center; color:var(--muted); font-size:0.8rem;">
+            Practice / decks content…
+          </div>
+        </div>
+        <div class="phone-footer">
+          <button type="button" class="btn primary" data-goto="1">Review link request</button>
+          <button type="button" class="btn ghost">Not now</button>
+        </div>
+      </div>
+      <div class="note">
+        <h2>1. Soft notice (not a link button)</h2>
+        <p>
+          Banner no longer runs <code>linkProvider()</code>. Primary CTA is
+          <strong>Review</strong>, not Link. Dismissal is easy; linking is not.
+        </p>
+        <ul>
+          <li>Shown when <code>link_recommendation</code> exists</li>
+          <li>Optional: move this entirely under Settings → Connected accounts</li>
+          <li>Copy stresses that the <em>other</em> side must approve</li>
+        </ul>
+        <div class="nav-btns">
+          <button type="button" class="btn primary" data-goto="1">Next: Propose</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1 Propose -->
+    <section class="stage" data-stage="1">
+      <div class="phone">
+        <div class="status-bar">9:41 · Project PN</div>
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <h3>Link accounts</h3>
+        </div>
+        <div class="phone-body">
+          <span class="role-pill initiator">Initiator</span>
+          <p style="margin:0 0 4px; font-size:0.9rem; font-weight:650;">What will be linked</p>
+          <p style="margin:0; font-size:0.8rem; color:var(--muted);">
+            Same vocabulary and settings. Both sign-in methods will open this account.
+          </p>
+
+          <div class="identities">
+            <div class="id-row you">
+              <div class="avatar google">G</div>
+              <div class="id-copy">
+                <div class="name">Google</div>
+                <div class="email">you@example.com</div>
+              </div>
+              <span class="id-badge">You</span>
+            </div>
+            <div class="link-line">↕ request link</div>
+            <div class="id-row them">
+              <div class="avatar mail">✉</div>
+              <div class="id-copy">
+                <div class="name">Email account</div>
+                <div class="email">you@example.com</div>
+              </div>
+              <span class="id-badge wait">Must approve</span>
+            </div>
+          </div>
+
+          <ul class="checklist">
+            <li>
+              <span class="box on"></span>
+              <span>I understand both methods will access the same learning data.</span>
+            </li>
+            <li>
+              <span class="box on"></span>
+              <span>I confirm this email account belongs to me.</span>
+            </li>
+          </ul>
+        </div>
+        <div class="phone-footer">
+          <button type="button" class="btn primary" data-goto="2">Send approval request</button>
+          <button type="button" class="btn secondary" data-goto="0">Cancel</button>
+        </div>
+      </div>
+      <div class="note">
+        <h2>2. Propose (initiator only)</h2>
+        <p>
+          Creating a pending link request — analogous to <code>createMergeRequest</code>,
+          not an immediate link.
+        </p>
+        <ul>
+          <li>Show both identities and who must approve</li>
+          <li>Checkboxes create intent; they are not the security boundary</li>
+          <li>API: <code>POST /link-requests</code> → status <code>pending</code>, <code>expires_at = now+15m</code></li>
+          <li>PN triggers central-auth <code>POST /api/auth/magic-link?rd=/link-approve?request_id=…</code></li>
+        </ul>
+        <div class="nav-btns">
+          <button type="button" class="btn secondary" data-goto="0">Back</button>
+          <button type="button" class="btn primary" data-goto="2">Next: Pending</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 Pending -->
+    <section class="stage" data-stage="2">
+      <div class="phone">
+        <div class="status-bar">9:41 · Project PN</div>
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <h3>Waiting for approval</h3>
+        </div>
+        <div class="phone-body">
+          <span class="role-pill initiator">Initiator · this device</span>
+          <div class="banner pending">
+            <div class="title">Magic link sent to you@example.com</div>
+            <div class="body">
+              Open the Project PN sign-in email and continue. Link expires in 15 minutes.
+              This Google session cannot finish the link alone.
+            </div>
+          </div>
+
+          <div class="identities">
+            <div class="id-row you">
+              <div class="avatar google">G</div>
+              <div class="id-copy">
+                <div class="name">Google</div>
+                <div class="email">you@example.com</div>
+              </div>
+              <span class="id-badge">Ready</span>
+            </div>
+            <div class="link-line">⋯ waiting</div>
+            <div class="id-row them">
+              <div class="avatar mail">✉</div>
+              <div class="id-copy">
+                <div class="name">Email account</div>
+                <div class="email">Awaiting confirmation…</div>
+              </div>
+              <span class="id-badge wait">Pending</span>
+            </div>
+          </div>
+
+          <p class="timer">Expires in 14:42 · Request ID ···a41f</p>
+        </div>
+        <div class="phone-footer">
+          <button type="button" class="btn secondary">Resend email</button>
+          <button type="button" class="btn ghost">Cancel request</button>
+          <button type="button" class="btn primary" data-goto="3" style="margin-top:4px;">
+            Preview target side →
+          </button>
+        </div>
+      </div>
+      <div class="note">
+        <h2>3. Pending (blocked on target)</h2>
+        <p>
+          Initiator UI is read-only for completion. Poll <code>link_request.status</code>
+          or refresh after deep-link return.
+        </p>
+        <ul>
+          <li>Resend triggers a <strong>new</strong> central-auth magic link and resets the 15m window</li>
+          <li>Request + magic-link TTL: <strong>15 minutes</strong> (<code>MAGIC_LINK_TTL</code>)</li>
+          <li>Home banner becomes “Waiting for email approval…” while pending</li>
+          <li>Immediate <code>link-provider</code> is removed</li>
+        </ul>
+        <div class="nav-btns">
+          <button type="button" class="btn secondary" data-goto="1">Back</button>
+          <button type="button" class="btn primary" data-goto="3">Next: Target</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 Target approves -->
+    <section class="stage" data-stage="3">
+      <div class="phone">
+        <div class="status-bar">9:41 · Mail → PN</div>
+        <div class="app-bar"><h3>Approve link</h3></div>
+        <div class="phone-body">
+          <span class="role-pill target">Target · central-auth magic link</span>
+
+          <div class="email-mock">
+            <div class="from">From · Nacfson Auth · magic link</div>
+            <div class="subject">Your sign-in link for Project PN</div>
+            <div class="preview">
+              Reuses the origin magic-link email. After you continue, Project PN opens
+              the approve screen for this link request (15&nbsp;min).
+            </div>
+            <div style="margin-top:14px;">
+              <button type="button" class="btn primary" style="width:100%;" id="sim-magic">
+                Continue with magic link
+              </button>
+            </div>
+          </div>
+
+          <p class="timer" style="margin-top:16px;">auth.nacfson.cloud/auth/callback → /link-approve?request_id=…</p>
+
+          <div id="after-magic" hidden style="margin-top:16px;">
+            <div class="banner">
+              <div class="title">Signed in with email</div>
+              <div class="body">
+                Session provider: magic_link / nacfson · you@example.com
+                Ready to attach Google to this account.
+              </div>
+            </div>
+            <div class="identities">
+              <div class="id-row them">
+                <div class="avatar google">G</div>
+                <div class="id-copy">
+                  <div class="name">Google (pending)</div>
+                  <div class="email">will be linked on approve</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-footer">
+          <button type="button" class="btn primary" data-goto="4" disabled id="magic-approve">Approve link</button>
+          <button type="button" class="btn ghost">Decline request</button>
+        </div>
+      </div>
+      <div class="note">
+        <h2>4. Target approval (central-auth magic link)</h2>
+        <p>
+          No PN OTP. Target completes the existing
+          <code>CreateMagicLink</code> → mailer → <code>/auth/callback</code> flow.
+          PN confirm requires an <strong>email</strong> session, not the pending Google session.
+        </p>
+        <ul>
+          <li>TTL: <strong>15 minutes</strong> (shared with <code>MAGIC_LINK_TTL</code>)</li>
+          <li>PN calls <code>POST {CENTRAL_AUTH}/api/auth/magic-link?rd=/link-approve?request_id=…</code></li>
+          <li>Approve is an explicit tap after redirect (avoid email-prefetch auto-confirm)</li>
+          <li>Optional later: purpose-specific email copy in central-auth</li>
+        </ul>
+        <div class="nav-btns">
+          <button type="button" class="btn secondary" data-goto="2">Back</button>
+          <button type="button" class="btn primary" data-goto="4">Next: Linked</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 Linked -->
+    <section class="stage" data-stage="4">
+      <div class="phone">
+        <div class="status-bar">9:41 · Project PN</div>
+        <div class="app-bar"><h3>Connected accounts</h3></div>
+        <div class="phone-body">
+          <span class="role-pill system">Both sides</span>
+          <div class="success-mark">✓</div>
+          <p class="muted-center" style="font-weight:700; color:var(--ink); margin-bottom:4px;">
+            Accounts linked
+          </p>
+          <p class="muted-center" style="margin-top:0;">
+            Google and email both open the same vocabulary.
+          </p>
+
+          <div class="identities" style="margin-top:20px;">
+            <div class="id-row">
+              <div class="avatar google">G</div>
+              <div class="id-copy">
+                <div class="name">Google</div>
+                <div class="email">you@example.com</div>
+              </div>
+              <span style="color:var(--ok); font-size:1.1rem;">✓</span>
+            </div>
+            <div class="id-row">
+              <div class="avatar mail">✉</div>
+              <div class="id-copy">
+                <div class="name">Email</div>
+                <div class="email">you@example.com</div>
+              </div>
+              <span style="color:var(--ok); font-size:1.1rem;">✓</span>
+            </div>
+          </div>
+
+          <div class="banner ok" style="margin-top:8px;">
+            <div class="title">Link complete</div>
+            <div class="body">Approved via central-auth magic link · Request ···a41f</div>
+          </div>
+        </div>
+        <div class="phone-footer">
+          <button type="button" class="btn primary" data-goto="0">Done</button>
+        </div>
+      </div>
+      <div class="note">
+        <h2>5. Linked</h2>
+        <p>
+          After target confirm, both sessions refresh; banner disappears;
+          Connected accounts shows both providers.
+        </p>
+        <ul>
+          <li>State: <code>pending_target → linked</code> (or <code>expired</code> / <code>cancelled</code>)</li>
+          <li>Audit: who proposed, who approved, when</li>
+          <li>Merge of two <em>user</em> records stays a separate, harder flow</li>
+        </ul>
+        <div class="nav-btns">
+          <button type="button" class="btn secondary" data-goto="3">Back</button>
+          <button type="button" class="btn primary" data-goto="0">Replay from start</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const chips = [...document.querySelectorAll('.step-chip')];
+    const stages = [...document.querySelectorAll('.stage')];
+
+    function go(n) {
+      const i = Number(n);
+      chips.forEach((c) => c.setAttribute('aria-current', c.dataset.step === String(i) ? 'true' : 'false'));
+      stages.forEach((s) => s.classList.toggle('active', s.dataset.stage === String(i)));
+      window.scrollTo({ top: document.querySelector('.flow').offsetTop - 12, behavior: 'smooth' });
+    }
+
+    chips.forEach((c) => c.addEventListener('click', () => go(c.dataset.step)));
+    document.querySelectorAll('[data-goto]').forEach((el) => {
+      el.addEventListener('click', () => go(el.getAttribute('data-goto')));
+    });
+
+    document.getElementById('sim-magic')?.addEventListener('click', () => {
+      const after = document.getElementById('after-magic');
+      const approve = document.getElementById('magic-approve');
+      if (after) after.hidden = false;
+      if (approve) approve.disabled = false;
+    });
+  </script>
+</body>
+</html>

@@ -32,6 +32,7 @@ type meResponse struct {
 	UILanguage         string                      `json:"ui_language"`
 	ActiveLanguage     auth.UserLanguage           `json:"active_language"`
 	LinkRecommendation *auth.LinkRecommendation    `json:"link_recommendation,omitempty"`
+	LinkRequest        *auth.LinkRequest           `json:"link_request,omitempty"`
 	MergeSuggestion    *auth.MergeSuggestion       `json:"merge_suggestion,omitempty"`
 	LinkedProviders    []linkedProviderResponse    `json:"linked_providers,omitempty"`
 }
@@ -154,6 +155,14 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 		mergeSuggestion = &suggestions[0]
 	}
 
+	var linkRequest *auth.LinkRequest
+	if pending, err := h.svc.GetPendingLinkRequest(r.Context(), user.ID); err == nil {
+		linkRequest = &pending
+	} else if !errors.Is(err, auth.ErrLinkRequestNotFound) {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
 	h.logger.Logf("AUTH", "%s identity confirmed from %s", user.Email, r.RemoteAddr)
 	writeJSON(w, http.StatusOK, meResponse{
 		ID:                 user.ID,
@@ -165,6 +174,7 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 		UILanguage:         user.UILanguage,
 		ActiveLanguage:     user.ActiveLanguage,
 		LinkRecommendation: authResult.LinkRecommendation,
+		LinkRequest:        linkRequest,
 		MergeSuggestion:    mergeSuggestion,
 		LinkedProviders:    linkedResp,
 	})
@@ -192,7 +202,11 @@ func (h *authHandler) linkedProviders(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (h *authHandler) linkProvider(w http.ResponseWriter, r *http.Request) {
+func (h *authHandler) linkProviderGone(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusGone, "use POST /api/auth/link-requests; target must approve via magic link")
+}
+
+func (h *authHandler) createLinkRequest(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
@@ -203,8 +217,117 @@ func (h *authHandler) linkProvider(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "no link recommendation available")
 		return
 	}
-	if err := h.svc.LinkProvider(r.Context(), user.ID, *authResult.PendingIdentity); err != nil {
+	req, err := h.svc.CreateLinkRequest(r.Context(), user.ID, *authResult.PendingIdentity)
+	if err != nil {
+		if errors.Is(err, auth.ErrNoPendingIdentity) {
+			writeError(w, http.StatusBadRequest, "no link recommendation available")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	writeJSON(w, http.StatusCreated, req)
+}
+
+func (h *authHandler) currentLinkRequest(w http.ResponseWriter, r *http.Request) {
+	user, ok := userFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	req, err := h.svc.GetPendingLinkRequest(r.Context(), user.ID)
+	if err != nil {
+		if errors.Is(err, auth.ErrLinkRequestNotFound) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	writeJSON(w, http.StatusOK, req)
+}
+
+func (h *authHandler) resendLinkRequest(w http.ResponseWriter, r *http.Request) {
+	user, ok := userFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	requestID := strings.TrimSpace(r.PathValue("id"))
+	if requestID == "" {
+		writeError(w, http.StatusBadRequest, "id required")
+		return
+	}
+	req, err := h.svc.ResendLinkRequest(r.Context(), user.ID, requestID)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrLinkRequestNotFound):
+			writeError(w, http.StatusNotFound, "link request not found")
+		case errors.Is(err, auth.ErrLinkRequestExpired):
+			writeError(w, http.StatusBadRequest, "link request expired")
+		case errors.Is(err, auth.ErrLinkResendCooldown):
+			writeError(w, http.StatusTooManyRequests, "wait before resending")
+		default:
+			writeError(w, http.StatusInternalServerError, "internal error")
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, req)
+}
+
+func (h *authHandler) cancelLinkRequest(w http.ResponseWriter, r *http.Request) {
+	user, ok := userFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	authResult, _ := authResultFromContext(r.Context())
+	requestID := strings.TrimSpace(r.PathValue("id"))
+	if requestID == "" {
+		writeError(w, http.StatusBadRequest, "id required")
+		return
+	}
+	if err := h.svc.CancelLinkRequest(r.Context(), user.ID, authResult.SessionProvider, requestID); err != nil {
+		if errors.Is(err, auth.ErrLinkRequestNotFound) {
+			writeError(w, http.StatusNotFound, "link request not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *authHandler) confirmLinkRequest(w http.ResponseWriter, r *http.Request) {
+	user, ok := userFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	authResult, ok := authResultFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	requestID := strings.TrimSpace(r.PathValue("id"))
+	if requestID == "" {
+		writeError(w, http.StatusBadRequest, "id required")
+		return
+	}
+	err := h.svc.ConfirmLinkRequest(r.Context(), user.ID, authResult.SessionProvider, user.Email, requestID)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrLinkConfirmForbidden):
+			writeError(w, http.StatusForbidden, "email magic-link session required to approve")
+		case errors.Is(err, auth.ErrLinkRequestNotFound):
+			writeError(w, http.StatusNotFound, "link request not found")
+		case errors.Is(err, auth.ErrLinkRequestExpired):
+			writeError(w, http.StatusBadRequest, "link request expired")
+		case errors.Is(err, auth.ErrLinkIdentityConflict):
+			writeError(w, http.StatusConflict, "identity already linked to another account")
+		default:
+			writeError(w, http.StatusInternalServerError, "internal error")
+		}
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

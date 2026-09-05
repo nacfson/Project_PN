@@ -65,9 +65,14 @@ Requires `Authorization: Bearer <token>`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/auth/me` | Current user profile, linked providers, and optional same-email link recommendation. |
+| `GET` | `/api/auth/me` | Current user profile, linked providers, optional same-email link recommendation, and optional pending `link_request`. |
 | `GET` | `/api/auth/linked-providers` | List provider identities linked to the current user. |
-| `POST` | `/api/auth/link-provider` | Confirm linking the current sign-in provider to the existing account (same email). |
+| `POST` | `/api/auth/link-requests` | Start a same-email provider link; sends central-auth magic link for target approval (15m TTL). |
+| `GET` | `/api/auth/link-requests/current` | Active pending link request, or 204. |
+| `POST` | `/api/auth/link-requests/{id}/resend` | Resend magic link and extend expiry (60s cooldown). |
+| `POST` | `/api/auth/link-requests/{id}/cancel` | Cancel a pending link request. |
+| `POST` | `/api/auth/link-requests/{id}/confirm` | Target approves while signed in via email magic link; inserts pending identity. |
+| `POST` | `/api/auth/link-provider` | **Gone (410)** — replaced by link-requests + magic-link approval. |
 | `GET` | `/api/auth/merge-suggestions` | Soft hints for manual account merge (e.g. matching email domain). |
 | `POST` | `/api/auth/merge-requests` | Start a merge request to another account (target must confirm while logged in). |
 | `POST` | `/api/auth/merge-requests/{id}/confirm` | Confirm merge as the target user; unions vocabulary and deletes the source user. |
@@ -96,7 +101,9 @@ The backend delegates authentication to **central-auth** (`CENTRAL_AUTH_URL`, pu
 - Magic link → `user_identities(provider='nacfson', provider_subject=<central user id>)`
 - Google → `user_identities(provider='google', provider_subject=<google sub>)`
 
-When the same email already exists under another provider, the backend returns a **link recommendation** in `GET /api/auth/me` but does **not** auto-insert the identity until the user confirms via `POST /api/auth/link-provider`. Different emails require manual merge (`account_merge_requests`). Provider unlink is not supported in v1.
+When the same email already exists under another provider, the backend returns a **link recommendation** in `GET /api/auth/me` but does **not** auto-insert the identity. The initiator creates `POST /api/auth/link-requests` (15 minute TTL); central-auth sends a magic-link email; the target confirms via `POST /api/auth/link-requests/{id}/confirm` while signed in with the email (`nacfson` / magic_link) session. Different emails require manual merge (`account_merge_requests`). Provider unlink is not supported in v1.
+
+See `backend/docs/account-link-target-approval.md`.
 
 Auth configuration is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
 

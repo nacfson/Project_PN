@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"project-pn/internal/admin"
+	"project-pn/internal/analytics"
 	"project-pn/internal/auth"
 	"project-pn/internal/config"
 	"project-pn/internal/db"
@@ -42,6 +43,10 @@ func main() {
 		slog.Warn("learning logger disabled", "error", err)
 	}
 	defer learningLogger.Close()
+	var analyticsLogger analytics.Logger = analytics.NoopLogger{}
+	if cfg.AnalyticsEnabled {
+		analyticsLogger = analytics.NewJSONLogger(os.Stdout)
+	}
 
 	metricsCtx, stopMetrics := context.WithCancel(ctx)
 	defer stopMetrics()
@@ -89,17 +94,6 @@ func main() {
 			"wiktapi_url", cfg.OriginWiktAPIBaseURL,
 		)
 	}
-	authService := auth.New(pool, auth.Options{
-		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
-		DefaultTargetLang:      cfg.DefaultTargetLang,
-		DefaultUILang:          cfg.UILang,
-		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
-		AllowedTargetLangs:     cfg.AllowedTargetLangs,
-		AllowedUILangs:         cfg.AllowedUILangs,
-		ForceDefinitionLang:    cfg.ForceDefinitionLang,
-		ForceTargetLang:        cfg.ForceTargetLang,
-		ForceUILang:            cfg.ForceUILang,
-	})
 	var centralAuth *auth.CentralClient
 	centralAuthURL := cfg.CentralAuthURL
 	if centralAuthURL == "" {
@@ -115,6 +109,19 @@ func main() {
 		cfg.AuthSessionInternalToken,
 		nil,
 	)
+	authService := auth.New(pool, auth.Options{
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		DefaultUILang:          cfg.UILang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		AllowedUILangs:         cfg.AllowedUILangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		ForceUILang:            cfg.ForceUILang,
+		MagicLinkSender:        centralAuth,
+		PublicAppURL:           cfg.PublicAppURL,
+	})
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
@@ -128,6 +135,8 @@ func main() {
 			AllowedOrigins:   cfg.AllowedOrigins,
 			AdminLogger:      adminLogger,
 			MetricsCollector: metricsCollector,
+			AnalyticsEnabled: cfg.AnalyticsEnabled,
+			AnalyticsLogger:  analyticsLogger,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

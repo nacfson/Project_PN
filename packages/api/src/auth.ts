@@ -1,6 +1,7 @@
 import { getJson, postJson, postNoContent } from './client';
 import type {
   LanguageOptionsResponse,
+  LinkRequest,
   LinkedProvider,
   MeResponse,
   MergeRequestResponse,
@@ -28,8 +29,24 @@ export function getLinkedProviders(): Promise<LinkedProvider[]> {
   return getJson<LinkedProvider[]>('/api/auth/linked-providers');
 }
 
-export function linkProvider(): Promise<void> {
-  return postNoContent('/api/auth/link-provider');
+export function createLinkRequest(): Promise<LinkRequest> {
+  return postJson<LinkRequest>('/api/auth/link-requests', {});
+}
+
+export function getCurrentLinkRequest(): Promise<LinkRequest | null> {
+  return getJson<LinkRequest | null>('/api/auth/link-requests/current');
+}
+
+export function resendLinkRequest(requestId: string): Promise<LinkRequest> {
+  return postJson<LinkRequest>(`/api/auth/link-requests/${encodeURIComponent(requestId)}/resend`, {});
+}
+
+export function cancelLinkRequest(requestId: string): Promise<void> {
+  return postNoContent(`/api/auth/link-requests/${encodeURIComponent(requestId)}/cancel`);
+}
+
+export function confirmLinkRequest(requestId: string): Promise<void> {
+  return postNoContent(`/api/auth/link-requests/${encodeURIComponent(requestId)}/confirm`);
 }
 
 export function getMergeSuggestions(): Promise<MergeSuggestion[]> {

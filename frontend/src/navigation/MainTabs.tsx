@@ -1,6 +1,7 @@
 import React, { useState, useContext, useCallback } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
@@ -13,7 +14,7 @@ import Animated, {
 
 import { QueueBanner } from '../components/QueueBanner';
 import { AddScreen } from './AddScreen';
-import { SettingsStack } from './SettingsStack';
+import { SettingsStack, type SettingsStackParamList } from './SettingsStack';
 import { WordsStack } from './WordsStack';
 import { HomeScreen } from '../features/learn/HomeScreen';
 import { PracticeScreen } from '../features/practice/PracticeScreen';
@@ -28,7 +29,7 @@ export type MainTabParamList = {
   Words: undefined;
   Add: undefined;
   Practice: { deckId?: string; origin?: 'private' } | undefined;
-  Settings: undefined;
+  Settings: NavigatorScreenParams<SettingsStackParamList> | undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();

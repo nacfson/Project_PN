@@ -3,25 +3,25 @@ import { addLearningItem, lookupWord } from '../api/words';
 import { ApiError } from '../api/client';
 import { DEFAULT_DEFINITION_LANGUAGE_CODE } from '../config';
 import { useAppLanguage } from '../i18n';
+import type { TranslationKey } from '../i18n';
 import type { PartOfSpeech, PosFilter, SenseOption } from '../types';
+import { classifyAddError } from '../utils/addErrors';
 
 interface SenseFlowCallbacks {
   onAdded?: (wordSenseId: string) => void;
   onDismiss?: () => void;
 }
 
-function messageOf(error: unknown, fallback: string, noAdditional: string): string {
-  if (error instanceof ApiError) {
-    if (/no additional distinct sense/i.test(error.message)) {
-      return noAdditional;
-    }
-    return error.message;
-  }
-  return fallback;
+function messageOf(
+  error: unknown,
+  t: (key: TranslationKey) => string,
+): string {
+  const info = classifyAddError(error);
+  return `${info.code}: ${t(info.messageKey)}`;
 }
 
 function isNoAdditionalSensesError(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 422 && error.message.includes('no_additional_senses');
+  return error instanceof ApiError && error.code === 'ADD-303';
 }
 
 export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
@@ -69,12 +69,15 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           languageCode,
         });
         setOptions(response.sense_options);
+        if (response.sense_options.length === 0) {
+          setError(`ADD-303: ${t('add.error.noAdditionalSense')}`);
+        }
         return true;
       } catch (err) {
         if (isNoAdditionalSensesError(err)) {
-          setError(t('sense.noAdditionalSenses'));
+          setError(messageOf(err, t));
         } else {
-          setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
+          setError(messageOf(err, t));
         }
         return false;
       } finally {
@@ -108,10 +111,10 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setOptions(response.sense_options);
       } catch (err) {
         if (isNoAdditionalSensesError(err)) {
-          setError(t('sense.noAdditionalSenses'));
+          setError(messageOf(err, t));
           setSuggestPosPrompt(true);
         } else {
-          setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
+          setError(messageOf(err, t));
         }
       } finally {
         setGenerating(false);
@@ -136,10 +139,10 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setOptions(response.sense_options);
       } catch (err) {
         if (isNoAdditionalSensesError(err)) {
-          setError(t('sense.noAdditionalSenses'));
+          setError(messageOf(err, t));
           setSuggestPosPrompt(true);
         } else {
-          setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
+          setError(messageOf(err, t));
         }
       } finally {
         setGenerating(false);
@@ -164,7 +167,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         setPickerVisible(false);
         callbacks.onAdded?.(wordSenseId);
       } catch (err) {
-        setError(messageOf(err, t('common.somethingWrong'), t('sense.noAdditional')));
+        setError(messageOf(err, t));
       } finally {
         setGenerating(false);
       }

@@ -200,6 +200,7 @@ export interface MeResponse {
   ui_language: string;
   active_language: UserLanguage;
   link_recommendation?: LinkRecommendation | null;
+  link_request?: LinkRequest | null;
   merge_suggestion?: MergeSuggestion | null;
   linked_providers?: LinkedProvider[];
 }
@@ -215,6 +216,14 @@ export interface LinkedProvider {
 export interface LinkRecommendation {
   provider: AuthProvider;
   email: string;
+}
+
+export interface LinkRequest {
+  id: string;
+  status: 'pending' | 'completed' | 'cancelled' | 'expired' | string;
+  pending_provider: AuthProvider | string;
+  email: string;
+  expires_at: string;
 }
 
 export interface MergeSuggestion {

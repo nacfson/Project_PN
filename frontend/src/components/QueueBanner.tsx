@@ -16,6 +16,9 @@ function ToastItem({ job, dismiss }: ToastItemProps) {
   const { t } = useAppLanguage();
 
   useEffect(() => {
+    if (job.status !== 'done') {
+      return;
+    }
     const timer = setTimeout(() => {
       dismiss(job.id);
     }, 2500);
@@ -38,7 +41,7 @@ function ToastItem({ job, dismiss }: ToastItemProps) {
         size="md"
         color={job.status === 'done' ? colors.success : colors.danger}
       />
-      <Text variant="body" style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }} numberOfLines={2}>
+      <Text variant="body" style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }}>
         {job.status === 'done'
           ? t('queue.added', { text: job.text })
           : t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}

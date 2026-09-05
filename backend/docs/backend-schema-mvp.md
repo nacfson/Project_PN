@@ -7,6 +7,8 @@ Build these tables for the current MVP:
 ```text
 users
 user_identities
+account_link_requests
+account_merge_requests
 words
 word_senses
 user_word_senses
@@ -199,8 +201,39 @@ create index user_identities_user_id_idx on user_identities (user_id)
 Rules:
 
 - `provider` values include `nacfson` (magic link / central auth) and `google` (Google OAuth sub).
-- Account linking to an existing user happens when the user confirms a link recommendation for a matching verified email.
+- Account linking to an existing user uses `account_link_requests`: initiator proposes; target approves via central-auth magic link; then the pending identity is inserted.
 - At most one row per provider per user (`user_identities_one_google_per_user`, `user_identities_one_nacfson_per_user`).
+
+## account_link_requests
+
+Same-email provider link with target approval (central-auth magic link, 15 minute TTL). See `backend/docs/account-link-target-approval.md`.
+
+```sql
+account_link_requests
+- id uuid primary key
+- user_id uuid not null references users(id) on delete cascade
+- initiated_by_user_id uuid not null references users(id)
+- pending_provider text not null
+- pending_provider_subject text not null
+- pending_email text not null
+- status text not null check (status in ('pending', 'completed', 'cancelled', 'expired'))
+- approval_method text
+- magic_link_sent_at timestamptz
+- expires_at timestamptz not null
+- completed_at timestamptz
+- cancelled_at timestamptz
+- created_at timestamptz not null default now()
+```
+
+Required indexes:
+
+```sql
+create unique index account_link_requests_one_pending
+  on account_link_requests (user_id, pending_provider)
+  where status = 'pending'
+create index account_link_requests_user_status_idx
+  on account_link_requests (user_id, status)
+```
 
 ## account_merge_requests
 

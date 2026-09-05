@@ -26,7 +26,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 			)
 			if cookie, cookieErr := r.Cookie(auth.CentralSessionCookieName); cookieErr == nil {
 				if central == nil {
-					writeError(w, http.StatusInternalServerError, "central auth is not configured")
+					writeCodedError(w, http.StatusInternalServerError, "AUTH-102", "central auth is not configured", false)
 					return
 				}
 				session, err = central.ValidateCookieSession(r.Context(), cookie.Value)
@@ -37,22 +37,22 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 				if err != nil {
 					if errors.Is(err, auth.ErrInternalAuthNotConfigured) {
 						logger.Logf("AUTH_FAILURE", "cookie session validation is not configured from %s: %v", r.RemoteAddr, err)
-						writeError(w, http.StatusInternalServerError, "central auth is not configured")
+						writeCodedError(w, http.StatusInternalServerError, "AUTH-102", "central auth is not configured", false)
 						return
 					}
 					logger.Logf("AUTH_FAILURE", "cookie session validation failed from %s: %v", r.RemoteAddr, err)
 					clearCentralSessionCookie(w, r)
-					writeError(w, http.StatusUnauthorized, "unauthorized")
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
 			} else {
 				token := bearerToken(r)
 				if token == "" {
-					writeError(w, http.StatusUnauthorized, "unauthorized")
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
 				if central == nil {
-					writeError(w, http.StatusInternalServerError, "central auth is not configured")
+					writeCodedError(w, http.StatusInternalServerError, "AUTH-102", "central auth is not configured", false)
 					return
 				}
 				session, err = central.ValidateSession(r.Context(), token)
@@ -62,14 +62,14 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 				}
 				if err != nil {
 					logger.Logf("AUTH_FAILURE", "session validation failed from %s: %v", r.RemoteAddr, err)
-					writeError(w, http.StatusUnauthorized, "unauthorized")
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
 			}
 
 			authResult, err := svc.EnsureCentralUser(r.Context(), session)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "internal error")
+				writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
 				return
 			}
 			ctx := withAuthSession(r.Context(), credentials)
@@ -87,7 +87,7 @@ func requireVerified(logger admin.Logger) func(http.Handler) http.Handler {
 				if ok {
 					logger.Logf("VERIFY_REQUIRED", "%s requested %s %s but email is not verified", user.Email, r.Method, r.URL.Path)
 				}
-				writeError(w, http.StatusForbidden, "email verification required")
+				writeCodedError(w, http.StatusForbidden, "AUTH-201", "email verification required", false)
 				return
 			}
 			next.ServeHTTP(w, r)

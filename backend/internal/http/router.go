@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"project-pn/internal/admin"
+	"project-pn/internal/analytics"
 	"project-pn/internal/auth"
 	"project-pn/internal/words"
 )
@@ -24,6 +25,8 @@ type Dependencies struct {
 	AllowedOrigins   []string
 	AdminLogger      admin.Logger
 	MetricsCollector *admin.MetricsCollector
+	AnalyticsEnabled bool
+	AnalyticsLogger  analytics.Logger
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -52,6 +55,10 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(deps.DB))
+	if deps.AnalyticsEnabled && deps.AnalyticsLogger != nil {
+		ah := analyticsHandler{logger: deps.AnalyticsLogger}
+		r.Post("/api/analytics/events", ah.collect)
+	}
 
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
@@ -67,7 +74,12 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Use(csrfProtection(deps.AllowedOrigins))
 				protected.Get("/me", ah.me)
 				protected.Get("/linked-providers", ah.linkedProviders)
-				protected.Post("/link-provider", ah.linkProvider)
+				protected.Post("/link-provider", ah.linkProviderGone)
+				protected.Post("/link-requests", ah.createLinkRequest)
+				protected.Get("/link-requests/current", ah.currentLinkRequest)
+				protected.Post("/link-requests/{id}/resend", ah.resendLinkRequest)
+				protected.Post("/link-requests/{id}/cancel", ah.cancelLinkRequest)
+				protected.Post("/link-requests/{id}/confirm", ah.confirmLinkRequest)
 				protected.Get("/merge-suggestions", ah.mergeSuggestions)
 				protected.Post("/merge-requests", ah.createMergeRequest)
 				protected.Post("/merge-requests/{id}/confirm", ah.confirmMergeRequest)

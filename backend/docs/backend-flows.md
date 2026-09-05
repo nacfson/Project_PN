@@ -11,15 +11,16 @@
 7. Central auth returns `auth_provider`, `identity`, user, and `expires_at`. Cookie validation slides `expires_at` forward on activity when the session is still valid.
 8. Bearer clients renew access tokens with `POST /api/auth/refresh` (proxied by Project PN) before expiry or after a 401.
 9. Backend calls `EnsureCentralUser()` which provisions or resolves the local user row and may return a `link_recommendation` when a second provider matches an existing email.
-10. `POST /api/auth/link-provider` confirms linking a recommended provider identity to the existing user.
+10. Same-email link: initiator `POST /api/auth/link-requests` → central-auth magic link to `{PUBLIC_APP_URL}/link-approve?requestId=…` → target confirms with email session via `POST /api/auth/link-requests/{id}/confirm`.
 11. `POST /api/auth/logout` revokes the current central session.
 
 See `backend/docs/central-auth-session-renewal.md` for the external auth-service contract.
+See `backend/docs/account-link-target-approval.md` for link request details.
 
 ## Integrated Accounts
 
 - Providers: `google` (Google OAuth) and `nacfson` (magic link / central auth user id).
-- Same verified email: UI recommends linking; user confirms via `POST /api/auth/link-provider`.
+- Same verified email: UI recommends linking; initiator proposes via `POST /api/auth/link-requests`; target approves via central-auth magic link (15m TTL).
 - Different emails, same domain: soft merge hint in Settings; manual merge via `POST /api/auth/merge-requests` + confirm (target user logged in).
 - Word lists are unioned on merge; duplicate `(user, word_sense)` rows keep the target account schedule.
 

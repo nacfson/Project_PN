@@ -496,6 +496,67 @@ func TestWriteServiceErrorMapsUnavailable(t *testing.T) {
 	}
 }
 
+func TestWriteServiceErrorReturnsStableAddErrorCode(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/learning-items", nil)
+
+	(&wordsHandler{}).writeServiceError(rec, req, enrich.ErrUnavailable)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	}
+	var response struct {
+		Code      string `json:"code"`
+		Retryable bool   `json:"retryable"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if response.Code != "ADD-403" {
+		t.Fatalf("expected ADD-403, got %q", response.Code)
+	}
+	if !response.Retryable {
+		t.Fatal("expected enrichment-provider failure to be retryable")
+	}
+}
+
+func TestWriteServiceErrorClassifiesEveryKnownAddFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		code string
+	}{
+		{name: "missing sense", err: words.ErrSenseNotFound, code: "ADD-302"},
+		{name: "translation unavailable", err: words.ErrTranslationUnavailable, code: "ADD-304"},
+		{name: "missing deck", err: words.ErrDeckNotFound, code: "ADD-305"},
+		{name: "deck unavailable", err: words.ErrDeckLanguageMismatch, code: "ADD-306"},
+		{name: "invalid language", err: words.ErrInvalidTargetLang, code: "ADD-307"},
+		{name: "existing sense", err: words.ErrSenseConflict, code: "ADD-308"},
+		{name: "unsupported language", err: enrich.ErrUnsupportedLanguage, code: "ADD-401"},
+		{name: "enrichment unconfigured", err: enrich.ErrNotConfigured, code: "ADD-402"},
+		{name: "enrichment unavailable", err: enrich.ErrUnavailable, code: "ADD-403"},
+		{name: "invalid enrichment output", err: enrich.ErrInvalidOutput, code: "ADD-404"},
+		{name: "no additional sense", err: words.ErrNoAdditionalSense, code: "ADD-303"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			(&wordsHandler{}).writeServiceError(rec, httptest.NewRequest(http.MethodPost, "/api/learning-items", nil), tt.err)
+
+			var response struct {
+				Code string `json:"code"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode error response: %v", err)
+			}
+			if response.Code != tt.code {
+				t.Fatalf("expected %s, got %q", tt.code, response.Code)
+			}
+		})
+	}
+}
+
 func TestWriteServiceErrorMapsNoAdditionalSenses(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
