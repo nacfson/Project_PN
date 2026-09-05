@@ -2,12 +2,11 @@ name: Publish Project PN images
 
 # Publishes backend + frontend images to GHCR on every push to main.
 #
-# Important: GHCR packages must be linked to this repository for
-# GITHUB_TOKEN to push. If publish-frontend fails with
-# `permission_denied: read_package`, link the package at
-# https://github.com/users/nacfson/packages/container/package/project-pn-frontend
-# → Package settings → "Connect repository", or push once with a PAT that
-# includes LABEL org.opencontainers.image.source=https://github.com/nacfson/Project_PN.
+# Auth: prefer repo secret GHCR_TOKEN (PAT with write:packages). GITHUB_TOKEN
+# alone fails for packages that were created outside Actions without
+# "Inherit access from repository" / Manage Actions access Write on the
+# package (seen as permission_denied: read_package on project-pn-frontend).
+# Keep OCI source labels so packages stay linked to this repo.
 
 on:
   push:
@@ -40,8 +39,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Extract backend image metadata
         id: meta
@@ -95,8 +94,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Extract frontend image metadata
         id: meta

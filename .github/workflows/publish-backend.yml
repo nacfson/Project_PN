@@ -1,8 +1,9 @@
 name: Publish backend image (GHCR)
 
 # Builds the Go backend image and publishes it to GitHub Container Registry
-# (ghcr.io/<owner>/project-pn-backend). Uses the built-in GITHUB_TOKEN, so no
-# personal access token or extra secret is required to publish.
+# (ghcr.io/<owner>/project-pn-backend). Prefers repo secret GHCR_TOKEN
+# (PAT write:packages); falls back to GITHUB_TOKEN when the package already
+# grants Actions write access.
 #
 # The server consumes the published image by setting BACKEND_IMAGE in
 # deploy/.env, e.g. BACKEND_IMAGE=ghcr.io/<owner>/project-pn-backend:latest
@@ -38,8 +39,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Docker metadata
         id: meta
