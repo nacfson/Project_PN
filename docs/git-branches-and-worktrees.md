@@ -1,86 +1,102 @@
 # Git branches and worktrees
 
-## Current state (ready to merge)
+Living inventory for Project PN. Refresh this file after merges or when the Cursor agent list gets noisy.
+
+## Current state (2026-09-05)
 
 | Item | Value |
 |------|-------|
-| Open PR | [#42](https://github.com/nacfson/Project_PN/pull/42) → `main` (**MERGEABLE**) |
-| Feature branch | `cursor/google-oauth-integrated-auth-dc8c` only |
-| Duplicate `…-a015` | **deleted** on remote |
-| Git worktrees | **1** (`/workspace` on `dc8c`) |
-| Stashes | **none** |
-| Remote `cursor/*` heads | only `dc8c` (plus `main`) |
+| Default branch | `main` @ `48cd23b` (includes merged PR #42 Google OAuth) |
+| Open PRs | [#43](https://github.com/nacfson/Project_PN/pull/43) draft — Cloudflare DNS docs |
+| Remote heads | `main`, `cursor/cloudflare-dns-docs-de34` only |
+| Local git worktrees | **1** (`/workspace` on whatever branch this checkout uses) |
+| Stashes | none |
+| Merged `cursor/*` remotes | already pruned (no leftovers from PRs #1–#42) |
 
-Merge **only** via PR #42 (`dc8c` → `main`).
+Git side is clean. Remaining clutter is **Cursor Cloud Agent sessions**, not `git worktree` checkouts.
+
+### Active work
+
+| Branch | PR | Agent | Notes |
+|--------|-----|-------|-------|
+| `cursor/cloudflare-dns-docs-de34` | [#43](https://github.com/nacfson/Project_PN/pull/43) (draft) | [Cloudflare DNS access issue](https://cursor.com/agents/bc-d0f69ec1-1b05-4b70-89f5-aea20ab7de34) | Keep until merged |
+| `cursor/organize-branches-worktrees-053b` | this doc refresh | [Branches worktrees structure](https://cursor.com/agents/bc-daef05ff-0565-47cd-a72e-89eb7c26053b) | Ephemeral hygiene PR |
 
 ### Cursor UI “worktrees” vs git worktrees
 
-The branch picker that shows `main` + `cursor/google-oauth-…` is **Cloud Agent sessions**, not `git worktree`. Archive IDLE runs at [cursor.com/agents](https://cursor.com/agents) after merge so the picker only shows `main`.
+The branch / worktree picker in Cursor that lists many `cursor/…` names is usually **Cloud Agent sessions**, not `git worktree list`.
 
-| Agent | Branch | Action |
-|-------|--------|--------|
-| Google sign-in enablement | `…-dc8c` | RUNNING — finish, then archive |
-| Google oauth email verification | `…-dc8c` | IDLE — archive now |
-| Login session stability | `session-renewal-c208` | IDLE — archive (unrelated) |
-| Deck conversion none match | `fix-none-match-…` | IDLE — archive (unrelated) |
-| Dictionary meaning improvement | `shared-similar-meanings-…` | IDLE — archive (unrelated) |
+| Concept | How to inspect | How to clean |
+|---------|----------------|--------------|
+| Git remote branches | `git fetch --prune` · `git branch -r` | Delete after merge: `git push origin --delete <branch>` |
+| Git worktrees | `git worktree list` | `git worktree remove <path>` · `git worktree prune` |
+| Cursor agent sessions | [cursor.com/agents](https://cursor.com/agents) | **Archive** IDLE runs after their PR merges |
 
-### Commits that land on `main` (feature history)
+Archive IDLE agents so the picker collapses toward `main` plus in-flight feature branches.
 
-1. `07d29bb` feat(central-auth): Google OAuth, identities, magic-link email  
-2. `c719c42` docs: Google OAuth rollout and integrated accounts  
-3. `6c2e17d` feat(backend): integrated accounts with link and merge APIs  
-4. `e5d60d0` fix(central-auth): ProcessManager DB cutover, SMTP mailer  
-5. `d6f258c` chore(deploy): sync Google OAuth secrets script  
-6. `1a70d8a` docs: Google OAuth sync, central-auth rollout, branch guide  
-7. `131d115` docs: local merge checklist for PR #42  
-8. `a654058`+ docs: Cursor agent worktrees vs git; a015 deleted  
+### Archive these IDLE Cloud Agents
 
-Production already runs `central-auth:e5d60d0` and PN `:6c2e17d`. Merging syncs `main` and triggers GHCR publish.
+Safe to archive (branch gone from remote and/or PR already merged):
+
+| Agent | Stale branch ref | Why |
+|-------|------------------|-----|
+| Google sign-in enablement (`bc-4046b880…`) | `…-dc8c` | PR #42 merged |
+| Google oauth email verification (`bc-71c67d9c…`) | `…-dc8c` | Same merged work |
+| Google sign-in enablement (`bc-9d9de7de…`) | (none) | Duplicate / superseded |
+| Login session stability | `session-renewal-c208` | PR #40 merged |
+| Deck conversion none match | `fix-none-match-…` | PR #39 merged |
+| Dictionary meaning improvement | `shared-similar-meanings-…` | PR #37 merged |
+
+Also archive short-lived **Explore / Review / Test / Browser verify** internal runs (no branch). They do not own remotes; keeping them only clutters the agent list. Keep only agents you still chat with.
+
+Keep (do not archive yet):
+
+| Agent | Branch |
+|-------|--------|
+| Cloudflare DNS access issue | `cursor/cloudflare-dns-docs-de34` |
+| Branches worktrees structure (this run) | `cursor/organize-branches-worktrees-053b` |
 
 ---
 
-## Local session: merge to `main`
+## Hygiene commands
 
 ```bash
 cd /path/to/Project_PN
 git fetch origin --prune
-
-# Preferred
-gh pr checkout 42
-gh pr merge 42 --merge   # or --squash
-
-# Or local ff-only
-git checkout main
-git pull origin main
-git merge --ff-only origin/cursor/google-oauth-integrated-auth-dc8c
-git push origin main
+git worktree list
+git worktree prune
+git branch -vv
+git branch -r --merged origin/main    # candidates to delete (except main)
+gh pr list --state open
 ```
 
-After merge:
+After a PR merges:
 
 ```bash
-git push origin --delete cursor/google-oauth-integrated-auth-dc8c 2>/dev/null || true
+git push origin --delete <merged-feature-branch> 2>/dev/null || true
 git fetch origin --prune
 git checkout main && git pull origin main
-git branch -d cursor/google-oauth-integrated-auth-dc8c 2>/dev/null || true
-
-# Archive IDLE Cloud Agents at https://cursor.com/agents
+git branch -d <merged-feature-branch> 2>/dev/null || true
+# Then archive the matching Cloud Agent at https://cursor.com/agents
 ```
 
 ---
 
 ## Branch naming
 
-| Branch | Purpose |
-|--------|---------|
+| Pattern | Purpose |
+|---------|---------|
 | `main` | Production line; GHCR publish on push |
-| `cursor/<topic>-dc8c` | Canonical feature / PR head |
-| `cursor/<topic>-a015` | Agent forks — delete after folding into the PR head |
+| `cursor/<topic>-<suffix>` | Cloud Agent / PR head (suffix from agent id fragment) |
+| Duplicate agent forks of the same topic | Fold into the canonical PR head, then delete the extra remote |
+
+Do not leave merged `cursor/*` branches on `origin`. Prefer one open PR head per feature.
 
 ## Worktrees
 
-Default: one checkout at repo root. Optional parallel `main`:
+Default: one checkout at the repo root.
+
+Optional parallel `main` while a feature is checked out:
 
 ```bash
 git worktree add ../Project_PN-main origin/main
@@ -89,12 +105,13 @@ git worktree remove ../Project_PN-main
 
 Do not check out the same branch in two worktrees.
 
-## Production note
+---
 
-| Item | Value |
-|------|-------|
-| central-auth | `ghcr.io/nacfson/central-auth:e5d60d0` |
-| PN images | `:6c2e17d` (migration `000023`) |
+## Related docs
+
+| Topic | Doc |
+|-------|-----|
+| Network / Cloudflare DNS (PR #43) | `deploy/NETWORK_SETUP.md` |
+| Oracle k3s / GHCR deploy | `backend/docs/oracle-deploy-runbook.md` |
+| Cursor secrets | `backend/docs/cursor-secrets.md` |
 | Google OAuth sync | `scripts/sync-auth-google-secrets.sh` |
-
-Follow-up: magic-link `EnsureUser` fails on production auth DB (`ON CONFLICT (lower(email))` vs legacy `users_email_key`). Google OAuth path is fine.
