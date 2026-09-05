@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +50,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   // Unconditional declaration of Reanimated hooks to adhere to React Rules of Hooks
   const fallbackTranslateY = useSharedValue(0);
   const translateY = scrollContext?.tabBarTranslateY ?? fallbackTranslateY;
+  const tabBarInteractive = scrollContext?.tabBarInteractive ?? true;
 
   const tabBarHeight = 60 + insets.bottom;
   const [containerWidth, setContainerWidth] = useState(0);
@@ -88,6 +89,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <Animated.View
+      pointerEvents={tabBarInteractive ? 'auto' : 'none'}
       style={[
         styles.tabBar,
         {
@@ -192,9 +194,13 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   const { colors } = useTheme();
   const { t } = useAppLanguage();
   const tabBarTranslateY = useSharedValue(0);
+  const [tabBarInteractive, setTabBarInteractiveState] = useState(true);
+  const setTabBarInteractive = useCallback((interactive: boolean) => {
+    setTabBarInteractiveState(interactive);
+  }, []);
 
   return (
-    <TabBarScrollContext.Provider value={{ tabBarTranslateY }}>
+    <TabBarScrollContext.Provider value={{ tabBarTranslateY, tabBarInteractive, setTabBarInteractive }}>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <QueueBanner />
         <Tab.Navigator

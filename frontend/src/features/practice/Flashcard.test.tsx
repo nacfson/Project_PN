@@ -145,7 +145,39 @@ describe('Flashcard', () => {
 
   it('shows swipe guide after reveal when onRate is provided', async () => {
     await renderCard();
-    expect(screen.getByText(/Swipe to rate/i)).toBeTruthy();
+    expect(screen.getByText(/Swipe left\/right/i)).toBeTruthy();
+  });
+
+  it('caps outer card height when maxHeight is smaller than content', async () => {
+    const longGloss =
+      '무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다; 숨기다; 가리다; 덮어 버리다; '.repeat(8);
+
+    await render(
+      <Flashcard
+        item={{
+          ...baseItem,
+          localized_definition: longGloss,
+          localized_short_definition: null,
+          definition: longGloss,
+          short_definition: null,
+        }}
+        example={{ sentence: 'a', localized_translation: 'b' }}
+        blankedSentence="a"
+        isFlipped
+        cardMode="flashcard"
+        userAnswer=""
+        isPreviouslyFailed={false}
+        onFlip={jest.fn()}
+        onRate={jest.fn()}
+        maxHeight={280}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const wrapper = screen.getByTestId('flashcard-3d-wrapper');
+    expect(wrapper.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 280 })])
+    );
   });
 
   it('does not crash when part_of_speech is unknown (Anki import fallback)', async () => {

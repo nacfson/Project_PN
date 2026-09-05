@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Practice grade UX — current vs next</title>
+  <style>
+    :root {
+      --bg: #f3f0ea;
+      --ink: #1c1917;
+      --muted: #78716c;
+      --line: #d6d3d1;
+      --card: #fafaf9;
+      --pos: #0f766e;
+      --danger: #b3261e;
+      --warn: #d97706;
+      --good: #16a34a;
+      --easy: #6750a4;
+      --chrome: #e7e5e4;
+      --bad: #fecaca;
+      --ok: #bbf7d0;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #ddd6fe55, transparent),
+        radial-gradient(900px 500px at 100% 0%, #99f6e455, transparent),
+        var(--bg);
+      line-height: 1.35;
+    }
+
+    header {
+      padding: 28px 24px 8px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header h1 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.95rem;
+      max-width: 62ch;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 28px;
+      max-width: 1100px;
+      margin: 20px auto 48px;
+      padding: 0 20px;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 18px 40px -28px rgba(0,0,0,.45);
+    }
+    .panel h2 {
+      margin: 0 0 4px;
+      font-size: 1.25rem;
+    }
+    .badge {
+      display: inline-block;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+    .badge.now { background: var(--bad); color: #7f1d1d; }
+    .badge.next { background: var(--ok); color: #14532d; }
+
+    .phone {
+      position: relative;
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+      height: 640px;
+      border: 2px solid #292524;
+      border-radius: 28px;
+      background: #fafaf9;
+      overflow: hidden;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+    .status-bar {
+      height: 28px;
+      background: var(--chrome);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .progress {
+      padding: 10px 14px 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .progress .bar {
+      margin-top: 6px;
+      height: 5px;
+      border-radius: 3px;
+      background: #e7e5e4;
+      overflow: hidden;
+    }
+    .progress .bar > i {
+      display: block;
+      width: 42%;
+      height: 100%;
+      background: #0f766e;
+    }
+
+    .stage {
+      position: relative;
+      height: calc(100% - 28px - 52px);
+      overflow: hidden;
+    }
+
+    /* CURRENT: tall card overflows into grade zone */
+    .now .scroll {
+      height: 100%;
+      overflow: hidden;
+      padding: 8px 14px 0;
+    }
+    .now .flashcard {
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--pos);
+      border-radius: 18px;
+      background: var(--card);
+      padding: 18px 14px;
+      min-height: 520px;
+      box-shadow: 0 8px 20px -12px rgba(0,0,0,.35);
+      position: relative;
+      z-index: 2;
+    }
+    .now .flashcard .gloss {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--pos);
+      text-align: center;
+      line-height: 1.35;
+    }
+    .now .flashcard .extra {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.45;
+    }
+    .now .grade-bar {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      background: rgba(250,250,249,.88);
+      border-top: 1px solid var(--line);
+      padding: 10px 12px 14px;
+      z-index: 1;
+      opacity: 0.55;
+    }
+    .now .blocker {
+      position: absolute;
+      left: 10px; right: 10px;
+      bottom: 70px;
+      height: 120px;
+      border: 2px dashed #b3261e;
+      border-radius: 12px;
+      background: rgba(179,38,30,.08);
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #7f1d1d;
+      pointer-events: none;
+    }
+    .now .swipe-arrows {
+      position: absolute;
+      top: 42%;
+      left: 8px; right: 8px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .now .swipe-arrows span {
+      background: #1c1917;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 999px;
+      opacity: 0.9;
+      animation: nudge 1.6s ease-in-out infinite;
+    }
+    .now .swipe-arrows .right { animation-delay: .2s; }
+    .now .swipe-arrows .left { animation-name: nudgeLeft; }
+    @keyframes nudge {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(6px); }
+    }
+    @keyframes nudgeLeft {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(-6px); }
+    }
+
+    /* NEXT: capped card + inner scroll + bar on top */
+    .next .scroll {
+      height: calc(100% - 148px);
+      padding: 8px 14px 0;
+      overflow: hidden;
+    }
+    .next .flashcard {
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--pos);
+      border-radius: 18px;
+      background: var(--card);
+      padding: 16px 14px 12px;
+      height: 100%;
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 20px -12px rgba(0,0,0,.35);
+    }
+    .next .flashcard .meta {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--pos);
+      margin-bottom: 8px;
+    }
+    .next .flashcard .inner-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 2px 8px;
+      border: 1px dashed #a8a29e;
+      border-radius: 10px;
+      background: #f5f5f4;
+    }
+    .next .flashcard .gloss {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--pos);
+      text-align: center;
+      line-height: 1.35;
+      padding: 8px;
+    }
+    .next .flashcard .extra {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.45;
+      padding: 0 8px 12px;
+    }
+    .next .scroll-hint {
+      text-align: center;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .next .grade-bar {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      background: rgba(250,250,249,.96);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--line);
+      padding: 10px 12px 14px;
+      z-index: 10;
+      box-shadow: 0 -10px 24px -16px rgba(0,0,0,.35);
+    }
+    .next .swipe-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .next .swipe-row b { color: var(--ink); }
+
+    .grades {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .grades button {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      padding: 10px 8px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      cursor: default;
+    }
+    .grades button i {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block; margin-right: 6px;
+    }
+    .grades button .label { display: flex; align-items: center; }
+    .grades button .iv { font-size: 10px; font-weight: 500; color: var(--muted); padding-left: 14px; }
+    .g-again i { background: var(--danger); }
+    .g-hard i { background: var(--warn); }
+    .g-good i { background: var(--good); }
+    .g-easy i { background: var(--easy); }
+
+    .next .grades button {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 2px #86efac44; }
+      50% { box-shadow: 0 0 0 3px #86efac88; }
+    }
+
+    .notes {
+      margin-top: 14px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.88rem;
+      color: var(--ink);
+    }
+    .notes ul { margin: 8px 0 0; padding-left: 1.1rem; }
+    .notes li { margin-bottom: 6px; }
+    .notes .fail { color: #9f1239; }
+    .notes .pass { color: #166534; }
+    .notes code {
+      font-size: 0.8em;
+      background: #f5f5f4;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    footer {
+      max-width: 1100px;
+      margin: 0 auto 40px;
+      padding: 0 24px;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Practice grading on mobile web</h1>
+    <p>
+      Current vs next: when a word’s explanation makes the flashcard tall,
+      rating buttons become hard to use and only horizontal swipe remains reliable.
+      The fix caps card height, scrolls the gloss inside the card, and keeps the sticky grade bar on top.
+    </p>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <span class="badge now">Current status</span>
+      <h2>Tall card blocks grade taps</h2>
+      <div class="phone now" aria-label="Current broken mobile layout">
+        <div class="status-bar">mobile browser · now</div>
+        <div class="progress">
+          <div style="display:flex;justify-content:space-between">
+            <span>Card 3 of 12</span>
+            <span>Flashcard</span>
+          </div>
+          <div class="bar"><i></i></div>
+        </div>
+        <div class="stage">
+          <div class="scroll">
+            <div class="flashcard">
+              <div class="gloss">
+                무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다; 숨기다; 가리다; 덮어 버리다
+              </div>
+              <div class="extra">
+                Long dictionary-style paraphrase inflates the card.
+                Layout height grows with content (no maxHeight).
+                The absolute grade bar sits under the card’s hit area.
+                Vertical pans are stolen by ScrollView, so Hard/Easy swipe fails.
+                Only ← Again / → Good still work.
+              </div>
+            </div>
+          </div>
+          <div class="blocker">Tall card hit-area covers grade controls</div>
+          <div class="swipe-arrows">
+            <span class="left">← Again</span>
+            <span class="right">Good →</span>
+          </div>
+          <div class="grade-bar">
+            <div style="text-align:center;font-size:11px;font-weight:700;color:#78716c;margin-bottom:8px">
+              Rate how well you recalled this
+            </div>
+            <div class="grades">
+              <button class="g-again" type="button"><span class="label"><i></i>Forgot</span><span class="iv">&lt;1m</span></button>
+              <button class="g-hard" type="button"><span class="label"><i></i>Hard</span><span class="iv">6m</span></button>
+              <button class="g-good" type="button"><span class="label"><i></i>Good</span><span class="iv">10m</span></button>
+              <button class="g-easy" type="button"><span class="label"><i></i>Easy</span><span class="iv">4d</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <ul>
+          <li class="fail">Card height = content height (unbounded)</li>
+          <li class="fail">Sticky RatingBar visually present but often untappable</li>
+          <li class="fail">Vertical swipe (Hard/Easy) fights page scroll</li>
+          <li class="fail">Only left/right drag remains usable</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <span class="badge next">Next status</span>
+      <h2>Capped card + always-tappable grades</h2>
+      <div class="phone next" aria-label="Fixed mobile layout">
+        <div class="status-bar">mobile browser · next</div>
+        <div class="progress">
+          <div style="display:flex;justify-content:space-between">
+            <span>Card 3 of 12</span>
+            <span>Flashcard</span>
+          </div>
+          <div class="bar"><i></i></div>
+        </div>
+        <div class="stage">
+          <div class="scroll">
+            <div class="flashcard">
+              <div class="meta">NOUN</div>
+              <div class="inner-scroll">
+                <div class="gloss">감추다</div>
+                <div class="extra">
+                  Long explanations stay inside the card.
+                  Outer layout height is capped to the space above the grade bar.
+                  Inner scroll reads the rest of the gloss.
+                  Horizontal swipe still rates Again/Good; Hard/Easy via buttons.
+                </div>
+                <div class="extra" style="opacity:.7">
+                  …more meaning text scrolls here without pushing controls away…
+                </div>
+              </div>
+              <div class="scroll-hint">↕ scroll meaning inside card</div>
+            </div>
+          </div>
+          <div class="grade-bar">
+            <div class="swipe-row">Swipe ← Again · Good → · or <b>tap a button</b></div>
+            <div class="grades">
+              <button class="g-again" type="button"><span class="label"><i></i>Forgot</span><span class="iv">&lt;1m</span></button>
+              <button class="g-hard" type="button"><span class="label"><i></i>Hard</span><span class="iv">6m</span></button>
+              <button class="g-good" type="button"><span class="label"><i></i>Good</span><span class="iv">10m</span></button>
+              <button class="g-easy" type="button"><span class="label"><i></i>Easy</span><span class="iv">4d</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <ul>
+          <li class="pass">Flashcard <code>maxHeight</code> fits above grade chrome</li>
+          <li class="pass">Long gloss scrolls inside the card</li>
+          <li class="pass">PanResponder claims horizontal swipes only</li>
+          <li class="pass">Grade bar on top + hidden tab bar <code>pointerEvents="none"</code></li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Project PN · practice mobile-web grade UX visualization ·
+    sources: Flashcard.tsx height growth, PracticeScreen sticky RatingBar, MainTabs tab bar hit-testing
+  </footer>
+</body>
+</html>

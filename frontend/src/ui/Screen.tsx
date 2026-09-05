@@ -26,6 +26,9 @@ export interface ScreenProps extends ScrollViewProps {
 // Context to share scroll state with parent navigator for hiding the tab bar
 export const TabBarScrollContext = createContext<{
   tabBarTranslateY: SharedValue<number>;
+  /** When false, the absolute tab bar ignores taps (e.g. while practice chrome is up). */
+  tabBarInteractive: boolean;
+  setTabBarInteractive: (interactive: boolean) => void;
 } | null>(null);
 
 export const Screen = React.forwardRef<any, ScreenProps>(

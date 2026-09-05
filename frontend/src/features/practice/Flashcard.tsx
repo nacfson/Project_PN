@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   LayoutAnimation,
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
   type LayoutChangeEvent,
@@ -30,11 +31,17 @@ interface FlashcardProps {
   isPreviouslyFailed: boolean;
   onFlip: () => void;
   onRate?: (rating: Rating) => void;
+  /** Cap outer card height so sticky grade controls stay tappable on small viewports. */
+  maxHeight?: number;
 }
 
 const SWIPE_THRESHOLD = 96;
+const MIN_CARD_HEIGHT = 240;
+const DEFAULT_CARD_HEIGHT = 320;
 // RN Web has no native animated module; native driver only warns and falls back.
 const USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
+type SwipeRating = Extract<Rating, 'again' | 'good'>;
 
 /** Safe POS badge label — Anki import can persist `unknown`, and other unexpected POS values may lack i18n keys. */
 function formatPosBadgeLabel(
@@ -64,6 +71,7 @@ export function Flashcard({
   isPreviouslyFailed,
   onFlip,
   onRate,
+  maxHeight,
 }: FlashcardProps) {
   const { colors, spacing, radii, shadows, motion, reduced } = useTheme();
   const { t } = useAppLanguage();
@@ -72,13 +80,13 @@ export function Flashcard({
   const flipScale = useRef(new Animated.Value(1)).current;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const [pressed, setPressed] = useState(false);
-  const [swipeHint, setSwipeHint] = useState<Rating | null>(null);
-  const hintRef = useRef<Rating | null>(null);
+  const [swipeHint, setSwipeHint] = useState<SwipeRating | null>(null);
+  const hintRef = useRef<SwipeRating | null>(null);
   const isFlippedRef = useRef(isFlipped);
   const onRateRef = useRef(onRate);
 
-  const [frontHeight, setFrontHeight] = useState(320);
-  const [backHeight, setBackHeight] = useState(320);
+  const [frontHeight, setFrontHeight] = useState(DEFAULT_CARD_HEIGHT);
+  const [backHeight, setBackHeight] = useState(DEFAULT_CARD_HEIGHT);
 
   isFlippedRef.current = isFlipped;
   onRateRef.current = onRate;
@@ -159,17 +167,14 @@ export function Flashcard({
     outputRange: ['180deg', '360deg'],
   });
 
-  const ratingFromGesture = (dx: number, dy: number): Rating | null => {
+  // Horizontal-only: vertical pans belong to page/inner scroll (Hard/Easy via buttons).
+  const ratingFromGesture = (dx: number, dy: number): SwipeRating | null => {
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
-    if (Math.max(absX, absY) < SWIPE_THRESHOLD) {
+    if (absX < SWIPE_THRESHOLD || absX < absY) {
       return null;
     }
-    // Prefer the dominant axis so scroll-ish vertical moves don't mis-rate.
-    if (absX >= absY) {
-      return dx > 0 ? 'good' : 'again';
-    }
-    return dy < 0 ? 'easy' : 'hard';
+    return dx > 0 ? 'good' : 'again';
   };
 
   const updateHint = (dx: number, dy: number) => {
@@ -205,13 +210,13 @@ export function Flashcard({
           return false;
         }
         const { dx, dy } = gestureState;
-        // Claim the gesture once movement is intentional so taps still flip/press.
-        return Math.abs(dx) > 12 || Math.abs(dy) > 12;
+        // Claim only horizontal-dominant moves so vertical scroll still works.
+        return Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy);
       },
       onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, gestureState) => {
         const { dx, dy } = gestureState;
-        pan.setValue({ x: dx, y: dy });
+        pan.setValue({ x: dx, y: 0 });
         updateHint(dx, dy);
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -238,18 +243,14 @@ export function Flashcard({
     onFlip();
   };
 
-  const hintLabel: Record<Rating, string> = {
+  const hintLabel: Record<SwipeRating, string> = {
     again: t('practice.ratingForgot'),
-    hard: t('practice.ratingHard'),
     good: t('practice.ratingGood'),
-    easy: t('practice.ratingEasy'),
   };
 
-  const hintColor: Record<Rating, string> = {
+  const hintColor: Record<SwipeRating, string> = {
     again: '#b3261e',
-    hard: '#d97706',
     good: '#16a34a',
-    easy: '#6750a4',
   };
 
   const posColor = getPosColor(item.part_of_speech, colors);
@@ -267,106 +268,127 @@ export function Flashcard({
   };
   const gloss = displayGloss(item);
 
-  const renderFront = () => (
-    <View style={styles.cardContent}>
-      <View onLayout={handleFrontLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={posBadgeLabel} variant={badgeVariant} />
-        {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
-        {cardMode === 'flashcard' ? (
-          <>
-            <View style={[styles.wordRow, { gap: spacing.sm }]}>
-              <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
-                {item.lemma}
-              </Text>
-              <SpeakButton language={item.language_code} text={item.lemma} />
-            </View>
-            {item.pronunciation && (
-              <Text variant="caption" color="muted">
-                {item.pronunciation}
-              </Text>
-            )}
-            <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
-              <Icon name="finger-print" size="md" color={colors.primary} />
-              <Text variant="caption" color="primary" bold>
-                {t('practice.tapReveal')}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <>
-            <Text variant="caption" color="muted" style={styles.promptLabel}>
-              {t('practice.typePrompt')}
-            </Text>
-            {gloss ? (
-              <Text variant="headline" bold style={[styles.definitionText, { color: posColor }]}>
-                {gloss}
-              </Text>
-            ) : null}
-          </>
-        )}
-      </View>
-    </View>
-  );
+  const contentHeight = Math.max(DEFAULT_CARD_HEIGHT, isFlipped ? backHeight : frontHeight);
+  const cappedMax =
+    maxHeight != null && Number.isFinite(maxHeight) ? Math.max(MIN_CARD_HEIGHT, maxHeight) : undefined;
+  const currentHeight = cappedMax != null ? Math.min(contentHeight, cappedMax) : contentHeight;
+  const needsInnerScroll = cappedMax != null && contentHeight > cappedMax;
 
-  const renderBack = () => (
-    <View style={styles.cardContent}>
-      <View onLayout={handleBackLayout} style={{ width: '100%', alignItems: 'center', gap: 16 }}>
-        <Badge label={posBadgeLabel} variant={badgeVariant} />
-        {cardMode === 'typing' && (
+  const frontBody = (
+    <View onLayout={handleFrontLayout} style={styles.measureColumn}>
+      <Badge label={posBadgeLabel} variant={badgeVariant} />
+      {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+      {cardMode === 'flashcard' ? (
+        <>
           <View style={[styles.wordRow, { gap: spacing.sm }]}>
             <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
               {item.lemma}
             </Text>
             <SpeakButton language={item.language_code} text={item.lemma} />
           </View>
-        )}
-        {cardMode === 'typing' && item.pronunciation && (
-          <Text variant="caption" color="muted">
-            {item.pronunciation}
-          </Text>
-        )}
-        {cardMode === 'typing' && (
-          <View
-            style={[
-              styles.answerResult,
-              {
-                borderColor: colors.outlineVariant,
-                backgroundColor: colors.surfaceContainerHighest,
-              },
-            ]}
-          >
+          {item.pronunciation && (
             <Text variant="caption" color="muted">
-              {t('practice.yourAnswer')}
+              {item.pronunciation}
             </Text>
-            <Text variant="body" style={styles.answerResultText}>
-              {userAnswer.trim().length > 0 ? userAnswer.trim() : t('practice.noAnswerGiven')}
+          )}
+          <View style={[styles.tapPrompt, { marginTop: spacing.lg }]}>
+            <Icon name="finger-print" size="md" color={colors.primary} />
+            <Text variant="caption" color="primary" bold>
+              {t('practice.tapReveal')}
             </Text>
           </View>
-        )}
-        {gloss ? (
-          <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
-            {gloss}
+        </>
+      ) : (
+        <>
+          <Text variant="caption" color="muted" style={styles.promptLabel}>
+            {t('practice.typePrompt')}
           </Text>
-        ) : null}
-      </View>
+          {gloss ? (
+            <Text variant="headline" bold style={[styles.definitionText, { color: posColor }]}>
+              {gloss}
+            </Text>
+          ) : null}
+        </>
+      )}
     </View>
   );
 
-  const currentHeight = Math.max(320, isFlipped ? backHeight : frontHeight);
+  const backBody = (
+    <View onLayout={handleBackLayout} style={styles.measureColumn}>
+      <Badge label={posBadgeLabel} variant={badgeVariant} />
+      {cardMode === 'typing' && (
+        <View style={[styles.wordRow, { gap: spacing.sm }]}>
+          <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
+            {item.lemma}
+          </Text>
+          <SpeakButton language={item.language_code} text={item.lemma} />
+        </View>
+      )}
+      {cardMode === 'typing' && item.pronunciation && (
+        <Text variant="caption" color="muted">
+          {item.pronunciation}
+        </Text>
+      )}
+      {cardMode === 'typing' && (
+        <View
+          style={[
+            styles.answerResult,
+            {
+              borderColor: colors.outlineVariant,
+              backgroundColor: colors.surfaceContainerHighest,
+            },
+          ]}
+        >
+          <Text variant="caption" color="muted">
+            {t('practice.yourAnswer')}
+          </Text>
+          <Text variant="body" style={styles.answerResultText}>
+            {userAnswer.trim().length > 0 ? userAnswer.trim() : t('practice.noAnswerGiven')}
+          </Text>
+        </View>
+      )}
+      {gloss ? (
+        <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
+          {gloss}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const renderFaceContent = (body: ReactNode) => {
+    if (!needsInnerScroll) {
+      return <View style={styles.cardContent}>{body}</View>;
+    }
+    return (
+      <ScrollView
+        style={styles.faceScroll}
+        contentContainerStyle={styles.faceScrollContent}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator
+        keyboardShouldPersistTaps="handled"
+        bounces
+      >
+        {body}
+      </ScrollView>
+    );
+  };
 
   const rotate = pan.x.interpolate({
     inputRange: [-200, 0, 200],
     outputRange: ['-10deg', '0deg', '10deg'],
   });
 
-  const panScale = pan.y.interpolate({
+  const panScale = pan.x.interpolate({
     inputRange: [-200, 0, 200],
-    outputRange: [0.96, 1, 0.96],
+    outputRange: [0.98, 1, 0.98],
   });
 
   return (
     <View style={styles.wrapper}>
-      <View testID="flashcard-3d-wrapper" style={[styles.container, { height: currentHeight }]}>
+      <View
+        testID="flashcard-3d-wrapper"
+        style={[styles.container, { height: currentHeight, minHeight: Math.min(DEFAULT_CARD_HEIGHT, currentHeight) }]}
+      >
         {swipeHint && (
           <View style={styles.hintOverlay} pointerEvents="none">
             <View style={[styles.hintBadge, { backgroundColor: hintColor[swipeHint] }]}>
@@ -382,6 +404,7 @@ export function Flashcard({
             styles.cardContainer,
             {
               height: currentHeight,
+              minHeight: Math.min(DEFAULT_CARD_HEIGHT, currentHeight),
               transform: [...pan.getTranslateTransform(), { rotate }, { scale: panScale }],
             },
           ]}
@@ -402,6 +425,7 @@ export function Flashcard({
                 styles.pressable,
                 {
                   height: currentHeight,
+                  minHeight: Math.min(DEFAULT_CARD_HEIGHT, currentHeight),
                   transform: [{ scale: (pressed || p) && !isFlipped ? 0.98 : 1 }],
                 },
               ]}
@@ -420,7 +444,7 @@ export function Flashcard({
                   Platform.OS === 'web' && isFlipped && { display: 'none' },
                 ]}
               >
-                {renderFront()}
+                {renderFaceContent(frontBody)}
               </Animated.View>
 
               <Animated.View
@@ -436,7 +460,7 @@ export function Flashcard({
                   Platform.OS === 'web' && !isFlipped && { display: 'none' },
                 ]}
               >
-                {renderBack()}
+                {renderFaceContent(backBody)}
               </Animated.View>
             </Pressable>
           </Animated.View>
@@ -459,16 +483,13 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    minHeight: 320,
     alignItems: 'center',
   },
   cardContainer: {
     width: '100%',
-    minHeight: 320,
   },
   pressable: {
     width: '100%',
-    minHeight: 320,
   },
   face: {
     position: 'absolute',
@@ -479,6 +500,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
     backfaceVisibility: 'hidden',
+    overflow: 'hidden',
   },
   backFace: {
     // Ensure back face starts rotated.
@@ -487,6 +509,22 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 16,
+  },
+  faceScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  faceScrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    gap: 16,
+  },
+  measureColumn: {
+    width: '100%',
+    alignItems: 'center',
     gap: 16,
   },
   promptLabel: {

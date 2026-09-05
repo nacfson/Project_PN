@@ -8,6 +8,8 @@ import {
   TextInput,
   View,
   Animated,
+  useWindowDimensions,
+  type LayoutChangeEvent,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -167,6 +169,9 @@ export function PracticeScreen() {
   const answerInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const statusRef = useRef(status);
+  const { height: windowHeight } = useWindowDimensions();
+  const [measuredGradingBarHeight, setMeasuredGradingBarHeight] = useState(0);
+  const [measuredAnswerBarHeight, setMeasuredAnswerBarHeight] = useState(0);
 
   // Hide tab bar while typing/grading chrome is up so mobile web does not cover controls.
   const hideTabBarForPracticeChrome =
@@ -257,12 +262,15 @@ export function PracticeScreen() {
     if (!scrollContext) return;
     if (hideTabBarForPracticeChrome) {
       scrollContext.tabBarTranslateY.value = 100;
+      scrollContext.setTabBarInteractive(false);
     } else {
       scrollContext.tabBarTranslateY.value = 0;
+      scrollContext.setTabBarInteractive(true);
     }
     return () => {
       if (scrollContext) {
         scrollContext.tabBarTranslateY.value = 0;
+        scrollContext.setTabBarInteractive(true);
       }
     };
   }, [hideTabBarForPracticeChrome, scrollContext]);
@@ -722,12 +730,41 @@ export function PracticeScreen() {
   // Screen always reserves tab-bar height under the flex child. While the tab bar
   // is translated away, pull the sticky chrome into that spacer so it sits flush.
   const bottomBarOffset = hideTabBarForPracticeChrome ? -(tabBarHeight + 16) : 0;
-  const answerBarHeight = 144 + insets.bottom - Math.min(bottomBarOffset, 0);
-  const gradingBarHeight = (sessionMode === 'repeat' ? 220 : 168) + insets.bottom - Math.min(bottomBarOffset, 0);
+  const gradingBarFallback = (sessionMode === 'repeat' ? 220 : 168) + insets.bottom - Math.min(bottomBarOffset, 0);
+  const answerBarFallback = 144 + insets.bottom - Math.min(bottomBarOffset, 0);
+  const answerBarHeight = measuredAnswerBarHeight > 0 ? measuredAnswerBarHeight : answerBarFallback;
+  const gradingBarHeight = measuredGradingBarHeight > 0 ? measuredGradingBarHeight : gradingBarFallback;
+
+  const progressHeaderApprox = 72;
+  const swipeGuideApprox = 28;
+  const cardMaxHeight = Math.max(
+    240,
+    windowHeight
+      - insets.top
+      - progressHeaderApprox
+      - (showGradingBar ? gradingBarHeight : showAnswerBar ? answerBarHeight : 0)
+      - (showGradingBar ? swipeGuideApprox : 0)
+      - spacing.md * 2
+  );
+
+  const handleGradingBarLayout = (event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.height;
+    if (next > 0 && Math.abs(next - measuredGradingBarHeight) > 1) {
+      setMeasuredGradingBarHeight(next);
+    }
+  };
+
+  const handleAnswerBarLayout = (event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.height;
+    if (next > 0 && Math.abs(next - measuredAnswerBarHeight) > 1) {
+      setMeasuredAnswerBarHeight(next);
+    }
+  };
 
   const answerBar = showAnswerBar ? (
     <Card
       glass={true}
+      onLayout={handleAnswerBarLayout}
       style={[
         styles.bottomBar,
         {
@@ -785,6 +822,7 @@ export function PracticeScreen() {
   const gradingBar = showGradingBar ? (
     <Card
       glass={true}
+      onLayout={handleGradingBarLayout}
       style={[
         styles.bottomBar,
         styles.gradingBar,
@@ -794,6 +832,7 @@ export function PracticeScreen() {
           bottom: bottomBarOffset,
           gap: spacing.md,
         },
+        Platform.OS === 'web' ? ({ isolation: 'isolate' } as object) : null,
       ]}
     >
       <Text variant="caption" color="muted" style={{ textAlign: 'center' }} bold>
@@ -873,6 +912,7 @@ export function PracticeScreen() {
               isPreviouslyFailed={isPreviouslyFailed}
               onFlip={toggleFlip}
               onRate={selectGrade}
+              maxHeight={cardMaxHeight}
             />
           </Animated.View>
 
@@ -943,10 +983,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     gap: 10,
-    zIndex: 999,
+    zIndex: 1000,
+    elevation: 24,
   },
   gradingBar: {
-    // Keep rate controls above mobile browser chrome / home indicator.
+    // Keep rate controls above mobile browser chrome / transformed card layers.
   },
   answerInput: {
     width: '100%',
