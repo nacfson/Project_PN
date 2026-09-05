@@ -8,6 +8,7 @@ import { Button, Card, Icon, Text } from '../ui';
 import { sessionStorage } from '../api/sessionStorage';
 import { extractSessionFromUrl } from '../utils/authLaunch';
 import { isBrowserWeb } from '../utils/platform';
+import { analytics } from '../analytics/analytics';
 
 interface CentralAuthScreenProps {
   onTokenReceived?: () => void;
@@ -21,6 +22,7 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
 
   const handleSignIn = async () => {
     setBusy(true);
+    const traceId = analytics.track('auth_started', { provider: 'central_auth' });
     try {
       const browserWeb = isBrowserWeb();
       const redirectUrl = browserWeb ? window.location.origin : 'projectpn://auth';
@@ -36,10 +38,12 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
             if (onTokenReceived) {
               onTokenReceived();
             }
+            analytics.track('auth_succeeded', { provider: 'central_auth' }, traceId);
           }
         }
       }
     } catch (err) {
+      analytics.track('auth_failed', { provider: 'central_auth', error_code: 'AUTH-101', retryable: true }, traceId);
       console.error('Failed to open SSO page', err);
     } finally {
       setBusy(false);

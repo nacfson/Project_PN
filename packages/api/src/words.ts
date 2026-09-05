@@ -8,6 +8,7 @@ export interface LookupOptions {
   languageCode: string;
   displayLanguageCode: string;
   sourceContext?: string;
+  traceId?: string;
 }
 
 export function lookupWord(text: string, options: LookupOptions): Promise<LookupResponse> {
@@ -20,7 +21,7 @@ export function lookupWord(text: string, options: LookupOptions): Promise<Lookup
   if (options.wordId) body.word_id = options.wordId;
   if (options.force) body.force = options.force;
   if (options.sourceContext) body.source_context = options.sourceContext;
-  return postJson<LookupResponse>('/api/words/lookup', body);
+  return postJson<LookupResponse>('/api/words/lookup', body, { traceId: options.traceId });
 }
 
 export function addLearningItem(
@@ -28,6 +29,7 @@ export function addLearningItem(
   displayLanguageCode: string,
   deckId?: string,
   sourceContext?: string,
+  traceId?: string,
 ): Promise<LearningItem> {
   const body: Record<string, unknown> = {
     word_sense_id: wordSenseId,
@@ -39,13 +41,14 @@ export function addLearningItem(
   if (sourceContext) {
     body.source_context = sourceContext;
   }
-  return postJson<LearningItem>('/api/learning-items', body);
+  return postJson<LearningItem>('/api/learning-items', body, { traceId });
 }
 
 export function changeLearningItemSense(
   itemId: string,
   wordSenseId: string,
   displayLanguageCode?: string,
+  traceId?: string,
 ): Promise<LearningItem> {
   const body: Record<string, unknown> = {
     word_sense_id: wordSenseId,
@@ -53,5 +56,5 @@ export function changeLearningItemSense(
   if (displayLanguageCode) {
     body.display_language_code = displayLanguageCode;
   }
-  return patchJson<LearningItem>(`/api/learning-items/${itemId}`, body);
+  return patchJson<LearningItem>(`/api/learning-items/${itemId}`, body, { traceId });
 }

@@ -18,6 +18,7 @@ import { extractSessionFromUrl, parseSessionFromLaunchUrl } from './src/utils/au
 import { isExtensionLoginFlow, sendSessionToExtension } from './src/utils/extensionAuth';
 import { isBrowserWeb } from './src/utils/platform';
 import { onUnauthorized } from './src/api/client';
+import { analytics } from './src/analytics/analytics';
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -53,6 +54,10 @@ function AppContent() {
   const { colors, mode } = useTheme();
 
   const authStateRef = useRef<AuthState>('loading');
+  useEffect(() => {
+    analytics.track('session_started', { entry: 'app_launch' });
+    return () => { void analytics.flush(); };
+  }, []);
   useEffect(() => {
     authStateRef.current = authState;
   }, [authState]);
@@ -97,6 +102,7 @@ function AppContent() {
       }
       await me();
       setAuthState('authenticated');
+      analytics.track('auth_succeeded', { method: isBrowserWeb() ? 'cookie' : 'bearer' });
       setConnectionError(null);
       await notifyExtensionIfNeeded();
     } catch (err: any) {
@@ -106,6 +112,7 @@ function AppContent() {
         }
         setAuthState('unauthenticated');
         setConnectionError(null);
+        analytics.track('auth_failed', { error_code: 'AUTH-101', retryable: false });
       } else {
         const current = authStateRef.current;
         if (current === 'unauthenticated') {

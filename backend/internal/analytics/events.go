@@ -4,6 +4,7 @@
 package analytics
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"regexp"
@@ -84,6 +85,31 @@ func Validate(event Event) error {
 		return errors.New("properties contains a forbidden credential field")
 	}
 	return nil
+}
+
+// NewID returns a RFC 4122 v4 UUID without adding a runtime dependency.
+func NewID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "00000000-0000-4000-8000-000000000000"
+	}
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", raw[0:4], raw[4:6], raw[6:8], raw[8:10], raw[10:16])
+}
+
+// NewServerRecord creates a valid API-authored event with generated IDs for
+// server-local fields and the validated client trace when provided.
+func NewServerRecord(name, traceID string, properties map[string]any) Record {
+	if !uuidPattern.MatchString(strings.ToLower(traceID)) {
+		traceID = NewID()
+	}
+	return Record{Kind: "analytics", Event: Event{
+		EventName: name, EventVersion: CurrentEventVersion, EventID: NewID(),
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: NewID(),
+		TraceID: traceID, AnonymousID: NewID(), Platform: "backend", AppVersion: "api",
+		Properties: properties,
+	}}
 }
 
 func hasForbiddenProperty(value any) bool {

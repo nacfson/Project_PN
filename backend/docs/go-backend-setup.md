@@ -155,6 +155,7 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `FORCE_TARGET_LANG` | empty | If set, all new users receive this `target_language` and the frontend hides the selector. |
 | `FORCE_DEFINITION_LANG` | empty | If set, all new users receive this `native_language` and the frontend hides the selector. |
 | `ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:19006,tauri://localhost,http://tauri.localhost` | Comma-separated CORS allow-list. Empty disables the CORS middleware. |
+| `ANALYTICS_ENABLED` | `false` | Enables validated behavioral analytics JSON lines on stdout. |
 
 
 ## Enrichment (gloss origin)
@@ -187,6 +188,15 @@ Flags: `-user-id`, `-email`, `-word-id`, `-limit`, `-dry-run`, `-continue-on-err
 ## Learning analytics logs (optional)
 
 When `LEARNING_LOG_DIR` is set to an absolute directory path, the API appends one key=value row per learning event to daily files named `YYYYMMDD_log` (UTC). Events include `learning_item_added`, `review_attempted`, `sense_changed`, and `learning_item_archived` (leech suspend). This is separate from `ADMIN_LOG_PATH` admin audit logs. Leave `LEARNING_LOG_DIR` empty to disable. Row format and fields are defined in `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`.
+
+## Behavioral analytics (optional)
+
+`ANALYTICS_ENABLED=false` is the local/test default. When explicitly enabled,
+`POST /api/analytics/events` accepts validated batches of up to 100 versioned
+events / 256 KiB and writes one structured stdout record per event with
+`kind:"analytics"`. The platform Vector profile owns collection and routing;
+see `docs/analytics-contract.md`. This stream is separate from both admin and
+daily learning logs.
 
 ## Tests
 

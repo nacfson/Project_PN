@@ -1,4 +1,5 @@
 import type { SessionResponse } from './types';
+import { createUUID } from './analytics';
 
 export interface ApiConfig {
   baseUrls: string[];
@@ -66,6 +67,8 @@ interface ErrorBody {
 export interface RequestOptions {
   /** When false, omit Authorization even if a token is stored. Default true. */
   auth?: boolean;
+  /** Correlates an API result with a semantic client event. */
+  traceId?: string;
 }
 
 function usesCookieAuth(): boolean {
@@ -112,7 +115,7 @@ async function attemptRefresh(): Promise<SessionResponse | null> {
 }
 
 async function buildHeaders(options?: RequestOptions, mutation = false): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'X-Client-Trace-Id': options?.traceId ?? createUUID() };
   if (!usesCookieAuth() && options?.auth !== false) {
     const token = await getConfig().getToken();
     if (token) {

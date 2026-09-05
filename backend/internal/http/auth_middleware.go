@@ -79,6 +79,26 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 	}
 }
 
+// optionalAuthMiddleware preserves anonymous analytics delivery while attaching
+// an API-verified actor whenever a browser cookie or bearer credential exists.
+func optionalAuthMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger admin.Logger) func(http.Handler) http.Handler {
+	required := authMiddleware(svc, central, logger)
+	return func(next http.Handler) http.Handler {
+		protected := required(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if bearerToken(r) != "" {
+				protected.ServeHTTP(w, r)
+				return
+			}
+			if _, err := r.Cookie(auth.CentralSessionCookieName); err == nil {
+				protected.ServeHTTP(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func requireVerified(logger admin.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -83,7 +83,7 @@ type Config struct {
 
 	AdminLogPath string
 
-	LearningLogDir string
+	LearningLogDir   string
 	AnalyticsEnabled bool
 }
 
@@ -142,7 +142,7 @@ func Load() Config {
 
 		AdminLogPath: envOrDefault("ADMIN_LOG_PATH", defaultAdminLogPath),
 
-		LearningLogDir: os.Getenv("LEARNING_LOG_DIR"),
+		LearningLogDir:   os.Getenv("LEARNING_LOG_DIR"),
 		AnalyticsEnabled: envBool("ANALYTICS_ENABLED", false),
 	}
 }

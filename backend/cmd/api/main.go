@@ -16,8 +16,8 @@ import (
 	"project-pn/internal/config"
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
-	"project-pn/internal/learninglog"
 	httpapi "project-pn/internal/http"
+	"project-pn/internal/learninglog"
 	"project-pn/internal/notify"
 	"project-pn/internal/words"
 )

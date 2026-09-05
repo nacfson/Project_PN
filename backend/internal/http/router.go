@@ -34,6 +34,9 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	if deps.AnalyticsEnabled && deps.AnalyticsLogger != nil {
+		r.Use(analyticsRequestMiddleware(deps.AnalyticsLogger))
+	}
 
 	if _, isNoop := deps.AdminLogger.(admin.NoopLogger); !isNoop && deps.AdminLogger != nil && deps.MetricsCollector != nil {
 		r.Use(admin.HTTPLoggingMiddleware(deps.AdminLogger, deps.MetricsCollector, func(r *http.Request) string {
@@ -47,7 +50,7 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   deps.AllowedOrigins,
 			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-			AllowedHeaders:   []string{"Content-Type", "Authorization", "Cache-Control", "Pragma", "X-CSRF-Token"},
+			AllowedHeaders:   []string{"Content-Type", "Authorization", "Cache-Control", "Pragma", "X-CSRF-Token", "X-Client-Trace-Id"},
 			AllowCredentials: true,
 			MaxAge:           300,
 		}))
@@ -55,11 +58,6 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(deps.DB))
-	if deps.AnalyticsEnabled && deps.AnalyticsLogger != nil {
-		ah := analyticsHandler{logger: deps.AnalyticsLogger}
-		r.Post("/api/analytics/events", ah.collect)
-	}
-
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
 		authMW = authMiddleware(deps.Auth, deps.CentralAuth, deps.AdminLogger)
@@ -102,6 +100,16 @@ func NewRouter(deps Dependencies) http.Handler {
 				mutate.Delete("/languages/{target_language}", uh.removeLanguage)
 				mutate.Put("/ui-language", uh.setUILanguage)
 			})
+		})
+	}
+
+	if deps.AnalyticsEnabled && deps.AnalyticsLogger != nil {
+		ah := analyticsHandler{logger: deps.AnalyticsLogger}
+		r.Route("/api/analytics", func(analyticsRouter chi.Router) {
+			if deps.Auth != nil {
+				analyticsRouter.Use(optionalAuthMiddleware(deps.Auth, deps.CentralAuth, deps.AdminLogger))
+			}
+			analyticsRouter.Post("/events", ah.collect)
 		})
 	}
 

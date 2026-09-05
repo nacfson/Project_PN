@@ -67,6 +67,6 @@ export function getDueLearningItems(
   return getJson<DueItem[]>(`/api/reviews/due?${searchParams.toString()}`);
 }
 
-export function recordBatchReviewAttempts(attempts: ReviewAttemptParams[]): Promise<BatchReviewResult> {
-  return postJson<BatchReviewResult>('/api/reviews/batch', { attempts });
+export function recordBatchReviewAttempts(attempts: ReviewAttemptParams[], traceId?: string): Promise<BatchReviewResult> {
+  return postJson<BatchReviewResult>('/api/reviews/batch', { attempts }, { traceId });
 }

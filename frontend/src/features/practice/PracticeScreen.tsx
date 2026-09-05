@@ -39,6 +39,7 @@ import {
   overridesFromBatchUpdates,
   resolveDueItem,
 } from './practiceItemState';
+import { analytics } from '../../analytics/analytics';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Practice'>;
 type SessionMode = 'normal' | 'repeat';
@@ -182,6 +183,8 @@ export function PracticeScreen() {
       return;
     }
     setIsFlipped(true);
+    const item = queue[currentIndex];
+    if (item) analytics.track('card_revealed', { learning_item_id: item.user_word_sense_id, lemma: item.lemma, mode: cardMode });
     setPracticeState('grading');
   };
 
@@ -388,14 +391,17 @@ export function PracticeScreen() {
 
     const toFlush = pendingRef.current;
     pendingRef.current = [];
+    const traceId = analytics.track('command_invoked', { command: 'review_submit', attempt_count: toFlush.length });
 
     try {
-      const res = await recordBatchReviewAttempts(toFlush);
+      const res = await recordBatchReviewAttempts(toFlush, traceId);
+      analytics.track('review_succeeded', { attempt_count: toFlush.length, xp_earned: res.xp_earned }, traceId);
       setXpEarned((prev) => prev + res.xp_earned);
       if (res.updated_items?.length) {
         applyDueItemUpdates(res.updated_items);
       }
     } catch (err) {
+      analytics.track('review_failed', { attempt_count: toFlush.length, error_code: 'UNKNOWN', retryable: true }, traceId);
       console.error('Error flushing review attempts:', err);
       pendingRef.current = [...toFlush, ...pendingRef.current];
       setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
@@ -432,6 +438,8 @@ export function PracticeScreen() {
 
   const selectGrade = (rating: Rating) => {
     const score = ratingScores[rating];
+    const item = queue[currentIndex];
+    if (item) analytics.track('card_rated', { learning_item_id: item.user_word_sense_id, lemma: item.lemma, rating, score });
     setRatingScore(score);
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
