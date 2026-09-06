@@ -9,6 +9,9 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
 RUN go build -trimpath -ldflags="-s -w" -o /out/retranslate-senses ./cmd/retranslate-senses
 
 FROM debian:bookworm-slim AS runtime
+# Link this image to the GitHub repo so Actions GITHUB_TOKEN can publish to GHCR.
+LABEL org.opencontainers.image.source="https://github.com/nacfson/Project_PN"
+LABEL org.opencontainers.image.description="Project PN backend API"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
