@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { PosSelector } from '../../components/PosSelector';
-import { TappablePassage } from '../../components/TappablePassage';
+import { TappablePassage, type PassageSpan } from '../../components/TappablePassage';
 import { WordChip } from '../../components/WordChip';
 import { useAddQueue } from '../../hooks/useAddQueue';
 import { recordCapturedWords } from '../../storage/captureHistory';
@@ -12,12 +12,18 @@ import type { PosFilter } from '../../types';
 
 const UNDO_DURATION_MS = 3000;
 
+function spanKey(span: PassageSpan): string {
+  return `${span.start}:${span.end}:${span.text}`;
+}
+
 export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDeckId: string; targetLanguage: string }) {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const { t } = useAppLanguage();
   const [passage, setPassage] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<PassageSpan[]>([]);
+  const [phraseMode, setPhraseMode] = useState(false);
+  const [phraseAnchor, setPhraseAnchor] = useState<number | null>(null);
   const [clearedAt, setClearedAt] = useState<number | null>(null);
   const previousPassageRef = useRef('');
   const { enqueueMany, statusOf } = useAddQueue();
@@ -31,6 +37,8 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
   const clearPassage = () => {
     previousPassageRef.current = passage;
     setPassage('');
+    setSelected([]);
+    setPhraseAnchor(null);
     setClearedAt(Date.now());
   };
 
@@ -39,32 +47,44 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
     setClearedAt(null);
   };
 
-  const toggle = useCallback((word: string) => {
+  const toggleSpan = useCallback((span: PassageSpan) => {
     setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(word)) {
-        next.delete(word);
-      } else {
-        next.add(word);
-        void recordCapturedWords([word]);
+      const exists = prev.find(
+        (s) => s.start === span.start && s.end === span.end && s.text === span.text,
+      );
+      if (exists) {
+        return prev.filter((s) => s !== exists);
       }
-      return next;
+      // Drop overlapping single-token picks covered by a new multi-word span.
+      const withoutOverlap = prev.filter(
+        (s) => s.end < span.start || s.start > span.end,
+      );
+      return [...withoutOverlap, span];
     });
+    if (span.text.trim()) {
+      void recordCapturedWords([span.text]);
+    }
   }, []);
 
   const addSelected = () => {
-    const words = Array.from(selected).filter((w) => {
-      const status = statusOf(w);
+    const spans = selected.filter((span) => {
+      const status = statusOf(span.text);
       return status !== 'added' && status !== 'pending';
     });
-    if (words.length === 0) {
+    if (spans.length === 0) {
       return;
     }
-    void recordCapturedWords(words);
-    enqueueMany(words, pos, selectedDeckId, targetLanguage);
+    const texts = spans.map((s) => s.text);
+    void recordCapturedWords(texts);
+    enqueueMany(texts, pos, selectedDeckId, targetLanguage);
   };
 
-  const selectedList = Array.from(selected);
+  const selectedList = selected;
+  const hasPendingSelected = selectedList.some((s) => statusOf(s.text) === 'pending');
+  const addableCount = selectedList.filter((s) => {
+    const status = statusOf(s.text);
+    return status !== 'added' && status !== 'pending';
+  }).length;
 
   return (
     <View style={styles.container}>
@@ -96,6 +116,8 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
             value={passage}
             onChangeText={(text) => {
               setPassage(text);
+              setSelected([]);
+              setPhraseAnchor(null);
               setClearedAt(null);
             }}
             placeholder={t('add.passagePlaceholder')}
@@ -107,16 +129,46 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
 
         {passage.trim() !== '' && (
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label" color="muted">
-              {t('add.tapWords')}
-            </Text>
+            <View style={styles.labelRow}>
+              <Text variant="label" color="muted">
+                {phraseMode ? t('add.tapPhrase') : t('add.tapWords')}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setPhraseMode((prev) => !prev);
+                  setPhraseAnchor(null);
+                }}
+                style={[
+                  styles.phraseToggle,
+                  {
+                    borderRadius: radii.full,
+                    borderColor: phraseMode ? 'transparent' : colors.outline,
+                    backgroundColor: phraseMode ? colors.secondaryContainer : 'transparent',
+                  },
+                ]}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: phraseMode }}
+                testID="phrase-mode-toggle"
+              >
+                <Text variant="caption" color={phraseMode ? 'onSecondaryContainer' : 'muted'}>
+                  {t('add.phraseMode')}
+                </Text>
+              </Pressable>
+            </View>
             <Card>
-              <TappablePassage text={passage} selected={selected} onToggle={toggle} />
+              <TappablePassage
+                text={passage}
+                selected={selected}
+                phraseMode={phraseMode}
+                phraseAnchor={phraseAnchor}
+                onToggleSpan={toggleSpan}
+                onPhraseAnchor={setPhraseAnchor}
+              />
             </Card>
           </View>
         )}
 
-        {selected.size > 0 && (
+        {selected.length > 0 && (
           <>
             <View style={{ gap: spacing.sm }}>
               <Text variant="label" color="muted">
@@ -130,17 +182,23 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
                 {t('add.selected', { count: selectedList.length })}
               </Text>
               <View style={styles.chipRow}>
-                {selectedList.map((w) => (
-                  <WordChip key={w} word={w} status={statusOf(w)} onRemove={() => toggle(w)} />
+                {selectedList.map((span) => (
+                  <WordChip
+                    key={spanKey(span)}
+                    word={span.text}
+                    status={statusOf(span.text)}
+                    onRemove={() => toggleSpan(span)}
+                  />
                 ))}
               </View>
             </View>
 
             <Button
-              label={t('add.addSelected', { count: selected.size })}
+              label={t('add.addSelected', { count: selected.length })}
               iconLeft="add"
               onPress={addSelected}
-              disabled={selected.size === 0}
+              disabled={selected.length === 0 || addableCount === 0 || hasPendingSelected}
+              loading={hasPendingSelected}
               style={{ marginTop: spacing.sm }}
             />
           </>
@@ -170,5 +228,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  phraseToggle: {
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
 });

@@ -26,7 +26,8 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
     pickerVisible,
     query,
     options,
-    generating,
+    lookingUp,
+    confirming,
     error,
     suggestPosPrompt,
     lookup,
@@ -82,6 +83,8 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
     void lookup(trimmed, pos, context.trim() || undefined, targetLanguage, selectedDeckId);
   };
 
+  const busy = lookingUp || confirming;
+
   return (
     <View style={[styles.card, { backgroundColor: colors.surfaceContainerLow, borderRadius: 16, padding: spacing.lg }]}>
       <Text variant="title" style={{ marginBottom: spacing.md }}>
@@ -131,15 +134,16 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
       <Button
         label={t('add.findMySense')}
         onPress={findSense}
-        disabled={word.trim().length === 0 || generating}
-        loading={generating}
+        disabled={word.trim().length === 0 || busy}
+        loading={lookingUp}
       />
 
       <SensePicker
         visible={pickerVisible}
         query={query}
         options={options}
-        generating={generating}
+        lookingUp={lookingUp}
+        confirming={confirming}
         errorMessage={error}
         suggestPosPrompt={suggestPosPrompt}
         sourceContext={context}

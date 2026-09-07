@@ -20,13 +20,19 @@ const CONCRETE_POS: PartOfSpeech[] = [
   'conjunction',
   'interjection',
   'determiner',
+  'phrase',
 ];
 
 interface SensePickerProps {
   visible: boolean;
   query: string;
   options: SenseOption[];
-  generating: boolean;
+  /** Lookup / force-generate in flight (list “Generating…” spinner). */
+  lookingUp?: boolean;
+  /** Confirm/add in flight (Add button spinner). */
+  confirming?: boolean;
+  /** @deprecated Prefer lookingUp || confirming. Kept for older call sites. */
+  generating?: boolean;
   errorMessage?: string | null;
   suggestPosPrompt?: boolean;
   sourceContext?: string;
@@ -41,6 +47,8 @@ export function SensePicker({
   visible,
   query,
   options,
+  lookingUp,
+  confirming,
   generating,
   errorMessage,
   suggestPosPrompt = false,
@@ -58,6 +66,11 @@ export function SensePicker({
   const [posPrompt, setPosPrompt] = useState(false);
   const [needContext, setNeedContext] = useState(false);
   const [draftContext, setDraftContext] = useState('');
+  const [confirmTarget, setConfirmTarget] = useState<'best' | 'selected' | null>(null);
+
+  const isLookingUp = lookingUp ?? generating ?? false;
+  const isConfirming = confirming ?? false;
+  const busy = isLookingUp || isConfirming;
 
   useEffect(() => {
     if (suggestPosPrompt) {
@@ -65,34 +78,45 @@ export function SensePicker({
     }
   }, [suggestPosPrompt]);
 
+  useEffect(() => {
+    if (!visible) {
+      setSelectedId(null);
+      setPosPrompt(false);
+      setNeedContext(false);
+      setDraftContext('');
+      setConfirmTarget(null);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (!isConfirming) {
+      setConfirmTarget(null);
+    }
+  }, [isConfirming]);
+
   const top = useMemo(() => bestMatch(options), [options]);
   const selected = options.find((o) => o.word_sense_id === selectedId) ?? null;
   const resolvedContext = (draftContext || sourceContext).trim();
   const showPosPrompt = posPrompt || suggestPosPrompt;
 
-  const reset = () => {
-    setSelectedId(null);
-    setPosPrompt(false);
-    setNeedContext(false);
-    setDraftContext('');
-  };
-
   const handleClose = () => {
-    reset();
+    if (isConfirming) {
+      return;
+    }
     onClose();
   };
 
   const handleAddSelected = () => {
-    if (selectedId) {
+    if (selectedId && !busy) {
+      setConfirmTarget('selected');
       onConfirm(selectedId);
-      reset();
     }
   };
 
   const handleAddBestMatch = () => {
-    if (top) {
+    if (top && !busy) {
+      setConfirmTarget('best');
       onConfirm(top.word_sense_id);
-      reset();
     }
   };
 
@@ -135,7 +159,13 @@ export function SensePicker({
 
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
             <Text variant="title">{t('sense.chooseMeaning', { query })}</Text>
-            <Pressable onPress={handleClose} hitSlop={8} accessibilityRole="button">
+            <Pressable
+              onPress={handleClose}
+              hitSlop={8}
+              accessibilityRole="button"
+              disabled={isConfirming}
+              style={{ opacity: isConfirming ? 0.4 : 1 }}
+            >
               <Icon name="close" size="lg" />
             </Pressable>
           </View>
@@ -150,7 +180,7 @@ export function SensePicker({
           )}
 
           <ScrollView style={styles.list} contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}>
-            {options.length === 0 && !generating && (
+            {options.length === 0 && !isLookingUp && (
               <Text color="muted" style={{ fontStyle: 'italic' }}>
                 {t('sense.noneFound')}
               </Text>
@@ -162,7 +192,11 @@ export function SensePicker({
               return (
                 <Pressable
                   key={option.word_sense_id}
-                  onPress={() => setSelectedId(option.word_sense_id)}
+                  onPress={() => {
+                    if (!busy) {
+                      setSelectedId(option.word_sense_id);
+                    }
+                  }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                 >
@@ -190,7 +224,7 @@ export function SensePicker({
               );
             })}
 
-            {generating && (
+            {isLookingUp && (
               <View style={[styles.generating, { gap: spacing.sm }]}>
                 <ActivityIndicator color={colors.primary} />
                 <Text color="muted">{t('sense.generating')}</Text>
@@ -218,7 +252,7 @@ export function SensePicker({
                       proceedForce(draftContext.trim());
                     }
                   }}
-                  disabled={!draftContext.trim() || generating}
+                  disabled={!draftContext.trim() || busy}
                 />
               </View>
             )}
@@ -238,6 +272,7 @@ export function SensePicker({
                         onForceWithPos(pos, resolvedContext || undefined);
                         setPosPrompt(false);
                       }}
+                      disabled={busy}
                       style={styles.posChip}
                     />
                   ))}
@@ -247,9 +282,22 @@ export function SensePicker({
           </ScrollView>
 
           <View style={[styles.actions, { marginTop: spacing.md, gap: spacing.md }]}>
-            <Button label={t('sense.noneMatch')} variant="ghost" onPress={handleNoneMatch} disabled={generating} />
-            <Button label={t('sense.addBest')} variant="tonal" onPress={handleAddBestMatch} disabled={!top || generating} />
-            <Button label={t('sense.add')} onPress={handleAddSelected} disabled={!selectedId || generating} />
+            <Button label={t('sense.noneMatch')} variant="ghost" onPress={handleNoneMatch} disabled={busy} />
+            <Button
+              label={t('sense.addBest')}
+              variant="tonal"
+              onPress={handleAddBestMatch}
+              disabled={!top || busy}
+              loading={isConfirming && confirmTarget === 'best'}
+              testID="sense-add-best"
+            />
+            <Button
+              label={t('sense.add')}
+              onPress={handleAddSelected}
+              disabled={!selectedId || busy}
+              loading={isConfirming && confirmTarget === 'selected'}
+              testID="sense-add"
+            />
           </View>
         </View>
       </View>
