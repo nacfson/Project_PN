@@ -2,19 +2,19 @@
 
 Living inventory for Project PN. Refresh this file after merges or when the Cursor agent list gets noisy.
 
-## Current state (2026-09-05)
+## Current state (2026-09-07)
 
 | Item | Value |
 |------|-------|
 | Default branch | `main` (this worktree) |
 | Open PRs | **none** |
 | Remote heads | `main` only |
-| Local git worktrees | **1** (`/workspace` on `main`) |
+| Local git worktrees | **1** (`Project_PN` root on `main`) |
 | Local branches | `main` only |
-| Stashes | none |
-| Merged `cursor/*` remotes | pruned |
+| Stashes | legacy WIP stashes only (no active feature branches) |
+| Merged `cursor/*` remotes | pruned (`fix-translation-requirement-failures-ac9f`, `fix-ghcr-frontend-ci-4ffa`, …) |
 
-Git remotes, local branches, and this worktree are fully organized. Remaining clutter (if any) is **Cursor Cloud Agent sessions**, not `git worktree` checkouts.
+Git remotes, local branches, and this worktree are fully organized onto `main`. Remaining clutter (if any) is **Cursor Cloud Agent sessions**, not `git worktree` checkouts.
 
 ### Cursor UI “worktrees” vs git worktrees
 
@@ -42,6 +42,7 @@ Safe to archive (PR merged and/or branch gone from remote):
 | Dictionary meaning improvement | `shared-similar-meanings-…` | PR #37 merged |
 | Cloudflare DNS access issue | `cloudflare-dns-docs-de34` | PR #43 merged |
 | Branches worktrees structure | `organize-branches-worktrees-053b` | PR #44 merged |
+| Fix GHCR frontend CI | `fix-ghcr-frontend-ci-4ffa` | PR #45 merged |
 
 Also archive short-lived **Explore / Review / Test / Browser verify** internal runs (no branch). They do not own remotes; keeping them only clutters the agent list.
 
