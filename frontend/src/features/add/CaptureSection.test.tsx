@@ -34,7 +34,6 @@ describe('CaptureSection', () => {
     expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy();
     expect(screen.getByText('From a passage')).toBeTruthy();
 
-    // Step 2 and 3 should be hidden
     expect(screen.queryByText('Tap words to select')).toBeNull();
     expect(screen.queryByText('Part of speech (optional)')).toBeNull();
   });
@@ -48,7 +47,6 @@ describe('CaptureSection', () => {
     await waitFor(() => expect(screen.getByText('Tap words to select')).toBeTruthy());
     expect(screen.getByText('hello')).toBeTruthy();
 
-    // Step 3 (POS, Add Button) is still hidden
     expect(screen.queryByText('Part of speech (optional)')).toBeNull();
     expect(screen.queryByText('Add selected (0)')).toBeNull();
   });
@@ -59,18 +57,31 @@ describe('CaptureSection', () => {
     fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'fox dog');
     await waitFor(() => expect(screen.getByText('fox')).toBeTruthy());
 
-    // Step 3 is hidden initially
     expect(screen.queryByText('Part of speech (optional)')).toBeNull();
 
-    // Select 'fox'
     fireEvent.press(screen.getByText('fox'));
 
-    // Step 3 should now be visible
     await waitFor(() => expect(screen.getByText('Part of speech (optional)')).toBeTruthy());
     expect(screen.getByText('Add selected (1)')).toBeTruthy();
 
-    // Perform enqueue
     fireEvent.press(screen.getByText('Add selected (1)'));
     expect(enqueueMany).toHaveBeenCalledWith(['fox'], 'Any', 'deck-123', 'en');
+  });
+
+  it('selects a multi-word phrase in phrase mode', async () => {
+    await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
+
+    fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'look up the word');
+    await waitFor(() => expect(screen.getByTestId('passage-word-0')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('phrase-mode-toggle'));
+    await waitFor(() => expect(screen.getByText('Tap start and end words to select a phrase')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('passage-word-0'));
+    fireEvent.press(screen.getByTestId('passage-word-1'));
+
+    await waitFor(() => expect(screen.getByText('Add selected (1)')).toBeTruthy());
+    fireEvent.press(screen.getByText('Add selected (1)'));
+    expect(enqueueMany).toHaveBeenCalledWith(['look up'], 'Any', 'deck-123', 'en');
   });
 });

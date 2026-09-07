@@ -97,7 +97,7 @@ describe('ManualAddSection', () => {
   it('looks up with sourceContext and confirms selected sense', async () => {
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word');
+    const wordInput = screen.getByPlaceholderText('Type a word or phrase');
     fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 
@@ -132,17 +132,30 @@ describe('ManualAddSection', () => {
     });
   });
 
+  it('allows multi-word phrases in the manual input', async () => {
+    await renderSection();
+
+    const wordInput = screen.getByPlaceholderText('Type a word or phrase');
+    fireEvent.changeText(wordInput, 'look up');
+    await waitFor(() => expect(wordInput.props.value).toBe('look up'));
+    fireEvent(wordInput, 'blur');
+    await waitFor(() => {
+      expect(screen.queryByText('Please enter a valid word or phrase.')).toBeNull();
+    });
+    expect(screen.getByText('Find my sense')).not.toBeDisabled();
+  });
+
   it('validates fields on blur', async () => {
     await renderSection();
 
-    const input = screen.getByPlaceholderText('Type a word');
+    const input = screen.getByPlaceholderText('Type a word or phrase');
     fireEvent.changeText(input, 'hello123');
     await waitFor(() => {
       expect(input.props.value).toBe('hello123');
     });
     fireEvent(input, 'blur');
     await waitFor(() => {
-      expect(screen.getByText('Please enter a valid word.')).toBeTruthy();
+      expect(screen.getByText('Please enter a valid word or phrase.')).toBeTruthy();
     });
   });
 });
