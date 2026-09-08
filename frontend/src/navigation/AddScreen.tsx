@@ -25,7 +25,7 @@ export function AddScreen() {
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [deckRetryTick, setDeckRetryTick] = useState(0);
   const { pendingCount } = useAddQueue();
-  const [activeTab, setActiveTab] = useState<'passage' | 'manual'>('passage');
+  const [activeTab, setActiveTab] = useState<'passage' | 'manual'>('manual');
 
   const loadDecks = useCallback(() => {
     if (!targetLanguage) {
@@ -96,18 +96,6 @@ export function AddScreen() {
           {selectedDeckId && (
             <View style={[styles.tabContainer, { backgroundColor: colors.surfaceContainerLow, marginTop: spacing.md }]}>
               <Pressable
-                testID="tab-passage"
-                onPress={() => setActiveTab('passage')}
-                style={[
-                  styles.tabButton,
-                  activeTab === 'passage' && { backgroundColor: colors.surface },
-                ]}
-              >
-                <Text bold={activeTab === 'passage'} color={activeTab === 'passage' ? 'primary' : 'muted'}>
-                  {t('add.fromPassage')}
-                </Text>
-              </Pressable>
-              <Pressable
                 testID="tab-manual"
                 onPress={() => setActiveTab('manual')}
                 style={[
@@ -117,6 +105,18 @@ export function AddScreen() {
               >
                 <Text bold={activeTab === 'manual'} color={activeTab === 'manual' ? 'primary' : 'muted'}>
                   {t('add.manual')}
+                </Text>
+              </Pressable>
+              <Pressable
+                testID="tab-passage"
+                onPress={() => setActiveTab('passage')}
+                style={[
+                  styles.tabButton,
+                  activeTab === 'passage' && { backgroundColor: colors.surface },
+                ]}
+              >
+                <Text bold={activeTab === 'passage'} color={activeTab === 'passage' ? 'primary' : 'muted'}>
+                  {t('add.fromPassage')}
                 </Text>
               </Pressable>
             </View>
