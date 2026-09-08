@@ -312,6 +312,9 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 				LearningStage:   nextStage,
 				DueAt:           dueAt,
 				Suspended:       true,
+				Leech:           true,
+				LapseCount:      nextState.LapseCount,
+				IsLeech:         true,
 			})
 		} else {
 			preview := PreviewIntervals(nextState, now, cfg)
@@ -320,6 +323,9 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 				LearningStage:    nextStage,
 				DueAt:            dueAt,
 				PreviewIntervals: &preview,
+				Leech:            isLeech,
+				LapseCount:       nextState.LapseCount,
+				IsLeech:          isLeech,
 			})
 		}
 	}

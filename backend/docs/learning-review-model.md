@@ -127,8 +127,10 @@ When `review_settings.fuzz_enabled` is true (default), the scheduler applies ±2
 
 A card that lapses `review_settings.leech_threshold` times (default: 8) is flagged as a leech.
 
-- If `leech_action` is `suspend` (default): the card is suspended (`review_states.is_suspended = true`) and archived (`user_word_senses.archived_at = now()`). It will no longer appear in due-review queries.
-- If `leech_action` is `tag`: the attempt's `metadata` is marked with `{"leech": true}` but the card is not suspended.
+Product default is **`leech_action = tag`**: the card stays in Practice / due / repeat. Clients derive `is_leech` as `lapse_count >= leech_threshold` on due and list reads, and batch responses may include `leech` / `is_leech`. The Practice UI shows a **Fail repeatedly** badge (not the same as the intra-day **Retrying** badge) and offers change-meaning / personal-note coaching without removing the card from the queue.
+
+- If `leech_action` is `tag` (default): the attempt's `metadata` is marked with `{"leech": true}`; the card is **not** suspended or archived.
+- If `leech_action` is `suspend` (optional power-user path): the card is suspended (`review_states.is_suspended = true`) and archived (`user_word_senses.archived_at = now()`). It will no longer appear in due-review queries.
 - Re-adding a suspended/archived card clears `archived_at`, resets learning stage to `new` when restoring from archive, and clears `is_suspended` / `buried_until` so the card is schedulable again.
 - `POST /api/reviews/batch` returns `409 REV-409` (`retryable: false`) when an attempt targets an archived or suspended card, so clients do not retry forever.
 - Repeat / learning-item list excludes suspended cards (`rs.is_suspended = false`), matching due and batch filters.
@@ -155,7 +157,7 @@ reviews_per_day
 learning_steps       -- minutes, default {1, 10}
 relearning_steps     -- minutes, default {10}
 leech_threshold      -- default 8
-leech_action         -- 'suspend' | 'tag'
+leech_action         -- 'tag' (default) | 'suspend'
 fuzz_enabled         -- default true
 desired_retention    -- default 0.90
 fsrs_weights         -- 19 doubles, defaults to FSRS v4

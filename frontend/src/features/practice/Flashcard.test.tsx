@@ -192,4 +192,20 @@ describe('Flashcard', () => {
     await expect(renderCard({ part_of_speech: 'particle' })).resolves.toBeDefined();
     expect(screen.getAllByText('PARTICLE').length).toBeGreaterThan(0);
   });
+
+  it('shows Fail repeatedly badge when is_leech', async () => {
+    await renderCard({ is_leech: true, lapse_count: 8 });
+    expect(screen.getAllByText('Fail repeatedly!').length).toBeGreaterThan(0);
+  });
+
+  it('prefers personal_note on the back with Your meaning caption', async () => {
+    await renderCard({
+      personal_note: '내가 적은 뜻',
+      localized_definition: '사전 뜻',
+      localized_short_definition: '사전 뜻',
+    });
+    expect(screen.getByText('내가 적은 뜻')).toBeTruthy();
+    expect(screen.getByText('Your meaning')).toBeTruthy();
+    expect(screen.queryByText('사전 뜻')).toBeNull();
+  });
 });

@@ -34,7 +34,7 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 - Practice sessions use **private decks only** (user-added words). Optional `deckId` narrows to one deck; there is no curriculum / dictionary-pack practice mode.
 - Select Words / sense pickers show a **single simple gloss** per option (e.g. `가지다`), not English definition plus localized paraphrase. When simplifying old dictionary paraphrases, skip hollow endings like `것` and prefer real lemmas (`공급하다`), via `displayGloss` / `extractKoreanHeadword` in `frontend/src/utils/meanings.ts`.
-- When lookup includes a source sentence, badge the closest option (`similarity` ≥ 0.08) as “Closest to your sentence”. “Add best match” uses that ranked sense. “None of these match” finds more **shared** senses (`force: true`); if the sentence is empty, prompt for context first. Do not open a free-text gloss field.
+- When lookup includes a source sentence, badge the closest option (`similarity` ≥ 0.08) as “Closest to your sentence”. “Add best match” uses that ranked sense. “None of these match” finds more **shared** senses (`force: true`); if the sentence is empty, prompt for context first. Personal typed gloss belongs on `user_word_senses.personal_note` via Change Meaning / Write my meaning — never as a free-text insert into the shared catalog.
 - Flashcards: front = lemma, back = chosen gloss only (no Explanation / Full meaning / Example as primary UX).
 - The practice session supports two card modes:
   - **Flashcard mode**: the user taps the card to flip it and self-grades with the Anki-style answer buttons (Again/Hard/Good/Easy).
@@ -49,6 +49,11 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
   - Keyboard shortcuts 1/2/3/4 for web/desktop.
 - Repeat review mode loads every non-archived learning item and includes example sentences so cloze prompts work the same as normal due reviews.
 - Failed cards are requeued in the current session and stay recoverable after exit or refresh: `GET /api/reviews/due` returns unfinished Learning/Relearning items, and the practice UI marks `learning_stage === 'learning'` cards with the Retrying badge.
+- **Leech (Fail repeatedly)** is separate from Retrying: when `is_leech` is true (`lapse_count >= leech_threshold`), show the danger badge and keep the card in the quiz (default `leech_action = tag`). Do not remove it from the queue on tag.
+- Offer **Change meaning** as a secondary control under the revealed leech card (and on session-end **Stuck words**). It opens `ChangeMeaningSheet` without blocking the RatingBar.
+- Session success may list Stuck words with **Change meaning** and **Write my meaning**. Prefer catalog sense pick when senses exist; personal meaning uses `personal_note` only.
+- Flashcard back prefers a non-empty `personal_note` over catalog gloss, with a small “Your meaning” caption so it is not confused with dictionary gloss.
+- My Words list/detail show a Stuck badge when `is_leech` is true.
 
 ## OAuth / third-party sign-in
 

@@ -187,7 +187,7 @@ Flags: `-user-id`, `-email`, `-word-id`, `-limit`, `-dry-run`, `-continue-on-err
 
 ## Learning analytics logs (optional)
 
-When `LEARNING_LOG_DIR` is set to an absolute directory path, the API appends one key=value row per learning event to daily files named `YYYYMMDD_log` (UTC). Events include `learning_item_added`, `review_attempted`, `sense_changed`, and `learning_item_archived` (leech suspend). This is separate from `ADMIN_LOG_PATH` admin audit logs. Leave `LEARNING_LOG_DIR` empty to disable. Row format and fields are defined in `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`.
+When `LEARNING_LOG_DIR` is set to an absolute directory path, the API appends one key=value row per learning event to daily files named `YYYYMMDD_log` (UTC). Events include `learning_item_added`, `review_attempted`, `sense_changed`, `personal_meaning_set`, and `learning_item_archived` (leech suspend). This is separate from `ADMIN_LOG_PATH` admin audit logs. Leave `LEARNING_LOG_DIR` empty to disable. Row format and fields are defined in `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`.
 
 ## Behavioral analytics (optional)
 

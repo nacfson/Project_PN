@@ -34,6 +34,7 @@ import type { DueItem, LearningItemListItem, ReviewAttemptParams, ReviewSettings
 import { Flashcard } from './Flashcard';
 import { Confetti } from '../../components/Confetti';
 import { CountUpText } from '../../components/CountUpText';
+import { ChangeMeaningSheet } from '../words/ChangeMeaningSheet';
 import {
   applyDueItemUpdatesToList,
   optimisticDueItemAfterAgain,
@@ -100,6 +101,36 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
     meaning_order: item.meaning_order,
     learning_stage: item.learning_stage,
     due_at: item.due_at,
+    personal_note: item.personal_note,
+    lapse_count: item.lapse_count,
+    is_leech: item.is_leech,
+    examples: item.examples ?? [],
+  };
+}
+
+export function dueItemToListItem(item: DueItem): LearningItemListItem {
+  return {
+    id: item.user_word_sense_id,
+    word_sense_id: item.word_sense_id,
+    word_id: item.word_id,
+    language_code: item.language_code,
+    lemma: item.lemma,
+    normalized_text: item.normalized_text,
+    part_of_speech: item.part_of_speech,
+    pronunciation: item.pronunciation,
+    display_language_code: item.display_language_code,
+    definition: item.definition,
+    short_definition: item.short_definition,
+    localized_definition: item.localized_definition,
+    localized_short_definition: item.localized_short_definition,
+    cefr_level: item.cefr_level,
+    meaning_order: item.meaning_order,
+    learning_stage: item.learning_stage,
+    due_at: item.due_at,
+    added_at: item.due_at,
+    personal_note: item.personal_note,
+    lapse_count: item.lapse_count,
+    is_leech: item.is_leech,
     examples: item.examples ?? [],
   };
 }
@@ -160,6 +191,9 @@ export function PracticeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [sessionStuck, setSessionStuck] = useState<Record<string, DueItem>>({});
+  const [changeMeaningItem, setChangeMeaningItem] = useState<LearningItemListItem | null>(null);
+  const [preferPersonalNote, setPreferPersonalNote] = useState(false);
 
   const pendingRef = useRef<ReviewAttemptParams[]>([]);
   const flushingRef = useRef(false);
@@ -306,11 +340,31 @@ export function PracticeScreen() {
     const overrides = overridesFromBatchUpdates(updates);
     setItemOverrides((prev) => ({ ...prev, ...overrides }));
     setDueItems((prev) => applyDueItemUpdatesToList(prev, updates));
-    setQueue((prev) =>
-      applyDueItemUpdatesToList(prev, updates, {
+    setQueue((prev) => {
+      const nextQueue = applyDueItemUpdatesToList(prev, updates, {
         preserveIndexesBefore: currentIndexRef.current,
-      }),
-    );
+      });
+      setSessionStuck((stuckPrev) => {
+        const nextStuck = { ...stuckPrev };
+        for (const update of updates) {
+          if (update.suspended || !(update.leech || update.is_leech)) {
+            continue;
+          }
+          const found =
+            nextQueue.find((item) => item.user_word_sense_id === update.user_word_sense_id) ??
+            prev.find((item) => item.user_word_sense_id === update.user_word_sense_id);
+          if (found) {
+            nextStuck[update.user_word_sense_id] = {
+              ...found,
+              is_leech: true,
+              lapse_count: update.lapse_count ?? found.lapse_count,
+            };
+          }
+        }
+        return nextStuck;
+      });
+      return nextQueue;
+    });
     setFailedMap((prev) => {
       const next = { ...prev };
       for (const update of updates) {
@@ -326,6 +380,47 @@ export function PracticeScreen() {
     });
   }, []);
 
+  const openChangeMeaning = useCallback((item: DueItem, preferPersonal: boolean) => {
+    setPreferPersonalNote(preferPersonal);
+    setChangeMeaningItem(dueItemToListItem(item));
+  }, []);
+
+  const handleMeaningChanged = useCallback((next: LearningItemListItem) => {
+    const duePatch: Partial<DueItem> = {
+      word_sense_id: next.word_sense_id,
+      definition: next.definition,
+      short_definition: next.short_definition,
+      localized_definition: next.localized_definition,
+      localized_short_definition: next.localized_short_definition,
+      examples: next.examples,
+      meaning_order: next.meaning_order,
+      personal_note: next.personal_note,
+      is_leech: next.is_leech,
+      lapse_count: next.lapse_count,
+    };
+    const id = next.id;
+    setItemOverrides((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], ...duePatch },
+    }));
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.user_word_sense_id === id ? { ...item, ...duePatch } : item,
+      ),
+    );
+    setDueItems((prev) =>
+      prev.map((item) =>
+        item.user_word_sense_id === id ? { ...item, ...duePatch } : item,
+      ),
+    );
+    setSessionStuck((prev) => {
+      const existing = prev[id];
+      if (!existing) return prev;
+      return { ...prev, [id]: { ...existing, ...duePatch } };
+    });
+    setChangeMeaningItem(null);
+  }, []);
+
   const loadDueItems = useCallback(() => {
     setStatus('loading_due');
     setErrorMsg(null);
@@ -339,6 +434,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setItemOverrides({});
           setFailedMap(failedMapFromDueItems(items));
+          setSessionStuck({});
           setExampleIndexMap({});
           setCardMode(decideCardMode(items[0]));
           resetCardInteraction();
@@ -378,6 +474,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setItemOverrides({});
           setFailedMap(failedMapFromDueItems(repeatItems));
+          setSessionStuck({});
           setExampleIndexMap({});
           setCardMode(decideCardMode(repeatItems[0]));
           resetCardInteraction();
@@ -510,10 +607,18 @@ export function PracticeScreen() {
   };
 
   const confirmGrade = (overrideScore?: number) => {
-    const currentItem = queue[currentIndex];
-    if (!currentItem) return;
+    const rawItem = queue[currentIndex];
+    if (!rawItem) return;
+    const currentItem = resolveDueItem(rawItem, itemOverrides);
 
     const finalScore = overrideScore ?? ratingScore;
+
+    if (currentItem.is_leech) {
+      setSessionStuck((prev) => ({
+        ...prev,
+        [currentItem.user_word_sense_id]: currentItem,
+      }));
+    }
 
     const examplesList = currentItem.examples || [];
     const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
@@ -643,6 +748,7 @@ export function PracticeScreen() {
   }
 
   if (status === 'success') {
+    const stuckList = Object.values(sessionStuck);
     return (
       <Screen padded>
         <Confetti active={true} />
@@ -677,15 +783,66 @@ export function PracticeScreen() {
               {t('practice.progressSaved')}
             </Text>
           </Card>
+          {stuckList.length > 0 ? (
+            <Card glass={true} style={{ width: '100%', gap: spacing.sm }}>
+              <Text variant="title" bold>
+                {t('practice.stuckWords')}
+              </Text>
+              <Text variant="caption" color="muted">
+                {t('practice.stuckWordsHelp')}
+              </Text>
+              {stuckList.map((stuck) => (
+                <View
+                  key={stuck.user_word_sense_id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: spacing.sm,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+                    <Text variant="body" bold>
+                      {stuck.lemma}
+                    </Text>
+                    <Badge label={t('practice.leechBadge')} variant="danger" />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+                    <Button
+                      label={t('practice.changeMeaning')}
+                      variant="outline"
+                      onPress={() => openChangeMeaning(stuck, false)}
+                    />
+                    <Button
+                      label={t('practice.writeMyMeaning')}
+                      variant="tonal"
+                      onPress={() => openChangeMeaning(stuck, true)}
+                    />
+                  </View>
+                </View>
+              ))}
+            </Card>
+          ) : null}
           <Button
             label={t('practice.backHome')}
             style={{ width: '100%' }}
             onPress={() => {
               setStatus('idle');
+              setSessionStuck({});
               navigation.navigate('Learn');
             }}
           />
         </View>
+        {changeMeaningItem ? (
+          <ChangeMeaningSheet
+            visible
+            item={changeMeaningItem}
+            preferPersonalNote={preferPersonalNote}
+            onClose={() => setChangeMeaningItem(null)}
+            onChanged={handleMeaningChanged}
+          />
+        ) : null}
       </Screen>
     );
   }
@@ -987,6 +1144,15 @@ export function PracticeScreen() {
             />
           </Animated.View>
 
+          {currentItem.is_leech && isFlipped ? (
+            <Button
+              label={t('practice.changeMeaning')}
+              variant="ghost"
+              style={{ width: '100%', marginTop: spacing.sm }}
+              onPress={() => openChangeMeaning(currentItem, false)}
+            />
+          ) : null}
+
           {sessionMode === 'repeat' && !isFlipped && (
             <Button
               label={t('practice.finishRepeat')}
@@ -1000,6 +1166,15 @@ export function PracticeScreen() {
         {answerBar}
         {gradingBar}
       </KeyboardAvoidingView>
+      {changeMeaningItem ? (
+        <ChangeMeaningSheet
+          visible
+          item={changeMeaningItem}
+          preferPersonalNote={preferPersonalNote}
+          onClose={() => setChangeMeaningItem(null)}
+          onChanged={handleMeaningChanged}
+        />
+      ) : null}
     </Screen>
   );
 }

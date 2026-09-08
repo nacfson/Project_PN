@@ -44,6 +44,7 @@ type LearningItem struct {
 	WordSenseID   string    `json:"word_sense_id"`
 	LearningStage string    `json:"learning_stage"`
 	DueAt         time.Time `json:"due_at"`
+	PersonalNote  *string   `json:"personal_note,omitempty"`
 }
 
 // Deck is a user-owned grouping of vocabulary items for one target language.
@@ -89,6 +90,9 @@ type LearningItemListItem struct {
 	DeckID                   string     `json:"deck_id"`
 	DeckName                 string     `json:"deck_name"`
 	LastReviewedAt           *time.Time `json:"last_reviewed_at"`
+	PersonalNote             *string    `json:"personal_note"`
+	LapseCount               int        `json:"lapse_count"`
+	IsLeech                  bool       `json:"is_leech"`
 	Examples                 []Example  `json:"examples"`
 }
 
@@ -150,6 +154,9 @@ type DueItem struct {
 	LearningStage            string           `json:"learning_stage"`
 	DueAt                    time.Time        `json:"due_at"`
 	PreviewIntervals         *IntervalPreview `json:"preview_intervals,omitempty"`
+	PersonalNote             *string          `json:"personal_note"`
+	LapseCount               int              `json:"lapse_count"`
+	IsLeech                  bool             `json:"is_leech"`
 	Examples                 []Example        `json:"examples"`
 }
 
@@ -162,6 +169,10 @@ type BatchReviewItemUpdate struct {
 	// Suspended is true when leech_action=suspend archived the card. Clients
 	// should drop remaining queue copies so they do not re-submit it.
 	Suspended bool `json:"suspended,omitempty"`
+	// Leech is true when lapse_count reached the user's leech_threshold.
+	Leech      bool `json:"leech,omitempty"`
+	LapseCount int  `json:"lapse_count,omitempty"`
+	IsLeech    bool `json:"is_leech,omitempty"`
 }
 
 // BatchReviewResult returns the result of the session batch processing.
@@ -197,7 +208,7 @@ func DefaultReviewSettings(userID string) ReviewSettings {
 		LearningSteps:    []int{1, 10},
 		RelearningSteps:  []int{10},
 		LeechThreshold:   8,
-		LeechAction:      "suspend",
+		LeechAction:      "tag",
 		FuzzEnabled:      true,
 		DesiredRetention: 0.90,
 		DailyGoalXP:      200,

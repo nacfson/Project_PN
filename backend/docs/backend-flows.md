@@ -141,11 +141,11 @@ go run ./cmd/retranslate-senses -email 'you@example.com' -continue-on-error
 9. App inserts a row in `review_attempts` (with `metadata` including leech flag if applicable).
 10. App updates `review_states` (due_at, interval_days, ease_factor, last_reviewed_at, review_count, lapse_count, fsrs_state, stability, difficulty, scheduled_days, remaining_steps, is_suspended) in the same transaction.
 11. App upserts `daily_review_counts`, incrementing `new_cards_done` or `reviews_done` based on the card's previous state.
-12. App checks leech condition: if `lapse_count >= leech_threshold` and `leech_action = suspend`, archives the card and sets `is_suspended = true`.
+12. App checks leech condition: if `lapse_count >= leech_threshold`, marks the attempt metadata with leech and sets `leech`/`is_leech` on the batch update. Only when `leech_action = suspend` does it also archive the card and set `is_suspended = true`. Default `tag` leaves the card in the due queue.
 13. App buries other senses of the same word: sets `buried_until = end_of_today_utc` on all sibling `user_word_senses` sharing the same `word_id`.
 14. App may update `user_word_senses.learning_stage`, but scheduling must still come from `review_states.due_at`.
 
-The Go API exposes due-review reads through `GET /api/reviews/due` and batch attempt writes through `POST /api/reviews/batch`. The batch endpoint inserts attempts and updates review state in one transaction.
+`PATCH /api/learning-items/{id}` may set `word_sense_id` (catalog sense swap; does not reset FSRS) and/or `personal_note` (personal display gloss only on `user_word_senses`). Typed manual text must never be inserted into global `word_senses` / `sense_translations`. Changing `personal_note` emits a learning-log `personal_meaning_set` event. Flashcards prefer a non-empty `personal_note` over the catalog gloss.
 
 ## FSRS Weight Optimization Flow
 
@@ -201,7 +201,7 @@ Protected learning routes run `authMiddleware` then `requireVerified` when `REQU
 - Archived, suspended, and buried user items must not appear in due-review queries.
 - Daily quotas (`new_cards_per_day`, `reviews_per_day`) are enforced by the due-review query using `daily_review_counts`. Unfinished Learning/Relearning retries are exempt from those quotas.
 - Learning and relearning steps use minute-level `due_at` until the card graduates to Review.
-- Leech cards (lapse_count >= threshold) are suspended or tagged per `review_settings.leech_action`.
+- Leech cards (`lapse_count >= threshold`) stay in Practice by default (`leech_action = tag`) with an `is_leech` flag for UI. Optional `suspend` still archives.
 - Sibling senses of the same word are buried until end-of-day after one is reviewed.
 - Interval fuzz (±25%) is applied to day-level intervals >= 2 when `fuzz_enabled` is true.
 - FSRS weights can be optimized per user after 1000+ reviews via `POST /api/reviews/optimize-weights`.

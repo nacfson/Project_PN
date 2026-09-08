@@ -5,11 +5,12 @@ import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import type { LearningItemListItem } from '../../types';
 import { ChangeMeaningSheet } from './ChangeMeaningSheet';
-import { changeLearningItemSense, lookupWord } from '../../api/words';
+import { changeLearningItemSense, lookupWord, setLearningItemPersonalNote } from '../../api/words';
 
 jest.mock('../../api/words', () => ({
   lookupWord: jest.fn(),
   changeLearningItemSense: jest.fn(),
+  setLearningItemPersonalNote: jest.fn(),
 }));
 
 jest.mock('@expo-google-fonts/inter', () => ({
@@ -191,5 +192,47 @@ describe('ChangeMeaningSheet', () => {
       expect(screen.getByText(/Add a sentence that shows the meaning/)).toBeTruthy();
     });
     expect(lookupWord).not.toHaveBeenCalled();
+  });
+
+  it('saves a personal meaning via setLearningItemPersonalNote', async () => {
+    (setLearningItemPersonalNote as jest.Mock).mockResolvedValue({
+      id: 'uws-1',
+      word_sense_id: 'ws-1',
+      learning_stage: 'learning',
+      due_at: '2026-07-01T00:00:00Z',
+      personal_note: '청구하다',
+    });
+    const onChanged = jest.fn();
+    await render(
+      <SafeAreaProvider
+        initialMetrics={{
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          frame: { x: 0, y: 0, width: 375, height: 812 },
+        }}
+      >
+        <AppLanguageProvider>
+          <ThemeProvider>
+            <ChangeMeaningSheet
+              visible
+              item={item}
+              onClose={jest.fn()}
+              onChanged={onChanged}
+              preferPersonalNote
+            />
+          </ThemeProvider>
+        </AppLanguageProvider>
+      </SafeAreaProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByPlaceholderText(/Type a short gloss/)).toBeTruthy());
+    fireEvent.changeText(screen.getByPlaceholderText(/Type a short gloss/), '청구하다');
+    fireEvent.press(screen.getByText('Save my meaning'));
+
+    await waitFor(() => {
+      expect(setLearningItemPersonalNote).toHaveBeenCalledWith('uws-1', '청구하다');
+    });
+    expect(onChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ personal_note: '청구하다' }),
+    );
   });
 });

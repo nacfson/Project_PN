@@ -84,14 +84,15 @@ describe('displayGloss / splitMeanings', () => {
     ).toEqual({ simple: '충전하다', full: null });
   });
 
-  it('falls back to English gloss when localized is absent', () => {
+  it('prefers personal_note over catalog gloss', () => {
     expect(
       displayGloss({
+        personal_note: '내 뜻',
         definition: 'to store energy',
         short_definition: 'charge',
-        localized_definition: null,
-        localized_short_definition: null,
+        localized_definition: '충전하다',
+        localized_short_definition: '충전하다',
       }),
-    ).toBe('charge');
+    ).toBe('내 뜻');
   });
 });

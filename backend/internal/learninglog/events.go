@@ -51,6 +51,15 @@ type LearningItemArchivedParams struct {
 	Lemma       string
 }
 
+type PersonalMeaningSetParams struct {
+	UserID       string
+	UWSID        string
+	WordSenseID  string
+	Lemma        string
+	PersonalNote string
+	Cleared      bool
+}
+
 func RowLearningItemAdded(ts time.Time, p LearningItemAddedParams) string {
 	return FormatRow(ts, "learning_item_added", [][2]string{
 		{"user_id", p.UserID},
@@ -106,6 +115,17 @@ func RowLearningItemArchived(ts time.Time, p LearningItemArchivedParams) string 
 		{"uws_id", p.UWSID},
 		{"word_sense_id", p.WordSenseID},
 		{"lemma", p.Lemma},
+	})
+}
+
+func RowPersonalMeaningSet(ts time.Time, p PersonalMeaningSetParams) string {
+	return FormatRow(ts, "personal_meaning_set", [][2]string{
+		{"user_id", p.UserID},
+		{"uws_id", p.UWSID},
+		{"word_sense_id", p.WordSenseID},
+		{"lemma", p.Lemma},
+		{"personal_note", p.PersonalNote},
+		{"cleared", strconv.FormatBool(p.Cleared)},
 	})
 }
 

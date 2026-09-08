@@ -62,6 +62,7 @@ export interface LearningItem {
   word_sense_id: string;
   learning_stage: string;
   due_at: string;
+  personal_note?: string | null;
 }
 
 export interface LearningItemListItem {
@@ -86,6 +87,9 @@ export interface LearningItemListItem {
   deck_id?: string | null;
   deck_name?: string | null;
   last_reviewed_at?: string | null;
+  personal_note?: string | null;
+  lapse_count?: number;
+  is_leech?: boolean;
   examples: Example[];
 }
 
@@ -142,6 +146,10 @@ export interface BatchReviewItemUpdate {
   };
   /** True when leech_action=suspend archived the card; drop remaining queue copies. */
   suspended?: boolean;
+  /** True when this grade crossed the leech threshold. */
+  leech?: boolean;
+  lapse_count?: number;
+  is_leech?: boolean;
 }
 
 export interface BatchReviewResult {
@@ -174,6 +182,9 @@ export interface DueItem {
     good: string;
     easy: string;
   };
+  personal_note?: string | null;
+  lapse_count?: number;
+  is_leech?: boolean;
   examples: Example[];
 }
 

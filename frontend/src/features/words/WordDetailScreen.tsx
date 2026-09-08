@@ -110,6 +110,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
         <View style={[styles.badgeRow, { gap: spacing.sm, marginBottom: spacing.lg }]}>
           <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
+          {item.is_leech ? <Badge label={t('words.stuckBadge')} variant="danger" /> : null}
           {cefrLabel && <Badge label={cefrLabel} variant="info" />}
         </View>
 
@@ -119,7 +120,9 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
               {gloss}
             </Text>
             <Text variant="caption" color="muted" style={{ marginTop: spacing.sm }}>
-              {t('words.glossAttribution')}
+              {item.personal_note?.trim()
+                ? t('practice.yourMeaning')
+                : t('words.glossAttribution')}
             </Text>
           </Card>
         ) : null}

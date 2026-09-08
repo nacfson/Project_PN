@@ -69,6 +69,8 @@ export function applyDueItemUpdatesToList(
         learning_stage: update.learning_stage,
         due_at: update.due_at,
         preview_intervals: update.preview_intervals,
+        is_leech: Boolean(update.is_leech || update.leech || item.is_leech),
+        lapse_count: update.lapse_count ?? item.lapse_count,
       });
     });
 }
@@ -85,6 +87,8 @@ export function overridesFromBatchUpdates(
       learning_stage: update.learning_stage,
       due_at: update.due_at,
       preview_intervals: update.preview_intervals,
+      is_leech: Boolean(update.is_leech || update.leech),
+      lapse_count: update.lapse_count,
     };
   }
   return next;
