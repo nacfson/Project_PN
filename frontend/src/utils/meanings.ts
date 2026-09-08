@@ -40,6 +40,12 @@ export function isSimpleGloss(text: string | null | undefined): boolean {
   const value = trimMeaning(text);
   if (!value) return false;
 
+  // Compact phrase / function-expression patterns (~하는 데, ~ look up).
+  if (value.includes('~') || value.includes('…')) {
+    const words = value.split(/\s+/).filter(Boolean);
+    return words.length > 0 && words.length <= 6;
+  }
+
   const korean = hangulTokens(value);
   if (korean.length === 1) {
     return !KOREAN_GLOSS_STOPWORDS.has(korean[0]!);
