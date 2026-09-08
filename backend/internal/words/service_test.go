@@ -396,6 +396,58 @@ func TestLookupLogsAddWord(t *testing.T) {
 	}
 }
 
+func TestLookupPersistsMultiWordAsPhrase(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	lemma := fmt.Sprintf("rule of thumb %d", time.Now().UnixNano())
+	enricher := &stubEnricher{
+		enrichResult: enrich.Result{
+			NormalizedText: lemma,
+			Entries: []enrich.Entry{
+				{
+					Lemma:        lemma,
+					PartOfSpeech: "noun",
+					Senses: []enrich.Sense{
+						{
+							Definition:            "a practical method based on experience",
+							ShortDefinition:       "practical method",
+							NativeDefinition:      "경험칙",
+							NativeShortDefinition: "경험칙",
+						},
+					},
+				},
+			},
+		},
+	}
+	svc := New(pool, enricher, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	result, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil)
+	if err != nil {
+		t.Fatalf("lookup failed: %v", err)
+	}
+	if len(result.SenseOptions) == 0 {
+		t.Fatal("expected at least one sense option")
+	}
+	for _, opt := range result.SenseOptions {
+		if opt.PartOfSpeech != "phrase" {
+			t.Fatalf("expected phrase POS on sense option, got %q for %+v", opt.PartOfSpeech, opt)
+		}
+	}
+
+	var storedPOS string
+	if err := pool.QueryRow(ctx, `
+		select part_of_speech from words
+		where language_code = 'en' and normalized_text = $1
+	`, lemma).Scan(&storedPOS); err != nil {
+		t.Fatalf("query stored word: %v", err)
+	}
+	if storedPOS != "phrase" {
+		t.Fatalf("expected stored POS phrase, got %q", storedPOS)
+	}
+}
+
 func TestLookupAddWordNoDuplicateLog(t *testing.T) {
 	pool := deckTestPool(t)
 	userID, _ := deckTestUser(t, pool)

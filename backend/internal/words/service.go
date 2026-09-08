@@ -1229,6 +1229,9 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 		if pos == "" || len(entry.Senses) == 0 {
 			continue
 		}
+		if enrich.IsMultiWordLemma(normalized) {
+			pos = "phrase"
+		}
 
 		var wordID string
 		var inserted bool

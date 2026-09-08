@@ -47,7 +47,7 @@ var validDifficulty = map[string]bool{
 var validPartOfSpeech = map[string]bool{
 	"noun": true, "verb": true, "adjective": true, "adverb": true,
 	"pronoun": true, "preposition": true, "conjunction": true,
-	"interjection": true, "determiner": true,
+	"interjection": true, "determiner": true, "phrase": true,
 }
 
 // OpenAIEnricher calls an OpenAI-compatible /chat/completions endpoint.
@@ -301,6 +301,9 @@ func parseModelOutput(req Request, content string) (Result, error) {
 		if normalizeModelWord(lemma) != expectedText {
 			return Result{}, fmt.Errorf("%w: lemma mismatch: got %q, want %q", ErrInvalidOutput, lemma, expectedText)
 		}
+		if IsMultiWordLemma(lemma) || IsMultiWordLemma(req.Text) {
+			pos = "phrase"
+		}
 		e := Entry{
 			Lemma:         lemma,
 			PartOfSpeech:  pos,
@@ -479,7 +482,7 @@ const systemPrompt = `You are a precise bilingual lexicographer. ` +
   "entries": [
     {
       "lemma": string,
-      "part_of_speech": "noun"|"verb"|"adjective"|"adverb"|"pronoun"|"preposition"|"conjunction"|"interjection"|"determiner",
+      "part_of_speech": "noun"|"verb"|"adjective"|"adverb"|"pronoun"|"preposition"|"conjunction"|"interjection"|"determiner"|"phrase",
       "pronunciation": string,
       "senses": [
         {
@@ -528,6 +531,7 @@ func appendGrammarLabelBan(b *strings.Builder) {
 
 func appendPhraseGlossRules(b *strings.Builder, sourceContext string) {
 	b.WriteString("This is a multi-word phrase / function expression, not a single headword.\n")
+	b.WriteString("part_of_speech MUST be exactly \"phrase\" (do not use noun/verb/adjective for multi-word lemmas).\n")
 	b.WriteString("native_short_definition should be a short usage gloss (1-4 words or a compact pattern): ~하는 데, 그곳에서, ~인 경우에, ~하는 방식으로.\n")
 	b.WriteString("For multi-word phrases, compact ~… usage patterns ARE allowed in native_short_definition (unlike single-word headwords).\n")
 	b.WriteString("Return 2-4 clearly distinct functional senses; do not duplicate the same grammar label across senses.\n")

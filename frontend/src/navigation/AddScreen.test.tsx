@@ -82,7 +82,7 @@ describe('AddScreen', () => {
     expect(screen.getAllByText('From a passage').length).toBeGreaterThan(0);
 
     // Defaults to Manual Add flow
-    expect(screen.getByPlaceholderText('Type a word')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Type a word or phrase')).toBeTruthy();
     // Passage capture section should not be visible
     expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
   });
@@ -101,14 +101,14 @@ describe('AddScreen', () => {
     // Passage capture flow should be visible
     await waitFor(() => expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy());
     // Manual add section should not be visible
-    expect(screen.queryByPlaceholderText('Type a word')).toBeNull();
+    expect(screen.queryByPlaceholderText('Type a word or phrase')).toBeNull();
 
     // Click back to Manual Add tab
     const manualTab = screen.getByTestId('tab-manual');
     fireEvent.press(manualTab);
 
     // Manual add section should be visible again
-    await waitFor(() => expect(screen.getByPlaceholderText('Type a word')).toBeTruthy());
+    await waitFor(() => expect(screen.getByPlaceholderText('Type a word or phrase')).toBeTruthy());
     expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
   });
 

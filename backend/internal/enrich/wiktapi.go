@@ -89,6 +89,9 @@ func (w *WiktAPI) Enrich(ctx context.Context, req Request) (Result, error) {
 		if pos == "" {
 			continue
 		}
+		if IsMultiWordLemma(lemma) {
+			pos = "phrase"
+		}
 		if posFilter != "" && pos != posFilter {
 			continue
 		}

@@ -117,6 +117,83 @@ func TestParseModelOutputAcceptsMatchingWord(t *testing.T) {
 	}
 }
 
+func TestParseModelOutputAcceptsPhrasePOS(t *testing.T) {
+	result, err := parseModelOutput(Request{
+		Text:                   "rule of thumb",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	}, `{
+		"normalized_text": "rule of thumb",
+		"entries": [
+			{
+				"lemma": "rule of thumb",
+				"part_of_speech": "phrase",
+				"senses": [
+					{
+						"definition": "A practical method based on experience.",
+						"short_definition": "practical method",
+						"native_definition": "경험칙",
+						"native_short_definition": "경험칙",
+						"examples": [
+							{
+								"sentence": "As a rule of thumb, save 10 percent.",
+								"translation": "**경험칙**으로 10퍼센트를 저축하라.",
+								"difficulty": "easy"
+							}
+						]
+					}
+				]
+			}
+		]
+	}`)
+	if err != nil {
+		t.Fatalf("parse phrase output: %v", err)
+	}
+	if len(result.Entries) != 1 || result.Entries[0].PartOfSpeech != "phrase" {
+		t.Fatalf("expected phrase entry, got %#v", result.Entries)
+	}
+}
+
+func TestParseModelOutputCoercesMultiWordNounToPhrase(t *testing.T) {
+	result, err := parseModelOutput(Request{
+		Text:                   "rule of thumb",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	}, `{
+		"normalized_text": "rule of thumb",
+		"entries": [
+			{
+				"lemma": "rule of thumb",
+				"part_of_speech": "noun",
+				"senses": [
+					{
+						"definition": "A practical method based on experience.",
+						"short_definition": "practical method",
+						"native_definition": "경험칙",
+						"native_short_definition": "경험칙",
+						"examples": [
+							{
+								"sentence": "As a rule of thumb, save 10 percent.",
+								"translation": "**경험칙**으로 10퍼센트를 저축하라.",
+								"difficulty": "easy"
+							}
+						]
+					}
+				]
+			}
+		]
+	}`)
+	if err != nil {
+		t.Fatalf("parse multi-word output: %v", err)
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %#v", result.Entries)
+	}
+	if result.Entries[0].PartOfSpeech != "phrase" {
+		t.Fatalf("expected coerced phrase POS, got %q", result.Entries[0].PartOfSpeech)
+	}
+}
+
 func TestEnglishDictionaryFallbackRejectsNonEnglishTarget(t *testing.T) {
 	enricher := NewOpenAI("http://127.0.0.1:1", "local", englishDictionaryFallbackModel)
 
@@ -218,6 +295,9 @@ func TestBuildUserPromptPhraseBranchForInWhich(t *testing.T) {
 	})
 	if !strings.Contains(prompt, "multi-word phrase / function expression") {
 		t.Fatal("expected phrase-specific block")
+	}
+	if !strings.Contains(prompt, `part_of_speech MUST be exactly "phrase"`) {
+		t.Fatal("expected phrase POS instruction in user prompt")
 	}
 	if !strings.Contains(prompt, "~하는 데") {
 		t.Fatal("expected Korean usage-pattern example")
