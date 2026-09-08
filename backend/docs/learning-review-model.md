@@ -129,6 +129,9 @@ A card that lapses `review_settings.leech_threshold` times (default: 8) is flagg
 
 - If `leech_action` is `suspend` (default): the card is suspended (`review_states.is_suspended = true`) and archived (`user_word_senses.archived_at = now()`). It will no longer appear in due-review queries.
 - If `leech_action` is `tag`: the attempt's `metadata` is marked with `{"leech": true}` but the card is not suspended.
+- Re-adding a suspended/archived card clears `archived_at`, resets learning stage to `new` when restoring from archive, and clears `is_suspended` / `buried_until` so the card is schedulable again.
+- `POST /api/reviews/batch` returns `409 REV-409` (`retryable: false`) when an attempt targets an archived or suspended card, so clients do not retry forever.
+- Repeat / learning-item list excludes suspended cards (`rs.is_suspended = false`), matching due and batch filters.
 
 ## Bury (Same-Word Sense Suppression)
 
@@ -213,7 +216,7 @@ Flashcards become the dominant mode as a word matures, while typing remains the 
 
 ### Repeat Review Mode
 
-Repeat mode loads every non-archived `user_word_senses` row via `GET /api/learning-items` and presents them for extra practice. Because the list endpoint now includes example sentences, repeat-mode cards can use the same `cloze` prompts as normal due reviews.
+Repeat mode loads every non-archived, non-suspended `user_word_senses` row via `GET /api/learning-items` and presents them for extra practice. Because the list endpoint now includes example sentences, repeat-mode cards can use the same `cloze` prompts as normal due reviews.
 
 ## Evidence-Based Data Model
 

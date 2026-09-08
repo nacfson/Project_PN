@@ -258,6 +258,8 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 		writeCodedError(w, http.StatusUnprocessableEntity, "ADD-302", "word sense not found", false)
 	case errors.Is(err, words.ErrLearningItemNotFound):
 		writeCodedError(w, http.StatusNotFound, "ADD-302", "learning item not found", false)
+	case errors.Is(err, words.ErrReviewItemUnavailable):
+		writeCodedError(w, http.StatusConflict, "REV-409", "review item is archived or suspended", false)
 	case errors.Is(err, words.ErrSenseConflict):
 		writeCodedError(w, http.StatusConflict, "ADD-308", "sense_already_in_learning_set", false)
 	case errors.Is(err, words.ErrSenseWrongWord):

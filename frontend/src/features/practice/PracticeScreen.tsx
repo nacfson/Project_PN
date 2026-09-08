@@ -28,6 +28,7 @@ import {
   listLearningItems,
   recordBatchReviewAttempts,
 } from '../../api/learningItems';
+import { ApiError } from '../../api/client';
 import { getReviewSettings } from '../../api/reviewSettings';
 import type { DueItem, LearningItemListItem, ReviewAttemptParams, ReviewSettings } from '../../types';
 import { Flashcard } from './Flashcard';
@@ -162,6 +163,7 @@ export function PracticeScreen() {
 
   const pendingRef = useRef<ReviewAttemptParams[]>([]);
   const flushingRef = useRef(false);
+  const currentIndexRef = useRef(0);
 
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
@@ -197,6 +199,10 @@ export function PracticeScreen() {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     if (status !== 'active') return;
@@ -300,10 +306,18 @@ export function PracticeScreen() {
     const overrides = overridesFromBatchUpdates(updates);
     setItemOverrides((prev) => ({ ...prev, ...overrides }));
     setDueItems((prev) => applyDueItemUpdatesToList(prev, updates));
-    setQueue((prev) => applyDueItemUpdatesToList(prev, updates));
+    setQueue((prev) =>
+      applyDueItemUpdatesToList(prev, updates, {
+        preserveIndexesBefore: currentIndexRef.current,
+      }),
+    );
     setFailedMap((prev) => {
       const next = { ...prev };
       for (const update of updates) {
+        if (update.suspended) {
+          delete next[update.user_word_sense_id];
+          continue;
+        }
         if (update.learning_stage === 'learning') {
           next[update.user_word_sense_id] = true;
         }
@@ -401,10 +415,50 @@ export function PracticeScreen() {
         applyDueItemUpdates(res.updated_items);
       }
     } catch (err) {
-      analytics.track('review_failed', { attempt_count: toFlush.length, error_code: 'UNKNOWN', retryable: true }, traceId);
+      const apiErr =
+        err instanceof ApiError
+          ? err
+          : err &&
+              typeof err === 'object' &&
+              typeof (err as { status?: unknown }).status === 'number'
+            ? (err as ApiError)
+            : null;
+      // Network failures (status 0) and explicitly retryable server errors are requeued.
+      // Permanent failures (archived/suspended REV-409, validation 4xx) must not loop forever.
+      const retryable =
+        apiErr == null
+          ? true
+          : apiErr.status === 0 || apiErr.retryable === true;
+
+      analytics.track(
+        'review_failed',
+        {
+          attempt_count: toFlush.length,
+          error_code: apiErr?.code || 'UNKNOWN',
+          retryable,
+        },
+        traceId,
+      );
       console.error('Error flushing review attempts:', err);
-      pendingRef.current = [...toFlush, ...pendingRef.current];
-      setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+
+      if (retryable) {
+        pendingRef.current = [...toFlush, ...pendingRef.current];
+        setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+      } else {
+        const unavailableIds = new Set(toFlush.map((attempt) => attempt.user_word_sense_id));
+        const preserveBefore = currentIndexRef.current;
+        setQueue((prev) =>
+          prev.filter((item, idx) => idx < preserveBefore || !unavailableIds.has(item.user_word_sense_id)),
+        );
+        setFailedMap((prev) => {
+          const next = { ...prev };
+          for (const id of unavailableIds) {
+            delete next[id];
+          }
+          return next;
+        });
+        setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+      }
     } finally {
       flushingRef.current = false;
       setIsSaving(false);
@@ -425,16 +479,23 @@ export function PracticeScreen() {
   }, [flushPending]);
 
   useEffect(() => {
-    if (sessionMode === 'normal' && status === 'active' && queue.length > 0 && currentIndex === queue.length) {
-      waitForPendingFlushes()
-        .then(() => setStatus('success'))
-        .catch((err) => {
-          console.error('Error finishing session:', err);
-          setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
-          setStatus('error');
-        });
+    if (sessionMode !== 'normal' || status !== 'active') {
+      return;
     }
-  }, [currentIndex, queue.length, sessionMode, status, waitForPendingFlushes, t]);
+    const finishedQueue =
+      (queue.length > 0 && currentIndex >= queue.length) ||
+      (queue.length === 0 && currentIndexRef.current > 0 && attempts.length > 0);
+    if (!finishedQueue) {
+      return;
+    }
+    waitForPendingFlushes()
+      .then(() => setStatus('success'))
+      .catch((err) => {
+        console.error('Error finishing session:', err);
+        setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
+        setStatus('error');
+      });
+  }, [attempts.length, currentIndex, queue.length, sessionMode, status, waitForPendingFlushes, t]);
 
   const selectGrade = (rating: Rating) => {
     const score = ratingScores[rating];
@@ -489,10 +550,12 @@ export function PracticeScreen() {
 
     setAttempts((prev) => [...prev, attempt]);
     pendingRef.current.push(attempt);
+    // Advance the index ref before flush so non-retryable prune keeps graded slots.
+    const nextIndex = currentIndex + 1;
+    currentIndexRef.current = nextIndex;
     flushPending();
 
     const shouldRetry = finalScore < 0.75;
-    const nextIndex = currentIndex + 1;
 
     let gradedItem = currentItem;
     if (shouldRetry) {
@@ -527,7 +590,7 @@ export function PracticeScreen() {
       setCardMode(decideCardMode(nextItem));
     }
 
-    setCurrentIndex((prev) => prev + 1);
+    setCurrentIndex(nextIndex);
     resetCardInteraction();
   };
 

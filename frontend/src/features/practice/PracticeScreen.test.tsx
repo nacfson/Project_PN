@@ -5,6 +5,7 @@ import { PracticeScreen } from './PracticeScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import * as learningItemsApi from '../../api/learningItems';
+import { ApiError } from '../../api/client';
 import type { DueItem } from '../../types';
 
 jest.mock('../../api/learningItems', () => ({
@@ -176,6 +177,31 @@ describe('PracticeScreen Integration', () => {
     expect(screen.getAllByText('1m').length).toBeGreaterThan(0);
     expect(screen.getAllByText('10m').length).toBeGreaterThan(0);
     expect(screen.queryByText('2.5d')).toBeNull();
+
+    randomSpy.mockRestore();
+  });
+
+  it('exits syncing when batch returns a non-retryable unavailable error', async () => {
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([mockItem]);
+
+    const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
+    recordAttemptsMock.mockRejectedValue(
+      new ApiError(409, 'review item is archived or suspended', 'REV-409', false),
+    );
+
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
+    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
+    fireEvent.press(screen.getByText('Good'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Practice Complete')).toBeTruthy();
+    });
+    expect(recordAttemptsMock.mock.calls.length).toBeLessThan(3);
 
     randomSpy.mockRestore();
   });

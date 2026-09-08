@@ -38,6 +38,7 @@ var (
 	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
 	ErrInvalidTargetLang         = errors.New("words: invalid target language")
 	ErrLearningItemNotFound      = errors.New("words: learning item not found")
+	ErrReviewItemUnavailable     = errors.New("words: review item unavailable")
 	ErrSenseConflict             = errors.New("words: sense_already_in_learning_set")
 	ErrSenseWrongWord            = errors.New("words: sense belongs to a different word")
 )
@@ -351,10 +352,15 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
 	}
 
+	// Re-adding an archived leech must clear suspend/bury so the card is
+	// schedulable again (batch + due + list all require is_suspended = false).
 	err = tx.QueryRow(ctx,
 		`insert into review_states (user_word_sense_id)
 		 values ($1::uuid)
-		 on conflict (user_word_sense_id) do update set updated_at = now()
+		 on conflict (user_word_sense_id) do update set
+		   is_suspended = false,
+		   buried_until = null,
+		   updated_at = now()
 		 returning due_at`,
 		item.ID,
 	).Scan(&item.DueAt)
@@ -682,6 +688,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		 where uws.user_id = $1::uuid
 		   and w.language_code = $2
 		   and uws.archived_at is null
+		   and rs.is_suspended = false
 		   %s
 		   %s
 		   %s

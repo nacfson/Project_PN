@@ -140,6 +140,8 @@ export interface BatchReviewItemUpdate {
     good: string;
     easy: string;
   };
+  /** True when leech_action=suspend archived the card; drop remaining queue copies. */
+  suspended?: boolean;
 }
 
 export interface BatchReviewResult {

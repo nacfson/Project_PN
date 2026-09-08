@@ -159,6 +159,9 @@ type BatchReviewItemUpdate struct {
 	LearningStage    string           `json:"learning_stage"`
 	DueAt            time.Time        `json:"due_at"`
 	PreviewIntervals *IntervalPreview `json:"preview_intervals,omitempty"`
+	// Suspended is true when leech_action=suspend archived the card. Clients
+	// should drop remaining queue copies so they do not re-submit it.
+	Suspended bool `json:"suspended,omitempty"`
 }
 
 // BatchReviewResult returns the result of the session batch processing.
