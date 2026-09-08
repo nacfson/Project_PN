@@ -78,12 +78,16 @@ export function TappablePassage({ text, selected, onToggle }: TappablePassagePro
       return;
     }
     const phrase = phraseFromRange(tokens, anchor, wordIndex);
+    const anchorToken = tokens.find((token) => token.wordIndex === anchor);
     setAnchor(null);
-    if (phrase && !selected.has(phrase)) {
-      onToggle(phrase);
-    } else if (phrase && selected.has(phrase)) {
-      onToggle(phrase);
+    if (!phrase) {
+      return;
     }
+    // Replace the first-tap single word with the multi-word span.
+    if (anchorToken?.word && selected.has(anchorToken.word) && phrase !== anchorToken.word) {
+      onToggle(anchorToken.word);
+    }
+    onToggle(phrase);
   };
 
   return (

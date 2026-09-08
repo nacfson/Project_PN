@@ -20,7 +20,7 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [clearedAt, setClearedAt] = useState<number | null>(null);
   const previousPassageRef = useRef('');
-  const { enqueueMany, statusOf } = useAddQueue();
+  const { enqueue, statusOf } = useAddQueue();
 
   useEffect(() => {
     if (!clearedAt) return;
@@ -61,7 +61,11 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
       return;
     }
     void recordCapturedWords(words);
-    enqueueMany(words, pos, selectedDeckId, targetLanguage);
+    for (const text of words) {
+      const multi = text.trim().split(/\s+/).filter(Boolean).length > 1;
+      const lookupPos: PosFilter = multi && pos === 'Any' ? 'phrase' : pos;
+      enqueue(text, lookupPos, selectedDeckId, targetLanguage);
+    }
   };
 
   const selectedList = Array.from(selected);
