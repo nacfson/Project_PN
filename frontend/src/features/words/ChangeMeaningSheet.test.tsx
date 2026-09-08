@@ -94,6 +94,7 @@ describe('ChangeMeaningSheet', () => {
       learning_stage: 'learning',
       due_at: '2026-07-01T00:00:00Z',
     });
+    (setLearningItemPersonalNote as jest.Mock).mockReset();
   });
 
   it('loads senses and PATCHes the selected meaning without changing due_at', async () => {
@@ -224,8 +225,10 @@ describe('ChangeMeaningSheet', () => {
       </SafeAreaProvider>,
     );
 
-    await waitFor(() => expect(screen.getByPlaceholderText(/Type a short gloss/)).toBeTruthy());
-    fireEvent.changeText(screen.getByPlaceholderText(/Type a short gloss/), '청구하다');
+    const personalInput = await screen.findByPlaceholderText(/Type a short gloss/);
+    fireEvent.changeText(personalInput, '청구하다');
+    await waitFor(() => expect(personalInput.props.value).toBe('청구하다'));
+
     fireEvent.press(screen.getByText('Save my meaning'));
 
     await waitFor(() => {
