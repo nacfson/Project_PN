@@ -273,13 +273,13 @@ func TestBuildTranslatePromptForbidsGrammarClassLabels(t *testing.T) {
 }
 
 func TestIsMultiWordLemma(t *testing.T) {
-	if !isMultiWordLemma("in which") {
+	if !IsMultiWordLemma("in which") {
 		t.Fatal("expected in which to be multi-word")
 	}
-	if isMultiWordLemma("cover") {
+	if IsMultiWordLemma("cover") {
 		t.Fatal("expected cover to be single-word")
 	}
-	if isMultiWordLemma("  ") {
+	if IsMultiWordLemma("  ") {
 		t.Fatal("expected empty to be single-word")
 	}
 }

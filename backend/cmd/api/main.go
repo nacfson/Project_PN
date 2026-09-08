@@ -80,10 +80,11 @@ func main() {
 			fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
 		}
 		legacyChain := enrich.NewFallback(legacy, fallback, slog.Default())
-		// WiktApi first (free glosses); Gemini/OpenAI only if WiktApi misses.
-		enricher = enrich.NewFallback(primaryEnricher, legacyChain, slog.Default())
+		// Single words: WiktApi first. Multi-word phrases: LLM first (WiktApi usually misses).
+		enricher = enrich.NewPhrasePreferLLM(primaryEnricher, legacyChain, slog.Default())
 		slog.Info("gloss origin configured",
 			"primary", "wiktapi",
+			"phrase_primary", "llm",
 			"wiktapi_url", cfg.OriginWiktAPIBaseURL,
 			"legacy_fallback_model", cfg.EnrichPrimaryModel,
 			"legacy_fallback_url", cfg.EnrichPrimaryBaseURL,

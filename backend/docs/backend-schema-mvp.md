@@ -291,7 +291,7 @@ Rules:
 - `words` is global dictionary data.
 - Do not store user progress, mastery, due dates, confidence, or notes on this table.
 - Normalize user input before inserting or looking up a word.
-- `part_of_speech` is intentionally unenforced at the DB level. The vocabulary comes from an LLM enricher that may emit `noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `interjection`, `determiner`, etc. Persist whatever the enricher returns, lowercased.
+- `part_of_speech` is intentionally unenforced at the DB level. The vocabulary comes from an LLM enricher that may emit `noun`, `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `interjection`, `determiner`, `phrase`, etc. Persist whatever the enricher returns, lowercased. Multi-word expressions use `phrase`.
 - `language_code` is free text but should be a stable ISO 639-1 code such as `en`, `ko`, or `ja`. There is no DB-level format check by design.
 
 ## word_senses

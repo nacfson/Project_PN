@@ -24,6 +24,8 @@ speaking_attempts
 
 Former `collections` / `collection_words` and curriculum packs were tried and later **removed** from MVP (`000022_drop_curriculum`). Private decks remain the only grouping. Reintroduce curated packs only with an explicit scope expansion.
 
+**Multi-word phrases** are in MVP without packs: learners add them to private decks like single words (`words` / `word_senses` / `user_word_senses`). Enrichment prefers the LLM for multi-word lemmas because WiktApi coverage is weak; compact phrase glosses (e.g. `~하는 데`) are accepted by the propriety filter.
+
 ## Future Notes
 
 - `study_sessions` and `session_items` are useful for session summaries, but `review_attempts` is enough for MVP history.

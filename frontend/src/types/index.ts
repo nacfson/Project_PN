@@ -9,7 +9,8 @@ export type PartOfSpeech =
   | 'preposition'
   | 'conjunction'
   | 'interjection'
-  | 'determiner';
+  | 'determiner'
+  | 'phrase';
 
 // "Any" is a UI/lookup-only filter value. It is never persisted and never
 // sent to POST /api/learning-items.

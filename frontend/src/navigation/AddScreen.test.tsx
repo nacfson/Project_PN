@@ -84,7 +84,7 @@ describe('AddScreen', () => {
     // Defaults to From Passage capture flow
     expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy();
     // Manual add section should not be visible
-    expect(screen.queryByPlaceholderText('Type a word')).toBeNull();
+    expect(screen.queryByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeNull();
   });
 
   it('switches to Manual Add tab when clicked', async () => {
@@ -99,7 +99,9 @@ describe('AddScreen', () => {
     fireEvent.press(manualTab);
 
     // Manual add section should be visible
-    await waitFor(() => expect(screen.getByPlaceholderText('Type a word')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeTruthy(),
+    );
     // Passage capture flow should not be visible
     expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
 
@@ -109,7 +111,7 @@ describe('AddScreen', () => {
 
     // Passage capture flow should be visible again
     await waitFor(() => expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy());
-    expect(screen.queryByPlaceholderText('Type a word')).toBeNull();
+    expect(screen.queryByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeNull();
   });
 
   it('selects the default deck for the new language pair when the active target language changes', async () => {

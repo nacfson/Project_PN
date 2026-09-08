@@ -71,7 +71,7 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 6. In one transaction, upsert `words` and `appendSenses` (canonical text + display gloss in `sense_translations`).
 7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard (definition + localized gloss, excluding the lemma and English stopwords so headword restatements do not dominate) and sets `similarity` on each option. Stored `meaning_order` is unchanged.
 
-If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases may miss on public WiktApi.
+If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases usually miss on public WiktApi; when an LLM key is configured, **phrase lookups try the LLM first**, then WiktApi.
 
 ## Force-Generate Flow (none of these match)
 

@@ -20,6 +20,7 @@ const CONCRETE_POS: PartOfSpeech[] = [
   'conjunction',
   'interjection',
   'determiner',
+  'phrase',
 ];
 
 interface SensePickerProps {

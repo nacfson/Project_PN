@@ -110,6 +110,9 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
             <Text variant="label" color="muted">
               {t('add.tapWords')}
             </Text>
+            <Text variant="caption" color="muted">
+              {t('add.phraseSelectHint')}
+            </Text>
             <Card>
               <TappablePassage text={passage} selected={selected} onToggle={toggle} />
             </Card>
