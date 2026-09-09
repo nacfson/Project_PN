@@ -2,19 +2,19 @@
 
 Living inventory for Project PN. Refresh this file after merges or when the Cursor agent list gets noisy.
 
-## Current state (2026-09-07)
+## Current state (2026-09-09)
 
 | Item | Value |
 |------|-------|
-| Default branch | `main` (this worktree) |
-| Open PRs | **none** |
-| Remote heads | `main` only |
-| Local git worktrees | **1** (`Project_PN` root on `main`) |
-| Local branches | `main` only |
-| Stashes | legacy WIP stashes only (no active feature branches) |
-| Merged `cursor/*` remotes | pruned (`fix-translation-requirement-failures-ac9f`, `fix-ghcr-frontend-ci-4ffa`, …) |
+| Default branch | `main` |
+| This worktree | `cursor/organize-branches-worktrees-42ad` (hygiene PR) |
+| Local git worktrees | **1** (repo root) |
+| Local branches | `main` + this organize branch |
+| Stashes | none |
+| Open draft PRs | **5** (see fold plan below) |
+| Remote `cursor/*` heads | 5 feature heads + this organize branch (after prune) |
 
-Git remotes, local branches, and this worktree are fully organized onto `main`. Remaining clutter (if any) is **Cursor Cloud Agent sessions**, not `git worktree` checkouts.
+Git worktrees are already main-aligned (single checkout). Remaining clutter is **overlapping draft PR heads** and **IDLE Cursor Cloud Agent sessions**, not extra `git worktree` paths.
 
 ### Cursor UI “worktrees” vs git worktrees
 
@@ -26,25 +26,56 @@ The branch / worktree picker in Cursor that lists many `cursor/…` names is usu
 | Git worktrees | `git worktree list` | `git worktree remove <path>` · `git worktree prune` |
 | Cursor agent sessions | [cursor.com/agents](https://cursor.com/agents) | **Archive** IDLE runs after their PR merges |
 
-Archive IDLE agents so the picker collapses to `main`.
+Archive IDLE agents so the picker collapses toward `main`.
+
+---
+
+## Fold open drafts onto `main` (do not merge blindly)
+
+Two independent feature lines are open. Prefer **one canonical PR head per line**, then merge that head into `main` and delete the rest.
+
+### Line A — Practice / leech
+
+| PR | Branch | Role |
+|----|--------|------|
+| **#48** (canonical) | `cursor/leech-badge-personal-gloss-cfab` | Keep: leech badge, change meaning, personal gloss (**includes #47**) |
+| #47 (fold) | `cursor/fix-practice-sync-leech-cfab` | Ancestor of #48 — close after #48 lands |
+| — (pruned) | `cursor/debug-practice-sync-loop-091f` | Empty net diff vs `main` — **deleted** in this hygiene pass |
+
+### Line B — Phrases / Add screen
+
+| PR | Branch | Role |
+|----|--------|------|
+| **#46** (prefer) | `cursor/phrases-and-add-loading-fb38` | Prefer: phrases + stuck-loading fix + Manual Add default (**includes #50**) + POS retag migrations |
+| #49 (competing) | `cursor/phrase-add-feature-cfab` | Alternate phrase implementation — **conflicts** with #46; pick one before merge |
+| #50 (fold) | `cursor/manual-add-default-tab-445a` | Ancestor of #46 — close after #46 (or chosen phrase head) lands |
+
+**Merge hazard:** #46 and #48 both introduce a `000025_*.up.sql` migration under different filenames. Re-number before combining both lines on `main`.
+
+**Suggested merge order into `main`:** #48 → resolve migration numbers → chosen phrase head (#46 or #49) → close folded PRs → delete remotes → archive agents.
+
+---
 
 ### Archive these IDLE Cloud Agents
 
-Safe to archive (PR merged and/or branch gone from remote):
+Safe to archive now (PR merged and/or branch gone from remote):
 
 | Agent | Stale branch ref | Why |
 |-------|------------------|-----|
+| Pushed changes deployment | `fix-ghcr-frontend-ci-4ffa` | PR #45 merged; remote pruned |
+| Branches worktrees structure | `organize-branches-worktrees-053b` | PR #44 merged |
+| Cloudflare DNS access issue | `cloudflare-dns-docs-de34` | PR #43 merged |
 | Google sign-in enablement (`bc-4046b880…`) | `…-dc8c` | PR #42 merged |
 | Google oauth email verification (`bc-71c67d9c…`) | `…-dc8c` | Same merged work |
 | Google sign-in enablement (`bc-9d9de7de…`) | (none) | Duplicate / superseded |
 | Login session stability | `session-renewal-c208` | PR #40 merged |
 | Deck conversion none match | `fix-none-match-…` | PR #39 merged |
 | Dictionary meaning improvement | `shared-similar-meanings-…` | PR #37 merged |
-| Cloudflare DNS access issue | `cloudflare-dns-docs-de34` | PR #43 merged |
-| Branches worktrees structure | `organize-branches-worktrees-053b` | PR #44 merged |
-| Fix GHCR frontend CI | `fix-ghcr-frontend-ci-4ffa` | PR #45 merged |
+| Cleanup debug instrumentation | (debug remote pruned) | Net-empty vs `main` |
 
-Also archive short-lived **Explore / Review / Test / Browser verify** internal runs (no branch). They do not own remotes; keeping them only clutters the agent list.
+Also archive short-lived **Explore / Review / Test / Browser / Demo / Verify** internal runs (no lasting branch). They do not own remotes; keeping them only clutters the agent list.
+
+Keep (until their PR merges): agents tied to open heads `#46`–`#50` (e.g. Word phrase UI handling, Add UI manual first, Ui sync loop).
 
 ---
 
