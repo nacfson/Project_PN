@@ -7,7 +7,7 @@ Living inventory for Project PN. Refresh this file after merges or when the Curs
 | Item | Value |
 |------|-------|
 | Default branch | `main` |
-| This worktree | `cursor/organize-branches-worktrees-42ad` (hygiene PR) |
+| This worktree | `cursor/organize-branches-worktrees-42ad` (hygiene PR #51) |
 | Local git worktrees | **1** (repo root) |
 | Local branches | `main` + this organize branch |
 | Stashes | none |
