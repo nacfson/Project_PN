@@ -1,11 +1,72 @@
 import type { MeResponse, LanguageOptionsResponse, AllowedLanguages } from './types';
-import { configureApi, getJson, postJson, ApiError } from './client';
+import {
+  configureApi,
+  getJson,
+  postJson,
+  ApiError,
+  API_LAST_WORKING_TIMEOUT_MS,
+  API_PROBE_TIMEOUT_MS,
+} from './client';
 
 beforeEach(() => {
   configureApi({
     baseUrls: ['http://localhost:9999'],
     getToken: async () => 'token',
   });
+});
+
+test('uses a 60s wait budget for last-working and probe API URLs', () => {
+  // Wait-not-fail: client must outlast slow WiktApi (~20s) + enrich fallback (~22s observed).
+  expect(API_LAST_WORKING_TIMEOUT_MS).toBe(60_000);
+  expect(API_PROBE_TIMEOUT_MS).toBe(60_000);
+});
+
+test('waits past 15s on the last-working URL before timing out', async () => {
+  jest.useFakeTimers();
+  configureApi({
+    baseUrls: ['http://only'],
+    getToken: async () => '',
+  });
+
+  // Seed lastWorkingBaseUrl by succeeding once.
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: async () => '{}',
+  });
+  await getJson('/warmup');
+
+  let resolveFetch: ((value: Response) => void) | undefined;
+  global.fetch = jest.fn().mockImplementation(
+    () =>
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+  );
+
+  const pending = getJson('/slow');
+  // Former 15s budget must not reject yet.
+  await jest.advanceTimersByTimeAsync(15_000);
+  let settled = false;
+  void pending.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  await Promise.resolve();
+  expect(settled).toBe(false);
+
+  resolveFetch?.({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ ok: true }),
+  } as Response);
+  await jest.advanceTimersByTimeAsync(0);
+  await expect(pending).resolves.toEqual({ ok: true });
+  jest.useRealTimers();
 });
 
 test('attaches Authorization header', async () => {

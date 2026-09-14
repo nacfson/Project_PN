@@ -24,6 +24,7 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 - Inputs that trigger async work should pass `loading` to show an inline spinner.
 - Lists should keep showing stale data with an inline indicator while refreshing, rather than blanking out.
 - Practice session transitions (loading due cards, submitting) already use `LoadingState`.
+- **Add-word / lookup** may stay pending up to ~**60s** when enrichment is cold or WiktApi is slow (shared API client budget). Keep the loading UI; do not treat a long wait alone as ADD-101 — that code is for true network/status-`0` failures after the client gives up.
 
 ## Destructive actions
 

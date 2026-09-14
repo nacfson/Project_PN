@@ -173,6 +173,8 @@ Default origin is **WiktApi** (`internal/enrich/wiktapi.go`): on cache miss, the
 
 Enrichment is in-request and synchronous. A background queue is future scope.
 
+**Client wait:** the shared API client (`packages/api`) uses a **60s** request timeout so slow WiktApi + optional Gemini fallback (often ~22s) can finish as HTTP 200 instead of aborting early as status `0` → ADD-101. Edge `proxy_read_timeout` / `proxy_send_timeout` for `pn.nacfson.cloud` should stay **≥ 60s** (see `deploy/NETWORK_SETUP.md`). Add-word / lookup may wait up to ~60s when enrichment is cold or slow; keep a loading state — do not treat that wait as a hard failure.
+
 ### Refresh existing meanings (retranslate-senses)
 
 Rebuild glosses for words already in a user's learning set (or the whole catalog), remapping cards with AutoMatch:

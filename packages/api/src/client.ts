@@ -143,6 +143,15 @@ async function parseResponse(response: Response): Promise<unknown> {
   }
 }
 
+/**
+ * Client wait budget for API calls.
+ * Covers slow WiktApi (~20s) plus Gemini/OpenAI enrich fallback so lookup/add
+ * can finish with HTTP 200 instead of aborting early as status 0 → ADD-101.
+ * Keep in sync with edge proxy_read_timeout / proxy_send_timeout (≥ 60s).
+ */
+export const API_LAST_WORKING_TIMEOUT_MS = 60_000;
+export const API_PROBE_TIMEOUT_MS = 60_000;
+
 async function fetchWithTimeout(
   fetchImpl: typeof fetch,
   url: string,
@@ -183,7 +192,7 @@ async function fetchWithFallback(path: string, init: RequestInit): Promise<Respo
       const fetchImpl = getConfig().fetchImpl ?? fetch;
       
       const isLastWorking = baseUrl === lastWorkingBaseUrl;
-      const timeoutMs = isLastWorking ? 15000 : 6500;
+      const timeoutMs = isLastWorking ? API_LAST_WORKING_TIMEOUT_MS : API_PROBE_TIMEOUT_MS;
       
       const response = await fetchWithTimeout(
         fetchImpl,
