@@ -908,7 +908,11 @@ func collectSenseMatchTexts(rows pgx.Rows) ([]string, error) {
 }
 
 func (s *Service) existingSenseMatchTexts(ctx context.Context, wordID, displayLang string) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `
+	return existingSenseMatchTextsOn(ctx, s.pool, wordID, displayLang)
+}
+
+func existingSenseMatchTextsOn(ctx context.Context, q querier, wordID, displayLang string) ([]string, error) {
+	rows, err := q.Query(ctx, `
 		select ws.definition,
 		       coalesce(ws.short_definition, ''),
 		       coalesce(st.definition, ''),
@@ -1203,7 +1207,9 @@ func (s *Service) cacheTranslateResult(ctx context.Context, displayLang string, 
 }
 
 // persistEntries inserts enrich entries (words + senses + examples) and returns
-// the resulting sense options.
+// the resulting sense options. Before appendSenses, each entry's senses pass
+// FilterProperSenses (same criteria as force / find-more) so first lookup does
+// not persist duplicate-looking simple display glosses.
 func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangCode, normalized string, entries []enrich.Entry) ([]SenseOption, error) {
 	if len(entries) == 0 {
 		return nil, ErrNoSenses
@@ -1223,6 +1229,9 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 		pos    string
 	}
 	var addedWords []addedWord
+	// Running match texts across POS batches so the same simple gloss cannot be
+	// reintroduced within one persist transaction.
+	matchTexts := []string{}
 	for _, entry := range entries {
 		pos := strings.ToLower(strings.TrimSpace(entry.PartOfSpeech))
 		if pos == "" || len(entry.Senses) == 0 {
@@ -1245,8 +1254,29 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 			return nil, fmt.Errorf("words: upsert word: %w", err)
 		}
 
-		if err := appendSenses(ctx, tx, wordID, defLangCode, entry.Senses); err != nil {
+		filterAgainst := append([]string{}, matchTexts...)
+		if !inserted {
+			existing, err := existingSenseMatchTextsOn(ctx, tx, wordID, defLangCode)
+			if err != nil {
+				return nil, err
+			}
+			filterAgainst = append(filterAgainst, existing...)
+		}
+		kept := enrich.FilterProperSenses(filterAgainst, entry.Senses, defLangCode)
+		if len(kept) == 0 {
+			if inserted {
+				if _, err := tx.Exec(ctx, `delete from words where id = $1::uuid`, wordID); err != nil {
+					return nil, fmt.Errorf("words: delete empty word: %w", err)
+				}
+			}
+			continue
+		}
+
+		if err := appendSenses(ctx, tx, wordID, defLangCode, kept); err != nil {
 			return nil, err
+		}
+		for _, sense := range kept {
+			matchTexts = append(matchTexts, sense.Definition, sense.NativeDefinition, sense.NativeShortDefinition)
 		}
 		if !seen[wordID] {
 			seen[wordID] = true

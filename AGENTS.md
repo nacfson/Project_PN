@@ -61,6 +61,33 @@ Core backend principle:
 - Adapt controls for desktop/web/Tauri: larger hit targets, click-to-set sliders, and keyboard shortcuts where appropriate.
 - Show generic user-facing messages for missing OAuth/third-party config; expose environment-variable hints only when `__DEV__` is true.
 
+### Add-tab UI ownership (product lock)
+
+**Invariant:** `AddScreen` default `activeTab` is `'manual'`; the Manual segment is first in the switcher; on first paint with a deck selected, the Manual Add input is visible without an extra tap.
+
+**Canonical owner path cluster:**
+
+- `frontend/src/navigation/AddScreen.tsx`
+- `frontend/src/navigation/AddScreen.test.tsx` (CI gate — must assert Manual-first)
+- `frontend/src/features/add/ManualAddSection.tsx`
+- `frontend/src/features/add/CaptureSection.tsx`
+- Related: `frontend/src/components/SensePicker.tsx`, `frontend/src/hooks/useSenseFlow.ts`
+
+Details: `frontend/docs/frontend-ux-patterns.md` (Add tab). Changing the Add default or removing Manual Add requires an **explicit user decision** in the task; silent flips (including merging a passage-default phrase PR) are bugs.
+
+**Before opening/updating a PR that touches this cluster:** rebase onto latest `main`; run `rg "useState<'passage' \\| 'manual'>" frontend/src/navigation/AddScreen.tsx` and expect `'manual'`; run `npm test -w frontend -- --testPathPattern=AddScreen`.
+
+**Merge checklist (paste into PR body when Add files change):**
+
+- [ ] Rebased onto latest `main`
+- [ ] `AddScreen` default is still `'manual'`
+- [ ] Manual segment is first in the switcher
+- [ ] `AddScreen.test.tsx` still asserts Manual-first
+- [ ] No competing open PR on the same cluster without coordinating (check `gh pr list` for phrase/add heads such as #46 / #49 / #50-style)
+- [ ] If deploying frontend: image built from merged `main`, not an unmerged agent branch alone
+
+Competing phrase PR #49 (passage default) must absorb Manual-first before merge; otherwise close or rewrite against the canonical head.
+
 ## Future Scope Rules
 
 Future expansion tables are listed in `backend/docs/backend-future-scope.md` and remain out of MVP unless the user explicitly expands scope.

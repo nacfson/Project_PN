@@ -2,13 +2,24 @@
 
 Living inventory for Project PN. Refresh this file after merges or when the Cursor agent list gets noisy.
 
-## Current state (2026-09-07)
+## Current state (2026-09-14)
+
+| Item | Value |
+|------|-------|
+| Default branch | `main` |
+| Add-tab default | **Manual-first** on `main` after senses/manual-add PR (do not treat older #50/#46-only images as the only Manual-first source) |
+| Conflicting open PRs | **#49** (`cursor/phrase-add-feature-cfab`) still passage-default — **blocked** until it adopts Manual-first; prefer folding Add UX with **#46** / thin Manual-first PR; **#50** is Manual-first-only and can fold |
+| Local git worktrees | Prefer one checkout; see hygiene below |
+
+**Add-tab invariant:** `AddScreen` default `activeTab === 'manual'`. See `AGENTS.md` Add-tab UI ownership. Agents must not assume Manual-first “already shipped” solely because an unmerged agent branch or Oracle image had it while `main` lagged.
+
+## Snapshot (2026-09-07, historical)
 
 | Item | Value |
 |------|-------|
 | Default branch | `main` (this worktree) |
-| Open PRs | **none** |
-| Remote heads | `main` only |
+| Open PRs | **none** (stale snapshot — refresh via `gh pr list`) |
+| Remote heads | `main` only (stale) |
 | Local git worktrees | **1** (`Project_PN` root on `main`) |
 | Local branches | `main` only |
 | Stashes | legacy WIP stashes only (no active feature branches) |

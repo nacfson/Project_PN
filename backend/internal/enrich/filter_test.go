@@ -59,3 +59,44 @@ func TestFilterProperSensesSimplifiesKoreanParaphrase(t *testing.T) {
 		t.Fatalf("simple=%q want 감추다", got[0].NativeShortDefinition)
 	}
 }
+
+// blunt-like: distinct English senses share the same simple KO headwords.
+// DedupeSenses keeps all four; FilterProperSenses collapses to two cards.
+func TestFilterProperSensesCollapsesBluntLikeSharedShortGlosses(t *testing.T) {
+	incoming := []Sense{
+		{
+			Definition:            "having a dull edge or point",
+			NativeDefinition:      "날이 무딘",
+			NativeShortDefinition: "무딘",
+		},
+		{
+			Definition:            "not sharp in feeling or perception",
+			NativeDefinition:      "감각이 무딘",
+			NativeShortDefinition: "무딘",
+		},
+		{
+			Definition:            "abrupt or frank in manner",
+			NativeDefinition:      "직설적인 말투의",
+			NativeShortDefinition: "직설적인",
+		},
+		{
+			Definition:            "direct and to the point without delicacy",
+			NativeDefinition:      "매우 직설적인",
+			NativeShortDefinition: "직설적인",
+		},
+	}
+	if got := DedupeSenses(incoming); len(got) != 4 {
+		t.Fatalf("DedupeSenses kept %d, want 4 (weak English/full-native Jaccard)", len(got))
+	}
+	got := FilterProperSenses(nil, incoming, "ko")
+	if len(got) != 2 {
+		t.Fatalf("FilterProperSenses kept %d, want 2 unique simple glosses; got %#v", len(got), got)
+	}
+	seen := map[string]bool{}
+	for _, s := range got {
+		seen[s.NativeShortDefinition] = true
+	}
+	if !seen["무딘"] || !seen["직설적인"] {
+		t.Fatalf("expected 무딘 and 직설적인, got %#v", got)
+	}
+}

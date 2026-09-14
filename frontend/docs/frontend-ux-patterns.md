@@ -30,6 +30,13 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 - For local destructive actions like clearing a passage, prefer an **undo** pattern over a blocking confirmation dialog.
 - Store the previous value in a ref, show an undo control for ~3 seconds, and auto-dismiss it.
 
+## Add tab
+
+- The Add tab (`AddScreen`) defaults to **Manual Add** (`activeTab === 'manual'`). Manual is the first segment in the switcher; From a passage is secondary.
+- On first paint with a deck selected, the Manual Add input must be visible without an extra tap.
+- Do not flip the default to passage or remove Manual Add without an explicit product decision. `AddScreen.test.tsx` is the CI gate for this invariant.
+- Ownership cluster: `frontend/src/navigation/AddScreen.tsx`, `AddScreen.test.tsx`, `frontend/src/features/add/ManualAddSection.tsx`, `CaptureSection.tsx` (related: `SensePicker.tsx`, `useSenseFlow.ts`). See `AGENTS.md` Add-tab UI ownership.
+
 ## Practice UX
 
 - Practice sessions use **private decks only** (user-added words). Optional `deckId` narrows to one deck; there is no curriculum / dictionary-pack practice mode.

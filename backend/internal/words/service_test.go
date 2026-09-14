@@ -379,7 +379,11 @@ func TestLookupLogsAddWord(t *testing.T) {
 					Lemma:        lemma,
 					PartOfSpeech: "noun",
 					Senses: []enrich.Sense{
-						{Definition: "a test word"},
+						{
+							Definition:            "a test word",
+							NativeDefinition:      "시험어",
+							NativeShortDefinition: "시험어",
+						},
 					},
 				},
 			},
@@ -411,7 +415,11 @@ func TestLookupAddWordNoDuplicateLog(t *testing.T) {
 					Lemma:        lemma,
 					PartOfSpeech: "noun",
 					Senses: []enrich.Sense{
-						{Definition: "a test word"},
+						{
+							Definition:            "a test word",
+							NativeDefinition:      "시험어",
+							NativeShortDefinition: "시험어",
+						},
 					},
 				},
 			},
