@@ -70,46 +70,47 @@ describe('AddScreen', () => {
     jest.clearAllMocks();
   });
 
-  it('renders segmented switcher and defaults to From Passage tab', async () => {
+  it('renders segmented switcher and defaults to Manual Add tab', async () => {
     await render(<AddScreen />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('All Words')).toBeTruthy();
     });
 
-    // Segmented tab switchers should be present
-    expect(screen.getAllByText('From a passage').length).toBeGreaterThan(0);
+    // Segmented tab switchers should be present (Manual first)
     expect(screen.getByText('Manual Add')).toBeTruthy();
+    expect(screen.getAllByText('From a passage').length).toBeGreaterThan(0);
 
-    // Defaults to From Passage capture flow
-    expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy();
-    // Manual add section should not be visible
-    expect(screen.queryByPlaceholderText('Type a word')).toBeNull();
+    // Defaults to Manual Add flow — CI gate: must fail if default flips to passage
+    expect(screen.getByPlaceholderText('Type a word')).toBeTruthy();
+    expect(screen.getByTestId('manual-add-input-wrapper')).toBeTruthy();
+    // Passage capture section should not be visible
+    expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
   });
 
-  it('switches to Manual Add tab when clicked', async () => {
+  it('switches to From Passage tab when clicked', async () => {
     await render(<AddScreen />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('All Words')).toBeTruthy();
     });
 
-    // Click on Manual Add tab
-    const manualTab = screen.getByTestId('tab-manual');
-    fireEvent.press(manualTab);
-
-    // Manual add section should be visible
-    await waitFor(() => expect(screen.getByPlaceholderText('Type a word')).toBeTruthy());
-    // Passage capture flow should not be visible
-    expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
-
-    // Click back to From Passage tab
+    // Click on From Passage tab
     const passageTab = screen.getByTestId('tab-passage');
     fireEvent.press(passageTab);
 
-    // Passage capture flow should be visible again
+    // Passage capture flow should be visible
     await waitFor(() => expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy());
+    // Manual add section should not be visible
     expect(screen.queryByPlaceholderText('Type a word')).toBeNull();
+
+    // Click back to Manual Add tab
+    const manualTab = screen.getByTestId('tab-manual');
+    fireEvent.press(manualTab);
+
+    // Manual add section should be visible again
+    await waitFor(() => expect(screen.getByPlaceholderText('Type a word')).toBeTruthy());
+    expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
   });
 
   it('selects the default deck for the new language pair when the active target language changes', async () => {
