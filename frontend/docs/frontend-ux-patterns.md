@@ -41,7 +41,8 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 - Practice sessions use **private decks only** (user-added words). Optional `deckId` narrows to one deck; there is no curriculum / dictionary-pack practice mode.
 - Select Words / sense pickers show a **single simple gloss** per option (e.g. `가지다`), not English definition plus localized paraphrase. When simplifying old dictionary paraphrases, skip hollow endings like `것` and prefer real lemmas (`공급하다`), via `displayGloss` / `extractKoreanHeadword` in `frontend/src/utils/meanings.ts`.
-- When lookup includes a source sentence, badge the closest option (`similarity` ≥ 0.08) as “Closest to your sentence”. “Add best match” uses that ranked sense. “None of these match” finds more **shared** senses (`force: true`); if the sentence is empty, prompt for context first. Do not open a free-text gloss field.
+- Card faces (practice, My Words, detail) prefer a non-empty `personal_note` over catalog glosses in `displayGloss`. SensePicker catalog rows do not show `personal_note`. Manual Add and Change Meaning expose an optional “My wording” field distinct from context (`source_context`).
+- When lookup includes a source sentence, badge the closest option (`similarity` ≥ 0.08) as “Closest to your sentence”. “Add best match” uses that ranked sense. “None of these match” finds more **shared** senses (`force: true`); if the sentence is empty, prompt for context first. Do not open a free-text field that writes to the shared catalog.
 - Flashcards: front = lemma, back = chosen gloss only (no Explanation / Full meaning / Example as primary UX).
 - The practice session supports two card modes:
   - **Flashcard mode**: the user taps the card to flip it and self-grades with the Anki-style answer buttons (Again/Hard/Good/Easy).

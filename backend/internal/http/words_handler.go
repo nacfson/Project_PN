@@ -61,6 +61,7 @@ type addLearningItemRequest struct {
 	DisplayLanguageCode string `json:"display_language_code"`
 	DeckID              string `json:"deck_id"`
 	SourceContext       string `json:"source_context"`
+	PersonalNote        string `json:"personal_note"`
 }
 
 func (h *wordsHandler) lookup(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +123,7 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID, req.SourceContext)
+	item, err := h.svc.AddLearningItem(r.Context(), userIDFromRequest(r), req.WordSenseID, req.DisplayLanguageCode, req.DeckID, req.SourceContext, req.PersonalNote)
 	if err != nil {
 		h.writeServiceError(w, r, err)
 		return
@@ -132,8 +133,9 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 }
 
 type changeLearningItemSenseRequest struct {
-	WordSenseID         string `json:"word_sense_id"`
-	DisplayLanguageCode string `json:"display_language_code"`
+	WordSenseID         string  `json:"word_sense_id"`
+	DisplayLanguageCode string  `json:"display_language_code"`
+	PersonalNote        *string `json:"personal_note"`
 }
 
 func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +154,7 @@ func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	item, err := h.svc.ChangeLearningItemSense(r.Context(), userIDFromRequest(r), itemID, req.WordSenseID, req.DisplayLanguageCode)
+	item, err := h.svc.ChangeLearningItemSense(r.Context(), userIDFromRequest(r), itemID, req.WordSenseID, req.DisplayLanguageCode, req.PersonalNote)
 	if err != nil {
 		h.writeServiceError(w, r, err)
 		return

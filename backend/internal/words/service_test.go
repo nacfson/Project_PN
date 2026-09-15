@@ -107,7 +107,7 @@ func TestListLearningItemsPopulatesDeckAndReviewDetails(t *testing.T) {
 	// 2. Insert a word and add it to the custom deck using a unique lemma
 	lemma := fmt.Sprintf("tddword%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "en", customDeck.ID, "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "en", customDeck.ID, "", "")
 	if err != nil {
 		t.Fatalf("failed to add learning item: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestLearningItemsTranslations(t *testing.T) {
 	senseID := insertDeckFixtureWord(t, pool, lemma)
 
 	// Add learning item
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("failed to add learning item: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestJapaneseKoreanDueFlowCarriesLocalization(t *testing.T) {
 		t.Fatalf("insert ko example translation: %v", err)
 	}
 
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add ja learning item: %v", err)
 	}
@@ -468,7 +468,7 @@ func TestAddLearningItemSurfacesTranslateProviderError(t *testing.T) {
 	lemma := fmt.Sprintf("notr%d", time.Now().UnixNano())
 	_, senseID := insertEnglishSenseWithoutTranslation(t, pool, lemma, "a missing translation")
 
-	_, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	_, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err == nil {
 		t.Fatal("expected add to fail")
 	}
@@ -522,7 +522,7 @@ func TestAddLearningItemSucceedsWhenTranslateCachesDefinition(t *testing.T) {
 		},
 	}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
 
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add after successful translate: %v", err)
 	}

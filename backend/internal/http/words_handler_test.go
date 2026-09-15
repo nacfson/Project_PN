@@ -272,6 +272,138 @@ func TestAddLearningItemPersistsSourceContext(t *testing.T) {
 	}
 }
 
+func TestAddLearningItemPersistsPersonalNote(t *testing.T) {
+	router, token, pool, _ := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	lemma := "chargenote" + time.Now().Format("150405.000000")
+	var senseID string
+	err := pool.QueryRow(ctx, `
+		with w as (
+			insert into words (language_code, lemma, normalized_text, part_of_speech)
+			values ('en', $1, $1, 'verb')
+			returning id
+		)
+		insert into word_senses (word_id, definition, meaning_order)
+		select id, 'to store energy', 1 from w
+		returning id::text
+	`, lemma).Scan(&senseID)
+	if err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '충전하다')
+	`, senseID); err != nil {
+		t.Fatalf("insert translation: %v", err)
+	}
+
+	body := `{"word_sense_id":"` + senseID + `","display_language_code":"ko","personal_note":"충전하다"}`
+	req := authRequest(t, http.MethodPost, "/api/learning-items", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var item words.LearningItem
+	if err := json.NewDecoder(rec.Body).Decode(&item); err != nil {
+		t.Fatalf("decode item: %v", err)
+	}
+	if item.PersonalNote == nil || *item.PersonalNote != "충전하다" {
+		t.Fatalf("response personal_note=%v", item.PersonalNote)
+	}
+
+	var got *string
+	err = pool.QueryRow(ctx,
+		`select personal_note from user_word_senses where id=$1::uuid`,
+		item.ID,
+	).Scan(&got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || *got != "충전하다" {
+		t.Fatalf("personal_note=%v", got)
+	}
+
+	// Re-add with empty note keeps previous (coalesce upsert).
+	reBody := `{"word_sense_id":"` + senseID + `","display_language_code":"ko"}`
+	reReq := authRequest(t, http.MethodPost, "/api/learning-items", reBody, token)
+	reRec := httptest.NewRecorder()
+	router.ServeHTTP(reRec, reReq)
+	if reRec.Code != http.StatusCreated {
+		t.Fatalf("re-add expected 201, got %d body=%s", reRec.Code, reRec.Body.String())
+	}
+	err = pool.QueryRow(ctx,
+		`select personal_note from user_word_senses where id=$1::uuid`,
+		item.ID,
+	).Scan(&got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || *got != "충전하다" {
+		t.Fatalf("re-add should keep personal_note, got %v", got)
+	}
+}
+
+func TestListLearningItemsReturnsPersonalNote(t *testing.T) {
+	router, token, pool, _ := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	lemma := "listnote" + time.Now().Format("150405.000000")
+	var senseID string
+	err := pool.QueryRow(ctx, `
+		with w as (
+			insert into words (language_code, lemma, normalized_text, part_of_speech)
+			values ('en', $1, $1, 'verb')
+			returning id
+		)
+		insert into word_senses (word_id, definition, meaning_order)
+		select id, 'to store energy', 1 from w
+		returning id::text
+	`, lemma).Scan(&senseID)
+	if err != nil {
+		t.Fatalf("insert sense: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '충전하다')
+	`, senseID); err != nil {
+		t.Fatalf("insert translation: %v", err)
+	}
+
+	body := `{"word_sense_id":"` + senseID + `","display_language_code":"ko","personal_note":"내 표현"}`
+	req := authRequest(t, http.MethodPost, "/api/learning-items", body, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	listReq := authRequest(t, http.MethodGet, "/api/learning-items?limit=100&q="+lemma, "", token)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list expected 200, got %d body=%s", listRec.Code, listRec.Body.String())
+	}
+	var page words.LearningItemsPage
+	if err := json.NewDecoder(listRec.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, it := range page.Items {
+		if it.Lemma == lemma {
+			found = true
+			if it.PersonalNote == nil || *it.PersonalNote != "내 표현" {
+				t.Fatalf("list personal_note=%v", it.PersonalNote)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("item not in list")
+	}
+}
+
 func TestArchiveLearningItemHidesFromListAndReAddUnarchives(t *testing.T) {
 	router, token, pool, _ := validationRouterWithPool(t)
 	ctx := context.Background()
@@ -393,11 +525,11 @@ func TestChangeMeaningConflictReturns409(t *testing.T) {
 
 	cfg := config.Load()
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
-	itemA, err := wordsSvc.AddLearningItem(ctx, user.ID, senseA, "ko", "", "")
+	itemA, err := wordsSvc.AddLearningItem(ctx, user.ID, senseA, "ko", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := wordsSvc.AddLearningItem(ctx, user.ID, senseB, "ko", "", ""); err != nil {
+	if _, err := wordsSvc.AddLearningItem(ctx, user.ID, senseB, "ko", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 

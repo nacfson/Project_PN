@@ -411,6 +411,8 @@ Rules:
 - Every item belongs to exactly one `decks` row. New items are placed in the active target language's default deck unless the caller specifies a custom deck.
 - `learning_stage` is a high-level capability label, not the scheduling source of truth.
 - `archived_at` should be set when the user no longer wants the item in active review.
+- `personal_note` is the Option A personal display gloss override (free-form; no CHECK). Clients show a non-empty `personal_note` before catalog glosses. It must never be written into `word_senses` / `sense_translations`.
+- `source_context` is provenance / lookup ranking only — do not overload it as a gloss.
 - Active user list queries should use a partial index on `(user_id, added_at desc, id desc) where archived_at is null`.
 - Learning-item prefix search should filter through `words.normalized_text like $query || '%'` and use a B-tree `text_pattern_ops` index.
 
@@ -750,6 +752,6 @@ A small set of fields are intentionally left unenforced at the DB level so the L
 |-------|--------|
 | `words.part_of_speech` | Enricher emits one entry per POS; the project keeps the set open. Lowercase on persist. |
 | `words.language_code` | Free text by design. Treat as ISO 639-1 in application code. |
-| `user_word_senses.personal_note`, `source_context` | Free-form user text. |
+| `user_word_senses.personal_note`, `source_context` | Free-form user text. `personal_note` is the Option A personal display gloss (no CHECK); `source_context` is provenance only. |
 
 The above do not have a check constraint. Do not add one without first freezing the enricher's output contract.

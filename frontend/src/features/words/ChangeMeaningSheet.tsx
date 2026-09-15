@@ -29,6 +29,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [context, setContext] = useState('');
+  const [personalNote, setPersonalNote] = useState('');
 
   useEffect(() => {
     if (!visible) return;
@@ -38,6 +39,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
     setSelectedId(item.word_sense_id);
     setOptions([]);
     setContext('');
+    setPersonalNote(item.personal_note?.trim() ?? '');
     lookupWord(item.lemma, { languageCode: item.language_code })
       .then((response) => {
         if (!active) return;
@@ -53,7 +55,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
     return () => {
       active = false;
     };
-  }, [visible, item.lemma, item.language_code, item.word_sense_id, t]);
+  }, [visible, item.lemma, item.language_code, item.word_sense_id, item.personal_note, t]);
 
   const handleFindMore = useCallback(async () => {
     const trimmed = context.trim();
@@ -83,14 +85,24 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
   }, [context, item.lemma, item.language_code, item.word_id, t]);
 
   const handleConfirm = useCallback(async () => {
-    if (!selectedId || selectedId === item.word_sense_id) {
+    if (!selectedId) {
+      onClose();
+      return;
+    }
+    const noteTrimmed = personalNote.trim();
+    const priorNote = item.personal_note?.trim() ?? '';
+    const senseUnchanged = selectedId === item.word_sense_id;
+    const noteUnchanged = noteTrimmed === priorNote;
+    if (senseUnchanged && noteUnchanged) {
       onClose();
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const updated = await changeLearningItemSense(item.id, selectedId);
+      // Always send personal_note on change-meaning so sense swap clears when empty.
+      const notePayload = noteTrimmed;
+      const updated = await changeLearningItemSense(item.id, selectedId, undefined, notePayload);
       const selected = options.find((o) => o.word_sense_id === selectedId);
       onChanged({
         ...item,
@@ -104,6 +116,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
         meaning_order: selected?.meaning_order ?? item.meaning_order,
         due_at: updated.due_at || item.due_at,
         learning_stage: updated.learning_stage || item.learning_stage,
+        personal_note: updated.personal_note ?? (noteTrimmed || null),
       });
       onClose();
     } catch (err) {
@@ -115,7 +128,7 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
     } finally {
       setSaving(false);
     }
-  }, [selectedId, item, options, onChanged, onClose, t]);
+  }, [selectedId, personalNote, item, options, onChanged, onClose, t]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -209,6 +222,20 @@ export function ChangeMeaningSheet({ visible, item, onClose, onChanged }: Change
                 }}
                 disabled={finding || loading}
                 loading={finding}
+              />
+            </View>
+
+            <View style={{ gap: spacing.sm }}>
+              <Text variant="label" color="muted">
+                {t('add.myWordingLabel')}
+              </Text>
+              <Input
+                value={personalNote}
+                onChangeText={setPersonalNote}
+                placeholder={t('add.myWordingPlaceholder')}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onClear={() => setPersonalNote('')}
               />
             </View>
           </ScrollView>

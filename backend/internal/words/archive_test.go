@@ -115,7 +115,7 @@ func TestAddLearningItemUnarchivesOnConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestAddLearningItemUnarchivesOnConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	restored, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	restored, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

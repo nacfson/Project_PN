@@ -146,7 +146,7 @@ func TestDeleteDeckMovesItemsToDefault(t *testing.T) {
 	}
 
 	senseID := insertDeckFixtureWord(t, pool, "deckmove")
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "", custom.ID, "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "", custom.ID, "", "")
 	if err != nil {
 		t.Fatalf("add item to custom deck: %v", err)
 	}
@@ -183,10 +183,10 @@ func TestListLearningItemsFiltersByDeck(t *testing.T) {
 	senseA := insertDeckFixtureWord(t, pool, "filtera")
 	senseB := insertDeckFixtureWord(t, pool, "filterb")
 
-	if _, err := svc.AddLearningItem(ctx, userID, senseA, "", custom.ID, ""); err != nil {
+	if _, err := svc.AddLearningItem(ctx, userID, senseA, "", custom.ID, "", ""); err != nil {
 		t.Fatalf("add item A: %v", err)
 	}
-	if _, err := svc.AddLearningItem(ctx, userID, senseB, "", "", ""); err != nil {
+	if _, err := svc.AddLearningItem(ctx, userID, senseB, "", "", "", ""); err != nil {
 		t.Fatalf("add item B: %v", err)
 	}
 
@@ -213,10 +213,10 @@ func TestGetDueReviewItemsFiltersByDeck(t *testing.T) {
 	senseA := insertDeckFixtureWord(t, pool, "duea")
 	senseB := insertDeckFixtureWord(t, pool, "dueb")
 
-	if _, err := svc.AddLearningItem(ctx, userID, senseA, "", custom.ID, ""); err != nil {
+	if _, err := svc.AddLearningItem(ctx, userID, senseA, "", custom.ID, "", ""); err != nil {
 		t.Fatalf("add item A: %v", err)
 	}
-	if _, err := svc.AddLearningItem(ctx, userID, senseB, "", "", ""); err != nil {
+	if _, err := svc.AddLearningItem(ctx, userID, senseB, "", "", "", ""); err != nil {
 		t.Fatalf("add item B: %v", err)
 	}
 

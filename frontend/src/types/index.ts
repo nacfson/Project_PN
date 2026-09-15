@@ -68,6 +68,7 @@ export interface LearningItem {
   word_sense_id: string;
   learning_stage: string;
   due_at: string;
+  personal_note?: string | null;
 }
 
 export interface LearningItemListItem {
@@ -92,6 +93,7 @@ export interface LearningItemListItem {
   deck_id?: string | null;
   deck_name?: string | null;
   last_reviewed_at?: string | null;
+  personal_note?: string | null;
   examples: Example[];
 }
 
@@ -154,6 +156,7 @@ export interface DueItem {
   meaning_order: number;
   learning_stage: string;
   due_at: string;
+  personal_note?: string | null;
   preview_intervals?: IntervalPreview;
   examples: Example[];
 }

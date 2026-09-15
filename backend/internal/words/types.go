@@ -44,6 +44,7 @@ type LearningItem struct {
 	WordSenseID   string    `json:"word_sense_id"`
 	LearningStage string    `json:"learning_stage"`
 	DueAt         time.Time `json:"due_at"`
+	PersonalNote  *string   `json:"personal_note,omitempty"`
 }
 
 // Deck is a user-owned grouping of vocabulary items for one target language.
@@ -89,6 +90,7 @@ type LearningItemListItem struct {
 	DeckID                   string     `json:"deck_id"`
 	DeckName                 string     `json:"deck_name"`
 	LastReviewedAt           *time.Time `json:"last_reviewed_at"`
+	PersonalNote             *string    `json:"personal_note"`
 	Examples                 []Example  `json:"examples"`
 }
 
@@ -149,6 +151,7 @@ type DueItem struct {
 	MeaningOrder             int              `json:"meaning_order"`
 	LearningStage            string           `json:"learning_stage"`
 	DueAt                    time.Time        `json:"due_at"`
+	PersonalNote             *string          `json:"personal_note"`
 	PreviewIntervals         *IntervalPreview `json:"preview_intervals,omitempty"`
 	Examples                 []Example        `json:"examples"`
 }
