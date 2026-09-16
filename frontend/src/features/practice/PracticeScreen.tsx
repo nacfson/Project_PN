@@ -35,9 +35,12 @@ import { Confetti } from '../../components/Confetti';
 import { CountUpText } from '../../components/CountUpText';
 import {
   applyDueItemUpdatesToList,
+  insertRetryCard,
   optimisticDueItemAfterAgain,
   overridesFromBatchUpdates,
+  practiceCardProgress,
   resolveDueItem,
+  shufflePracticeQueue,
 } from './practiceItemState';
 import { analytics } from '../../analytics/analytics';
 
@@ -318,18 +321,28 @@ export function PracticeScreen() {
     setSessionMode('normal');
     getDueLearningItems(undefined, scopedDeckId, scopedOrigin)
       .then((items) => {
-        setDueItems(items);
         if (items.length > 0) {
-          setQueue([...items]);
+          const shuffled = shufflePracticeQueue(items);
+          const first = shuffled[0];
+          if (!first) {
+            setDueItems([]);
+            setQueue([]);
+            setStatus('idle');
+            return;
+          }
+          setDueItems(shuffled);
+          setQueue([...shuffled]);
           setCurrentIndex(0);
           setAttempts([]);
           setItemOverrides({});
-          setFailedMap(failedMapFromDueItems(items));
+          setFailedMap(failedMapFromDueItems(shuffled));
           setExampleIndexMap({});
-          setCardMode(decideCardMode(items[0]));
+          setCardMode(decideCardMode(first));
           resetCardInteraction();
           setStatus('active');
         } else {
+          setDueItems([]);
+          setQueue([]);
           setStatus('idle');
         }
       })
@@ -357,15 +370,24 @@ export function PracticeScreen() {
         const repeatItems = res.items.map(learningItemToDueItem);
 
         if (repeatItems.length > 0) {
+          const shuffled = shufflePracticeQueue(repeatItems);
+          const first = shuffled[0];
+          if (!first) {
+            setDueItems([]);
+            setQueue([]);
+            setStatus('idle');
+            setErrorMsg(t('practice.noReviewedWordsRepeat'));
+            return;
+          }
           setSessionMode('repeat');
-          setDueItems(repeatItems);
-          setQueue(repeatItems);
+          setDueItems(shuffled);
+          setQueue(shuffled);
           setCurrentIndex(0);
           setAttempts([]);
           setItemOverrides({});
-          setFailedMap(failedMapFromDueItems(repeatItems));
+          setFailedMap(failedMapFromDueItems(shuffled));
           setExampleIndexMap({});
-          setCardMode(decideCardMode(repeatItems[0]));
+          setCardMode(decideCardMode(first));
           resetCardInteraction();
           setStatus('active');
         } else {
@@ -514,9 +536,9 @@ export function PracticeScreen() {
     }
 
     const nextQueue = (() => {
-      let q = shouldRetry ? [...queue, gradedItem] : [...queue];
+      let q = shouldRetry ? insertRetryCard(queue, nextIndex, gradedItem) : [...queue];
       if (sessionMode === 'repeat' && dueItems.length > 0 && nextIndex >= q.length) {
-        q = [...q, ...dueItems];
+        q = [...q, ...shufflePracticeQueue(dueItems)];
       }
       return q;
     })();
@@ -714,12 +736,11 @@ export function PracticeScreen() {
   const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
   const isPreviouslyFailed = failedMap[currentItem.user_word_sense_id] ?? false;
   const trimmedAnswer = userAnswer.trim();
-  const currentPoolIndex = Math.max(
-    0,
-    dueItems.findIndex((item) => item.user_word_sense_id === currentItem.user_word_sense_id)
+  const { current: displayCurrent, total: displayTotal } = practiceCardProgress(
+    attempts.map((att) => att.user_word_sense_id),
+    currentItem.user_word_sense_id,
+    dueItems.length,
   );
-  const displayCurrent = sessionMode === 'repeat' ? currentPoolIndex + 1 : currentIndex + 1;
-  const displayTotal = sessionMode === 'repeat' ? dueItems.length : queue.length;
 
   const dueItemIDs = new Set(dueItems.map((item) => item.user_word_sense_id));
   const dueItemsReviewedCount =

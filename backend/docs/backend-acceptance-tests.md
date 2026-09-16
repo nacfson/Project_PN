@@ -130,7 +130,7 @@ Use these scenarios when writing migration tests, repository tests, or service-l
 - Re-`POST /api/learning-items` for an archived `(user, word_sense)` clears `archived_at` and restores the card.
 - `POST /api/words/lookup` returns 404 when the words service is not wired into the router (dependencies are intentionally minimal in tests).
 
-- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled Review/New, buried, and suspended items. Unfinished Learning/Relearning retries are returned first even when their step interval has not elapsed and even when daily quotas are exhausted. Review cards are returned next, then new cards, respecting daily quotas.
+- `GET /api/reviews/due` returns due active review items with examples and excludes future-scheduled Review/New, buried, and suspended items. Unfinished Learning/Relearning retries are returned first even when their step interval has not elapsed and even when daily quotas are exhausted. Review cards are returned next, then new cards, respecting daily quotas. Within the review-like group and the new-card group, items are shuffled and interleaved by word so origin/add order is not the quiz order.
 - `POST /api/reviews/batch` records attempts and updates `review_states` in one transaction; invalid `activity_type` values return 400 before any attempt is inserted. Applies learning steps, leech detection, sibling bury, and daily count tracking.
 - `POST /api/reviews/optimize-weights` triggers FSRS weight optimization; returns 202. Requires 1000+ reviews for actual optimization.
 - `GET /api/reviews/optimization-status` returns current FSRS weights, optimization timestamp, and review count.

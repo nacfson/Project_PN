@@ -83,3 +83,102 @@ export function resolveDueItem(
   }
   return mergeDueItemUpdate(item, override);
 }
+
+type WordIdItem = { word_id: string };
+
+export function shufflePracticeQueue<T extends WordIdItem>(
+  items: readonly T[],
+  random: () => number = Math.random,
+): T[] {
+  return interleaveByWordId(fisherYates(items, random));
+}
+
+/** Requeue a failed card among upcoming cards instead of appending in fail/origin order. */
+export function insertRetryCard<T>(
+  queue: readonly T[],
+  fromIndex: number,
+  item: T,
+  random: () => number = Math.random,
+): T[] {
+  const start = Math.min(Math.max(fromIndex, 0), queue.length);
+  const head = queue.slice(0, start);
+  const tail = queue.slice(start);
+  const mixed = fisherYates([...tail, item], random);
+  const minGap = Math.min(2, tail.length);
+  const retryPos = mixed.indexOf(item);
+  if (retryPos >= 0 && retryPos < minGap && mixed.length > minGap) {
+    const swapAt = minGap + Math.floor(random() * (mixed.length - minGap));
+    const current = mixed[retryPos];
+    const later = mixed[swapAt];
+    if (current !== undefined && later !== undefined) {
+      mixed[retryPos] = later;
+      mixed[swapAt] = current;
+    }
+  }
+  return [...head, ...mixed];
+}
+
+/** Unique-card progress so retries do not reuse origin/add slot numbers. */
+export function practiceCardProgress(
+  attemptIds: readonly string[],
+  currentId: string,
+  total: number,
+): { current: number; total: number } {
+  const unique = new Set(attemptIds);
+  const current = unique.has(currentId) ? unique.size : unique.size + 1;
+  const safeTotal = Math.max(total, 1);
+  return {
+    current: Math.min(Math.max(current, 1), safeTotal),
+    total: safeTotal,
+  };
+}
+
+function fisherYates<T>(items: readonly T[], random: () => number): T[] {
+  const next = items.slice();
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    const a = next[i];
+    const b = next[j];
+    if (a === undefined || b === undefined) {
+      continue;
+    }
+    next[i] = b;
+    next[j] = a;
+  }
+  return next;
+}
+
+function interleaveByWordId<T extends WordIdItem>(items: T[]): T[] {
+  if (items.length <= 1) {
+    return items;
+  }
+
+  const bucketIndex = new Map<string, number>();
+  const buckets: T[][] = [];
+  for (const item of items) {
+    let idx = bucketIndex.get(item.word_id);
+    if (idx === undefined) {
+      idx = buckets.length;
+      bucketIndex.set(item.word_id, idx);
+      buckets.push([]);
+    }
+    buckets[idx]?.push(item);
+  }
+
+  const result: T[] = [];
+  while (result.length < items.length) {
+    let progress = false;
+    for (const bucket of buckets) {
+      const next = bucket.shift();
+      if (!next) {
+        continue;
+      }
+      result.push(next);
+      progress = true;
+    }
+    if (!progress) {
+      break;
+    }
+  }
+  return result;
+}

@@ -115,9 +115,9 @@ The due-review query respects per-user daily quotas configured in `review_settin
 - `new_cards_per_day` (default: 20): maximum new cards introduced per day.
 - `reviews_per_day` (default: 200): maximum review cards (Review/Relearning state) per day.
 
-`daily_review_counts` tracks how many new cards and reviews the user has already done today. The due query returns unfinished intra-day Learning/Relearning cards first (no daily quota — these are interrupted retries), then Review cards, then new cards up to their remaining quota.
+`daily_review_counts` tracks how many new cards and reviews the user has already done today. The due query returns unfinished intra-day Learning/Relearning cards first (no daily quota — these are interrupted retries), then Review cards, then new cards up to their remaining quota. Within the review-like group and the new-card group, the API shuffles items and then interleaves by `word_id`. That keeps sibling senses apart without serving cards in origin/add order, so recovered retries cannot be answered from memorized sequence.
 
-Intra-day Learning and Relearning cards stay in the due queue even when their minute-level step interval has not elapsed. The in-session practice UI already requeues a failed card immediately; the due query matches that so a refresh or exit does not skip the failed cards.
+Intra-day Learning and Relearning cards stay in the due queue even when their minute-level step interval has not elapsed. The in-session practice UI requeues a failed card into the upcoming mix (not the original slot) immediately; the due query still recovers that retry set after a refresh or exit.
 
 ## Interval Fuzzing
 

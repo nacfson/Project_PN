@@ -96,9 +96,6 @@ describe('PracticeScreen Integration', () => {
 
     const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
 
-    // Force decideCardMode to select 'flashcard' (flashcard uses randomized check on recognized items)
-    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
-
     await render(<PracticeScreen />, { wrapper: Wrapper });
 
     await waitFor(() => {
@@ -125,8 +122,6 @@ describe('PracticeScreen Integration', () => {
     await waitFor(() => {
       expect(recordAttemptsMock).toHaveBeenCalled();
     });
-
-    randomSpy.mockRestore();
   });
 
   it('shows Retrying for recovered learning-stage cards after a refresh', async () => {
@@ -155,7 +150,7 @@ describe('PracticeScreen Integration', () => {
     const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
     getDueMock.mockResolvedValue([itemA, itemB]);
 
-    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.999);
 
     await render(<PracticeScreen />, { wrapper: Wrapper });
 
@@ -176,6 +171,32 @@ describe('PracticeScreen Integration', () => {
     expect(screen.getAllByText('1m').length).toBeGreaterThan(0);
     expect(screen.getAllByText('10m').length).toBeGreaterThan(0);
     expect(screen.queryByText('2.5d')).toBeNull();
+
+    randomSpy.mockRestore();
+  });
+
+  it('does not open the first due card in origin/add order', async () => {
+    const itemA: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-a',
+      lemma: 'alpha',
+      normalized_text: 'alpha',
+    };
+    const itemB: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-b',
+      lemma: 'beta',
+      normalized_text: 'beta',
+    };
+
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([itemA, itemB]);
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('beta')).toBeTruthy());
+    expect(screen.queryByText('alpha')).toBeNull();
 
     randomSpy.mockRestore();
   });
