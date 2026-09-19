@@ -13,6 +13,7 @@ Documentation for the Go + PostgreSQL backend.
 | [`backend-future-scope.md`](backend-future-scope.md) | Tables and features intentionally out of MVP |
 | [`oracle-deploy-runbook.md`](oracle-deploy-runbook.md) | Production deploy to Oracle Cloud k3s |
 | [`cursor-secrets.md`](cursor-secrets.md) | Runtime secrets via Cursor environment secrets |
+| [`db-s3-migration.md`](db-s3-migration.md) | Dump/restore Postgres values through AWS S3 (PC move) |
 | [`ghcr-deploy.md`](ghcr-deploy.md) | GHCR image publishing |
 | [`remote-deploy-runbook.md`](remote-deploy-runbook.md) | Redirect to Oracle deploy docs |
 

@@ -80,6 +80,15 @@ backend/.tmp/
 *.swo
 *~
 
+# Local database dump artifacts (scripts/db-dump-to-s3.sh --skip-upload)
+var/db-backups/
+*.dump
+*.dump.gz
+*.dump.zst
+*.dump.age
+*.dump.gz.age
+*.dump.zst.age
+
 # Cursor (optional local state; keep rules if you use them)
 # .cursor/
 

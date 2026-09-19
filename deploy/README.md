@@ -6,6 +6,7 @@ Production runs on **Oracle Cloud k3s**, not Docker Compose.
 |------|---------|
 | [`../backend/docs/oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md) | GHCR publish + k3s rollout on Oracle |
 | [`../backend/docs/cursor-secrets.md`](../backend/docs/cursor-secrets.md) | Runtime secrets via Cursor environment secrets |
+| [`../backend/docs/db-s3-migration.md`](../backend/docs/db-s3-migration.md) | Dump/restore Postgres values through AWS S3 |
 | [`../backend/docs/ghcr-deploy.md`](../backend/docs/ghcr-deploy.md) | GHCR image publishing details |
 | [`NETWORK_SETUP.md`](NETWORK_SETUP.md) | Oracle networking and TLS |
 | [`deploy-exception-runbook.md`](deploy-exception-runbook.md) | Common production failures |
