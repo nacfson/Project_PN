@@ -26,18 +26,40 @@ db_s3_repo_root() {
 
 db_s3_load_backend_env() {
   local root="$1"
+  local file=""
   if [[ -f "${root}/backend/.env" ]]; then
-    set -a
-    # shellcheck source=/dev/null
-    source "${root}/backend/.env"
-    set +a
+    file="${root}/backend/.env"
   elif [[ -f "${root}/backend/.env.example" ]]; then
     db_s3_log "backend/.env not found; loading backend/.env.example for DATABASE_URL defaults"
-    set -a
-    # shellcheck source=/dev/null
-    source "${root}/backend/.env.example"
-    set +a
+    file="${root}/backend/.env.example"
+  else
+    return 0
   fi
+
+  local -a preserve_keys=(
+    DATABASE_URL
+    S3_BACKUP_BUCKET S3_BACKUP_PREFIX S3_BACKUP_ENV
+    AWS_REGION AWS_DEFAULT_REGION AWS_PROFILE
+    AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+    S3_SSE S3_KMS_KEY_ID S3_ENDPOINT_URL AWS_ENDPOINT_URL
+    AGE_RECIPIENT AGE_IDENTITY_FILE
+  )
+  local -A saved=()
+  local k
+  for k in "${preserve_keys[@]}"; do
+    if [[ -n "${!k+x}" ]]; then
+      saved["$k"]="${!k}"
+    fi
+  done
+
+  set -a
+  # shellcheck source=/dev/null
+  source "$file"
+  set +a
+
+  for k in "${!saved[@]}"; do
+    export "$k=${saved[$k]}"
+  done
 }
 
 # Parse DATABASE_URL without printing it. Usage: db_s3_url_field <field>
