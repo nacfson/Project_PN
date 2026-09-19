@@ -88,6 +88,13 @@ s3://$S3_BACKUP_BUCKET/$S3_BACKUP_PREFIX/$S3_BACKUP_ENV/YYYY/MM/DD/<dbname>-<utc
 
 Scripts refuse a non-localhost `DATABASE_URL` unless you pass `--allow-remote`.
 
+A variable already exported in the shell wins over `backend/.env`. That lets you restore into a throwaway database without editing `.env`:
+
+```sh
+DATABASE_URL=postgres://project_pn:...@localhost:5433/project_pn_restore_test?sslmode=disable \
+  scripts/db-restore-from-s3.sh --latest --yes
+```
+
 ## Old machine (dump)
 
 ```sh
