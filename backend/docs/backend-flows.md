@@ -129,7 +129,7 @@ go run ./cmd/retranslate-senses -email 'you@example.com' -continue-on-error
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.
-5. App returns unfinished intra-day Learning/Relearning items first (no daily quota, including cards whose step interval has not elapsed yet), then Review items (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`). This recovers a failed-word retry queue if the user exits or refreshes mid-session.
+5. App returns unfinished intra-day Learning/Relearning items first (no daily quota, including cards whose step interval has not elapsed yet), then Review items (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`). This recovers a failed-word retry queue if the user exits or refreshes mid-session. Within the review-like group and the new-card group, items are shuffled and then interleaved by `word_id` so origin/add order cannot be memorized.
 6. User answers a prompt.
 7. App loads the user's `review_settings` and builds a `SchedulerConfig` (learning steps, relearning steps, desired retention, fuzz, FSRS weights).
 8. App calls `CalculateNextFSRSState` with the config, which applies Anki-style step logic:

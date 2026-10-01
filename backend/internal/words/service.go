@@ -1511,6 +1511,9 @@ func firstNonEmpty(values ...string) string {
 //  2. Review cards, up to reviews_per_day - reviews_done.
 //  3. New cards, up to new_cards_per_day - new_cards_done.
 //
+// Within the review-like group (1+2) and the new-card group (3), items are
+// shuffled and interleaved by WordID so origin/add order cannot be memorized.
+//
 // If deckID is provided, items are limited to that deck.
 // If origin is provided (`private` / `curriculum`) and deckID is empty, items
 // are limited to decks of that origin. Empty origin means all origins.
@@ -1722,12 +1725,13 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		return nil, err
 	}
 
-	// Interleave within due reviews and new cards separately; keep reviews first.
+	// Shuffle then interleave within due reviews and new cards separately so
+	// origin/add order cannot be memorized. Keep recovered retries+reviews first.
 	if reviewLikeCount > 1 {
-		items = append(interleaveDueItems(items[:reviewLikeCount]), items[reviewLikeCount:]...)
+		items = append(shuffleAndInterleaveDueItems(items[:reviewLikeCount]), items[reviewLikeCount:]...)
 	}
 	if len(items) > reviewLikeCount+1 {
-		items = append(items[:reviewLikeCount], interleaveDueItems(items[reviewLikeCount:])...)
+		items = append(items[:reviewLikeCount], shuffleAndInterleaveDueItems(items[reviewLikeCount:])...)
 	}
 
 	// Load example sentences for each due item.

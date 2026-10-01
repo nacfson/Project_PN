@@ -1,5 +1,24 @@
 package words
 
+import "math/rand/v2"
+
+// shuffleAndInterleaveDueItems randomizes card order, then round-robins
+// lemma families so consecutive cards avoid the same word. Origin/add
+// order is not preserved: retries and first-pass quizzes must test meaning,
+// not memorized sequence.
+func shuffleAndInterleaveDueItems(items []DueItem) []DueItem {
+	return shuffleAndInterleaveDueItemsWith(items, rand.Shuffle)
+}
+
+func shuffleAndInterleaveDueItemsWith(items []DueItem, shuffle func(n int, swap func(i, j int))) []DueItem {
+	if len(items) <= 1 {
+		return items
+	}
+	out := append([]DueItem(nil), items...)
+	shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return interleaveDueItems(out)
+}
+
 // interleaveDueItems round-robins items across WordID buckets so consecutive
 // cards avoid the same lemma family. Items from the same word with multiple
 // CEFR senses stay separated by cards from other words.

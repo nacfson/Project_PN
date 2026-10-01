@@ -1,10 +1,13 @@
 import type { DueItem } from '../../types';
 import {
   applyDueItemUpdatesToList,
+  insertRetryCard,
   learningPreviewFromSteps,
   mergeDueItemUpdate,
   optimisticDueItemAfterAgain,
+  practiceCardProgress,
   resolveDueItem,
+  shufflePracticeQueue,
 } from './practiceItemState';
 
 const baseItem: DueItem = {
@@ -98,5 +101,52 @@ describe('practiceItemState', () => {
     });
 
     expect(merged.preview_intervals?.again).toBe('1m');
+  });
+});
+
+describe('practice queue order', () => {
+  const card = (lemma: string, wordId = lemma): DueItem => ({
+    ...baseItem,
+    user_word_sense_id: `uws-${lemma}`,
+    word_sense_id: `ws-${lemma}`,
+    word_id: wordId,
+    lemma,
+    normalized_text: lemma,
+  });
+
+  it('shuffles origin/add order so first-pass quizzes are not sequence-memorized', () => {
+    const origin = [card('first'), card('second'), card('third'), card('fourth')];
+    const reversed = shufflePracticeQueue(origin, () => 0);
+    expect(reversed.map((item) => item.lemma)).not.toEqual(['first', 'second', 'third', 'fourth']);
+    expect(reversed.map((item) => item.lemma).sort()).toEqual(['first', 'fourth', 'second', 'third']);
+  });
+
+  it('keeps sibling senses from landing consecutively after a shuffle', () => {
+    const items = [card('run-1', 'run'), card('run-2', 'run'), card('go-1', 'go'), card('go-2', 'go')];
+    const got = shufflePracticeQueue(items, () => 0.999);
+    for (let i = 1; i < got.length; i += 1) {
+      expect(got[i - 1]?.word_id).not.toBe(got[i]?.word_id);
+    }
+  });
+
+  it('mixes a failed card into upcoming cards instead of appending in origin order', () => {
+    const queue = [card('a'), card('b'), card('c'), card('d')];
+    const retry = { ...card('a'), user_word_sense_id: 'retry-a' };
+
+    const mixed = insertRetryCard(queue, 1, retry, () => 0);
+    expect(mixed.map((item) => item.user_word_sense_id)).toEqual([
+      'uws-a',
+      'uws-c',
+      'uws-d',
+      'retry-a',
+      'uws-b',
+    ]);
+    expect(mixed[mixed.length - 1]?.user_word_sense_id).not.toBe('retry-a');
+  });
+
+  it('reports unique-card progress instead of origin slot numbers on retry', () => {
+    expect(practiceCardProgress([], 'a', 10)).toEqual({ current: 1, total: 10 });
+    expect(practiceCardProgress(['a', 'b'], 'c', 10)).toEqual({ current: 3, total: 10 });
+    expect(practiceCardProgress(['a', 'b', 'a'], 'a', 10)).toEqual({ current: 2, total: 10 });
   });
 });
