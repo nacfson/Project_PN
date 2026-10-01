@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -98,6 +99,9 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 		)
 
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return BatchReviewResult{}, fmt.Errorf("%w: %s", ErrReviewItemUnavailable, attempt.UserWordSenseID)
+			}
 			return BatchReviewResult{}, fmt.Errorf("words: fetch review state for %s: %w", attempt.UserWordSenseID, err)
 		}
 
@@ -303,6 +307,15 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 					Lemma:       lemma,
 				}),
 			})
+			updatedItems = append(updatedItems, BatchReviewItemUpdate{
+				UserWordSenseID: attempt.UserWordSenseID,
+				LearningStage:   nextStage,
+				DueAt:           dueAt,
+				Suspended:       true,
+				Leech:           true,
+				LapseCount:      nextState.LapseCount,
+				IsLeech:         true,
+			})
 		} else {
 			preview := PreviewIntervals(nextState, now, cfg)
 			updatedItems = append(updatedItems, BatchReviewItemUpdate{
@@ -310,6 +323,9 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 				LearningStage:    nextStage,
 				DueAt:            dueAt,
 				PreviewIntervals: &preview,
+				Leech:            isLeech,
+				LapseCount:       nextState.LapseCount,
+				IsLeech:          isLeech,
 			})
 		}
 	}

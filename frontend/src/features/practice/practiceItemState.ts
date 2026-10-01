@@ -41,22 +41,38 @@ export function mergeDueItemUpdate(item: DueItem, update: Partial<DueItem>): Due
 export function applyDueItemUpdatesToList(
   items: DueItem[],
   updates: BatchReviewItemUpdate[],
+  options?: { preserveIndexesBefore?: number },
 ): DueItem[] {
   if (updates.length === 0) {
     return items;
   }
   const byId = new Map(updates.map((update) => [update.user_word_sense_id, update]));
-  return items.map((item) => {
-    const update = byId.get(item.user_word_sense_id);
-    if (!update) {
-      return item;
-    }
-    return mergeDueItemUpdate(item, {
-      learning_stage: update.learning_stage,
-      due_at: update.due_at,
-      preview_intervals: update.preview_intervals,
+  const suspendedIds = new Set(
+    updates.filter((update) => update.suspended).map((update) => update.user_word_sense_id),
+  );
+  const preserveBefore = options?.preserveIndexesBefore ?? 0;
+
+  return items
+    .filter((item, idx) => {
+      if (!suspendedIds.has(item.user_word_sense_id)) {
+        return true;
+      }
+      // Keep already-graded slots so currentIndex stays valid; drop future copies.
+      return idx < preserveBefore;
+    })
+    .map((item) => {
+      const update = byId.get(item.user_word_sense_id);
+      if (!update || update.suspended) {
+        return item;
+      }
+      return mergeDueItemUpdate(item, {
+        learning_stage: update.learning_stage,
+        due_at: update.due_at,
+        preview_intervals: update.preview_intervals,
+        is_leech: Boolean(update.is_leech || update.leech || item.is_leech),
+        lapse_count: update.lapse_count ?? item.lapse_count,
+      });
     });
-  });
 }
 
 export function overridesFromBatchUpdates(
@@ -64,10 +80,15 @@ export function overridesFromBatchUpdates(
 ): Record<string, Partial<DueItem>> {
   const next: Record<string, Partial<DueItem>> = {};
   for (const update of updates) {
+    if (update.suspended) {
+      continue;
+    }
     next[update.user_word_sense_id] = {
       learning_stage: update.learning_stage,
       due_at: update.due_at,
       preview_intervals: update.preview_intervals,
+      is_leech: Boolean(update.is_leech || update.leech),
+      lapse_count: update.lapse_count,
     };
   }
   return next;

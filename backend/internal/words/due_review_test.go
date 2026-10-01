@@ -2,6 +2,7 @@ package words
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -181,5 +182,61 @@ func TestDueReviewRecoversLearningCardsWhenDailyQuotaExhausted(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("learning retry card missing from due list when daily quotas are exhausted")
+	}
+}
+
+func TestRecordBatchReviewUnavailableWhenSuspended(t *testing.T) {
+	pool := deckTestPool(t)
+	svc := deckTestService(t, pool)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("susp-%d", time.Now().UnixNano()))
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		update review_states set is_suspended = true where user_word_sense_id = $1::uuid
+	`, item.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.RecordBatchReviewAttempts(ctx, userID, []ReviewAttemptParams{{
+		UserWordSenseID: item.ID,
+		ActivityType:    "word_to_meaning",
+		IsCorrect:       true,
+		RatingScore:     2,
+	}})
+	if err == nil || !errors.Is(err, ErrReviewItemUnavailable) {
+		t.Fatalf("err=%v want ErrReviewItemUnavailable", err)
+	}
+}
+
+func TestListLearningItemsExcludesSuspended(t *testing.T) {
+	pool := deckTestPool(t)
+	svc := deckTestService(t, pool)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("listsusp-%d", time.Now().UnixNano()))
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		update review_states set is_suspended = true where user_word_sense_id = $1::uuid
+	`, item.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := svc.ListLearningItems(ctx, userID, ListLearningItemsParams{Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, listed := range page.Items {
+		if listed.ID == item.ID {
+			t.Fatal("suspended item still listed")
+		}
 	}
 }

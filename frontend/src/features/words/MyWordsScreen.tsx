@@ -461,6 +461,7 @@ export function MyWordsScreen() {
         <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm, flexWrap: 'wrap' }]}>
           <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
           <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
+          {item.is_leech ? <Badge label={t('words.stuckBadge')} variant="danger" /> : null}
           {item.deck_name ? (
             <Badge label={`📁 ${item.deck_name}`} variant="default" />
           ) : null}

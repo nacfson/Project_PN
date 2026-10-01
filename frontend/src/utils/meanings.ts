@@ -3,6 +3,7 @@ export type MeaningFields = {
   short_definition?: string | null;
   localized_definition?: string | null;
   localized_short_definition?: string | null;
+  personal_note?: string | null;
 };
 
 const HANGUL_TOKEN = /[\uAC00-\uD7A3]+/g;
@@ -139,9 +140,12 @@ export function uniqueText(
 
 /**
  * Single display gloss for Select Words, flashcard back, and word detail.
- * Prefers localized_short_definition → localized_definition → short_definition → definition.
+ * Prefers personal_note (user-authored) when set, then catalog localized/english glosses.
  */
 export function displayGloss(item: MeaningFields): string | null {
+  const personal = trimMeaning(item.personal_note);
+  if (personal) return personal;
+
   const localized = preferSimpleGloss(item.localized_short_definition, item.localized_definition);
   if (localized) return localized;
 

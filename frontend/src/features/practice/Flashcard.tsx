@@ -278,6 +278,7 @@ export function Flashcard({
     <View onLayout={handleFrontLayout} style={styles.measureColumn}>
       <Badge label={posBadgeLabel} variant={badgeVariant} />
       {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+      {item.is_leech && <Badge label={t('practice.leechBadge')} variant="danger" />}
       {cardMode === 'flashcard' ? (
         <>
           <View style={[styles.wordRow, { gap: spacing.sm }]}>
@@ -316,6 +317,8 @@ export function Flashcard({
   const backBody = (
     <View onLayout={handleBackLayout} style={styles.measureColumn}>
       <Badge label={posBadgeLabel} variant={badgeVariant} />
+      {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+      {item.is_leech && <Badge label={t('practice.leechBadge')} variant="danger" />}
       {cardMode === 'typing' && (
         <View style={[styles.wordRow, { gap: spacing.sm }]}>
           <Text variant="headline" style={[styles.wordText, { color: posColor }]}>
@@ -350,6 +353,11 @@ export function Flashcard({
       {gloss ? (
         <Text variant="headline" bold style={[styles.backDefinitionText, { color: posColor }]}>
           {gloss}
+        </Text>
+      ) : null}
+      {item.personal_note?.trim() ? (
+        <Text variant="caption" color="muted">
+          {t('practice.yourMeaning')}
         </Text>
       ) : null}
     </View>

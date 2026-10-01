@@ -99,4 +99,16 @@ describe('displayGloss / splitMeanings', () => {
       }),
     ).toBe('charge');
   });
+
+  it('prefers personal_note over catalog gloss', () => {
+    expect(
+      displayGloss({
+        personal_note: '내 뜻',
+        definition: 'to store energy',
+        short_definition: 'charge',
+        localized_definition: '충전하다',
+        localized_short_definition: '충전하다',
+      }),
+    ).toBe('내 뜻');
+  });
 });

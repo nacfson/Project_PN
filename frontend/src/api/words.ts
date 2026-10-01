@@ -2,6 +2,7 @@ import { DEFAULT_DEFINITION_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE } from '../conf
 import {
   addLearningItem as addLearningItemApi,
   changeLearningItemSense as changeLearningItemSenseApi,
+  setLearningItemPersonalNote as setLearningItemPersonalNoteApi,
   lookupWord as lookupWordApi,
 } from './client';
 import type { LearningItem, LookupResponse, PosFilter } from '@project-pn/api';
@@ -71,4 +72,8 @@ export async function changeLearningItemSense(
     analytics.track('api_request_failed', { action: 'sense_change', learning_item_id: itemId, error_code: 'UNKNOWN', retryable: false }, traceId);
     throw error;
   }
+}
+
+export async function setLearningItemPersonalNote(itemId: string, personalNote: string): Promise<LearningItem> {
+  return setLearningItemPersonalNoteApi(itemId, personalNote);
 }

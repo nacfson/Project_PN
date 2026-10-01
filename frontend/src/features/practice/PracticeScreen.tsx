@@ -28,11 +28,13 @@ import {
   listLearningItems,
   recordBatchReviewAttempts,
 } from '../../api/learningItems';
+import { ApiError } from '../../api/client';
 import { getReviewSettings } from '../../api/reviewSettings';
 import type { DueItem, LearningItemListItem, ReviewAttemptParams, ReviewSettings } from '../../types';
 import { Flashcard } from './Flashcard';
 import { Confetti } from '../../components/Confetti';
 import { CountUpText } from '../../components/CountUpText';
+import { ChangeMeaningSheet } from '../words/ChangeMeaningSheet';
 import {
   applyDueItemUpdatesToList,
   insertRetryCard,
@@ -102,6 +104,36 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
     meaning_order: item.meaning_order,
     learning_stage: item.learning_stage,
     due_at: item.due_at,
+    personal_note: item.personal_note,
+    lapse_count: item.lapse_count,
+    is_leech: item.is_leech,
+    examples: item.examples ?? [],
+  };
+}
+
+export function dueItemToListItem(item: DueItem): LearningItemListItem {
+  return {
+    id: item.user_word_sense_id,
+    word_sense_id: item.word_sense_id,
+    word_id: item.word_id,
+    language_code: item.language_code,
+    lemma: item.lemma,
+    normalized_text: item.normalized_text,
+    part_of_speech: item.part_of_speech,
+    pronunciation: item.pronunciation,
+    display_language_code: item.display_language_code,
+    definition: item.definition,
+    short_definition: item.short_definition,
+    localized_definition: item.localized_definition,
+    localized_short_definition: item.localized_short_definition,
+    cefr_level: item.cefr_level,
+    meaning_order: item.meaning_order,
+    learning_stage: item.learning_stage,
+    due_at: item.due_at,
+    added_at: item.due_at,
+    personal_note: item.personal_note,
+    lapse_count: item.lapse_count,
+    is_leech: item.is_leech,
     examples: item.examples ?? [],
   };
 }
@@ -162,9 +194,13 @@ export function PracticeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [sessionStuck, setSessionStuck] = useState<Record<string, DueItem>>({});
+  const [changeMeaningItem, setChangeMeaningItem] = useState<LearningItemListItem | null>(null);
+  const [preferPersonalNote, setPreferPersonalNote] = useState(false);
 
   const pendingRef = useRef<ReviewAttemptParams[]>([]);
   const flushingRef = useRef(false);
+  const currentIndexRef = useRef(0);
 
   const [exampleIndexMap, setExampleIndexMap] = useState<Record<string, number>>({});
   const [failedMap, setFailedMap] = useState<Record<string, boolean>>({});
@@ -200,6 +236,10 @@ export function PracticeScreen() {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     if (status !== 'active') return;
@@ -303,16 +343,85 @@ export function PracticeScreen() {
     const overrides = overridesFromBatchUpdates(updates);
     setItemOverrides((prev) => ({ ...prev, ...overrides }));
     setDueItems((prev) => applyDueItemUpdatesToList(prev, updates));
-    setQueue((prev) => applyDueItemUpdatesToList(prev, updates));
+    setQueue((prev) => {
+      const nextQueue = applyDueItemUpdatesToList(prev, updates, {
+        preserveIndexesBefore: currentIndexRef.current,
+      });
+      setSessionStuck((stuckPrev) => {
+        const nextStuck = { ...stuckPrev };
+        for (const update of updates) {
+          if (update.suspended || !(update.leech || update.is_leech)) {
+            continue;
+          }
+          const found =
+            nextQueue.find((item) => item.user_word_sense_id === update.user_word_sense_id) ??
+            prev.find((item) => item.user_word_sense_id === update.user_word_sense_id);
+          if (found) {
+            nextStuck[update.user_word_sense_id] = {
+              ...found,
+              is_leech: true,
+              lapse_count: update.lapse_count ?? found.lapse_count,
+            };
+          }
+        }
+        return nextStuck;
+      });
+      return nextQueue;
+    });
     setFailedMap((prev) => {
       const next = { ...prev };
       for (const update of updates) {
+        if (update.suspended) {
+          delete next[update.user_word_sense_id];
+          continue;
+        }
         if (update.learning_stage === 'learning') {
           next[update.user_word_sense_id] = true;
         }
       }
       return next;
     });
+  }, []);
+
+  const openChangeMeaning = useCallback((item: DueItem, preferPersonal: boolean) => {
+    setPreferPersonalNote(preferPersonal);
+    setChangeMeaningItem(dueItemToListItem(item));
+  }, []);
+
+  const handleMeaningChanged = useCallback((next: LearningItemListItem) => {
+    const duePatch: Partial<DueItem> = {
+      word_sense_id: next.word_sense_id,
+      definition: next.definition,
+      short_definition: next.short_definition,
+      localized_definition: next.localized_definition,
+      localized_short_definition: next.localized_short_definition,
+      examples: next.examples,
+      meaning_order: next.meaning_order,
+      personal_note: next.personal_note,
+      is_leech: next.is_leech,
+      lapse_count: next.lapse_count,
+    };
+    const id = next.id;
+    setItemOverrides((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], ...duePatch },
+    }));
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.user_word_sense_id === id ? { ...item, ...duePatch } : item,
+      ),
+    );
+    setDueItems((prev) =>
+      prev.map((item) =>
+        item.user_word_sense_id === id ? { ...item, ...duePatch } : item,
+      ),
+    );
+    setSessionStuck((prev) => {
+      const existing = prev[id];
+      if (!existing) return prev;
+      return { ...prev, [id]: { ...existing, ...duePatch } };
+    });
+    setChangeMeaningItem(null);
   }, []);
 
   const loadDueItems = useCallback(() => {
@@ -336,6 +445,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setItemOverrides({});
           setFailedMap(failedMapFromDueItems(shuffled));
+          setSessionStuck({});
           setExampleIndexMap({});
           setCardMode(decideCardMode(first));
           resetCardInteraction();
@@ -386,6 +496,7 @@ export function PracticeScreen() {
           setAttempts([]);
           setItemOverrides({});
           setFailedMap(failedMapFromDueItems(shuffled));
+          setSessionStuck({});
           setExampleIndexMap({});
           setCardMode(decideCardMode(first));
           resetCardInteraction();
@@ -423,10 +534,50 @@ export function PracticeScreen() {
         applyDueItemUpdates(res.updated_items);
       }
     } catch (err) {
-      analytics.track('review_failed', { attempt_count: toFlush.length, error_code: 'UNKNOWN', retryable: true }, traceId);
+      const apiErr =
+        err instanceof ApiError
+          ? err
+          : err &&
+              typeof err === 'object' &&
+              typeof (err as { status?: unknown }).status === 'number'
+            ? (err as ApiError)
+            : null;
+      // Network failures (status 0) and explicitly retryable server errors are requeued.
+      // Permanent failures (archived/suspended REV-409, validation 4xx) must not loop forever.
+      const retryable =
+        apiErr == null
+          ? true
+          : apiErr.status === 0 || apiErr.retryable === true;
+
+      analytics.track(
+        'review_failed',
+        {
+          attempt_count: toFlush.length,
+          error_code: apiErr?.code || 'UNKNOWN',
+          retryable,
+        },
+        traceId,
+      );
       console.error('Error flushing review attempts:', err);
-      pendingRef.current = [...toFlush, ...pendingRef.current];
-      setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+
+      if (retryable) {
+        pendingRef.current = [...toFlush, ...pendingRef.current];
+        setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+      } else {
+        const unavailableIds = new Set(toFlush.map((attempt) => attempt.user_word_sense_id));
+        const preserveBefore = currentIndexRef.current;
+        setQueue((prev) =>
+          prev.filter((item, idx) => idx < preserveBefore || !unavailableIds.has(item.user_word_sense_id)),
+        );
+        setFailedMap((prev) => {
+          const next = { ...prev };
+          for (const id of unavailableIds) {
+            delete next[id];
+          }
+          return next;
+        });
+        setSaveError(err instanceof Error ? err.message : t('practice.saveError'));
+      }
     } finally {
       flushingRef.current = false;
       setIsSaving(false);
@@ -447,16 +598,23 @@ export function PracticeScreen() {
   }, [flushPending]);
 
   useEffect(() => {
-    if (sessionMode === 'normal' && status === 'active' && queue.length > 0 && currentIndex === queue.length) {
-      waitForPendingFlushes()
-        .then(() => setStatus('success'))
-        .catch((err) => {
-          console.error('Error finishing session:', err);
-          setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
-          setStatus('error');
-        });
+    if (sessionMode !== 'normal' || status !== 'active') {
+      return;
     }
-  }, [currentIndex, queue.length, sessionMode, status, waitForPendingFlushes, t]);
+    const finishedQueue =
+      (queue.length > 0 && currentIndex >= queue.length) ||
+      (queue.length === 0 && currentIndexRef.current > 0 && attempts.length > 0);
+    if (!finishedQueue) {
+      return;
+    }
+    waitForPendingFlushes()
+      .then(() => setStatus('success'))
+      .catch((err) => {
+        console.error('Error finishing session:', err);
+        setErrorMsg(err instanceof Error ? err.message : t('practice.submitFailed'));
+        setStatus('error');
+      });
+  }, [attempts.length, currentIndex, queue.length, sessionMode, status, waitForPendingFlushes, t]);
 
   const selectGrade = (rating: Rating) => {
     const score = ratingScores[rating];
@@ -471,10 +629,18 @@ export function PracticeScreen() {
   };
 
   const confirmGrade = (overrideScore?: number) => {
-    const currentItem = queue[currentIndex];
-    if (!currentItem) return;
+    const rawItem = queue[currentIndex];
+    if (!rawItem) return;
+    const currentItem = resolveDueItem(rawItem, itemOverrides);
 
     const finalScore = overrideScore ?? ratingScore;
+
+    if (currentItem.is_leech) {
+      setSessionStuck((prev) => ({
+        ...prev,
+        [currentItem.user_word_sense_id]: currentItem,
+      }));
+    }
 
     const examplesList = currentItem.examples || [];
     const activeExIndex = exampleIndexMap[currentItem.user_word_sense_id] ?? 0;
@@ -511,10 +677,12 @@ export function PracticeScreen() {
 
     setAttempts((prev) => [...prev, attempt]);
     pendingRef.current.push(attempt);
+    // Advance the index ref before flush so non-retryable prune keeps graded slots.
+    const nextIndex = currentIndex + 1;
+    currentIndexRef.current = nextIndex;
     flushPending();
 
     const shouldRetry = finalScore < 0.75;
-    const nextIndex = currentIndex + 1;
 
     let gradedItem = currentItem;
     if (shouldRetry) {
@@ -549,7 +717,7 @@ export function PracticeScreen() {
       setCardMode(decideCardMode(nextItem));
     }
 
-    setCurrentIndex((prev) => prev + 1);
+    setCurrentIndex(nextIndex);
     resetCardInteraction();
   };
 
@@ -602,6 +770,7 @@ export function PracticeScreen() {
   }
 
   if (status === 'success') {
+    const stuckList = Object.values(sessionStuck);
     return (
       <Screen padded>
         <Confetti active={true} />
@@ -636,15 +805,66 @@ export function PracticeScreen() {
               {t('practice.progressSaved')}
             </Text>
           </Card>
+          {stuckList.length > 0 ? (
+            <Card glass={true} style={{ width: '100%', gap: spacing.sm }}>
+              <Text variant="title" bold>
+                {t('practice.stuckWords')}
+              </Text>
+              <Text variant="caption" color="muted">
+                {t('practice.stuckWordsHelp')}
+              </Text>
+              {stuckList.map((stuck) => (
+                <View
+                  key={stuck.user_word_sense_id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: spacing.sm,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+                    <Text variant="body" bold>
+                      {stuck.lemma}
+                    </Text>
+                    <Badge label={t('practice.leechBadge')} variant="danger" />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+                    <Button
+                      label={t('practice.changeMeaning')}
+                      variant="outline"
+                      onPress={() => openChangeMeaning(stuck, false)}
+                    />
+                    <Button
+                      label={t('practice.writeMyMeaning')}
+                      variant="tonal"
+                      onPress={() => openChangeMeaning(stuck, true)}
+                    />
+                  </View>
+                </View>
+              ))}
+            </Card>
+          ) : null}
           <Button
             label={t('practice.backHome')}
             style={{ width: '100%' }}
             onPress={() => {
               setStatus('idle');
+              setSessionStuck({});
               navigation.navigate('Learn');
             }}
           />
         </View>
+        {changeMeaningItem ? (
+          <ChangeMeaningSheet
+            visible
+            item={changeMeaningItem}
+            preferPersonalNote={preferPersonalNote}
+            onClose={() => setChangeMeaningItem(null)}
+            onChanged={handleMeaningChanged}
+          />
+        ) : null}
       </Screen>
     );
   }
@@ -945,6 +1165,15 @@ export function PracticeScreen() {
             />
           </Animated.View>
 
+          {currentItem.is_leech && isFlipped ? (
+            <Button
+              label={t('practice.changeMeaning')}
+              variant="ghost"
+              style={{ width: '100%', marginTop: spacing.sm }}
+              onPress={() => openChangeMeaning(currentItem, false)}
+            />
+          ) : null}
+
           {sessionMode === 'repeat' && !isFlipped && (
             <Button
               label={t('practice.finishRepeat')}
@@ -958,6 +1187,15 @@ export function PracticeScreen() {
         {answerBar}
         {gradingBar}
       </KeyboardAvoidingView>
+      {changeMeaningItem ? (
+        <ChangeMeaningSheet
+          visible
+          item={changeMeaningItem}
+          preferPersonalNote={preferPersonalNote}
+          onClose={() => setChangeMeaningItem(null)}
+          onChanged={handleMeaningChanged}
+        />
+      ) : null}
     </Screen>
   );
 }

@@ -490,7 +490,7 @@ review_settings
 - learning_steps integer[] not null default '{1,10}'       -- minutes
 - relearning_steps integer[] not null default '{10}'        -- minutes
 - leech_threshold integer not null default 8
-- leech_action text not null default 'suspend'              -- 'suspend' | 'tag'
+- leech_action text not null default 'tag'              -- 'suspend' | 'tag'
 - fuzz_enabled boolean not null default true
 - desired_retention double precision not null default 0.90
 - fsrs_weights double precision[] not null default '{...}'  -- 19 FSRS v4 weights

@@ -5,6 +5,7 @@ import { PracticeScreen } from './PracticeScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import * as learningItemsApi from '../../api/learningItems';
+import { ApiError } from '../../api/client';
 import type { DueItem } from '../../types';
 
 jest.mock('../../api/learningItems', () => ({
@@ -21,7 +22,7 @@ jest.mock('../../api/reviewSettings', () => ({
     learning_steps: [1, 10],
     relearning_steps: [10],
     leech_threshold: 8,
-    leech_action: 'suspend',
+    leech_action: 'tag',
     fuzz_enabled: true,
     desired_retention: 0.9,
     daily_goal_xp: 100,
@@ -197,6 +198,71 @@ describe('PracticeScreen Integration', () => {
 
     await waitFor(() => expect(screen.getByText('beta')).toBeTruthy());
     expect(screen.queryByText('alpha')).toBeNull();
+    randomSpy.mockRestore();
+  });
+
+  it('exits syncing when batch returns a non-retryable unavailable error', async () => {
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([mockItem]);
+
+    const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
+    recordAttemptsMock.mockRejectedValue(
+      new ApiError(409, 'review item is archived or suspended', 'REV-409', false),
+    );
+
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
+    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
+    fireEvent.press(screen.getByText('Good'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Practice Complete')).toBeTruthy();
+    });
+    expect(recordAttemptsMock.mock.calls.length).toBeLessThan(3);
+
+    randomSpy.mockRestore();
+  });
+
+  it('keeps leech cards in quiz with Fail repeatedly and shows Stuck words at session end', async () => {
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([{ ...mockItem, is_leech: true, lapse_count: 8 }]);
+
+    const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
+    recordAttemptsMock.mockResolvedValue({
+      xp_earned: 10,
+      success: true,
+      updated_items: [
+        {
+          user_word_sense_id: 'uws-1',
+          learning_stage: 'recognized',
+          due_at: '2026-06-30T00:00:00Z',
+          leech: true,
+          is_leech: true,
+          lapse_count: 8,
+        },
+      ],
+    });
+
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.0);
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
+    expect(screen.getAllByText('Fail repeatedly!').length).toBeGreaterThan(0);
+
+    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
+    expect(screen.getByText('Change meaning')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('Good'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Stuck words')).toBeTruthy();
+    });
+    expect(screen.getByText('Write my meaning')).toBeTruthy();
+    expect(screen.getByText('Practice Complete')).toBeTruthy();
 
     randomSpy.mockRestore();
   });

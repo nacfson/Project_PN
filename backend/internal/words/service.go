@@ -38,6 +38,7 @@ var (
 	ErrInvalidTargetLanguagePair = errors.New("words: user is not learning the requested target language")
 	ErrInvalidTargetLang         = errors.New("words: invalid target language")
 	ErrLearningItemNotFound      = errors.New("words: learning item not found")
+	ErrReviewItemUnavailable     = errors.New("words: review item unavailable")
 	ErrSenseConflict             = errors.New("words: sense_already_in_learning_set")
 	ErrSenseWrongWord            = errors.New("words: sense belongs to a different word")
 )
@@ -361,10 +362,15 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
 	}
 
+	// Re-adding an archived leech must clear suspend/bury so the card is
+	// schedulable again (batch + due + list all require is_suspended = false).
 	err = tx.QueryRow(ctx,
 		`insert into review_states (user_word_sense_id)
 		 values ($1::uuid)
-		 on conflict (user_word_sense_id) do update set updated_at = now()
+		 on conflict (user_word_sense_id) do update set
+		   is_suspended = false,
+		   buried_until = null,
+		   updated_at = now()
 		 returning due_at`,
 		item.ID,
 	).Scan(&item.DueAt)
@@ -589,20 +595,88 @@ func (s *Service) ArchiveLearningItems(ctx context.Context, userID string, itemI
 
 func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (LearningItem, error) {
 	var item LearningItem
+	var personalNote sql.NullString
 	err := s.pool.QueryRow(ctx, `
-		select uws.id::text, uws.word_sense_id::text, uws.learning_stage, rs.due_at
+		select uws.id::text, uws.word_sense_id::text, uws.learning_stage, rs.due_at, uws.personal_note
 		from user_word_senses uws
 		join review_states rs on rs.user_word_sense_id = uws.id
 		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
 		itemID, userID,
-	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.DueAt)
+	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.DueAt, &personalNote)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LearningItem{}, ErrLearningItemNotFound
 	}
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
 	}
+	if personalNote.Valid {
+		note := personalNote.String
+		item.PersonalNote = &note
+	}
 	return item, nil
+}
+
+// SetPersonalNote stores a user-authored gloss on the learning card only.
+// It never writes to global word_senses / sense_translations. Empty note clears.
+func (s *Service) SetPersonalNote(ctx context.Context, userID, itemID, note string) (LearningItem, error) {
+	itemID = strings.TrimSpace(itemID)
+	userID = strings.TrimSpace(userID)
+	if itemID == "" || userID == "" {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	note = strings.TrimSpace(note)
+
+	var prev sql.NullString
+	var wordSenseID, lemma string
+	err := s.pool.QueryRow(ctx, `
+		select uws.personal_note, uws.word_sense_id::text, w.normalized_text
+		from user_word_senses uws
+		join word_senses ws on ws.id = uws.word_sense_id
+		join words w on w.id = ws.word_id
+		where uws.id = $1::uuid and uws.user_id = $2::uuid and uws.archived_at is null`,
+		itemID, userID,
+	).Scan(&prev, &wordSenseID, &lemma)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: load personal note: %w", err)
+	}
+
+	prevVal := ""
+	if prev.Valid {
+		prevVal = prev.String
+	}
+	if prevVal == note {
+		return s.loadLearningItem(ctx, userID, itemID)
+	}
+
+	var noteArg any
+	if note == "" {
+		noteArg = nil
+	} else {
+		noteArg = note
+	}
+	if _, err := s.pool.Exec(ctx, `
+		update user_word_senses
+		set personal_note = $1, updated_at = now()
+		where id = $2::uuid and user_id = $3::uuid`,
+		noteArg, itemID, userID,
+	); err != nil {
+		return LearningItem{}, fmt.Errorf("words: set personal note: %w", err)
+	}
+
+	now := time.Now().UTC()
+	s.writeLearningLine(now, learninglog.RowPersonalMeaningSet(now, learninglog.PersonalMeaningSetParams{
+		UserID:       userID,
+		UWSID:        itemID,
+		WordSenseID:  wordSenseID,
+		Lemma:        lemma,
+		PersonalNote: note,
+		Cleared:      note == "",
+	}))
+
+	return s.loadLearningItem(ctx, userID, itemID)
 }
 
 // ListLearningItems returns active personal learning items with keyset pagination.
@@ -681,7 +755,8 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		        coalesce(st.short_definition, ws.short_definition),
 		        ws.cefr_level, ws.meaning_order,
 		        uws.learning_stage, rs.due_at, uws.added_at,
-		        uws.deck_id::text, d.name, rs.last_reviewed_at
+		        uws.deck_id::text, d.name, rs.last_reviewed_at,
+		        uws.personal_note, rs.lapse_count
 		 from user_word_senses uws
 		 join word_senses ws on ws.id = uws.word_sense_id
 		 join words w on w.id = ws.word_id
@@ -692,6 +767,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		 where uws.user_id = $1::uuid
 		   and w.language_code = $2
 		   and uws.archived_at is null
+		   and rs.is_suspended = false
 		   %s
 		   %s
 		   %s
@@ -706,9 +782,15 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	}
 	defer rows.Close()
 
+	settings, err := s.ensureReviewSettingsPool(ctx, userID)
+	if err != nil {
+		return LearningItemsPage{}, fmt.Errorf("words: load review settings: %w", err)
+	}
+
 	var items []LearningItemListItem
 	for rows.Next() {
 		var item LearningItemListItem
+		var personalNote sql.NullString
 		if err := rows.Scan(
 			&item.ID, &item.WordSenseID, &item.WordID,
 			&item.LanguageCode, &item.Lemma, &item.NormalizedText, &item.PartOfSpeech, &item.Pronunciation,
@@ -718,9 +800,15 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 			&item.CEFRLevel, &item.MeaningOrder,
 			&item.LearningStage, &item.DueAt, &item.AddedAt,
 			&item.DeckID, &item.DeckName, &item.LastReviewedAt,
+			&personalNote, &item.LapseCount,
 		); err != nil {
 			return LearningItemsPage{}, err
 		}
+		if personalNote.Valid {
+			note := personalNote.String
+			item.PersonalNote = &note
+		}
+		item.IsLeech = item.LapseCount >= settings.LeechThreshold
 		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
 			item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
 		)
@@ -1608,7 +1696,8 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		       rs.review_count, rs.lapse_count,
 		       rs.fsrs_state, rs.stability, rs.difficulty,
 		       rs.scheduled_days, rs.remaining_steps,
-		       rs.last_reviewed_at
+		       rs.last_reviewed_at,
+		       uws.personal_note
 		from user_word_senses uws
 		join word_senses ws on ws.id = uws.word_sense_id
 		join words w on w.id = ws.word_id
@@ -1638,6 +1727,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		var scheduledDays int
 		var remainingSteps int
 		var lastReviewedAt sql.NullTime
+		var personalNote sql.NullString
 
 		err := rows.Scan(
 			&item.UserWordSenseID, &item.WordSenseID, &item.WordID,
@@ -1652,6 +1742,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 			&fsrsState, &stability, &difficulty,
 			&scheduledDays, &remainingSteps,
 			&lastReviewedAt,
+			&personalNote,
 		)
 		if err != nil {
 			return err
@@ -1661,6 +1752,12 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		if lastReviewedAt.Valid {
 			reviewedAt = &lastReviewedAt.Time
 		}
+		if personalNote.Valid {
+			note := personalNote.String
+			item.PersonalNote = &note
+		}
+		item.LapseCount = lapseCount
+		item.IsLeech = lapseCount >= settings.LeechThreshold
 
 		if reviewCount > 0 && (stability <= 0 || difficulty <= 0) {
 			stability, difficulty = MemoryStateFromSM2(easeFactor, intervalDays)

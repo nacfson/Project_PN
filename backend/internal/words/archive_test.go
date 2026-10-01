@@ -140,3 +140,72 @@ func TestAddLearningItemUnarchivesOnConflict(t *testing.T) {
 		t.Fatal("expected archived_at cleared after re-add")
 	}
 }
+
+func TestAddLearningItemClearsSuspendOnReadd(t *testing.T) {
+	pool := deckTestPool(t)
+	ctx := context.Background()
+	userID, _ := deckTestUser(t, pool)
+	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	lemma := fmt.Sprintf("leechreadd%d", time.Now().UnixNano())
+	var wordID, senseID string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', $1, $1, 'noun') returning id::text
+	`, lemma).Scan(&wordID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'def', 1) returning id::text
+	`, wordID).Scan(&senseID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '테스트')
+	`, senseID); err != nil {
+		t.Fatal(err)
+	}
+
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		update review_states set is_suspended = true, lapse_count = 8 where user_word_sense_id = $1::uuid
+	`, item.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ArchiveLearningItems(ctx, userID, []string{item.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var suspended bool
+	if err := pool.QueryRow(ctx, `
+		select rs.is_suspended
+		from review_states rs
+		join user_word_senses uws on uws.id = rs.user_word_sense_id
+		where uws.id = $1::uuid and uws.archived_at is null
+	`, restored.ID).Scan(&suspended); err != nil {
+		t.Fatal(err)
+	}
+	if suspended {
+		t.Fatal("expected is_suspended cleared after re-add")
+	}
+
+	if _, err := svc.RecordBatchReviewAttempts(ctx, userID, []ReviewAttemptParams{{
+		UserWordSenseID: restored.ID,
+		ActivityType:    "word_to_meaning",
+		IsCorrect:       true,
+		RatingScore:     2,
+	}}); err != nil {
+		t.Fatalf("batch after re-add: %v", err)
+	}
+}

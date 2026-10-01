@@ -132,8 +132,9 @@ func (h *wordsHandler) addLearningItem(w http.ResponseWriter, r *http.Request) {
 }
 
 type changeLearningItemSenseRequest struct {
-	WordSenseID         string `json:"word_sense_id"`
-	DisplayLanguageCode string `json:"display_language_code"`
+	WordSenseID         string  `json:"word_sense_id"`
+	DisplayLanguageCode string  `json:"display_language_code"`
+	PersonalNote        *string `json:"personal_note"`
 }
 
 func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Request) {
@@ -147,15 +148,30 @@ func (h *wordsHandler) changeLearningItemSense(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if strings.TrimSpace(req.WordSenseID) == "" {
-		writeError(w, http.StatusBadRequest, "word_sense_id is required")
+
+	userID := userIDFromRequest(r)
+	hasSense := strings.TrimSpace(req.WordSenseID) != ""
+	hasNote := req.PersonalNote != nil
+	if !hasSense && !hasNote {
+		writeError(w, http.StatusBadRequest, "word_sense_id or personal_note is required")
 		return
 	}
 
-	item, err := h.svc.ChangeLearningItemSense(r.Context(), userIDFromRequest(r), itemID, req.WordSenseID, req.DisplayLanguageCode)
-	if err != nil {
-		h.writeServiceError(w, r, err)
-		return
+	var item words.LearningItem
+	var err error
+	if hasSense {
+		item, err = h.svc.ChangeLearningItemSense(r.Context(), userID, itemID, req.WordSenseID, req.DisplayLanguageCode)
+		if err != nil {
+			h.writeServiceError(w, r, err)
+			return
+		}
+	}
+	if hasNote {
+		item, err = h.svc.SetPersonalNote(r.Context(), userID, itemID, *req.PersonalNote)
+		if err != nil {
+			h.writeServiceError(w, r, err)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, item)
 }
@@ -258,6 +274,8 @@ func (h *wordsHandler) writeServiceError(w http.ResponseWriter, r *http.Request,
 		writeCodedError(w, http.StatusUnprocessableEntity, "ADD-302", "word sense not found", false)
 	case errors.Is(err, words.ErrLearningItemNotFound):
 		writeCodedError(w, http.StatusNotFound, "ADD-302", "learning item not found", false)
+	case errors.Is(err, words.ErrReviewItemUnavailable):
+		writeCodedError(w, http.StatusConflict, "REV-409", "review item is archived or suspended", false)
 	case errors.Is(err, words.ErrSenseConflict):
 		writeCodedError(w, http.StatusConflict, "ADD-308", "sense_already_in_learning_set", false)
 	case errors.Is(err, words.ErrSenseWrongWord):

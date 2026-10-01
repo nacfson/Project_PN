@@ -92,6 +92,25 @@ describe('practiceItemState', () => {
     expect(updated[0]?.preview_intervals?.good).toBe('10m');
   });
 
+  it('drops future suspended leech copies while preserving graded indexes', () => {
+    const futureCopy = { ...baseItem };
+    const other = { ...baseItem, user_word_sense_id: 'uws-2', lemma: 'other', normalized_text: 'other' };
+    const updated = applyDueItemUpdatesToList(
+      [baseItem, other, futureCopy],
+      [
+        {
+          user_word_sense_id: 'uws-1',
+          learning_stage: 'mastered',
+          due_at: '2026-06-29T00:01:00Z',
+          suspended: true,
+        },
+      ],
+      { preserveIndexesBefore: 1 },
+    );
+
+    expect(updated.map((item) => item.user_word_sense_id)).toEqual(['uws-1', 'uws-2']);
+  });
+
   it('resolves display item from override map', () => {
     const merged = resolveDueItem(baseItem, {
       'uws-1': mergeDueItemUpdate(baseItem, {

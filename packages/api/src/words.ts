@@ -58,3 +58,15 @@ export function changeLearningItemSense(
   }
   return patchJson<LearningItem>(`/api/learning-items/${itemId}`, body, { traceId });
 }
+
+export function setLearningItemPersonalNote(
+  itemId: string,
+  personalNote: string,
+  traceId?: string,
+): Promise<LearningItem> {
+  return patchJson<LearningItem>(
+    `/api/learning-items/${itemId}`,
+    { personal_note: personalNote },
+    { traceId },
+  );
+}
