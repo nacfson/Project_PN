@@ -43,7 +43,7 @@ describe('ManualAddScreen', () => {
   it('passes active targetLanguage to enqueue', async () => {
     await render(<ManualAddScreen />, { wrapper: Wrapper });
 
-    const input = screen.getByPlaceholderText('Type a word or phrase');
+    const input = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
 
     await act(async () => {
       fireEvent.changeText(input, '你好');

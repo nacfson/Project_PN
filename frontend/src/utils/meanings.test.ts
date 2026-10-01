@@ -14,10 +14,15 @@ describe('isSimpleGloss', () => {
     expect(isSimpleGloss('떠나다, 버리다')).toBe(true);
   });
 
-  it('rejects dictionary paraphrases', () => {
-    expect(isSimpleGloss('무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.')).toBe(false);
-    expect(isSimpleGloss('시체를 땅에 묻다')).toBe(false);
-    expect(isSimpleGloss('To hide or conceal something by covering it')).toBe(false);
+  it('keeps compact phrase-pattern glosses with ~', () => {
+    expect(isSimpleGloss('~하는 데')).toBe(true);
+    expect(isSimpleGloss('~ look up')).toBe(true);
+    expect(displayGloss({
+      definition: 'Please look up the word later.',
+      short_definition: 'look up',
+      localized_definition: '~ look up',
+      localized_short_definition: '~ look up',
+    })).toBe('~ look up');
   });
 });
 

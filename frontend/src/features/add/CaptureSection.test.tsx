@@ -82,6 +82,6 @@ describe('CaptureSection', () => {
 
     await waitFor(() => expect(screen.getByText('Add selected (1)')).toBeTruthy());
     fireEvent.press(screen.getByText('Add selected (1)'));
-    expect(enqueueMany).toHaveBeenCalledWith(['look up'], 'Any', 'deck-123', 'en');
+    expect(enqueueMany).toHaveBeenCalledWith(['look up'], 'phrase', 'deck-123', 'en');
   });
 });

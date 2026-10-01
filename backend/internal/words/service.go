@@ -135,6 +135,16 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	})
 	if err != nil {
 		s.logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
+		if enrich.IsMultiWordLemma(normalized) {
+			s.logf("PHRASE_DRAFT", "creating draft phrase sense for '%s' after enrich failure", normalized)
+			draft := phraseDraftEntry(normalized, posHint, sourceContext, defLangCode)
+			options, persistErr := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, []enrich.Entry{draft})
+			if persistErr != nil {
+				return LookupResult{}, persistErr
+			}
+			rankSenseOptions(options, sourceContext)
+			return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
+		}
 		return LookupResult{}, err
 	}
 

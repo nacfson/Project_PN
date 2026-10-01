@@ -97,7 +97,7 @@ describe('ManualAddSection', () => {
   it('looks up with sourceContext and confirms selected sense', async () => {
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word or phrase');
+    const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
     fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 
@@ -132,23 +132,53 @@ describe('ManualAddSection', () => {
     });
   });
 
-  it('allows multi-word phrases in the manual input', async () => {
+  it('auto-selects phrase POS and looks up multi-word input as a phrase', async () => {
+    (lookupWord as jest.Mock).mockResolvedValueOnce({
+      sense_options: [
+        {
+          word_id: 'w2',
+          word_sense_id: 'sense-phrase',
+          language_code: 'en',
+          lemma: 'look up',
+          normalized_text: 'look up',
+          part_of_speech: 'phrase',
+          pronunciation: null,
+          display_language_code: 'ko',
+          definition: 'to search for information',
+          short_definition: 'search for',
+          localized_definition: '~을 찾아보다',
+          localized_short_definition: '~을 찾아보다',
+          cefr_level: 'A2',
+          meaning_order: 1,
+          examples: [],
+        },
+      ],
+    });
+
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word or phrase');
+    const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
     fireEvent.changeText(wordInput, 'look up');
     await waitFor(() => expect(wordInput.props.value).toBe('look up'));
-    fireEvent(wordInput, 'blur');
+    await waitFor(() => expect(screen.getByText('phrase')).toBeTruthy());
+
+    fireEvent.press(screen.getByText('Find my sense'));
+
     await waitFor(() => {
-      expect(screen.queryByText('Please enter a valid word or phrase.')).toBeNull();
+      expect(lookupWord).toHaveBeenCalledWith(
+        'look up',
+        expect.objectContaining({
+          partOfSpeech: 'phrase',
+          languageCode: 'en',
+        }),
+      );
     });
-    expect(screen.getByText('Find my sense')).not.toBeDisabled();
   });
 
   it('validates fields on blur', async () => {
     await renderSection();
 
-    const input = screen.getByPlaceholderText('Type a word or phrase');
+    const input = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
     fireEvent.changeText(input, 'hello123');
     await waitFor(() => {
       expect(input.props.value).toBe('hello123');

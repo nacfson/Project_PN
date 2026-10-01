@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
 import { WordChip } from '../components/WordChip';
@@ -10,14 +10,28 @@ import type { PosFilter } from '../types';
 
 import { useActiveTargetLanguage } from '../hooks/useActiveTargetLanguage';
 
+function isMultiWord(text: string): boolean {
+  return text.trim().split(/\s+/).filter(Boolean).length > 1;
+}
+
 export function ManualAddScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
+  const [posTouched, setPosTouched] = useState(false);
   const [added, setAdded] = useState<string[]>([]);
   const { enqueue, statusOf } = useAddQueue();
   const { targetLanguage } = useActiveTargetLanguage();
+
+  useEffect(() => {
+    if (posTouched) return;
+    if (isMultiWord(word)) {
+      setPos('phrase');
+    } else if (pos === 'phrase') {
+      setPos('Any');
+    }
+  }, [word, pos, posTouched]);
 
   const submit = () => {
     const trimmed = word.trim();
@@ -25,9 +39,12 @@ export function ManualAddScreen() {
       return;
     }
 
-    enqueue(trimmed, pos, undefined, targetLanguage ?? undefined);
+    const lookupPos: PosFilter = !posTouched && isMultiWord(trimmed) ? 'phrase' : pos;
+    enqueue(trimmed, lookupPos, undefined, targetLanguage ?? undefined);
     setAdded((prev) => [trimmed, ...prev.filter((entry) => entry !== trimmed)]);
     setWord('');
+    setPosTouched(false);
+    setPos('Any');
   };
 
   return (
@@ -35,17 +52,21 @@ export function ManualAddScreen() {
       <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
         <View style={{ gap: spacing.sm }}>
           <Text variant="label" color="muted">
-            {t('add.word')}
+            {t('add.addWordOrPhrase')}
           </Text>
           <Input
             value={word}
             onChangeText={setWord}
-            placeholder={t('add.wordPlaceholder')}
+            placeholder={t('add.phrasePlaceholder')}
             autoCapitalize="none"
             autoCorrect={false}
             onSubmitEditing={submit}
             returnKeyType="search"
-            onClear={() => setWord('')}
+            onClear={() => {
+              setWord('');
+              setPosTouched(false);
+              setPos('Any');
+            }}
           />
         </View>
 
@@ -53,7 +74,13 @@ export function ManualAddScreen() {
           <Text variant="label" color="muted">
             {t('add.partOfSpeechOptional')}
           </Text>
-          <PosSelector value={pos} onChange={setPos} />
+          <PosSelector
+            value={pos}
+            onChange={(next) => {
+              setPosTouched(true);
+              setPos(next);
+            }}
+          />
         </View>
 
         <Button

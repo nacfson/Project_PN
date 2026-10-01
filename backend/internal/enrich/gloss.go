@@ -25,12 +25,41 @@ func IsMultiWordLemma(text string) bool {
 	return len(strings.Fields(strings.TrimSpace(text))) > 1
 }
 
+// IsPhrasePatternGloss reports compact multi-word / function-expression glosses
+// such as "~하는 데", "~인 경우에", "~하는 방식으로". These are valid for phrases
+// but must not be hollow-extracted to a trailing token like "데".
+func IsPhrasePatternGloss(text string) bool {
+	value := trimMeaning(text)
+	if value == "" {
+		return false
+	}
+	if !strings.Contains(value, "~") && !strings.Contains(value, "…") {
+		return false
+	}
+	korean := hangulTokens(value)
+	if len(korean) == 0 || len(korean) > 4 {
+		return false
+	}
+	if utf8.RuneCountInString(value) > 40 {
+		return false
+	}
+	// Reject long dictionary-style paraphrases that happen to include "~".
+	if strings.Contains(value, "무엇을") || strings.Contains(value, "등으로") {
+		return false
+	}
+	return true
+}
+
 // IsSimpleGloss reports whether text is already a short headword-style gloss
-// (덮다, 사과, "leave behind") rather than a dictionary paraphrase.
+// (덮다, 사과, "leave behind") or a compact phrase pattern ("~하는 데"),
+// rather than a dictionary paraphrase.
 func IsSimpleGloss(text string) bool {
 	value := trimMeaning(text)
 	if value == "" {
 		return false
+	}
+	if IsPhrasePatternGloss(value) {
+		return true
 	}
 	korean := hangulTokens(value)
 	if len(korean) == 1 {
@@ -93,7 +122,7 @@ func ExtractKoreanHeadword(text string) string {
 
 // PreferSimpleGloss returns a 1–3 word headword when short or full text is a
 // long dictionary explanation. Korean extracts the final predicate; English
-// strips a leading "To ".
+// strips a leading "To ". Phrase-pattern glosses with "~" / "…" are kept intact.
 func PreferSimpleGloss(shortText, fullText string) string {
 	shortValue := trimMeaning(shortText)
 	if IsSimpleGloss(shortValue) {
@@ -103,13 +132,18 @@ func PreferSimpleGloss(shortText, fullText string) string {
 	if IsSimpleGloss(fullValue) {
 		return fullValue
 	}
-	if head := ExtractKoreanHeadword(firstNonEmpty(shortValue, fullValue)); head != "" {
+	combined := firstNonEmpty(shortValue, fullValue)
+	// Do not hollow-extract "~하는 데" → "데".
+	if strings.Contains(combined, "~") || strings.Contains(combined, "…") {
+		return combined
+	}
+	if head := ExtractKoreanHeadword(combined); head != "" {
 		return head
 	}
-	if verb := simplifyEnglishGloss(firstNonEmpty(shortValue, fullValue)); verb != "" {
+	if verb := simplifyEnglishGloss(combined); verb != "" {
 		return verb
 	}
-	return firstNonEmpty(shortValue, fullValue)
+	return combined
 }
 
 // PreferSimpleGlossForLemma prefers headword simplification for single words,

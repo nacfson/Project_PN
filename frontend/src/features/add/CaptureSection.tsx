@@ -76,7 +76,11 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
     }
     const texts = spans.map((s) => s.text);
     void recordCapturedWords(texts);
-    enqueueMany(texts, pos, selectedDeckId, targetLanguage);
+    const lookupPos: PosFilter =
+      pos === 'Any' && texts.every((text) => text.trim().split(/\s+/).filter(Boolean).length > 1)
+        ? 'phrase'
+        : pos;
+    enqueueMany(texts, lookupPos, selectedDeckId, targetLanguage);
   };
 
   const selectedList = selected;
@@ -155,6 +159,9 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
                 </Text>
               </Pressable>
             </View>
+            <Text variant="caption" color="muted">
+              {t('add.phraseSelectHint')}
+            </Text>
             <Card>
               <TappablePassage
                 text={passage}
