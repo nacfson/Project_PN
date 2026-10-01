@@ -15,6 +15,7 @@ const OPTIONS: PosFilter[] = [
   'conjunction',
   'interjection',
   'determiner',
+  'phrase',
 ];
 
 interface PosSelectorProps {

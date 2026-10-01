@@ -182,7 +182,7 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 	if err != nil {
 		return LookupResult{}, err
 	}
-	result.Entries = filterForceEntries(result.Entries, matchTexts, defLangCode)
+	result.Entries = filterForceEntries(result.Entries, matchTexts, defLangCode, normalized)
 	if !entriesHaveSenses(result.Entries) {
 		return LookupResult{}, ErrNoAdditionalSense
 	}
@@ -239,7 +239,7 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 			newSenses = append(newSenses, e.Senses...)
 		}
 	}
-	newSenses = enrich.FilterProperSenses(matchTexts, newSenses, defLangCode)
+	newSenses = enrich.FilterProperSenses(matchTexts, newSenses, defLangCode, normalized)
 	if len(newSenses) == 0 {
 		return LookupResult{}, ErrNoAdditionalSense
 	}
@@ -712,7 +712,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 			return LearningItemsPage{}, err
 		}
 		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
-			item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
+			item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
 		)
 		items = append(items, item)
 	}
@@ -946,11 +946,12 @@ func (s *Service) existingSenseMatchTextsByIdentity(ctx context.Context, langCod
 	return collectSenseMatchTexts(rows)
 }
 
-func filterForceEntries(entries []enrich.Entry, existing []string, displayLang string) []enrich.Entry {
+func filterForceEntries(entries []enrich.Entry, existing []string, displayLang, lemma string) []enrich.Entry {
 	matchTexts := append([]string{}, existing...)
 	out := make([]enrich.Entry, 0, len(entries))
 	for _, entry := range entries {
-		kept := enrich.FilterProperSenses(matchTexts, entry.Senses, displayLang)
+		entryLemma := firstNonEmpty(entry.Lemma, lemma)
+		kept := enrich.FilterProperSenses(matchTexts, entry.Senses, displayLang, entryLemma)
 		if len(kept) == 0 {
 			continue
 		}
@@ -1237,6 +1238,9 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 		if pos == "" || len(entry.Senses) == 0 {
 			continue
 		}
+		if enrich.IsMultiWordLemma(normalized) {
+			pos = "phrase"
+		}
 
 		var wordID string
 		var inserted bool
@@ -1411,7 +1415,7 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string, displayL
 			o.LocalizedShortDefinition = translatedShort
 		}
 		o.ShortDefinition, o.LocalizedShortDefinition = polishSenseGlosses(
-			o.ShortDefinition, o.LocalizedShortDefinition, o.Definition, o.LocalizedDefinition,
+			o.Lemma, o.ShortDefinition, o.LocalizedShortDefinition, o.Definition, o.LocalizedDefinition,
 		)
 		options = append(options, o)
 	}
@@ -1484,9 +1488,9 @@ func optionalGloss(value string) *string {
 	return &value
 }
 
-func polishSenseGlosses(short *string, localizedShort *string, definition, localizedDefinition string) (*string, *string) {
-	return optionalGloss(enrich.PreferSimpleGloss(derefString(short), definition)),
-		optionalGloss(enrich.PreferSimpleGloss(derefString(localizedShort), localizedDefinition))
+func polishSenseGlosses(lemma string, short *string, localizedShort *string, definition, localizedDefinition string) (*string, *string) {
+	return optionalGloss(enrich.PreferSimpleGlossForLemma(lemma, derefString(short), definition)),
+		optionalGloss(enrich.PreferSimpleGlossForLemma(lemma, derefString(localizedShort), localizedDefinition))
 }
 
 func firstNonEmpty(values ...string) string {
@@ -1656,7 +1660,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		}
 
 		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
-			item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
+			item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
 		)
 
 		state := FSRSState{

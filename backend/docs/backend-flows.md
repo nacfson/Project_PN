@@ -71,7 +71,7 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 6. In one transaction, upsert `words`, run `FilterProperSenses` on each entry (same criteria as Force-Generate step 4: simple display-language gloss uniqueness vs existing catalog text and others in the batch), then `appendSenses` for survivors (canonical text + display gloss in `sense_translations`). Entries that filter to empty are skipped; if every entry is empty, return no senses (do not leave empty `words` rows from this miss). Words enriched before this filter may still show duplicate-looking cards until cleaned or force-regenerated.
 7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard (definition + localized gloss, excluding the lemma and English stopwords so headword restatements do not dominate) and sets `similarity` on each option. Stored `meaning_order` is unchanged.
 
-If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases may miss on public WiktApi.
+If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503. Multi-word phrases may miss on public WiktApi; when the LLM fallback is configured it uses phrase-specific gloss rules. Phrases are stored as normal `words` rows (`normalized_text` keeps spaces, e.g. `in which`) with `part_of_speech = 'phrase'` (enrichment/persist coerce multi-word lemmas away from noun/verb tags). Manual add and passage phrase-mode can submit multi-word lemmas the same way as single words.
 
 ## Force-Generate Flow (none of these match)
 

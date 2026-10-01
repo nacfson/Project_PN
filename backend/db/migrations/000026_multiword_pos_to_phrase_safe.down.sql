@@ -1,0 +1,2 @@
+-- No reliable reverse: prior POS values for multi-word lemmas are not retained.
+-- Intentionally empty.

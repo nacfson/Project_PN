@@ -50,3 +50,35 @@ func TestPreferSimpleGloss(t *testing.T) {
 		t.Fatalf("english infinitive: got %q", got)
 	}
 }
+
+func TestPreferSimpleGlossForLemmaKeepsPhrasePattern(t *testing.T) {
+	if got := PreferSimpleGlossForLemma("in which", "~하는 데", "관계대명사처럼 쓰이는 표현"); got != "~하는 데" {
+		t.Fatalf("phrase short kept: got %q", got)
+	}
+	// Single-word lemma still extracts the last Hangul token.
+	if got := PreferSimpleGlossForLemma("cover", "무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.", ""); got != "감추다" {
+		t.Fatalf("single-word extract: got %q", got)
+	}
+	if got := PreferSimpleGlossForLemma("leave behind", "남겨 두다", "뒤에 남겨 두다"); got != "남겨 두다" {
+		t.Fatalf("leave behind: got %q", got)
+	}
+}
+
+func TestIsSimplePhraseGloss(t *testing.T) {
+	ok := []string{"~하는 데", "그곳에서", "~인 경우에", "남겨 두다", "where"}
+	for _, s := range ok {
+		if !IsSimplePhraseGloss(s) {
+			t.Errorf("IsSimplePhraseGloss(%q) = false, want true", s)
+		}
+	}
+	bad := []string{
+		"무엇을 흙이나 눈 등으로 덮어 보이지 않게 감추다.",
+		"To hide or conceal something by covering it",
+	}
+	for _, s := range bad {
+		if IsSimplePhraseGloss(s) {
+			t.Errorf("IsSimplePhraseGloss(%q) = true, want false", s)
+		}
+	}
+}
+

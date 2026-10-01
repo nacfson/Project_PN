@@ -29,7 +29,8 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState<SenseOption[]>([]);
-  const [generating, setGenerating] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestPosPrompt, setSuggestPosPrompt] = useState(false);
 
@@ -38,6 +39,9 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const lastSourceContext = useRef('');
   const lastLanguageCode = useRef<string | undefined>(undefined);
   const lastDeckId = useRef<string | undefined>(undefined);
+  const callbacksRef = useRef(callbacks);
+  callbacksRef.current = callbacks;
+  const confirmingRef = useRef(false);
 
   const lookup = useCallback(
     async (
@@ -59,7 +63,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       setQuery(trimmed);
       setError(null);
       setSuggestPosPrompt(false);
-      setGenerating(true);
+      setLookingUp(true);
       setOptions([]);
       setPickerVisible(true);
       try {
@@ -81,7 +85,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         }
         return false;
       } finally {
-        setGenerating(false);
+        setLookingUp(false);
       }
     },
     [t],
@@ -99,7 +103,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
     async (wordId: string, sourceContext?: string) => {
       setError(null);
       setSuggestPosPrompt(false);
-      setGenerating(true);
+      setLookingUp(true);
       try {
         const context = rememberContext(sourceContext);
         const response = await lookupWord(lastText.current, {
@@ -117,7 +121,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           setError(messageOf(err, t));
         }
       } finally {
-        setGenerating(false);
+        setLookingUp(false);
       }
     },
     [t],
@@ -127,7 +131,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
     async (pos: PartOfSpeech, sourceContext?: string) => {
       setError(null);
       setSuggestPosPrompt(false);
-      setGenerating(true);
+      setLookingUp(true);
       try {
         const context = rememberContext(sourceContext);
         const response = await lookupWord(lastText.current, {
@@ -145,7 +149,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           setError(messageOf(err, t));
         }
       } finally {
-        setGenerating(false);
+        setLookingUp(false);
       }
     },
     [t],
@@ -153,8 +157,12 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
 
   const confirm = useCallback(
     async (wordSenseId: string, deckId?: string, sourceContext?: string) => {
+      if (confirmingRef.current) {
+        return;
+      }
       setError(null);
-      setGenerating(true);
+      confirmingRef.current = true;
+      setConfirming(true);
       try {
         const resolvedDeck = deckId ?? lastDeckId.current;
         const resolvedContext = (sourceContext ?? lastSourceContext.current).trim();
@@ -165,26 +173,37 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           resolvedContext || undefined,
         );
         setPickerVisible(false);
-        callbacks.onAdded?.(wordSenseId);
+        callbacksRef.current.onAdded?.(wordSenseId);
       } catch (err) {
         setError(messageOf(err, t));
       } finally {
-        setGenerating(false);
+        confirmingRef.current = false;
+        setConfirming(false);
       }
     },
-    [callbacks, t],
+    [t],
   );
 
   const close = useCallback(() => {
+    // Keep the picker open while confirming so loading cannot stick on the Find button.
+    if (confirmingRef.current) {
+      return;
+    }
+    setLookingUp(false);
     setPickerVisible(false);
-    callbacks.onDismiss?.();
-  }, [callbacks]);
+    callbacksRef.current.onDismiss?.();
+  }, []);
 
   return {
     pickerVisible,
     query,
     options,
-    generating,
+    /** True while lookup / force-generate is in flight (SensePicker list spinner). */
+    lookingUp,
+    /** True while addLearningItem is in flight (SensePicker Add button spinner). */
+    confirming,
+    /** Backward-compatible busy flag for callers that only need “any spinner”. */
+    generating: lookingUp || confirming,
     error,
     suggestPosPrompt,
     lookup,

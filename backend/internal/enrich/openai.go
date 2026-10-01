@@ -47,7 +47,7 @@ var validDifficulty = map[string]bool{
 var validPartOfSpeech = map[string]bool{
 	"noun": true, "verb": true, "adjective": true, "adverb": true,
 	"pronoun": true, "preposition": true, "conjunction": true,
-	"interjection": true, "determiner": true,
+	"interjection": true, "determiner": true, "phrase": true,
 }
 
 // OpenAIEnricher calls an OpenAI-compatible /chat/completions endpoint.
@@ -301,6 +301,9 @@ func parseModelOutput(req Request, content string) (Result, error) {
 		if normalizeModelWord(lemma) != expectedText {
 			return Result{}, fmt.Errorf("%w: lemma mismatch: got %q, want %q", ErrInvalidOutput, lemma, expectedText)
 		}
+		if IsMultiWordLemma(lemma) || IsMultiWordLemma(req.Text) {
+			pos = "phrase"
+		}
 		e := Entry{
 			Lemma:         lemma,
 			PartOfSpeech:  pos,
@@ -317,7 +320,7 @@ func parseModelOutput(req Request, content string) (Result, error) {
 			}
 			sense := Sense{
 				Definition:      def,
-				ShortDefinition: PreferSimpleGloss(strings.TrimSpace(s.ShortDefinition), def),
+				ShortDefinition: PreferSimpleGlossForLemma(lemma, strings.TrimSpace(s.ShortDefinition), def),
 				CEFRLevel:       cefr,
 			}
 			nativeDef := strings.TrimSpace(s.NativeDefinition)
@@ -325,7 +328,7 @@ func parseModelOutput(req Request, content string) (Result, error) {
 				sense.NativeDefinition = nativeDef
 				nativeShort := strings.TrimSpace(s.NativeShortDefinition)
 				if ValidTranslation(req.DefinitionLanguageCode, sense.ShortDefinition, nativeShort) || nativeShort == "" {
-					sense.NativeShortDefinition = PreferSimpleGloss(nativeShort, nativeDef)
+					sense.NativeShortDefinition = PreferSimpleGlossForLemma(lemma, nativeShort, nativeDef)
 				}
 			}
 			var keptExamples []Example
@@ -404,7 +407,7 @@ func parseTranslateOutput(req TranslateRequest, content string) (TranslateResult
 			senseResult.Definition = def
 			shortDef := strings.TrimSpace(modelSense.ShortDefinition)
 			if shortDef == "" || ValidTranslation(req.DisplayLang, inputSense.ShortDefinition, shortDef) {
-				senseResult.ShortDefinition = PreferSimpleGloss(shortDef, def)
+				senseResult.ShortDefinition = PreferSimpleGlossForLemma(req.WordText, shortDef, def)
 			}
 		} else if def != "" {
 			slog.Warn("enrich: dropped invalid sense translation",
@@ -479,7 +482,7 @@ const systemPrompt = `You are a precise bilingual lexicographer. ` +
   "entries": [
     {
       "lemma": string,
-      "part_of_speech": "noun"|"verb"|"adjective"|"adverb"|"pronoun"|"preposition"|"conjunction"|"interjection"|"determiner",
+      "part_of_speech": "noun"|"verb"|"adjective"|"adverb"|"pronoun"|"preposition"|"conjunction"|"interjection"|"determiner"|"phrase",
       "pronunciation": string,
       "senses": [
         {
@@ -518,10 +521,6 @@ const translateSystemPrompt = `You are a precise bilingual lexicographer. ` +
   ]
 }`
 
-func isMultiWordLemma(text string) bool {
-	return len(strings.Fields(strings.TrimSpace(text))) > 1
-}
-
 func appendGrammarLabelBan(b *strings.Builder) {
 	b.WriteString("NEVER use grammatical category names or meta labels as short_definition or native_short_definition.\n")
 	b.WriteString("Forbidden Korean examples: 관계대명사, 관계부사, 대명사, 부사, 접속사, 전치사, 조사.\n")
@@ -532,6 +531,7 @@ func appendGrammarLabelBan(b *strings.Builder) {
 
 func appendPhraseGlossRules(b *strings.Builder, sourceContext string) {
 	b.WriteString("This is a multi-word phrase / function expression, not a single headword.\n")
+	b.WriteString("part_of_speech MUST be exactly \"phrase\" (do not use noun/verb/adjective for multi-word lemmas).\n")
 	b.WriteString("native_short_definition should be a short usage gloss (1-4 words or a compact pattern): ~하는 데, 그곳에서, ~인 경우에, ~하는 방식으로.\n")
 	b.WriteString("For multi-word phrases, compact ~… usage patterns ARE allowed in native_short_definition (unlike single-word headwords).\n")
 	b.WriteString("Return 2-4 clearly distinct functional senses; do not duplicate the same grammar label across senses.\n")
@@ -573,7 +573,7 @@ func buildUserPrompt(req Request) string {
 
 	b.WriteString("Provide mutually distinct senses (different intents); do not emit near-synonym gloss pairs as separate senses.\n")
 	b.WriteString("Provide exactly one example sentence per sense.\n")
-	if isMultiWordLemma(req.Text) {
+	if IsMultiWordLemma(req.Text) {
 		b.WriteString("short_definition must be a simple 1-3 word functional gloss in the word's language (where, wherein, by which means) — not a sentence and not a grammar-class label.\n")
 		appendPhraseGlossRules(&b, strings.TrimSpace(req.SourceContext))
 	} else {
@@ -592,7 +592,7 @@ func buildTranslatePrompt(req TranslateRequest) string {
 	fmt.Fprintf(&b, "Translate into display language code: %s\n", req.DisplayLang)
 	b.WriteString("Return one senses[] entry per input sense below, in the same order, with one examples[] translation per input example.\n")
 	b.WriteString("definition is the fuller current meaning in the display language.\n")
-	if isMultiWordLemma(req.WordText) {
+	if IsMultiWordLemma(req.WordText) {
 		b.WriteString("short_definition must be a simple functional gloss in the display language (~하는 데, 그곳에서) — not a full explanatory translation.\n")
 		b.WriteString("For this multi-word phrase, compact ~… usage patterns ARE allowed in short_definition.\n")
 	} else {

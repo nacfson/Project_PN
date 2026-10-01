@@ -58,6 +58,44 @@ func TestWiktAPIEnrichMapsKoreanGlosses(t *testing.T) {
 	}
 }
 
+func TestWiktAPIEnrichCoercesMultiWordToPhrase(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/word/rule%20of%20thumb/translations") &&
+			!strings.Contains(r.URL.Path, "/word/rule of thumb/translations") {
+			// PathEscape encodes spaces as %20
+			if !strings.Contains(r.URL.EscapedPath(), "rule") {
+				http.NotFound(w, r)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"word": "rule of thumb",
+			"edition": "en",
+			"translations": [
+				{"pos": "noun", "lang_code": "en", "translations": [
+					{"lang": "Korean", "code": "ko", "lang_code": "ko", "sense": "practical method", "word": "경험칙"}
+				]}
+			]
+		}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewWiktAPI(srv.URL)
+	result, err := client.Enrich(context.Background(), Request{
+		Text:                   "rule of thumb",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if err != nil {
+		t.Fatalf("Enrich: %v", err)
+	}
+	if len(result.Entries) != 1 || result.Entries[0].PartOfSpeech != "phrase" {
+		t.Fatalf("expected phrase POS for multi-word lemma, got %+v", result.Entries)
+	}
+}
+
 func TestWiktAPIEnrichSkipsExistingAnd404(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

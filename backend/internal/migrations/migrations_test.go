@@ -1,11 +1,15 @@
 package migrations
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"project-pn/internal/db"
 )
 
 func latestMigrationVersion(t *testing.T) (uint, string) {
@@ -89,5 +93,61 @@ func TestLatestMigrationAppliesCleanly(t *testing.T) {
 	expectedVersion, _ := latestMigrationVersion(t)
 	if version != expectedVersion {
 		t.Fatalf("expected migration version %d, got %d", expectedVersion, version)
+	}
+}
+
+func TestMultiwordPosPhraseMigrationHandlesConflictingPOS(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for migration smoke tests")
+	}
+
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("ensure up to date: %v", err)
+	}
+
+	// Roll back the phrase retag migrations (downs are no-ops) then seed conflicting
+	// multi-word POS rows and re-apply so 000025/000026 must not hit words_identity_unique.
+	if err := Down(migrationsPath, databaseURL, 2); err != nil {
+		t.Fatalf("down before seed: %v", err)
+	}
+
+	ctx := context.Background()
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer pool.Close()
+
+	lemma := "in which migrate " + strconv.FormatInt(time.Now().UnixNano(), 10)
+	if _, err := pool.Exec(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values
+			('en', $1, $1, 'noun'),
+			('en', $1, $1, 'pronoun')
+	`, lemma); err != nil {
+		t.Fatalf("seed conflicting multi-word rows: %v", err)
+	}
+
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up after conflicting seed: %v", err)
+	}
+
+	var phraseCount, otherCount int
+	if err := pool.QueryRow(ctx, `
+		select
+			count(*) filter (where part_of_speech = 'phrase'),
+			count(*) filter (where part_of_speech <> 'phrase')
+		from words
+		where language_code = 'en' and normalized_text = $1
+	`, lemma).Scan(&phraseCount, &otherCount); err != nil {
+		t.Fatalf("count retagged rows: %v", err)
+	}
+	if phraseCount != 1 {
+		t.Fatalf("expected exactly 1 phrase row, got phrase=%d other=%d", phraseCount, otherCount)
+	}
+	if otherCount != 1 {
+		t.Fatalf("expected 1 non-phrase sibling left intact, got phrase=%d other=%d", phraseCount, otherCount)
 	}
 }
