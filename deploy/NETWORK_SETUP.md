@@ -14,6 +14,20 @@ Client → Cloudflare DNS / proxy (optional orange-cloud)
 
 Central auth: `auth.nacfson.cloud` → `auth-service` (central-auth) in namespace `nacfson-auth`.
 
+## Proxy timeouts (word lookup / add)
+
+Cold cache lookups can take ~22s when WiktApi times out and Gemini fallback still succeeds. The shared API client waits up to **60s** so the UI does not abort as ADD-101 while the server is still working.
+
+Pin **≥ 60s** on every hop that proxies `/api`:
+
+| Hop | Setting | Value |
+|-----|---------|-------|
+| Host nginx (`/etc/nginx/conf.d/pn.nacfson.cloud.conf`) | `proxy_read_timeout` / `proxy_send_timeout` | `60s` |
+| ingress-nginx (`project-pn` Ingress) | `nginx.ingress.kubernetes.io/proxy-read-timeout` / `proxy-send-timeout` | `"60"` |
+| Frontend nginx ConfigMap (`project-pn-nginx`, `location /api/`) | `proxy_read_timeout` / `proxy_send_timeout` | `60s` |
+
+Manifests live in ProcessManager `k8s/project-pn/`. After changing the ConfigMap, restart `project-pn-frontend` so pods remount nginx.conf.
+
 ## Public endpoints
 
 | Service | URL |
