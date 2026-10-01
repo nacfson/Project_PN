@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { TappablePassage, type PassageSpan } from './TappablePassage';
@@ -37,17 +37,17 @@ function renderPassage(props: {
 }
 
 describe('TappablePassage', () => {
-  it('selects a single word when phrase mode is off', () => {
+  it('selects a single word when phrase mode is off', async () => {
     const onToggleSpan = jest.fn();
-    renderPassage({ onToggleSpan });
-    fireEvent.press(screen.getByTestId('passage-word-0'));
+    const view = await renderPassage({ onToggleSpan });
+    fireEvent.press(view.getByTestId('passage-word-0'));
     expect(onToggleSpan).toHaveBeenCalledWith({ start: 0, end: 0, text: 'look' });
   });
 
-  it('selects a multi-word phrase span in phrase mode', () => {
+  it('selects a multi-word phrase span in phrase mode', async () => {
     const onToggleSpan = jest.fn();
     const onPhraseAnchor = jest.fn();
-    const { rerender } = render(
+    const { rerender, getByTestId } = await render(
       <AppLanguageProvider>
         <ThemeProvider>
           <TappablePassage
@@ -61,7 +61,7 @@ describe('TappablePassage', () => {
         </ThemeProvider>
       </AppLanguageProvider>,
     );
-    fireEvent.press(screen.getByTestId('passage-word-0'));
+    fireEvent.press(getByTestId('passage-word-0'));
     expect(onPhraseAnchor).toHaveBeenCalledWith(0);
     expect(onToggleSpan).not.toHaveBeenCalled();
 
@@ -79,7 +79,7 @@ describe('TappablePassage', () => {
         </ThemeProvider>
       </AppLanguageProvider>,
     );
-    fireEvent.press(screen.getByTestId('passage-word-1'));
+    fireEvent.press(getByTestId('passage-word-1'));
     expect(onToggleSpan).toHaveBeenCalledWith({ start: 0, end: 1, text: 'look up' });
   });
 });

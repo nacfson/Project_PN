@@ -136,7 +136,7 @@ describe('ManualAddSection', () => {
   it('passes personalNote when my wording is filled', async () => {
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word');
+    const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
     fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 

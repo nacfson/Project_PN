@@ -252,14 +252,13 @@ describe('ChangeMeaningSheet', () => {
     });
     const onChanged = jest.fn();
     const onClose = jest.fn();
-    renderSheet({ onChanged, onClose });
+    renderSheet({ onChanged, onClose, preferPersonalNote: true });
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
-    fireEvent.press(screen.getByText('Write my meaning'));
+    fireEvent.press(screen.getByText('충전하다'));
     const noteInput = screen.getByPlaceholderText(/Type a short gloss/);
     fireEvent.changeText(noteInput, '내 표현');
     await waitFor(() => expect(noteInput.props.value).toBe('내 표현'));
-    fireEvent.press(screen.getByText('충전하다'));
     fireEvent.press(screen.getByText('Save meaning'));
 
     await waitFor(() => {

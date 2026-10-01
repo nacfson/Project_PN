@@ -139,7 +139,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		if enrich.IsMultiWordLemma(normalized) {
 			s.logf("PHRASE_DRAFT", "creating draft phrase sense for '%s' after enrich failure", normalized)
 			draft := phraseDraftEntry(normalized, posHint, sourceContext, defLangCode)
-			options, persistErr := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, []enrich.Entry{draft})
+			options, persistErr := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, []enrich.Entry{draft}, false)
 			if persistErr != nil {
 				return LookupResult{}, persistErr
 			}
@@ -149,7 +149,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		return LookupResult{}, err
 	}
 
-	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries)
+	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries, true)
 	if err != nil {
 		return LookupResult{}, err
 	}
@@ -197,7 +197,7 @@ func (s *Service) ForceGenerate(ctx context.Context, userID string, wordID *stri
 	if !entriesHaveSenses(result.Entries) {
 		return LookupResult{}, ErrNoAdditionalSense
 	}
-	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries)
+	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries, true)
 	if err != nil {
 		return LookupResult{}, err
 	}
@@ -1336,7 +1336,7 @@ func (s *Service) cacheTranslateResult(ctx context.Context, displayLang string, 
 // the resulting sense options. Before appendSenses, each entry's senses pass
 // FilterProperSenses (same criteria as force / find-more) so first lookup does
 // not persist duplicate-looking simple display glosses.
-func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangCode, normalized string, entries []enrich.Entry) ([]SenseOption, error) {
+func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangCode, normalized string, entries []enrich.Entry, filterSenses bool) ([]SenseOption, error) {
 	if len(entries) == 0 {
 		return nil, ErrNoSenses
 	}
@@ -1391,7 +1391,10 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 			}
 			filterAgainst = append(filterAgainst, existing...)
 		}
-		kept := enrich.FilterProperSenses(filterAgainst, entry.Senses, defLangCode, lemma)
+		kept := entry.Senses
+		if filterSenses {
+			kept = enrich.FilterProperSenses(filterAgainst, entry.Senses, defLangCode, lemma)
+		}
 		if len(kept) == 0 {
 			if inserted {
 				if _, err := tx.Exec(ctx, `delete from words where id = $1::uuid`, wordID); err != nil {
