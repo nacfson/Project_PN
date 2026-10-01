@@ -128,6 +128,35 @@ describe('ManualAddSection', () => {
         expect.any(String),
         'deck-123',
         'Charge the battery overnight.',
+        undefined,
+      );
+    });
+  });
+
+  it('passes personalNote when my wording is filled', async () => {
+    await renderSection();
+
+    const wordInput = screen.getByPlaceholderText('Type a word');
+    fireEvent.changeText(wordInput, 'charge');
+    await waitFor(() => expect(wordInput.props.value).toBe('charge'));
+
+    const noteInput = screen.getByPlaceholderText(/Optional gloss/);
+    fireEvent.changeText(noteInput, '충전하다');
+    await waitFor(() => expect(noteInput.props.value).toBe('충전하다'));
+
+    fireEvent.press(screen.getByText('Find my sense'));
+    await waitFor(() => {
+      expect(screen.getByText('to store energy')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByText('to store energy'));
+
+    await waitFor(() => {
+      expect(addLearningItem).toHaveBeenCalledWith(
+        'sense-1',
+        expect.any(String),
+        'deck-123',
+        undefined,
+        '충전하다',
       );
     });
   });

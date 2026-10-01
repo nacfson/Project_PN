@@ -30,6 +30,7 @@ export function addLearningItem(
   deckId?: string,
   sourceContext?: string,
   traceId?: string,
+  personalNote?: string,
 ): Promise<LearningItem> {
   const body: Record<string, unknown> = {
     word_sense_id: wordSenseId,
@@ -41,6 +42,9 @@ export function addLearningItem(
   if (sourceContext) {
     body.source_context = sourceContext;
   }
+  if (personalNote) {
+    body.personal_note = personalNote;
+  }
   return postJson<LearningItem>('/api/learning-items', body, { traceId });
 }
 
@@ -49,12 +53,16 @@ export function changeLearningItemSense(
   wordSenseId: string,
   displayLanguageCode?: string,
   traceId?: string,
+  personalNote?: string | null,
 ): Promise<LearningItem> {
   const body: Record<string, unknown> = {
     word_sense_id: wordSenseId,
   };
   if (displayLanguageCode) {
     body.display_language_code = displayLanguageCode;
+  }
+  if (personalNote !== undefined) {
+    body.personal_note = personalNote;
   }
   return patchJson<LearningItem>(`/api/learning-items/${itemId}`, body, { traceId });
 }

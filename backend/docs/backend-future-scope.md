@@ -33,7 +33,7 @@ Former `collections` / `collection_words` and curriculum packs were tried and la
 - `tags` / `user_word_tags` remain useful for free-form user grouping.
 - The MVP already accepts `writing` and `speaking` as `review_attempts.activity_type` values (see `backend/docs/backend-schema-mvp.md`), so individual activity rows can be recorded today. Dedicated `writing_attempts` and `speaking_attempts` tables (with their own evaluation, feedback, and grading fields) become useful when productive-use workflows become first-class features.
 - `ai_enrichment_jobs` can be added when gloss lookup or feedback runs asynchronously. Default gloss lookup is synchronous WiktApi in-request (see `backend/docs/go-backend-setup.md`).
-- **Personal manual gloss** is in MVP when stored only on `user_word_senses.personal_note` (never inserted into shared `word_senses` / `sense_translations`) and audited via learning-log `personal_meaning_set`. Shared catalog free-text gloss (typed text becoming a global sense row) remains out of scope. If a shared catalog path is added later, it must pass `enrich.FilterProperSenses` (simple display-language gloss, not empty, not a near-duplicate).
+- **Personal manual gloss (Option A)** is in MVP on `user_word_senses.personal_note` for add and change-meaning. It is a display-only override (catalog `word_sense_id` stays required) and is audited via learning-log `personal_meaning_set`. It never writes to shared `word_senses` / `sense_translations`. Sharing a typed gloss into the global catalog remains out of scope and, if added later, must pass `enrich.FilterProperSenses`.
 
 ## Current MVP Reference
 

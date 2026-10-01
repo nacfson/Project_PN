@@ -46,10 +46,23 @@ export async function addLearningItem(
   displayLanguageCode: string = DEFAULT_DEFINITION_LANGUAGE_CODE,
   deckId?: string,
   sourceContext?: string,
+  personalNote?: string,
 ): Promise<LearningItem> {
-  const traceId = analytics.track('word_add_requested', { word_sense_id: wordSenseId, deck_id: deckId ?? null, source_context: sourceContext ?? null });
+  const traceId = analytics.track('word_add_requested', {
+    word_sense_id: wordSenseId,
+    deck_id: deckId ?? null,
+    source_context: sourceContext ?? null,
+    personal_note: personalNote ?? null,
+  });
   try {
-    const item = await addLearningItemApi(wordSenseId, displayLanguageCode, deckId, sourceContext, traceId);
+    const item = await addLearningItemApi(
+      wordSenseId,
+      displayLanguageCode,
+      deckId,
+      sourceContext,
+      traceId,
+      personalNote,
+    );
     analytics.track('word_add_succeeded', { word_sense_id: wordSenseId, learning_item_id: item.id, deck_id: deckId ?? null }, traceId);
     return item;
   } catch (error) {
@@ -62,10 +75,17 @@ export async function changeLearningItemSense(
   itemId: string,
   wordSenseId: string,
   displayLanguageCode: string = DEFAULT_DEFINITION_LANGUAGE_CODE,
+  personalNote?: string | null,
 ): Promise<LearningItem> {
   const traceId = analytics.track('sense_selected', { learning_item_id: itemId, word_sense_id: wordSenseId });
   try {
-    const item = await changeLearningItemSenseApi(itemId, wordSenseId, displayLanguageCode, traceId);
+    const item = await changeLearningItemSenseApi(
+      itemId,
+      wordSenseId,
+      displayLanguageCode,
+      traceId,
+      personalNote,
+    );
     analytics.track('sense_changed', { learning_item_id: itemId, word_sense_id: wordSenseId }, traceId);
     return item;
   } catch (error) {

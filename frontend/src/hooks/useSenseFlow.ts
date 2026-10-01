@@ -156,7 +156,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   );
 
   const confirm = useCallback(
-    async (wordSenseId: string, deckId?: string, sourceContext?: string) => {
+    async (wordSenseId: string, deckId?: string, sourceContext?: string, personalNote?: string) => {
       if (confirmingRef.current) {
         return;
       }
@@ -166,11 +166,13 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       try {
         const resolvedDeck = deckId ?? lastDeckId.current;
         const resolvedContext = (sourceContext ?? lastSourceContext.current).trim();
+        const resolvedNote = (personalNote ?? '').trim();
         await addLearningItem(
           wordSenseId,
           DEFAULT_DEFINITION_LANGUAGE_CODE,
           resolvedDeck,
           resolvedContext || undefined,
+          resolvedNote || undefined,
         );
         setPickerVisible(false);
         callbacksRef.current.onAdded?.(wordSenseId);

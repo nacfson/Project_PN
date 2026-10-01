@@ -22,6 +22,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [context, setContext] = useState('');
+  const [personalNote, setPersonalNote] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
   const [posTouched, setPosTouched] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
     onAdded: () => {
       setWord('');
       setContext('');
+      setPersonalNote('');
       setValidationError(null);
       setTouched(false);
       setPosTouched(false);
@@ -141,6 +143,20 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         />
       </View>
 
+      <View style={{ marginBottom: spacing.md }}>
+        <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
+          {t('add.myWordingLabel')}
+        </Text>
+        <Input
+          value={personalNote}
+          onChangeText={setPersonalNote}
+          placeholder={t('add.myWordingPlaceholder')}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onClear={() => setPersonalNote('')}
+        />
+      </View>
+
       <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
         <Text variant="label" color="muted">
           {t('add.partOfSpeechOptional')}
@@ -177,7 +193,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         sourceContext={context}
         onSourceContextChange={setContext}
         onConfirm={(wordSenseId) => {
-          void confirm(wordSenseId, selectedDeckId, context.trim() || undefined);
+          void confirm(wordSenseId, selectedDeckId, context.trim() || undefined, personalNote.trim() || undefined);
         }}
         onForceExisting={forceExisting}
         onForceWithPos={forceWithPos}

@@ -22,7 +22,7 @@ func TestDueReviewRecoversFailedCardsAfterInterruptedSession(t *testing.T) {
 	for i := range cards {
 		lemma := fmt.Sprintf("retry%d-%d", i, time.Now().UnixNano())
 		senseID := insertDeckFixtureWord(t, pool, lemma)
-		item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+		item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 		if err != nil {
 			t.Fatalf("add item %d: %v", i, err)
 		}
@@ -77,7 +77,7 @@ func TestDueReviewRecoversRelearningCardBeforeStepElapses(t *testing.T) {
 	ctx := context.Background()
 
 	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("relearn-%d", time.Now().UnixNano()))
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add item: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestDueReviewRecoversLearningCardsWhenDailyQuotaExhausted(t *testing.T) {
 	ctx := context.Background()
 
 	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("quota-%d", time.Now().UnixNano()))
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add item: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestRecordBatchReviewUnavailableWhenSuspended(t *testing.T) {
 	ctx := context.Background()
 
 	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("susp-%d", time.Now().UnixNano()))
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestListLearningItemsExcludesSuspended(t *testing.T) {
 	ctx := context.Background()
 
 	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("listsusp-%d", time.Now().UnixNano()))
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -238,5 +238,35 @@ func TestListLearningItemsExcludesSuspended(t *testing.T) {
 		if listed.ID == item.ID {
 			t.Fatal("suspended item still listed")
 		}
+	}
+}
+
+func TestGetDueReviewItemsReturnsPersonalNote(t *testing.T) {
+	pool := deckTestPool(t)
+	svc := deckTestService(t, pool)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("duenote-%d", time.Now().UnixNano()))
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "내 뜻")
+	if err != nil {
+		t.Fatalf("add item: %v", err)
+	}
+
+	due, err := svc.GetDueReviewItems(ctx, userID, "", "", "private", 50)
+	if err != nil {
+		t.Fatalf("get due: %v", err)
+	}
+	found := false
+	for _, d := range due {
+		if d.UserWordSenseID == item.ID {
+			found = true
+			if d.PersonalNote == nil || *d.PersonalNote != "내 뜻" {
+				t.Fatalf("due personal_note=%v", d.PersonalNote)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("item missing from due list")
 	}
 }

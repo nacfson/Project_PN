@@ -2,13 +2,16 @@
 
 Living inventory for Project PN. Refresh this file after merges or when the Cursor agent list gets noisy.
 
-## Current state (2026-09-14)
+## Current state (2026-10-01)
 
 | Item | Value |
 |------|-------|
 | Default branch | `main` |
-| Add-tab default | **Manual-first** on `main` after senses/manual-add PR (do not treat older #50/#46-only images as the only Manual-first source) |
-| Conflicting open PRs | **#49** (`cursor/phrase-add-feature-cfab`) still passage-default — **blocked** until it adopts Manual-first; prefer folding Add UX with **#46** / thin Manual-first PR; **#50** is Manual-first-only and can fold |
+| Integration head | `cursor/integrate-unmerged-into-main-635f` folds the unmerged feature branches into one Manual-first line |
+| Add-tab default | **Manual-first**. Phrase learning from #46/#49 is included; the passage-default from #49 is not |
+| Folded into the integration branch | #57 S3 dump/restore, #52 60s lookup wait, #55 quiz shuffle, #46 phrase POS + add loading, #49 phrase drafts (Manual-first kept), #48 leech badge + personal gloss (includes #47 sync fix), #54 personal_note manual meaning |
+| Left unmerged on purpose | #50 Manual-first-only (already on `main` via #53), #51 stale branch-inventory plan (this file is the current inventory) |
+| Migration order | `000025`/`000026` stay the phrase POS retag (matches production schema v26). Leech default `tag` is `000027` |
 | Local git worktrees | Prefer one checkout; see hygiene below |
 
 **Add-tab invariant:** `AddScreen` default `activeTab === 'manual'`. See `AGENTS.md` Add-tab UI ownership. Agents must not assume Manual-first “already shipped” solely because an unmerged agent branch or Oracle image had it while `main` lagged.

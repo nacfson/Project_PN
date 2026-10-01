@@ -43,7 +43,7 @@ func TestPhraseLookupDraftWhenEnrichFailsThenAddLearningItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure deck: %v", err)
 	}
-	item, err := svc.AddLearningItem(ctx, userID, opt.WordSenseID, "ko", deckID, "Please look up the word.")
+	item, err := svc.AddLearningItem(ctx, userID, opt.WordSenseID, "ko", deckID, "Please look up the word.", "")
 	if err != nil {
 		t.Fatalf("add phrase learning item: %v", err)
 	}

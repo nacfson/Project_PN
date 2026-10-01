@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
@@ -44,12 +44,47 @@ const item: LearningItemListItem = {
   examples: [],
 };
 
+async function flushAsync() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+function renderSheet(
+  props: Partial<React.ComponentProps<typeof ChangeMeaningSheet>> = {},
+) {
+  return render(
+    <SafeAreaProvider
+      initialMetrics={{
+        insets: { top: 0, left: 0, right: 0, bottom: 0 },
+        frame: { x: 0, y: 0, width: 375, height: 812 },
+      }}
+    >
+      <AppLanguageProvider>
+        <ThemeProvider>
+          <ChangeMeaningSheet
+            visible
+            item={item}
+            onClose={jest.fn()}
+            onChanged={jest.fn()}
+            {...props}
+          />
+        </ThemeProvider>
+      </AppLanguageProvider>
+    </SafeAreaProvider>,
+  );
+}
+
 describe('ChangeMeaningSheet', () => {
-  afterEach(() => {
+  afterEach(async () => {
+    await flushAsync();
     cleanup();
   });
 
   beforeEach(() => {
+    (lookupWord as jest.Mock).mockReset();
+    (changeLearningItemSense as jest.Mock).mockReset();
     (lookupWord as jest.Mock).mockResolvedValue({
       sense_options: [
         {
@@ -93,26 +128,15 @@ describe('ChangeMeaningSheet', () => {
       word_sense_id: 'ws-2',
       learning_stage: 'learning',
       due_at: '2026-07-01T00:00:00Z',
+      personal_note: null,
     });
     (setLearningItemPersonalNote as jest.Mock).mockReset();
   });
 
   it('loads senses and PATCHes the selected meaning without changing due_at', async () => {
     const onChanged = jest.fn();
-    await render(
-      <SafeAreaProvider
-        initialMetrics={{
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-          frame: { x: 0, y: 0, width: 375, height: 812 },
-        }}
-      >
-        <AppLanguageProvider>
-          <ThemeProvider>
-            <ChangeMeaningSheet visible item={item} onClose={jest.fn()} onChanged={onChanged} />
-          </ThemeProvider>
-        </AppLanguageProvider>
-      </SafeAreaProvider>,
-    );
+    const onClose = jest.fn();
+    renderSheet({ onChanged, onClose });
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
     fireEvent.press(screen.getByText('충전하다'));
@@ -124,33 +148,23 @@ describe('ChangeMeaningSheet', () => {
     await waitFor(() => {
       expect(changeLearningItemSense).toHaveBeenCalled();
     });
-    expect(changeLearningItemSense).toHaveBeenCalledWith('uws-1', 'ws-2');
+    expect(changeLearningItemSense).toHaveBeenCalledWith('uws-1', 'ws-2', undefined, '');
     await waitFor(() => {
       expect(onChanged).toHaveBeenCalledWith(
         expect.objectContaining({
           word_sense_id: 'ws-2',
           due_at: '2026-07-01T00:00:00Z',
           learning_stage: 'learning',
+          personal_note: null,
         }),
       );
     });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await flushAsync();
   });
 
   it('finds more senses with force lookup when context is set', async () => {
-    await render(
-      <SafeAreaProvider
-        initialMetrics={{
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-          frame: { x: 0, y: 0, width: 375, height: 812 },
-        }}
-      >
-        <AppLanguageProvider>
-          <ThemeProvider>
-            <ChangeMeaningSheet visible item={item} onClose={jest.fn()} onChanged={jest.fn()} />
-          </ThemeProvider>
-        </AppLanguageProvider>
-      </SafeAreaProvider>,
-    );
+    renderSheet();
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
     const contextInput = screen.getByPlaceholderText(/Optional sentence/);
@@ -168,23 +182,11 @@ describe('ChangeMeaningSheet', () => {
         }),
       );
     });
+    await flushAsync();
   });
 
   it('does not force lookup when context is empty', async () => {
-    await render(
-      <SafeAreaProvider
-        initialMetrics={{
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-          frame: { x: 0, y: 0, width: 375, height: 812 },
-        }}
-      >
-        <AppLanguageProvider>
-          <ThemeProvider>
-            <ChangeMeaningSheet visible item={item} onClose={jest.fn()} onChanged={jest.fn()} />
-          </ThemeProvider>
-        </AppLanguageProvider>
-      </SafeAreaProvider>,
-    );
+    renderSheet();
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
     (lookupWord as jest.Mock).mockClear();
@@ -193,6 +195,7 @@ describe('ChangeMeaningSheet', () => {
       expect(screen.getByText(/Add a sentence that shows the meaning/)).toBeTruthy();
     });
     expect(lookupWord).not.toHaveBeenCalled();
+    await flushAsync();
   });
 
   it('saves a personal meaning via setLearningItemPersonalNote', async () => {
@@ -237,5 +240,40 @@ describe('ChangeMeaningSheet', () => {
     expect(onChanged).toHaveBeenCalledWith(
       expect.objectContaining({ personal_note: '청구하다' }),
     );
+  });
+
+  it('sends personal_note when the sense changes after writing a personal gloss', async () => {
+    (changeLearningItemSense as jest.Mock).mockResolvedValue({
+      id: 'uws-1',
+      word_sense_id: 'ws-2',
+      learning_stage: 'learning',
+      due_at: '2026-07-01T00:00:00Z',
+      personal_note: '내 표현',
+    });
+    const onChanged = jest.fn();
+    const onClose = jest.fn();
+    renderSheet({ onChanged, onClose });
+
+    await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
+    fireEvent.press(screen.getByText('Write my meaning'));
+    const noteInput = screen.getByPlaceholderText(/Type a short gloss/);
+    fireEvent.changeText(noteInput, '내 표현');
+    await waitFor(() => expect(noteInput.props.value).toBe('내 표현'));
+    fireEvent.press(screen.getByText('충전하다'));
+    fireEvent.press(screen.getByText('Save meaning'));
+
+    await waitFor(() => {
+      expect(changeLearningItemSense).toHaveBeenCalledWith('uws-1', 'ws-2', undefined, '내 표현');
+    });
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalledWith(
+        expect.objectContaining({
+          word_sense_id: 'ws-2',
+          personal_note: '내 표현',
+        }),
+      );
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await flushAsync();
   });
 });

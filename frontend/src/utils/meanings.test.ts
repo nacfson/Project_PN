@@ -67,6 +67,18 @@ describe('preferSimpleGloss', () => {
 });
 
 describe('displayGloss / splitMeanings', () => {
+  it('prefers personal_note over catalog glosses', () => {
+    expect(
+      displayGloss({
+        personal_note: '충전하다',
+        definition: 'to store energy',
+        short_definition: 'charge',
+        localized_definition: '요금을 청구하다',
+        localized_short_definition: '청구하다',
+      }),
+    ).toBe('충전하다');
+  });
+
   it('returns a simple headword only for display', () => {
     const fields = {
       definition: 'To cover something completely so that it cannot be seen.',

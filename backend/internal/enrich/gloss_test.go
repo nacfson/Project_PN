@@ -62,7 +62,7 @@ func TestFilterProperSensesKeepsPhrasePatternGloss(t *testing.T) {
 		NativeDefinition:      "~하는 데",
 		NativeShortDefinition: "~하는 데",
 	}}
-	got := FilterProperSenses(nil, incoming, "ko")
+	got := FilterProperSenses(nil, incoming, "ko", "in which")
 	if len(got) != 1 {
 		t.Fatalf("expected phrase gloss kept, got %d", len(got))
 	}

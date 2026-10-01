@@ -280,9 +280,10 @@ func (s *Service) forceUnderWord(ctx context.Context, wordID, defLangCode, sourc
 // AddLearningItem creates the personal user_word_senses + review_states rows
 // for the given concrete word sense (idempotent). If deckID is empty, the item
 // is placed in the default deck for the word's language.
-func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID, sourceContext string) (LearningItem, error) {
+func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, displayLangCode, deckID, sourceContext, personalNote string) (LearningItem, error) {
 	wordSenseID = strings.TrimSpace(wordSenseID)
 	sourceContext = strings.TrimSpace(sourceContext)
+	personalNote = strings.TrimSpace(personalNote)
 	if wordSenseID == "" {
 		return LearningItem{}, ErrSenseNotFound
 	}
@@ -344,20 +345,21 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 	var item LearningItem
 	var inserted bool
 	err = tx.QueryRow(ctx,
-		`insert into user_word_senses (user_id, word_sense_id, deck_id, source_context)
-		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''))
+		`insert into user_word_senses (user_id, word_sense_id, deck_id, source_context, personal_note)
+		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''), nullif($5, ''))
 		 on conflict (user_id, word_sense_id) do update set
 		   deck_id = excluded.deck_id,
 		   source_context = coalesce(nullif(excluded.source_context, ''), user_word_senses.source_context),
+		   personal_note = coalesce(nullif(excluded.personal_note, ''), user_word_senses.personal_note),
 		   archived_at = null,
 		   learning_stage = case
 		     when user_word_senses.archived_at is not null then 'new'
 		     else user_word_senses.learning_stage
 		   end,
 		   updated_at = now()
-		 returning id::text, word_sense_id::text, learning_stage, (xmax = 0) as inserted`,
-		userID, wordSenseID, deckID, sourceContext,
-	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &inserted)
+		 returning id::text, word_sense_id::text, learning_stage, personal_note, (xmax = 0) as inserted`,
+		userID, wordSenseID, deckID, sourceContext, personalNote,
+	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.PersonalNote, &inserted)
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
 	}
@@ -390,7 +392,11 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 
 // ChangeLearningItemSense swaps word_sense_id on an existing learning item
 // without touching review_states. Rejects cross-word senses and active conflicts.
-func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, newWordSenseID, displayLangCode string) (LearningItem, error) {
+//
+// personalNote nil means the field was omitted. On a sense swap, an omitted note
+// clears personal_note (old wording belonged to the previous sense). On a same-sense
+// request, an omitted note is a no-op; a provided value (including "") updates the note.
+func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, newWordSenseID, displayLangCode string, personalNote *string) (LearningItem, error) {
 	itemID = strings.TrimSpace(itemID)
 	newWordSenseID = strings.TrimSpace(newWordSenseID)
 	if itemID == "" {
@@ -398,6 +404,15 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 	}
 	if newWordSenseID == "" {
 		return LearningItem{}, ErrSenseNotFound
+	}
+
+	noteProvided := personalNote != nil
+	var noteToStore *string
+	if noteProvided {
+		trimmed := strings.TrimSpace(*personalNote)
+		if trimmed != "" {
+			noteToStore = &trimmed
+		}
 	}
 
 	var currentSenseID, currentWordID string
@@ -416,6 +431,17 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 	}
 
 	if currentSenseID == newWordSenseID {
+		if !noteProvided {
+			return s.loadLearningItem(ctx, userID, itemID)
+		}
+		if _, err := s.pool.Exec(ctx, `
+			update user_word_senses
+			set personal_note = $1, updated_at = now()
+			where id = $2::uuid and user_id = $3::uuid`,
+			noteToStore, itemID, userID,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: update personal note: %w", err)
+		}
 		return s.loadLearningItem(ctx, userID, itemID)
 	}
 
@@ -475,11 +501,12 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 		return LearningItem{}, ErrSenseConflict
 	}
 
+	// Sense swap: omitted note clears; provided empty clears; non-empty sets.
 	if _, err := s.pool.Exec(ctx, `
 		update user_word_senses
-		set word_sense_id = $1::uuid, updated_at = now()
-		where id = $2::uuid and user_id = $3::uuid`,
-		newWordSenseID, itemID, userID,
+		set word_sense_id = $1::uuid, personal_note = $2, updated_at = now()
+		where id = $3::uuid and user_id = $4::uuid`,
+		newWordSenseID, noteToStore, itemID, userID,
 	); err != nil {
 		return LearningItem{}, fmt.Errorf("words: change sense: %w", err)
 	}
@@ -1364,7 +1391,7 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 			}
 			filterAgainst = append(filterAgainst, existing...)
 		}
-		kept := enrich.FilterProperSenses(filterAgainst, entry.Senses, defLangCode)
+		kept := enrich.FilterProperSenses(filterAgainst, entry.Senses, defLangCode, lemma)
 		if len(kept) == 0 {
 			if inserted {
 				if _, err := tx.Exec(ctx, `delete from words where id = $1::uuid`, wordID); err != nil {
@@ -1691,7 +1718,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 		       coalesce(st.definition, ws.definition),
 		       coalesce(st.short_definition, ws.short_definition),
 		       ws.cefr_level, ws.meaning_order,
-		       uws.learning_stage, rs.due_at,
+		       uws.learning_stage, rs.due_at, uws.personal_note,
 		       rs.interval_days, rs.ease_factor,
 		       rs.review_count, rs.lapse_count,
 		       rs.fsrs_state, rs.stability, rs.difficulty,
@@ -1736,7 +1763,7 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 			&item.Definition, &item.ShortDefinition,
 			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
 			&item.CEFRLevel, &item.MeaningOrder,
-			&item.LearningStage, &item.DueAt,
+			&item.LearningStage, &item.DueAt, &item.PersonalNote,
 			&intervalDays, &easeFactor,
 			&reviewCount, &lapseCount,
 			&fsrsState, &stability, &difficulty,

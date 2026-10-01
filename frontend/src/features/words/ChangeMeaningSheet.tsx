@@ -104,7 +104,15 @@ export function ChangeMeaningSheet({
   }, [context, item.lemma, item.language_code, item.word_id, t]);
 
   const handleConfirm = useCallback(async () => {
-    if (!selectedId || selectedId === item.word_sense_id) {
+    if (!selectedId) {
+      onClose();
+      return;
+    }
+    const noteTrimmed = personalDraft.trim();
+    const priorNote = item.personal_note?.trim() ?? '';
+    const senseUnchanged = selectedId === item.word_sense_id;
+    const noteUnchanged = noteTrimmed === priorNote;
+    if (senseUnchanged && noteUnchanged) {
       onClose();
       return;
     }
@@ -112,7 +120,9 @@ export function ChangeMeaningSheet({
     onBusyChange?.(true);
     setError(null);
     try {
-      const updated = await changeLearningItemSense(item.id, selectedId);
+      // Always send personal_note on change-meaning so sense swap clears when empty.
+      const notePayload = noteTrimmed;
+      const updated = await changeLearningItemSense(item.id, selectedId, undefined, notePayload);
       const selected = options.find((o) => o.word_sense_id === selectedId);
       onChanged({
         ...item,
@@ -126,7 +136,7 @@ export function ChangeMeaningSheet({
         meaning_order: selected?.meaning_order ?? item.meaning_order,
         due_at: updated.due_at || item.due_at,
         learning_stage: updated.learning_stage || item.learning_stage,
-        personal_note: updated.personal_note ?? item.personal_note,
+        personal_note: updated.personal_note ?? (noteTrimmed || null),
       });
       onClose();
     } catch (err) {
@@ -139,7 +149,7 @@ export function ChangeMeaningSheet({
       setSaving(false);
       onBusyChange?.(false);
     }
-  }, [selectedId, item, options, onChanged, onClose, onBusyChange, t]);
+  }, [selectedId, personalDraft, item, options, onChanged, onClose, onBusyChange, t]);
 
   const handleSavePersonal = useCallback(async () => {
     setSaving(true);

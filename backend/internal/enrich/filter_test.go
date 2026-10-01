@@ -120,7 +120,7 @@ func TestFilterProperSensesCollapsesBluntLikeSharedShortGlosses(t *testing.T) {
 	if got := DedupeSenses(incoming); len(got) != 4 {
 		t.Fatalf("DedupeSenses kept %d, want 4 (weak English/full-native Jaccard)", len(got))
 	}
-	got := FilterProperSenses(nil, incoming, "ko")
+	got := FilterProperSenses(nil, incoming, "ko", "blunt")
 	if len(got) != 2 {
 		t.Fatalf("FilterProperSenses kept %d, want 2 unique simple glosses; got %#v", len(got), got)
 	}

@@ -56,10 +56,10 @@ func TestAddLearningItemLogsOnce(t *testing.T) {
 	lemma := fmt.Sprintf("logadd%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)
 
-	if _, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "ctx"); err != nil {
+	if _, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "ctx", ""); err != nil {
 		t.Fatalf("first add: %v", err)
 	}
-	if _, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "ctx"); err != nil {
+	if _, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "ctx", ""); err != nil {
 		t.Fatalf("second add: %v", err)
 	}
 
@@ -77,7 +77,7 @@ func TestRecordBatchReviewLogsAttempt(t *testing.T) {
 
 	lemma := fmt.Sprintf("logrev%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add item: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestReviewSucceedsWhenLearningLogDisabled(t *testing.T) {
 
 	lemma := fmt.Sprintf("nooplog%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -152,11 +152,11 @@ func TestChangeSenseLogsEvent(t *testing.T) {
 			values ($1::uuid, 'ko', $2)`, id, def+" ko")
 	}
 
-	item, err := svc.AddLearningItem(ctx, userID, senseA, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseA, "ko", "", "", "")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if _, err := svc.ChangeLearningItemSense(ctx, userID, item.ID, senseB, "ko"); err != nil {
+	if _, err := svc.ChangeLearningItemSense(ctx, userID, item.ID, senseB, "ko", nil); err != nil {
 		t.Fatalf("change sense: %v", err)
 	}
 

@@ -30,7 +30,7 @@ func TestSetPersonalNoteDoesNotTouchWordSenses(t *testing.T) {
 
 	lemma := fmt.Sprintf("note%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestLeechTagKeepsCardInDue(t *testing.T) {
 	}
 
 	senseID := insertDeckFixtureWord(t, pool, fmt.Sprintf("leech%d", time.Now().UnixNano()))
-	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "")
+	item, err := svc.AddLearningItem(ctx, userID, senseID, "ko", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

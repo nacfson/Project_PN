@@ -1,4 +1,5 @@
 export type MeaningFields = {
+  personal_note?: string | null;
   definition: string;
   short_definition?: string | null;
   localized_definition?: string | null;
@@ -140,7 +141,7 @@ export function uniqueText(
 
 /**
  * Single display gloss for Select Words, flashcard back, and word detail.
- * Prefers personal_note (user-authored) when set, then catalog localized/english glosses.
+ * Prefers personal_note, then localized short/full gloss, then English short/full gloss.
  */
 export function displayGloss(item: MeaningFields): string | null {
   const personal = trimMeaning(item.personal_note);

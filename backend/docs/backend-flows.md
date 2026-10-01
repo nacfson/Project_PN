@@ -32,9 +32,11 @@ See `backend/docs/account-link-target-approval.md` for link request details.
 4. App creates or selects the intended row in `word_senses`.
 5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language. On-demand Translate is best-effort per sense: extra or missing example translations no longer abort the whole word. If the enricher is unconfigured or the provider rejects the request, add returns HTTP 503 with that cause. If Translate ran but this sense still has no valid display-language definition, the add is rejected with HTTP 422.
 6. App resolves the target deck. If the request includes `deck_id`, it validates ownership and that the deck's `target_language` matches the word's `language_code`. Otherwise it uses the active target language's default deck, creating the default deck if necessary.
-7. App upserts a row in `user_word_senses` with the chosen `deck_id`.
+7. App upserts a row in `user_word_senses` with the chosen `deck_id`. Optional `source_context` (provenance) and `personal_note` (display override) may be stored. On conflict re-add, empty/omitted `personal_note` keeps the existing note (same coalesce pattern as `source_context`).
 8. App creates one `review_states` row if missing.
 9. App may attach sense-specific examples.
+
+`POST /api/learning-items` body: `{ "word_sense_id", "display_language_code", "deck_id?", "source_context?", "personal_note?" }`. `word_sense_id` remains required. `personal_note` is personal display-only; it never writes to `word_senses` / `sense_translations`. List and due payloads include `personal_note` so clients can prefer it over catalog glosses.
 
 Steps 6-8 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
 
@@ -88,13 +90,19 @@ If no LLM key is configured and WiktApi has nothing new, force returns HTTP 503 
 
 ## Change-Meaning Flow
 
-`PATCH /api/learning-items/{id}` with body `{ "word_sense_id": "...", "display_language_code": "..." }`:
+`PATCH /api/learning-items/{id}` with body `{ "word_sense_id": "...", "display_language_code": "...", "personal_note?": "..." }`:
 
 1. Load the learning item by `id` + authenticated `user_id` (404 if missing).
 2. Verify the new sense exists and belongs to the same `word_id` as the current sense (422 otherwise).
 3. Ensure display-language translations as on add.
 4. If another **active** card already has `(user_id, new_word_sense_id)`, return HTTP 409 `sense_already_in_learning_set`.
-5. Update `user_word_senses.word_sense_id` only. Do **not** modify `review_states`.
+5. Update `user_word_senses.word_sense_id`. Do **not** modify `review_states`.
+6. `personal_note` policy:
+   - Sense **swap** with note omitted → clear `personal_note` (old wording belonged to the previous sense).
+   - Sense swap with non-empty note → set the new note.
+   - Sense swap with `""` (or JSON null treated as clear when provided as empty string) → clear.
+   - **Same** `word_sense_id` with a provided note → note-only update (no 409; schedule unchanged).
+   - Same sense with note omitted → no-op.
 
 ## Archive Learning Item Flow
 
@@ -180,10 +188,10 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | `POST /api/words/lookup` (no `force`) | Lookup | `words.Service.Lookup` |
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |
-| `POST /api/learning-items` | Add-Word (steps 5-6); accepts optional `source_context` | `words.Service.AddLearningItem` |
+| `POST /api/learning-items` | Add-Word (steps 5-6); optional `source_context`, `personal_note` | `words.Service.AddLearningItem` |
 | `DELETE /api/learning-items/{id}` | Archive one learning item (remove from deck) | `words.Service.ArchiveLearningItems` |
 | `POST /api/learning-items/archive` | Batch archive `{ item_ids }` | `words.Service.ArchiveLearningItems` |
-| `PATCH /api/learning-items/{id}` | Change meaning (swap `word_sense_id`, keep schedule) | `words.Service.ChangeLearningItemSense` |
+| `PATCH /api/learning-items/{id}` | Change meaning (swap `word_sense_id` and/or update `personal_note`, keep schedule) | `words.Service.ChangeLearningItemSense` |
 | `GET /api/reviews/due` | Due Review List | `words.Service.GetDueReviewItems` |
 | `POST /api/reviews/batch` | Review | `words.Service.RecordBatchReviewAttempts` |
 | `POST /api/reviews/optimize-weights` | FSRS Weight Optimization | `words.Service.OptimizeWeights` |
