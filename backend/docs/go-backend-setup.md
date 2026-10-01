@@ -49,6 +49,8 @@ The development connection string is defined in `.env.example`:
 DATABASE_URL=postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable
 ```
 
+To copy this database to another machine via AWS S3, see [`db-s3-migration.md`](db-s3-migration.md). Use `scripts/db-dump-to-s3.sh` and `scripts/db-restore-from-s3.sh`. Those scripts read `S3_*` / `AGE_*` / `AWS_*` names from the environment; `internal/config` does not.
+
 ## Migrations
 
 `MIGRATIONS_PATH` defaults to `file://db/migrations` (relative to the `backend/` working directory). The migration runner is `golang-migrate/v4`. Apply, check, and roll back as follows.

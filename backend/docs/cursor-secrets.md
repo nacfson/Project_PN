@@ -78,6 +78,24 @@ curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
 
 Do **not** create empty placeholder secrets — empty keys disable the Google button with "Google sign-in is not configured for this build."
 
+## Optional AWS S3 database-copy secrets
+
+Used only by `scripts/db-dump-to-s3.sh` and `scripts/db-restore-from-s3.sh` (see [`db-s3-migration.md`](db-s3-migration.md)). Not required for the API, migrate Job, or Oracle rollout.
+
+| Variable | Purpose |
+|---|---|
+| `S3_BACKUP_BUCKET` | Private backup bucket name |
+| `S3_BACKUP_PREFIX` | Key prefix (default `postgres`) |
+| `S3_BACKUP_ENV` | `local` or `prod` |
+| `AWS_REGION` | Bucket region |
+| `AWS_PROFILE` | Optional named AWS CLI profile |
+| `S3_SSE` | `AES256` (default), `aws:kms`, or `none` |
+| `S3_KMS_KEY_ID` | KMS key when `S3_SSE=aws:kms` |
+| `AGE_RECIPIENT` | Optional `age` recipient for client-side encrypt |
+| `AGE_IDENTITY_FILE` | Optional `age` identity path for decrypt |
+
+Prefer the AWS CLI profile or SSO over long-lived `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Never commit dump objects or keys.
+
 ## Cloud Agent development secrets
 
 For Cursor Cloud Agents working in this repo:
@@ -105,6 +123,7 @@ curl -sS -X POST '${APP_PUBLIC_URL}/api/words/lookup' \
 
 ## Related docs
 
+- [`db-s3-migration.md`](db-s3-migration.md) — dump/restore Postgres values through AWS S3
 - [`oracle-deploy-runbook.md`](oracle-deploy-runbook.md) — image publish and k3s rollout
 - [`ghcr-deploy.md`](ghcr-deploy.md) — GHCR image workflow
 - [`go-backend-setup.md`](go-backend-setup.md) — local dev env vars

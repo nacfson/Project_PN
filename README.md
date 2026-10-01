@@ -29,6 +29,7 @@ For local backend setup details, see [`backend/docs/go-backend-setup.md`](backen
 | Learn frontend UX patterns | [`frontend/docs/frontend-ux-patterns.md`](frontend/docs/frontend-ux-patterns.md) |
 | Deploy to Oracle Cloud (k3s) | [`backend/docs/oracle-deploy-runbook.md`](backend/docs/oracle-deploy-runbook.md) |
 | Manage production secrets | [`backend/docs/cursor-secrets.md`](backend/docs/cursor-secrets.md) |
+| Copy the database to a new PC via AWS S3 | [`backend/docs/db-s3-migration.md`](backend/docs/db-s3-migration.md) |
 | Fix deploy issues | [`deploy/deploy-exception-runbook.md`](deploy/deploy-exception-runbook.md) |
 | Run manual QA locally | [`docs/dev-test-plan.md`](docs/dev-test-plan.md) |
 | Build the browser extension | [`browser-extension/README.md`](browser-extension/README.md) |

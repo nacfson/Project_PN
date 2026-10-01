@@ -22,6 +22,7 @@ This guide maps every documentation file in the repository. Use it to find the r
 | [`backend-future-scope.md`](../backend/docs/backend-future-scope.md) | Tables and features intentionally out of MVP |
 | [`oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md) | Production deploy to Oracle Cloud k3s |
 | [`cursor-secrets.md`](../backend/docs/cursor-secrets.md) | Runtime secrets (Cursor environment secrets) |
+| [`db-s3-migration.md`](../backend/docs/db-s3-migration.md) | Dump/restore Postgres values through AWS S3 (PC move) |
 | [`ghcr-deploy.md`](../backend/docs/ghcr-deploy.md) | GHCR image publishing |
 
 ## Frontend Docs
@@ -62,6 +63,7 @@ When working on code, follow the routing rules in [`AGENTS.md`](../AGENTS.md). K
 | Add-word / review flows | [`backend/docs/backend-flows.md`](../backend/docs/backend-flows.md) |
 | Frontend UI patterns | [`frontend/docs/frontend-ux-patterns.md`](../frontend/docs/frontend-ux-patterns.md) |
 | Deploy failures | [`deploy/deploy-exception-runbook.md`](../deploy/deploy-exception-runbook.md) |
+| Postgres dump / S3 PC migration | [`backend/docs/db-s3-migration.md`](../backend/docs/db-s3-migration.md) |
 
 ## Glossary
 
