@@ -19,7 +19,7 @@ RUN apt-get update \
     && useradd --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder --chown=10001:10001 /out/api /out/migrate /out/retranslate-senses ./
-COPY --from=builder --chown=10001:10001 db/migrations ./db/migrations
+COPY --chown=10001:10001 db/migrations ./db/migrations
 ENV APP_ADDR=:8080
 EXPOSE 8080
 USER 10001:10001
