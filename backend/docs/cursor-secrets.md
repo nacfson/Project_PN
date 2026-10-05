@@ -11,17 +11,31 @@ Manage them through **Cursor environment secrets** (Cursor dashboard → Cloud A
 - `.env.example` files document **variable names** only; values stay empty in the repo.
 - For local development on a machine outside Cursor Cloud, copy `.env.example` → `.env` and fill values locally (gitignored).
 
-## Production secrets (Oracle k3s)
+## Production secrets (Oracle k3s — legacy)
 
 These env vars must be available to the `project-pn-backend` Deployment (and the `enricher` Deployment if lookup enrichment runs there):
 
 | Variable | Purpose |
 |----------|---------|
 | `ENRICH_PRIMARY_API_KEY` | Gemini (default) or other OpenAI-compatible enricher bearer token |
-| `DATABASE_URL` | In-cluster Postgres connection string |
+| `DATABASE_URL` | In-cluster Postgres connection string (Oracle path only) |
 | `AUTH_SESSION_INTERNAL_TOKEN` | Validates central auth session cookies |
 | `CENTRAL_AUTH_INTERNAL_URL` | Internal URL for session validation |
 | `PUBLIC_APP_URL` | Frontend origin for magic-link redirect (`/link-approve?requestId=…`); default `http://localhost:8081` |
+
+## Production DB connectivity (nacfson_pipeline)
+
+Target production connects through **vault-db-proxy** (Zero-Plaintext). Do **not** mount a plaintext Postgres password.
+
+| Variable | Purpose |
+|----------|---------|
+| `DB_HOST` | `vault-db-proxy.vault.svc` |
+| `DB_PORT` | `5432` |
+| `DB_NAME` | `proj_pn` |
+| `DB_USER` | Caller identity (`project:pn:workload:backend`) |
+| `DB_TOKEN` | Caller token (same string as `DB_USER` for Wire v3 literal tokens) |
+
+When `DATABASE_URL` is unset and `DB_HOST` is set, the backend assembles the pgx URL with the token as the password field. Local Compose continues to use a full `DATABASE_URL`.
 
 Optional enricher overrides (defaults apply when empty):
 

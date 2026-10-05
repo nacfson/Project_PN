@@ -140,7 +140,12 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `APP_ADDR` | `:8080` | HTTP listen address for `cmd/api`. |
-| `DATABASE_URL` | `postgres://project_pn:project_pn_dev_password@localhost:5433/project_pn_dev?sslmode=disable` | PostgreSQL connection string used by `db.Open` and the migrate CLI. |
+| `DATABASE_URL` | _(required for local)_ | PostgreSQL connection string used by `db.Open` and the migrate CLI. Prefer this for Compose (`localhost:5433`). |
+| `DB_HOST` | _(empty)_ | When set and `DATABASE_URL` is empty, assemble URL for vault-db-proxy (default host `vault-db-proxy.vault.svc`). |
+| `DB_PORT` | `5432` | Used only when assembling from `DB_*`. |
+| `DB_NAME` | `proj_pn` | Used only when assembling from `DB_*`. |
+| `DB_USER` | `project:pn:workload:backend` | Wire caller identity (StartupMessage user). |
+| `DB_TOKEN` | same as `DB_USER` | Caller token placed in the password field (Zero-Plaintext). |
 | `MIGRATIONS_PATH` | `file://db/migrations` | golang-migrate source URL. Resolved relative to the `backend/` working directory. |
 | `ORIGIN_WIKTAPI_BASE_URL` | `https://api.wiktapi.dev` | Free gloss dictionary origin (WiktApi). **No API key.** |
 | `ENRICH_PRIMARY_BASE_URL` | empty (Gemini default only if key set) | Optional legacy OpenAI-compatible fallback base URL. (Alias: `ENRICH_BASE_URL`) |

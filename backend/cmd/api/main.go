@@ -18,6 +18,7 @@ import (
 	"project-pn/internal/enrich"
 	httpapi "project-pn/internal/http"
 	"project-pn/internal/learninglog"
+	"project-pn/internal/migrations"
 	"project-pn/internal/notify"
 	"project-pn/internal/words"
 )
@@ -27,7 +28,12 @@ func main() {
 
 	cfg := config.Load()
 	if cfg.DatabaseURL == "" {
-		slog.Error("DATABASE_URL is required")
+		slog.Error("DATABASE_URL is required (set DATABASE_URL or DB_HOST)")
+		os.Exit(1)
+	}
+
+	if err := migrations.Up(cfg.MigrationsPath, cfg.DatabaseURL); err != nil {
+		slog.Error("migration failed", "error", err)
 		os.Exit(1)
 	}
 
