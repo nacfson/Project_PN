@@ -21,7 +21,7 @@ These env vars must be available to the `project-pn-backend` Deployment (and the
 | `DATABASE_URL` | In-cluster Postgres connection string |
 | `AUTH_SESSION_INTERNAL_TOKEN` | Validates central auth session cookies |
 | `CENTRAL_AUTH_INTERNAL_URL` | Internal URL for session validation |
-| `PUBLIC_APP_URL` | Frontend origin for magic-link redirect (`/link-approve?requestId=…`); default `http://localhost:8081` |
+| `PUBLIC_APP_URL` | Frontend origin; default `http://localhost:8081` |
 
 Optional enricher overrides (defaults apply when empty):
 
@@ -44,8 +44,6 @@ Production `auth-service` runs **central-auth** (`ghcr.io/nacfson/central-auth`)
 | `PUBLIC_BASE_URL` | `https://auth.nacfson.cloud` |
 | `ADMIN_EMAILS` | Comma-separated admin emails |
 | `AUTH_SESSION_INTERNAL_TOKEN` | Must match Project PN backend |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Magic-link email (production uses SMTP via `auth-bootstrap`) |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Optional Resend fallback when SMTP is not configured |
 
 GCP OAuth redirect URI (Web client): `https://auth.nacfson.cloud/auth/google/callback`.
 

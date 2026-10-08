@@ -4,10 +4,8 @@ Nacfson Cloud authentication service for Project PN and other apps on `*.nacfson
 
 ## Features
 
-- Hosted login page (`GET /login`) — Google OAuth (primary) + magic-link email (secondary)
+- Hosted login page (`GET /login`) — Google OAuth
 - Google OAuth (`GET /auth/google`, `GET /auth/google/callback`)
-- Magic-link sign-in (`POST /api/auth/magic-link`, `POST /login/magic-link`)
-- Magic-link email delivery via SMTP (`SMTP_*` in `auth-bootstrap`) or Resend when `RESEND_API_KEY` is configured
 - Bearer access tokens with refresh-token rotation (`POST /api/auth/refresh`)
 - HttpOnly `nacfson_session` cookie sessions for hosted web apps
 - Sliding cookie session expiry on `GET /api/internal/cookie-session`
@@ -31,17 +29,14 @@ Open the login page:
 http://localhost:8090/login?rd=http://localhost:8081
 ```
 
-With `DEV_LOG_MAGIC_LINKS=true` and no Resend key, magic-link URLs are logged to stdout.
-
 ## Environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `PUBLIC_BASE_URL` | Base URL for OAuth redirects and magic links |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth (optional in local dev) |
+| `PUBLIC_BASE_URL` | Base URL for OAuth redirects |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
 | `ADMIN_EMAILS` | Comma-separated admin emails |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Magic-link email (preferred in production) |
-| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | Magic-link email fallback |
+| `AUTH_SESSION_INTERNAL_TOKEN` | Shared secret with downstream services |
 
 See [`central-auth/.env.example`](.env.example).
 

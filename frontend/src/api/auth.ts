@@ -1,14 +1,9 @@
 import {
-  cancelLinkRequest,
-  confirmLinkRequest,
   confirmMergeRequest,
-  createLinkRequest,
   createMergeRequest,
-  getCurrentLinkRequest,
   getLinkedProviders,
-  resendLinkRequest,
 } from '@project-pn/api';
-import type { LinkRequest, LinkedProvider, MeResponse } from '@project-pn/api';
+import type { LinkedProvider, MeResponse } from '@project-pn/api';
 import {
   getLanguageOptions as getLanguageOptionsApi,
   logout as logoutApi,
@@ -60,12 +55,7 @@ export async function logout(): Promise<void> {
 
 export {
   getLinkedProviders,
-  createLinkRequest,
-  getCurrentLinkRequest,
-  resendLinkRequest,
-  cancelLinkRequest,
-  confirmLinkRequest,
   createMergeRequest,
   confirmMergeRequest,
 };
-export type { LinkRequest, LinkedProvider, MeResponse };
+export type { LinkedProvider, MeResponse };

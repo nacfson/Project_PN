@@ -4,7 +4,6 @@ export type MeaningFields = {
   short_definition?: string | null;
   localized_definition?: string | null;
   localized_short_definition?: string | null;
-  personal_note?: string | null;
 };
 
 const HANGUL_TOKEN = /[\uAC00-\uD7A3]+/g;

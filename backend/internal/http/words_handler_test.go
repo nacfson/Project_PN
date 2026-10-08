@@ -84,7 +84,7 @@ func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure test central user: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestLookupAcceptsSourceContext(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestChangeMeaningConflictReturns409(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + strings.TrimPrefix(token, "token-"),
 		Email: strings.TrimPrefix(token, "token-"),
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
@@ -711,7 +711,7 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("authenticate primary user: %v", err)
 	}
@@ -722,7 +722,7 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	otherResult, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + otherEmail,
 		Email: otherEmail,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
 	}
@@ -972,7 +972,7 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
@@ -1218,7 +1218,7 @@ func TestGetStatsSummary(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}

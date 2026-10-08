@@ -84,7 +84,7 @@ func TestAuthMeLogsIdentityConfirmation(t *testing.T) {
 	authResult, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + email,
 		Email: email,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}

@@ -18,54 +18,28 @@ type LinkedProvider struct {
 	LinkedAt time.Time
 }
 
-type LinkRecommendation struct {
-	Provider string `json:"provider"`
-	Email    string `json:"email"`
-}
-
 type MergeSuggestion struct {
 	SourceUserID string `json:"source_user_id"`
 	SourceEmail  string `json:"source_email"`
 	Domain       string `json:"domain"`
 }
 
-type PendingIdentity struct {
-	Provider        string
-	ProviderSubject string
-	Email           string
-}
-
 type AuthResult struct {
-	User               User
-	SessionProvider    string // mapped PN provider for this session ('google' | 'nacfson')
-	LinkRecommendation *LinkRecommendation
-	PendingIdentity    *PendingIdentity
-}
-
-// LinkRequest is a pending or recent same-email provider link request.
-type LinkRequest struct {
-	ID              string    `json:"id"`
-	Status          string    `json:"status"`
-	PendingProvider string    `json:"pending_provider"`
-	Email           string    `json:"email"`
-	ExpiresAt       time.Time `json:"expires_at"`
+	User            User
+	SessionProvider string // mapped PN provider for this session ('google')
 }
 
 func MapCentralProvider(authProvider, providerSubject, centralUserID string) (pnProvider, pnSubject string) {
-	switch authProvider {
-	case "google":
+	if providerSubject != "" {
 		return ProviderGoogle, providerSubject
-	default:
-		return ProviderNacfson, centralUserID
 	}
+	return ProviderGoogle, centralUserID
 }
 
 func PNProviderLabel(provider string) string {
 	switch provider {
 	case ProviderGoogle:
 		return "google"
-	case ProviderNacfson:
-		return "nacfson"
 	default:
 		return provider
 	}
@@ -74,12 +48,9 @@ func PNProviderLabel(provider string) string {
 // SessionFromCentralUser builds a CentralSession for tests and legacy callers.
 func SessionFromCentralUser(user CentralUser, authProvider string) CentralSession {
 	if authProvider == "" {
-		authProvider = "magic_link"
+		authProvider = "google"
 	}
-	subject := user.ID
-	if authProvider == "google" {
-		subject = "google-sub-" + user.ID
-	}
+	subject := "google-sub-" + user.ID
 	return CentralSession{
 		AuthProvider: authProvider,
 		Identity: CentralIdentity{

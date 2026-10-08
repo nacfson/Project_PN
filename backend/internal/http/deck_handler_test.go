@@ -23,7 +23,7 @@ func TestDeckCRUD(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure central user: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestDeckMoveItemsRequiresMatchingLanguage(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure central user: %v", err)
 	}

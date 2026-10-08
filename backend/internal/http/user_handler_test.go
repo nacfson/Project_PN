@@ -67,7 +67,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 	_, err = authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure test central user: %v", err)
 	}

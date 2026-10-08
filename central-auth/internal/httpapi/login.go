@@ -24,12 +24,6 @@ var loginPageTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
     .google-btn { display: block; width: 100%; padding: 12px 16px; border: none; border-radius: 8px; background: #fff; color: #1f1f1f; font-weight: 600; font-size: 1rem; cursor: pointer; text-align: center; text-decoration: none; box-sizing: border-box; }
     .google-btn:hover { background: #f0f0f0; }
     .google-btn.disabled { opacity: .5; pointer-events: none; }
-    .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; color: #6b7a8d; font-size: .875rem; }
-    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #2d3a4d; }
-    label { display: block; font-size: .875rem; margin-bottom: 6px; color: #9aa8b8; }
-    input[type=email] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2d3a4d; background: #0f1419; color: #e7ecf3; font-size: 1rem; box-sizing: border-box; margin-bottom: 12px; }
-    .email-btn { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #3d5a80; background: transparent; color: #e7ecf3; font-size: 1rem; cursor: pointer; }
-    .email-btn:hover { background: #243044; }
     .message { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: .875rem; }
     .success { background: #1a3d2e; color: #8fd4a8; }
     .error { background: #3d1a1a; color: #f0a0a0; }
@@ -46,13 +40,6 @@ var loginPageTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
     <span class="google-btn disabled">Sign in with Google</span>
     <p class="hint">Google sign-in is not configured for this build.</p>
     {{end}}
-    <div class="divider">or continue with email</div>
-    <form method="POST" action="/login/magic-link">
-      <input type="hidden" name="rd" value="{{.RedirectURL}}" />
-      <label for="email">Email address</label>
-      <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
-      <button class="email-btn" type="submit">Send magic link</button>
-    </form>
     {{if .Message}}<div class="message {{.MessageClass}}">{{.Message}}</div>{{end}}
   </div>
 </body>
@@ -91,29 +78,3 @@ func loginRedirectURL(r *http.Request) string {
 	return rd
 }
 
-func magicLinkFormEmail(r *http.Request) string {
-	if err := r.ParseForm(); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(r.FormValue("email"))
-}
-
-func magicLinkFormRedirect(r *http.Request) string {
-	if err := r.ParseForm(); err != nil {
-		return loginRedirectURL(r)
-	}
-	rd := strings.TrimSpace(r.FormValue("rd"))
-	if rd == "" {
-		return "/"
-	}
-	return rd
-}
-
-func buildPublicCallbackURL(cfg config.Config, rawToken, rd string) string {
-	q := url.Values{}
-	q.Set("token", rawToken)
-	if rd != "" {
-		q.Set("rd", rd)
-	}
-	return fmt.Sprintf("%s/auth/callback?%s", cfg.PublicBaseURL, q.Encode())
-}

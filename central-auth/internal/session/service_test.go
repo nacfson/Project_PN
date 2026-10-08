@@ -33,15 +33,14 @@ func testService(t *testing.T) *Service {
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		t.Fatalf("migrate up: %v", err)
 	}
-	if _, err := pool.Exec(context.Background(), `truncate magic_link_tokens, sessions, users restart identity cascade`); err != nil {
+	if _, err := pool.Exec(context.Background(), `truncate sessions, users restart identity cascade`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	cfg := config.Config{
 		AccessTokenTTL:     time.Hour,
-		RefreshTokenTTL:      90 * 24 * time.Hour,
-		SessionIdleTimeout:   7 * 24 * time.Hour,
-		SessionMaxAge:        30 * 24 * time.Hour,
-		MagicLinkTTL:         15 * time.Minute,
+		RefreshTokenTTL:    90 * 24 * time.Hour,
+		SessionIdleTimeout: 7 * 24 * time.Hour,
+		SessionMaxAge:      30 * 24 * time.Hour,
 	}
 	return NewService(pool, cfg)
 }
@@ -54,7 +53,7 @@ func TestRefreshRotatesTokens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	initial, err := svc.createSession(ctx, user, false, "magic_link", user.ID)
+	initial, err := svc.createSession(ctx, user, false, "google", user.ID)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -78,7 +77,7 @@ func TestCookieSessionSlidesExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
-	creds, err := svc.createSession(ctx, user, true, "magic_link", user.ID)
+	creds, err := svc.createSession(ctx, user, true, "google", user.ID)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}

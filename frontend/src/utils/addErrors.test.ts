@@ -28,7 +28,7 @@ describe('classifyAddError', () => {
 
   it.each([
     'ADD-301', 'ADD-302', 'ADD-303', 'ADD-304', 'ADD-305', 'ADD-306', 'ADD-307', 'ADD-308',
-    'ADD-401', 'ADD-402', 'ADD-403', 'ADD-404', 'AUTH-101', 'AUTH-102', 'AUTH-201', 'SEC-101', 'SEC-102',
+    'ADD-401', 'ADD-402', 'ADD-403', 'ADD-404', 'AUTH-101', 'AUTH-102', 'SEC-101', 'SEC-102',
   ])('keeps known code %s distinct from the unknown bucket', (code) => {
     expect(classifyAddError(new ApiError(400, 'known error', code)).code).toBe(code);
   });

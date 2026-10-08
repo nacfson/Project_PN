@@ -27,13 +27,6 @@ type Service struct {
 	forceDefinitionLang    string
 	forceTargetLang        string
 	forceUILang            string
-	magicLinks             MagicLinkSender
-	publicAppURL           string
-}
-
-// MagicLinkSender triggers central-auth magic-link email delivery.
-type MagicLinkSender interface {
-	SendMagicLink(ctx context.Context, email, redirectURL string) error
 }
 
 type Options struct {
@@ -46,8 +39,6 @@ type Options struct {
 	ForceDefinitionLang    string
 	ForceTargetLang        string
 	ForceUILang            string
-	MagicLinkSender        MagicLinkSender
-	PublicAppURL           string
 }
 
 func New(pool *pgxpool.Pool, opts Options) *Service {
@@ -62,8 +53,6 @@ func New(pool *pgxpool.Pool, opts Options) *Service {
 		forceDefinitionLang:    opts.ForceDefinitionLang,
 		forceTargetLang:        opts.ForceTargetLang,
 		forceUILang:            opts.ForceUILang,
-		magicLinks:             opts.MagicLinkSender,
-		publicAppURL:           strings.TrimRight(strings.TrimSpace(opts.PublicAppURL), "/"),
 	}
 }
 

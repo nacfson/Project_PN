@@ -17,21 +17,11 @@ type Config struct {
 	RefreshTokenTTL      time.Duration
 	SessionIdleTimeout   time.Duration
 	SessionMaxAge        time.Duration
-	MagicLinkTTL         time.Duration
-	DevLogMagicLinks     bool
 	PublicBaseURL        string
 	GoogleClientID       string
 	GoogleClientSecret   string
 	GoogleRedirectURI    string
 	AdminEmails          []string
-	EmailProvider        string
-	ResendAPIKey         string
-	ResendFromEmail      string
-	SMTPHost             string
-	SMTPPort             string
-	SMTPUser             string
-	SMTPPass             string
-	SMTPFrom             string
 }
 
 func Load() Config {
@@ -57,26 +47,12 @@ func Load() Config {
 		RefreshTokenTTL:      durationEnv("REFRESH_TOKEN_TTL", 90*24*time.Hour),
 		SessionIdleTimeout:   durationEnv("SESSION_IDLE_TIMEOUT", 7*24*time.Hour),
 		SessionMaxAge:        durationEnv("SESSION_MAX_AGE", 30*24*time.Hour),
-		MagicLinkTTL:         durationEnv("MAGIC_LINK_TTL", 15*time.Minute),
-		DevLogMagicLinks:     env("DEV_LOG_MAGIC_LINKS", "true") == "true",
 		PublicBaseURL:        publicBase,
 		GoogleClientID:       strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID")),
 		GoogleClientSecret:   strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET")),
 		GoogleRedirectURI:    googleRedirect,
 		AdminEmails:          adminEmails,
-		EmailProvider:        strings.ToLower(strings.TrimSpace(os.Getenv("EMAIL_PROVIDER"))),
-		ResendAPIKey:         strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
-		ResendFromEmail:      strings.TrimSpace(os.Getenv("RESEND_FROM_EMAIL")),
-		SMTPHost:             strings.TrimSpace(os.Getenv("SMTP_HOST")),
-		SMTPPort:             strings.TrimSpace(os.Getenv("SMTP_PORT")),
-		SMTPUser:             strings.TrimSpace(os.Getenv("SMTP_USER")),
-		SMTPPass:             os.Getenv("SMTP_PASS"),
-		SMTPFrom:             strings.TrimSpace(os.Getenv("SMTP_FROM")),
 	}
-}
-
-func (c Config) SMTPConfigured() bool {
-	return c.SMTPHost != "" && c.SMTPFrom != ""
 }
 
 func (c Config) GoogleConfigured() bool {

@@ -46,7 +46,7 @@ func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.
 	}
 	t.Cleanup(pool.Close)
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, user_identities, account_merge_requests, account_link_requests CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, user_identities, account_merge_requests CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -61,8 +61,6 @@ func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.
 		ForceDefinitionLang:    cfg.ForceDefinitionLang,
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
-		MagicLinkSender:        &noopMagicLinks{},
-		PublicAppURL:           "http://localhost:8081",
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
@@ -218,7 +216,3 @@ func repoPath(t *testing.T, parts ...string) string {
 func uniqueEmail(prefix string) string {
 	return prefix + "+" + time.Now().Format("150405.000000") + "@example.com"
 }
-
-type noopMagicLinks struct{}
-
-func (noopMagicLinks) SendMagicLink(context.Context, string, string) error { return nil }

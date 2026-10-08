@@ -94,18 +94,13 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 ## Authentication
 
-The backend delegates authentication to **central-auth** (`CENTRAL_AUTH_URL`, public host `auth.nacfson.cloud`). Users sign in on the hosted login page with **Google OAuth** (primary) or **magic link** (secondary). The client sends the session token as `Authorization: Bearer <token>` on every API request. The backend validates each token via `CentralClient.ValidateSession()` (`GET /api/auth/session`), which returns `auth_provider` and `identity` (`provider`, `provider_subject`).
+The backend delegates authentication to **central-auth** (`CENTRAL_AUTH_URL`, public host `auth.nacfson.cloud`). Users sign in with **Google OAuth**. The client sends the session token as `Authorization: Bearer <token>` on every API request. The backend validates each token via `CentralClient.ValidateSession()` (`GET /api/auth/session`), which returns `auth_provider` (`google`) and `identity` (`provider`, `provider_subject`).
 
 `EnsureCentralUser()` provisions or resolves a local `users` row and `user_identities` rows:
 
-- Magic link → `user_identities(provider='nacfson', provider_subject=<central user id>)`
 - Google → `user_identities(provider='google', provider_subject=<google sub>)`
 
-When the same email already exists under another provider, the backend returns a **link recommendation** in `GET /api/auth/me` but does **not** auto-insert the identity. The initiator creates `POST /api/auth/link-requests` (15 minute TTL); central-auth sends a magic-link email; the target confirms via `POST /api/auth/link-requests/{id}/confirm` while signed in with the email (`nacfson` / magic_link) session. Different emails require manual merge (`account_merge_requests`). Provider unlink is not supported in v1.
-
-See `backend/docs/account-link-target-approval.md`.
-
-Auth configuration is documented in `backend/docs/go-backend-setup.md`. Flow details are in `backend/docs/backend-flows.md`.
+When an existing account has the same verified email, `EnsureCentralUser()` automatically binds the Google identity to the existing user row. For combining data between accounts with different emails, users use the explicit account merge flow (`account_merge_requests`). Provider unlink is not supported in v1.
 
 ## Production Deployment (Oracle Cloud)
 

@@ -9,7 +9,6 @@ import { AddQueueProvider } from './src/hooks/useAddQueue';
 import { useSessionRenewal } from './src/hooks/useSessionRenewal';
 import { AppLanguageProvider } from './src/i18n';
 import { LanguageProvider } from './src/contexts/LanguageContext';
-import { LinkAccountBanner } from './src/features/auth/LinkAccountBanner';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -40,7 +39,6 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   return (
     <LanguageProvider>
       <AddQueueProvider>
-        <LinkAccountBanner />
         <RootNavigator onLogout={onLogout} />
       </AddQueueProvider>
     </LanguageProvider>
