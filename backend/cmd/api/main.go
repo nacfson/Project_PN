@@ -141,7 +141,6 @@ func main() {
 		ForceUILang:            cfg.ForceUILang,
 	})
 	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
-	gatewayClient := auth.NewGatewayClient(cfg.GatewayAuthURL, cfg.SignIn, nil)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,
@@ -152,7 +151,6 @@ func main() {
 			JWTVerifier:      jwtVerifier,
 			AuthDevBypass:    cfg.AuthDevBypass,
 			CentralAuth:      centralAuth,
-			GatewayAuth:      gatewayClient,
 			AllowedOrigins:   cfg.AllowedOrigins,
 			AdminLogger:      adminLogger,
 			MetricsCollector: metricsCollector,

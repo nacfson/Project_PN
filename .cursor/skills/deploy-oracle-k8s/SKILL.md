@@ -35,15 +35,14 @@ Production is **Oracle Cloud Ampere / k3s**, not Docker Compose on a home Ubuntu
 
 ## 1. Publish images
 
-**CI (preferred):** push/merge to `main` → `.github/workflows/publish-ghcr-images.yml`
-
-**Manual:**
+Build and push multi-arch images manually using `scripts/push-ghcr.sh`:
 
 ```sh
 GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+# or TARGET=frontend / TARGET=backend
 ```
 
-Note the image tag (git short SHA).
+Note the image tag (git short SHA) and digests.
 
 ## 2. Roll out on Oracle
 

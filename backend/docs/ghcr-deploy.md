@@ -11,31 +11,25 @@ Runtime secrets (`ENRICH_PRIMARY_API_KEY`, `DATABASE_URL`, etc.) are **not** in 
 
 Rollout after publish: [`oracle-deploy-runbook.md`](oracle-deploy-runbook.md).
 
-## Option A — GitHub Actions (no PAT to publish)
+## Publishing Images (Manual Script)
 
-`.github/workflows/publish-ghcr-images.yml` builds and pushes on push to `main`:
-
-- Tags: `<git-short-sha>` and `latest`
-- Platform: `linux/amd64` (workflow); use `scripts/push-ghcr.sh` for multi-arch including `linux/arm64` required by Oracle Ampere
-
-Authenticates with `GITHUB_TOKEN` (`permissions: packages: write`).
-
-## Option B — Manual multi-arch push
-
-Requires `GHCR_TOKEN` with `write:packages`:
+Project PN images are built and pushed to GHCR using the multi-arch script `scripts/push-ghcr.sh` with Docker Buildx:
 
 ```sh
+# Push both backend and frontend images
 GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+
+# Or push individual targets:
+GHCR_TOKEN=... TARGET=frontend scripts/push-ghcr.sh
+GHCR_TOKEN=... TARGET=backend scripts/push-ghcr.sh
 ```
+
+- **Authentication**: Requires `GHCR_TOKEN` with `write:packages` scope.
+- **Platforms**: Defaults to `linux/amd64,linux/arm64` (Oracle Ampere requires arm64).
+- **Builder**: Automatically sets up the `project-pn-multi` Docker Buildx container driver.
+- **Frontend export**: For frontend targets, the script runs `npm install` and `npm run web:export` before building the Nginx image.
 
 Skill: [`.cursor/skills/push-ghcr-images/SKILL.md`](../../.cursor/skills/push-ghcr-images/SKILL.md).
-
-Build arm64 (or multi-arch) for Oracle:
-
-```sh
-PLATFORMS=linux/arm64 TARGET=backend scripts/push-ghcr.sh
-# or PLATFORMS=linux/amd64,linux/arm64 TARGET=all
-```
 
 ## Consume on Oracle (k3s)
 

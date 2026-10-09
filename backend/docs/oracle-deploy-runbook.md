@@ -25,26 +25,23 @@ On the Oracle path, migrations historically ran as a one-shot Job `project-pn-mi
 
 ## Publish images (GHCR)
 
-### Option A — GitHub Actions (recommended)
-
-`.github/workflows/publish-ghcr-images.yml` builds and pushes on push to `main`:
-
-- `ghcr.io/nacfson/project-pn-backend:<sha>` and `:latest`
-- `ghcr.io/nacfson/project-pn-frontend:<sha>` and `:latest`
-
-Uses `GITHUB_TOKEN`; no extra PAT required to publish.
-
-### Option B — Manual multi-arch push
-
-From a machine with Docker buildx and `GHCR_TOKEN`:
+Images are built and published to GHCR manually using `scripts/push-ghcr.sh` with Docker Buildx:
 
 ```bash
+# Build & push both images (multi-arch: linux/amd64, linux/arm64)
 GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+
+# Or build individual targets:
+GHCR_TOKEN=... TARGET=frontend scripts/push-ghcr.sh
+GHCR_TOKEN=... TARGET=backend scripts/push-ghcr.sh
 ```
 
-See [`.cursor/skills/push-ghcr-images/SKILL.md`](../../.cursor/skills/push-ghcr-images/SKILL.md).
+- **Registry**: `ghcr.io/nacfson/project-pn-backend` and `ghcr.io/nacfson/project-pn-frontend`
+- **Tags**: `<git-short-sha>` and `latest`
+- **Architecture**: `scripts/push-ghcr.sh` automatically builds multi-arch (`linux/amd64,linux/arm64`) required by Oracle Cloud Ampere.
+- **Frontend bundle**: `npm run web:export` runs inside the script before packaging into Nginx image.
 
-Oracle pods need **arm64**. Ensure the tag you roll out exists for `linux/arm64` (the push script builds `linux/amd64,linux/arm64`).
+See [`.cursor/skills/push-ghcr-images/SKILL.md`](../../.cursor/skills/push-ghcr-images/SKILL.md) and [`ghcr-deploy.md`](ghcr-deploy.md).
 
 ## Roll out on Oracle (kubectl)
 
