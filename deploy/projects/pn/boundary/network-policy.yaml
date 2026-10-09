@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: project-pn-isolation
+  namespace: proj-pn
+  labels:
+    platform.nacfson.io/project-id: pn
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pn-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow incoming traffic from platform ingress / Traefik
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: platform
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Also allow from within proj-pn namespace (frontend)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pn-frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # 1. CoreDNS in kube-system
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # 2. Vault DB Proxy (Zero-Plaintext Postgres)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # 3. Keycloak JWKS in identity namespace (001-gateway-jwt-auth)
+    # Allows in-cluster JWKS retrieval over cluster network
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: identity
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: keycloak
+      ports:
+        - protocol: TCP
+          port: 8080

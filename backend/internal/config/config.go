@@ -77,6 +77,14 @@ type Config struct {
 	AuthSessionInternalToken string
 	PublicAppURL             string
 
+	// Gateway JWT configuration
+	AuthJWTIssuer      string
+	AuthJWTAudience    string
+	AuthJWTJWKSURL     string
+	AuthJWTAllowedAlgs []string
+	AuthJWTClockSkew   time.Duration
+	AuthDevBypass      bool
+
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
 	ExpoAccessToken            string
@@ -97,6 +105,14 @@ func Load() Config {
 		if enrichPrimaryModel == "" {
 			enrichPrimaryModel = defaultEnrichPrimaryModel
 		}
+	}
+
+	jwtIssuer := strings.TrimRight(strings.TrimSpace(envOrDefault("AUTH_JWT_ISSUER", "https://auth.nacfson.cloud/realms/platform")), "/")
+	jwtAudience := strings.TrimSpace(envOrDefault("AUTH_JWT_AUDIENCE", "project-pn"))
+	jwtJWKSURL := strings.TrimSpace(envOrDefault("AUTH_JWT_JWKS_URL", "http://keycloak-service.identity.svc:8080/realms/platform/protocol/openid-connect/certs"))
+	allowedAlgs := splitAndTrim(envOrDefault("AUTH_JWT_ALLOWED_ALGS", "RS256"))
+	if len(allowedAlgs) == 0 {
+		allowedAlgs = []string{"RS256"}
 	}
 
 	return Config{
@@ -135,6 +151,13 @@ func Load() Config {
 		CentralAuthInternalURL:   strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
 		AuthSessionInternalToken: strings.TrimSpace(os.Getenv("AUTH_SESSION_INTERNAL_TOKEN")),
 		PublicAppURL:             strings.TrimRight(strings.TrimSpace(envOrDefault("PUBLIC_APP_URL", "http://localhost:8081")), "/"),
+
+		AuthJWTIssuer:      jwtIssuer,
+		AuthJWTAudience:    jwtAudience,
+		AuthJWTJWKSURL:     jwtJWKSURL,
+		AuthJWTAllowedAlgs: allowedAlgs,
+		AuthJWTClockSkew:   durationOrDefault("AUTH_JWT_CLOCK_SKEW", 1*time.Minute),
+		AuthDevBypass:      envBool("AUTH_DEV_BYPASS", false),
 
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),

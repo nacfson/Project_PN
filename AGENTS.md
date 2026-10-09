@@ -25,7 +25,8 @@ Core backend principle:
 - **Production deploy, GHCR publish, Oracle k3s rollout 시**: `.cursor/skills/deploy-oracle-k8s/SKILL.md`, `backend/docs/oracle-deploy-runbook.md`
 - **Runtime secrets (Gemini, DB, auth tokens, Google OAuth) or ENRICH_* configuration 시**: `backend/docs/cursor-secrets.md`
 - **PostgreSQL dump/restore, AWS S3 backup, or PC database migration 시**: `backend/docs/db-s3-migration.md`
-- **central-auth / auth-service rollout, Google OAuth sync, or 기타 nacfson.cloud K8s 이미지 배포 시**: `backend/docs/oracle-deploy-runbook.md` (auth rolls), `scripts/sync-auth-google-secrets.sh` (Google keys), `~/.cursor/skills/deploy-nacfson-project/SKILL.md` (ProcessManager / other services)
+- **Platform identity, Keycloak JWT verification, Traefik ForwardAuth, or operator account migration 시**: `backend/docs/platform-identity-migration.md`, `specs/001-gateway-jwt-auth/`
+- **Legacy central-auth (retired) or 기타 nacfson.cloud K8s 이미지 배포 시**: `backend/docs/oracle-deploy-runbook.md`, `~/.cursor/skills/deploy-nacfson-project/SKILL.md`
 - **iOS를 Xcode로 Release/device 빌드하거나, localhost:8080 bake-in / EXPO_PUBLIC_API_BASE_URL 문제를 다룰 시**: `.cursor/skills/build-ios-xcode/SKILL.md`
 - **Frontend UI component, form validation, loading state, practice UX, or translation string 추가/수정 시**: `frontend/docs/frontend-ux-patterns.md`
 - **Deploy 실패, nginx 오류, CORS 오류, enrichment 503, TLS, 또는 Oracle/k3s backend 예외 발생 시**: `deploy/deploy-exception-runbook.md`
@@ -48,6 +49,7 @@ Core backend principle:
 - Treat `review_attempts` as append-only history.
 - Do not store user mastery, schedule, confidence, notes, or progress on global `words` or `word_senses`.
 - Do not reintroduce `user_words` as the main learning table.
+- Project PN authenticates requests via in-cluster Keycloak project-scoped access tokens under Traefik ForwardAuth (`001-gateway-jwt-auth`). Users resolve strictly by `(issuer, subject)` to ordinary learner privileges (no application-administrator product role). Fail closed on invalid/missing JWT or unreachable JWKS.
 
 ## Frontend Rules
 

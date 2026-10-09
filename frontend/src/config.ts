@@ -71,15 +71,6 @@ function resolveApiFallbackUrls(): string[] {
     .filter((url) => url.length > 0);
 }
 
-function stripTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '');
-}
-
-function resolveCentralAuthUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_CENTRAL_AUTH_URL;
-  return fromEnv ? stripTrailingSlash(fromEnv.trim()) : 'https://auth.nacfson.cloud';
-}
-
 export const API_BASE_URL = resolveApiBaseUrl();
 // Production builds use a single URL (https://pn.nacfson.cloud). Intranet vs
 // public is handled by split DNS, not client fallbacks. Fallbacks are local-dev only.
@@ -87,7 +78,7 @@ export const API_BASE_URLS = [
   API_BASE_URL,
   ...(__DEV__ ? resolveApiFallbackUrls().filter((url) => url !== API_BASE_URL) : []),
 ];
-export const CENTRAL_AUTH_URL = resolveCentralAuthUrl();
+
 
 export const DEFAULT_LANGUAGE_CODE = 'en';
 export const DEFAULT_DEFINITION_LANGUAGE_CODE = 'ko';

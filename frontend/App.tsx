@@ -112,14 +112,13 @@ function AppContent() {
         setConnectionError(null);
         analytics.track('auth_failed', { error_code: 'AUTH-101', retryable: false });
       } else {
-        const current = authStateRef.current;
-        if (current === 'unauthenticated') {
-          setConnectionError(err.message || 'Could not connect to the backend server.');
-          setAuthState('unauthenticated');
-        } else {
-          setAuthState('authenticated');
-          setConnectionError(null);
+        // Fail closed: Any connection/backend failure must NEVER grant authenticated access
+        if (!isBrowserWeb()) {
+          await sessionStorage.clearSession();
         }
+        setConnectionError(err?.message || 'Could not connect to the backend server.');
+        setAuthState('unauthenticated');
+        analytics.track('auth_failed', { error_code: 'AUTH-CONN', retryable: true });
       }
     }
   }, [notifyExtensionIfNeeded]);

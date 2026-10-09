@@ -21,6 +21,8 @@ type Dependencies struct {
 	DB               *pgxpool.Pool
 	Words            *words.Service
 	Auth             *auth.Service
+	JWTVerifier      *auth.JWTVerifier
+	AuthDevBypass    bool
 	CentralAuth      *auth.CentralClient
 	AllowedOrigins   []string
 	AdminLogger      admin.Logger
@@ -60,7 +62,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Get("/readyz", readyz(deps.DB))
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
-		authMW = authMiddleware(deps.Auth, deps.CentralAuth, deps.AdminLogger)
+		authMW = authMiddleware(deps.JWTVerifier, deps.Auth, deps.AuthDevBypass, deps.AdminLogger)
 		ah := &authHandler{svc: deps.Auth, logger: deps.AdminLogger}
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
@@ -101,7 +103,7 @@ func NewRouter(deps Dependencies) http.Handler {
 		ah := analyticsHandler{logger: deps.AnalyticsLogger}
 		r.Route("/api/analytics", func(analyticsRouter chi.Router) {
 			if deps.Auth != nil {
-				analyticsRouter.Use(optionalAuthMiddleware(deps.Auth, deps.CentralAuth, deps.AdminLogger))
+				analyticsRouter.Use(optionalAuthMiddleware(deps.JWTVerifier, deps.Auth, deps.AuthDevBypass, deps.AdminLogger))
 			}
 			analyticsRouter.Post("/events", ah.collect)
 		})

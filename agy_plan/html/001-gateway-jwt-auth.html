@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Implementation Plan: Gateway JWT Auth Verification & Platform Identity Migration</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --heading: #f0f6fc;
+      --primary: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --code-bg: #090d13;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 32px 20px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    h1, h2, h3, h4 {
+      color: var(--heading);
+      font-weight: 600;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+    }
+    .meta-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .badge {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+    }
+    .badge-primary { background: rgba(88, 166, 255, 0.15); color: var(--primary); border: 1px solid rgba(88, 166, 255, 0.3); }
+    .badge-success { background: rgba(63, 185, 80, 0.15); color: var(--success); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-warning { background: rgba(210, 153, 34, 0.15); color: var(--warning); border: 1px solid rgba(210, 153, 34, 0.3); }
+    .badge-danger { background: rgba(248, 81, 73, 0.15); color: var(--danger); border: 1px solid rgba(248, 81, 73, 0.3); }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: var(--heading);
+    }
+    pre, code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+    }
+    code {
+      background-color: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #79c0ff;
+    }
+    pre {
+      background-color: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+    .diff-del {
+      background-color: rgba(248, 81, 73, 0.15);
+      color: #ff7b72;
+      display: block;
+    }
+    .diff-add {
+      background-color: rgba(63, 185, 80, 0.15);
+      color: #7ee787;
+      display: block;
+    }
+    .diagram-container {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Implementation Plan: Gateway JWT Auth Verification</h1>
+      <p style="margin: 0; color: #8b949e;">Operator migration and local Keycloak project-scoped access JWT verification for Project PN</p>
+      <div class="meta-badges">
+        <span class="badge badge-success">Status: Implemented & Verified</span>
+        <span class="badge badge-primary">Feature: 001-gateway-jwt-auth</span>
+        <span class="badge badge-success">Target: Oracle k3s / nacfson_pipeline</span>
+        <span class="badge badge-warning">Cutover: Hard Cutover (Google Live)</span>
+        <span class="badge badge-danger">Product Role: Ordinary Learner Only (No Admin)</span>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>1. Architecture Overview</h2>
+      <p>Project PN is migrating from legacy Central Auth session validation to <strong>Traefik ForwardAuth + Keycloak JWT</strong> verification. All protected requests are verified locally via in-cluster JWKS.</p>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+flowchart TD
+    Client["Client (Browser / Native)"] -->|1. HTTPS Request| Traefik["Traefik Ingress (kube-system)"]
+    
+    subgraph PlatformIngress["Platform Ingress Middlewares"]
+        Traefik -->|2. Strip Headers| Strip["strip-forged-headers.platform"]
+        Strip -->|3. ForwardAuth Check| FA["forward-auth.platform"]
+        FA -->|4. Verify Session| Gateway["Go Gateway (identity ns)"]
+        Gateway -->|5. Token Mint| Keycloak["Keycloak Realm platform"]
+    end
+
+    FA -->|6. Inject Bearer JWT| Route["IngressRoute (proj-pn ns)"]
+    
+    subgraph ProjectPN["Project PN Namespace (proj-pn)"]
+        Route -->|7a. Web App| Frontend["pn-frontend (:80)"]
+        Route -->|7b. /api Requests| Backend["pn-backend (:8080)"]
+        Backend -->|8. In-Cluster JWKS (Port 8080)| KeycloakService["keycloak-service.identity.svc:8080"]
+        Backend -->|9. Resolve (iss, sub)| DB[("PostgreSQL (vault-db-proxy:5432)")]
+    end
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Core Principles & Locked Decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision Item</th>
+            <th>Requirement / Specification</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Continuity</strong></td>
+            <td>Existing accounts and learning data are strictly preserved. Operator migration maps <code>(issuer, subject)</code> &rarr; <code>users.id</code> prior to cutover.</td>
+            <td><span class="badge badge-success">Preserved</span></td>
+          </tr>
+          <tr>
+            <td><strong>Credential</strong></td>
+            <td>Access tokens only for project audience (<code>aud = project-pn</code>). Reject ID tokens, Google access tokens, and legacy tokens.</td>
+            <td><span class="badge badge-primary">Enforced</span></td>
+          </tr>
+          <tr>
+            <td><strong>Application Admin</strong></td>
+            <td>Completely removed. No <code>is_admin</code> product authorization or admin bindings. Ordinary role only.</td>
+            <td><span class="badge badge-danger">Removed</span></td>
+          </tr>
+          <tr>
+            <td><strong>JWKS NetworkPolicy</strong></td>
+            <td>Backend pods fetch trust material from in-cluster Keycloak service (port 8080). Egress rule added to NetworkPolicy.</td>
+            <td><span class="badge badge-warning">In-Cluster</span></td>
+          </tr>
+          <tr>
+            <td><strong>Fail-Closed Gate</strong></td>
+            <td>Frontend <code>App.tsx</code> bug fixed so connection failures strictly set <code>unauthenticated</code> instead of failing open to <code>authenticated</code>.</td>
+            <td><span class="badge badge-danger">Fail Closed</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>3. Data Model Changes</h2>
+      <p>The <code>user_identities</code> table is evolved to support platform identity bindings:</p>
+      <div class="diagram-container">
+        <div class="mermaid">
+erDiagram
+    users ||--o{ user_identities : "has"
+    users ||--o{ user_word_senses : "owns"
+    users ||--o{ decks : "owns"
+    user_identities {
+        uuid id PK
+        uuid user_id FK
+        text issuer "Exact realm issuer URL"
+        text subject "Keycloak sub UUID"
+        text sign_in_method "google (live), apple, email"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>4. Scope Breakdown (Implementation Phases)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Deliverables</th>
+            <th>Target Files</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Phase 1: Setup</strong></td>
+            <td>Add JWKS dependency (<code>lestrrat-go/jwx</code>), env config variables.</td>
+            <td><code>backend/go.mod</code>, <code>backend/internal/config/config.go</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 2: Foundation</strong></td>
+            <td>DB migration (<code>000029_platform_identity_bindings</code>), JWKS verifier, <code>EnsurePlatformUser</code>.</td>
+            <td><code>backend/db/migrations/</code>, <code>backend/internal/auth/jwt_verifier.go</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 3: US1 Ordinary Access</strong></td>
+            <td>Wire JWT middleware, ordinary role declaration, update <code>/api/auth/me</code> DTOs.</td>
+            <td><code>backend/internal/http/auth_middleware.go</code>, <code>packages/api/src/auth.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 4: US2 Reject Matrix & Gate Fix</strong></td>
+            <td>Harden reject matrix (aud/iss/sig/exp), fix frontend <code>App.tsx</code> fail-open bug.</td>
+            <td><code>frontend/App.tsx</code>, <code>backend/internal/http/auth_middleware_test.go</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 5: US3 Continuity & Cutover</strong></td>
+            <td>Operator migration SQL template, reject legacy central-auth session tokens.</td>
+            <td><code>scripts/migrate-platform-identities.sql</code>, <code>backend/cmd/api/main.go</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 6: US4 Admin & Legacy Cleanup</strong></td>
+            <td>Remove <code>is_admin</code> authz, remove <code>auth.nacfson.cloud</code> redirects, update runbooks.</td>
+            <td><code>frontend/src/screens/CentralAuthScreen.tsx</code>, <code>scripts/push-ghcr.sh</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 7: US5 Multi-Client & Rotation</strong></td>
+            <td>In-cluster JWKS key rotation cache, client env updates.</td>
+            <td><code>backend/internal/auth/jwt_verifier.go</code>, <code>frontend/.env.example</code></td>
+          </tr>
+          <tr>
+            <td><strong>Phase 8: Polish & E2E Validation</strong></td>
+            <td>Run serial tests (<code>go test -p 1 ./...</code>), typecheck, operator sign-off.</td>
+            <td><code>docs/</code>, <code>backend/docs/backend-overview.md</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>5. Critical Planned Code Diffs</h2>
+
+      <h3>5.1 Frontend Fail-Closed Fix (`frontend/App.tsx`)</h3>
+      <pre><code>// frontend/App.tsx - Fix fatal fallback that logged unauthenticated visitors in
+  } catch (err: any) {
+<span class="diff-del">-   if (err && err.status === 401) {</span>
+<span class="diff-del">-     setAuthState('unauthenticated');</span>
+<span class="diff-del">-   } else {</span>
+<span class="diff-del">-     const current = authStateRef.current;</span>
+<span class="diff-del">-     if (current === 'unauthenticated') {</span>
+<span class="diff-del">-       setConnectionError(err.message || 'Could not connect to backend.');</span>
+<span class="diff-del">-       setAuthState('unauthenticated');</span>
+<span class="diff-del">-     } else {</span>
+<span class="diff-del">-       setAuthState('authenticated'); // &lt;-- FATAL BUG REMOVED</span>
+<span class="diff-del">-     }</span>
+<span class="diff-del">-   }</span>
+<span class="diff-add">+   // Always fail closed: network errors or 401 must never grant authenticated access</span>
+<span class="diff-add">+   if (!isBrowserWeb()) {</span>
+<span class="diff-add">+     await sessionStorage.clearSession();</span>
+<span class="diff-add">+   }</span>
+<span class="diff-add">+   setConnectionError(err?.message || 'Could not connect to the backend server.');</span>
+<span class="diff-add">+   setAuthState('unauthenticated');</span>
+  }</code></pre>
+
+      <h3>5.2 Backend JWT Middleware (`backend/internal/http/auth_middleware.go`)</h3>
+      <pre><code>// Local in-cluster JWT verification replacing Central Auth HTTP validation
+func authMiddleware(verifier *auth.JWTVerifier, ensurer platformUserEnsurer, logger admin.Logger) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            token := bearerToken(r)
+            if token == "" {
+                writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+                return
+            }
+            claims, err := verifier.Verify(r.Context(), token)
+            if err != nil {
+                writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+                return
+            }
+            authResult, err := ensurer.EnsurePlatformUser(r.Context(), claims.Issuer, claims.Subject, claims.Email, "google")
+            if err != nil {
+                writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
+                return
+            }
+            next.ServeHTTP(w, r.WithContext(withUser(r.Context(), authResult.User)))
+        })
+    }
+}</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>6. Automated Verification Matrix</h2>
+      <p>Execute the following commands to verify compliance:</p>
+      <pre><code># 1. Serial backend tests (must pass 100%)
+cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./internal/auth/ ./internal/http/ -count=1
+
+# 2. Frontend test suites & Add-Screen invariant
+npm test -w frontend
+npm run typecheck -w frontend
+npm run typecheck -w packages/api
+
+# 3. HTTP Reject Matrix Smoke
+curl -i http://localhost:8080/healthz             # Expect 200 OK (no token)
+curl -i http://localhost:8080/api/auth/me         # Expect 401 Unauthorized
+curl -i -H "X-User-Subject: evil" http://localhost:8080/api/auth/me # Expect 401 (ignored headers)</code></pre>
+    </section>
+  </div>
+</body>
+</html>

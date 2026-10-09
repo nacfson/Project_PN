@@ -1,174 +1,182 @@
-# Tasks: Gateway JWT Auth Verification
+# Tasks: Gateway JWT Auth Verification & Platform Identity Migration
 
-**Input**: Design documents from `/specs/001-gateway-jwt-auth/`
+**Input**: Design documents from `/specs/001-gateway-jwt-auth/` (spec.md, plan.md, research.md, data-model.md, contracts/, quickstart.md) and Platform Identity Migration Runbook (`backend/docs/platform-identity-migration.md`).
 
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md.
 
-**Tests**: Included — spec FR-015 / contracts require accept-reject and authorization matrices.
+**Tests**: Included — spec FR-015 and contracts require automated accept-reject matrices, ordinary capability enforcement, and cross-user denial tests.
 
-**Out of scope for these tasks**: Platform SSO idle/max lifetime, Keycloak Google broker UI, Traefik ForwardAuth implementation (platform-owned). PN only verifies JWTs and resolves local accounts.
+**Out of scope for these tasks**: Platform SSO idle/max lifetime, Keycloak Google broker UI, Traefik ForwardAuth implementation (platform-owned in `nacfson_pipeline`). Project PN only verifies in-cluster project-scoped JWTs and resolves local accounts.
 
-**Organization**: Grouped by user story for independent implementation and testing.
+**Organization**: Grouped strictly by user story for independent implementation and testing.
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `- [ ] [TaskID] [P?] [Story?] Description with file path`
 
-- **[P]**: Can run in parallel (different files, no incomplete dependencies)
-- **[Story]**: US1–US5 map to spec user stories
-- Exact file paths in every task
+- **Checkbox**: `- [ ]` markdown checkbox
+- **[TaskID]**: Sequential ID (`T001`, `T002`, `T003`, ...)
+- **[P]**: Parallelizable task (different files, no incomplete dependencies)
+- **[Story]**: `[US1]`, `[US2]`, `[US3]`, `[US4]`, `[US5]` mapping to spec.md user stories (User Story phases only)
+- Exact file paths in every task description
 
 ## Path Conventions
 
 - Backend: `backend/`
 - Frontend: `frontend/`
 - Shared API types: `packages/api/`
+- Deployment boundary manifests: `deploy/projects/pn/`
 - Feature docs: `specs/001-gateway-jwt-auth/`
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Dependencies, config surface, and constitution alignment for JWT auth
+**Purpose**: Dependencies, configuration surface, and repository alignment for gateway JWT auth.
 
-- [ ] T001 Add JWT/JWKS dependency (`github.com/lestrrat-go/jwx` per research.md) to `backend/go.mod` / `backend/go.sum`
-- [ ] T002 [P] Add auth JWT config fields and env parsing (`AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_JWKS_URL`, alg allowlist, optional clock skew, non-prod `AUTH_DEV_BYPASS`) in `backend/internal/config/config.go` and document names in `backend/.env.example` and `backend/docs/cursor-secrets.md`
-- [ ] T003 [P] Confirm constitution Identity text matches gateway JWT + no app-admin + no ProcessManager auth (already 1.1.1); sync any leftover agent-guide wording if still stale
+- [X] T001 Add JWT/JWKS dependency (`github.com/lestrrat-go/jwx/v3` or v2 per research.md) to `backend/go.mod` and `backend/go.sum`
+- [X] T002 [P] Add auth JWT configuration fields and env parsing (`AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_JWKS_URL`, allowed `alg` list defaulting to `["RS256"]`, clock skew duration, non-prod `AUTH_DEV_BYPASS`) in `backend/internal/config/config.go`, and document configuration variables in `backend/.env.example` and `backend/docs/cursor-secrets.md`
+- [X] T003 [P] Verify constitution Identity text (Section 1.1.1) and clean up obsolete ProcessManager / session environment variables in `backend/.env.example`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Schema + verifier + middleware skeleton that all stories share
+**Purpose**: Core database schema, JWT verifier skeleton, and middleware infrastructure that all user stories depend on.
 
-**⚠️ CRITICAL**: No user story work begins until this phase completes
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 Create PostgreSQL migration evolving `user_identities` with `issuer text not null`, `subject text not null`, `sign_in_method text not null` CHECK/allowlist including `google` (and reserved `apple`/`email`), `UNIQUE (issuer, subject)`, preserve `user_id` FK and existing `users`/learning tables — add `backend/db/migrations/000029_platform_identity_bindings.up.sql` and `.down.sql` (adjust number if next migration differs)
-- [ ] T005 [P] Implement JWKS-cached access-token verifier (sig, alg allowlist reject `none`, exact `iss`, `aud` contains project client id, `exp`/`nbf` skew, require `sub`) in `backend/internal/auth/jwt_verifier.go`
-- [ ] T006 [P] Add unit tests for verifier matrix helpers/fixtures (valid token, wrong aud, wrong iss, bad sig, expired, disallowed alg) in `backend/internal/auth/jwt_verifier_test.go`
-- [ ] T007 Implement `EnsurePlatformUser` resolving/creating local user by `(issuer, subject)`, writing `sign_in_method` (live `google` only), treating email as informational only — no admin from registration; stop same-email auto-link as primary continuity — in `backend/internal/auth/platform_user.go` (replace/adapt `backend/internal/auth/central_user.go`)
-- [ ] T008 Wire config + verifier into API bootstrap in `backend/cmd/api/main.go` (require JWT config in production; fail closed if JWKS URL/issuer/audience missing)
-- [ ] T009 Replace `authMiddleware` to require Bearer JWT, verify via T005, call `EnsurePlatformUser`, ignore spoofed `X-User-*` until after verify (optional consistency check) in `backend/internal/http/auth_middleware.go`; stop production reliance on `CentralClient.ValidateSession` / cookie-session
+- [X] T004 Create PostgreSQL migration evolving `user_identities` with verbatim constraints: `issuer text not null` ("Exact Keycloak realm issuer URL (`iss`)"), `subject text not null` ("Keycloak `sub`"), `sign_in_method text not null` with CHECK `(sign_in_method IN ('google', 'apple', 'email'))` ("Live: `google` only; reserved: `apple`, `email`"), `email_at_provider text nullable`, `UNIQUE (issuer, subject)`, `user_id uuid not null references users(id) on delete cascade`, create index on `user_id`, and preserving `users` and learning tables without truncate — add `backend/db/migrations/000029_platform_identity_bindings.up.sql` and `backend/db/migrations/000029_platform_identity_bindings.down.sql`
+- [X] T005 [P] Implement in-cluster JWKS-cached access-token verifier validating signature, `alg` allowlist (reject `none`), exact `iss` match, `aud` contains project client id (`project-pn`), `exp`/`nbf` skew, non-empty `sub`, and access token marker in `backend/internal/auth/jwt_verifier.go`
+- [X] T006 [P] Implement unit tests for JWKS verifier accept/reject matrix (valid token, wrong aud, wrong iss, bad signature, expired token, disallowed alg) in `backend/internal/auth/jwt_verifier_test.go`
+- [X] T007 Implement `EnsurePlatformUser` resolving or creating local user by `(issuer, subject)` with verbatim rules: `UNIQUE (issuer, subject)`, `sign_in_method = 'google'`, email as informational snapshot only, ordinary privileges without admin grant, no same-email auto-link as primary continuity — in `backend/internal/auth/platform_user.go`
+- [X] T008 Wire `AUTH_JWT_*` configuration and JWT verifier initialization in API bootstrap in `backend/cmd/api/main.go` (require JWT config in production, fail closed if unconfigured)
+- [X] T009 Rewrite `authMiddleware` to require Bearer JWT, verify via `jwt_verifier.go`, resolve identity via `EnsurePlatformUser`, discard unverified `X-User-*` headers until verification passes, and inject user into request context in `backend/internal/http/auth_middleware.go`
 
-**Checkpoint**: Foundation ready — JWT verify + identity schema usable by all stories
+**Checkpoint**: Foundation ready — JWT verification, identity schema, and auth middleware usable by all user stories.
 
 ---
 
-## Phase 3: User Story 1 — Ordinary learner access (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 — Signed-in learner uses the app with ordinary access (Priority: P1) 🎯 MVP
 
-**Goal**: Valid project JWT → ordinary local user → own learning/profile capabilities only; no admin from first sign-in
+**Goal**: A returning or new learner presenting a valid project access token (`aud = project-pn`) is recognized via verified `(issuer, subject)` binding and granted ordinary learning capabilities (study, add words, review, manage own decks and settings) with no application-administrator role.
 
-**Independent Test**: Valid JWT for new `(iss, sub)` gets 200 on `/api/auth/me` with ordinary profile; undeclared/admin ops denied; own learning routes work for that user only
+**Independent Test**: Present a valid project access credential for a new or known identity; confirm `/api/auth/me` returns 200 with ordinary profile; verify the learner reaches the ordinary experience and cannot access other users' private data or undeclared operations.
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Add middleware/handler tests: valid JWT → `/api/auth/me` ordinary user in `backend/internal/http/auth_middleware_test.go` and/or `backend/internal/http/auth_handler_test.go`
-- [ ] T011 [P] [US1] Add authorization tests denying undeclared operations for ordinary user in `backend/internal/http/auth_handler_test.go`
+- [X] T010 [P] [US1] Add middleware and handler tests verifying valid project JWT grants access to `GET /api/auth/me` as ordinary user in `backend/internal/http/auth_middleware_test.go` and `backend/internal/http/auth_handler_test.go`
+- [X] T011 [P] [US1] Add authorization tests verifying that ordinary users are denied undeclared operations in `backend/internal/http/auth_handler_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Declare ordinary capability set per `specs/001-gateway-jwt-auth/contracts/ordinary-role.md` in `backend/internal/auth/ordinary_role.go` and enforce fail-closed if declaration empty
-- [ ] T013 [US1] Ensure protected routes use JWT middleware and resolve `users.id` for own-data scoping (learning/decks/profile) via existing handlers under `backend/internal/http/` — confirm no path trusts central-auth session
-- [ ] T014 [US1] Update `GET /api/auth/me` / linked-providers responses for platform identity metadata (`issuer`, `subject`, `sign_in_method`) in `backend/internal/http/auth_handler.go` and align DTOs in `packages/api/src/auth.ts` / `packages/api/src/types.ts`
-- [ ] T015 [US1] Update frontend auth client to send `Authorization: Bearer <project_access_jwt>` only (no central-auth cookie validate assumptions) in `frontend/src/api/auth.ts` and adjust launch/token parsing in `frontend/src/utils/authLaunch.ts` for platform-delivered tokens
+- [X] T012 [US1] Declare ordinary capability set (`learning.read_own`, `learning.write_own`, `decks.manage_own`, `profile.read_own`, `profile.write_own`, `merge.participate`) per `specs/001-gateway-jwt-auth/contracts/ordinary-role.md` and enforce fail-closed check if declaration is empty in `backend/internal/auth/ordinary_role.go`
+- [X] T013 [US1] Ensure protected learning routes (`/api/words/*`, `/api/decks/*`, `/api/settings/*`) use JWT middleware and resolve `users.id` for own-data scoping with no session trust in `backend/internal/http/words_handler.go`, `backend/internal/http/decks_handler.go`, and `backend/internal/http/settings_handler.go`
+- [X] T014 [US1] Update `GET /api/auth/me` and `GET /api/auth/linked-providers` handlers to return platform identity metadata (`issuer`, `subject`, `sign_in_method`) without admin attributes in `backend/internal/http/auth_handler.go` and align DTOs in `packages/api/src/auth.ts` and `packages/api/src/types.ts`
+- [X] T015 [US1] Update frontend auth client to send `Authorization: Bearer <project_access_jwt>` only (no central-auth cookie validate assumptions) in `frontend/src/api/auth.ts` and adjust launch/token parsing in `frontend/src/utils/authLaunch.ts`
 
-**Checkpoint**: US1 independently testable — ordinary JWT access works end-to-end on API (+ client Bearer)
+**Checkpoint**: User Story 1 fully functional and testable independently — ordinary JWT access works end-to-end on API and frontend client.
 
 ---
 
-## Phase 4: User Story 2 — Reject forged / invalid credentials (Priority: P1)
+## Phase 4: User Story 2 — Impersonation, forged identity, and unauthenticated access are rejected fail-closed (Priority: P1)
 
-**Goal**: Fail closed on missing Bearer, spoofed headers, wrong aud/iss, bad sig, expired, ID-token substitute
+**Goal**: Unauthenticated visitors, attackers, or misconfigured clients presenting missing credentials, wrong audience, wrong issuer, bad signature, expired credentials, substituted ID tokens, or spoofed identity headers are rejected fail-closed (401/403) with no business logic execution; frontend startup strictly fails closed on errors.
 
-**Independent Test**: Every reject case in `contracts/jwt-verification.md` returns 401/403 with no business side effects
+**Independent Test**: Send requests with missing credentials, wrong audience (`aud != project-pn`), wrong issuer (`iss != https://auth.nacfson.cloud/realms/platform`), bad signature, expired credential, substituted ID-style credential, or spoofed headers alone; all return 401/403. Verify frontend `App.tsx` on connection/auth errors transitions to `unauthenticated` with an error banner and never bypasses into main tabs.
 
 ### Tests for User Story 2
 
-- [ ] T016 [P] [US2] Expand HTTP-level reject matrix tests (missing Bearer, spoofed `X-User-Subject` only, wrong aud, wrong iss, bad sig, expired, ID-token substitute) in `backend/internal/http/auth_middleware_test.go`
-- [ ] T017 [P] [US2] Assert JWKS unreachable / unknown `kid` without successful refresh fails closed in `backend/internal/auth/jwt_verifier_test.go`
+- [X] T016 [P] [US2] Add HTTP reject matrix tests (missing Bearer, spoofed `X-User-Subject`/`X-User-Issuer` headers without Bearer, wrong `aud`, wrong `iss`, bad signature, expired token, ID token substituted) in `backend/internal/http/auth_middleware_test.go`
+- [X] T017 [P] [US2] Add unit test asserting fail-closed 401/403 behavior when JWKS is unreachable or unknown `kid` cannot be refreshed in `backend/internal/auth/jwt_verifier_test.go`
+- [X] T018 [P] [US2] Add frontend gate unit test verifying `App.tsx` sets `unauthenticated` with error banner on network error / 500 / offline backend instead of defaulting to `authenticated` in `frontend/App.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T018 [US2] Harden middleware to strip/ignore client identity headers before verify and never authorize from headers alone in `backend/internal/http/auth_middleware.go`
-- [ ] T019 [US2] Implement ID-token / wrong-credential-type rejection heuristics documented in verifier in `backend/internal/auth/jwt_verifier.go`
-- [ ] T020 [US2] Ensure fail-closed behavior when JWKS fetch fails (no business handler) and document expected status in `specs/001-gateway-jwt-auth/contracts/jwt-verification.md` if clarifying
+- [X] T019 [US2] Harden `authMiddleware` to ignore and strip client-supplied `X-User-Subject` / `X-User-Issuer` before verification and never authorize from headers alone in `backend/internal/http/auth_middleware.go`
+- [X] T020 [US2] Implement rejection for OIDC ID tokens, Google access tokens, and non-project audience tokens (`aud != project-pn`) in `backend/internal/auth/jwt_verifier.go`
+- [X] T021 [US2] Ensure fail-closed rejection (401 Unauthorized) when JWKS fetch or refresh fails in `backend/internal/auth/jwt_verifier.go`
+- [X] T022 [US2] Fix fail-open gate bug in `checkAuth` catch block to strictly set `setAuthState('unauthenticated')` and show connection error banner instead of defaulting to `authenticated` in `frontend/App.tsx`
 
-**Checkpoint**: US2 independently testable — attack/misconfig matrix green
+**Checkpoint**: User Story 2 independently functional — attack/misconfiguration reject matrix is green and frontend fails closed.
 
 ---
 
-## Phase 5: User Story 3 — Preserve accounts via operator migration (Priority: P1)
+## Phase 5: User Story 3 — Existing accounts preserve learning progress via operator migration (Priority: P1)
 
-**Goal**: Keep existing `users` + learning data; operator binds Keycloak `(issuer, subject)` with `sign_in_method=google`; hard cutover rejects central-auth credentials
+**Goal**: Verification moves entirely to Keycloak project JWTs while preserving existing `users` rows, decks, words, FSRS states, and review history; operator binds each existing local account to its Keycloak `(issuer, subject)` before cutover; hard cutover rejects legacy central-auth credentials.
 
-**Independent Test**: Migrated user JWT opens same `users.id` with prior learning counts; unmigrated new Keycloak user gets new ordinary account; legacy central-auth token rejected
+**Independent Test**: Take an existing local account with learning data; after operator binding, a Keycloak JWT for that identity opens the same `users.id` with prior learning progress; an unmigrated new Keycloak user gets a new ordinary account; legacy central-auth session tokens are rejected.
 
 ### Tests for User Story 3
 
-- [ ] T021 [P] [US3] Test identity bind lookup: existing `(issuer, subject)` → same `user_id` and learning ownership in `backend/internal/auth/platform_user_test.go`
-- [ ] T022 [P] [US3] Test first-time unknown `(issuer, subject)` creates new ordinary user (not admin) in `backend/internal/auth/platform_user_test.go`
-- [ ] T023 [P] [US3] Test production path rejects legacy `mock-dev-token` / central-auth session credentials when JWT mode enabled in `backend/internal/http/auth_middleware_test.go`
+- [X] T023 [P] [US3] Add unit tests verifying `EnsurePlatformUser` resolves existing `(issuer, subject)` binding to same `user_id` and learning ownership in `backend/internal/auth/platform_user_test.go`
+- [X] T024 [P] [US3] Add unit test verifying unknown `(issuer, subject)` creates a new ordinary local user without admin role in `backend/internal/auth/platform_user_test.go`
+- [X] T025 [P] [US3] Add integration test verifying production API rejects legacy `mock-dev-token` and central-auth session tokens when JWT mode is active in `backend/internal/http/auth_middleware_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] Add operator migration script/SQL template binding local `users.id` → `(issuer, subject, sign_in_method=google)` without wiping tables in `scripts/migrate-platform-identities.sql` (or `scripts/migrate-platform-identities.sh`) matching `specs/001-gateway-jwt-auth/contracts/operator-migration.md`
-- [ ] T025 [US3] Document operator runbook steps (inputs, acceptance checks, no secrets in git) in `backend/docs/platform-identity-migration.md`
-- [ ] T026 [US3] Remove/disable production central-auth validate/refresh/cookie paths from `backend/internal/auth/central_client.go` usage in `backend/cmd/api/main.go` and `backend/internal/http/auth_handler.go` (deprecate `POST /api/auth/refresh` per `contracts/auth-api-surface.md` — 410 or remove)
-- [ ] T027 [US3] Gate any remaining `mock-dev-token` / `AUTH_DEV_BYPASS` to non-production only in `backend/internal/auth/` and `backend/internal/config/`
+- [X] T026 [US3] Create operator migration SQL script template binding local `users.id` to verbatim columns: `issuer = 'https://auth.nacfson.cloud/realms/platform'`, `subject = :keycloak_sub`, `sign_in_method = 'google'`, `UNIQUE (issuer, subject)` without truncating or wiping `users` or learning tables in `scripts/migrate-platform-identities.sql` per `specs/001-gateway-jwt-auth/contracts/operator-migration.md`
+- [X] T027 [US3] Deprecate/disable legacy central-auth session validation, cookie sessions, and refresh proxy (`POST /api/auth/refresh` returns 410 Gone or is removed) in `backend/internal/http/auth_handler.go` and `backend/internal/auth/central_client.go`
+- [X] T028 [US3] Restrict `mock-dev-token` / dev bypass strictly to non-production environments gated by `AUTH_DEV_BYPASS=true` in `backend/internal/auth/auth_dev.go` and `backend/cmd/api/main.go`
 
-**Checkpoint**: US3 independently testable — continuity + hard cutover
+**Checkpoint**: User Story 3 independently testable — account continuity preserved, operator script ready, hard cutover enforced.
 
 ---
 
-## Phase 6: User Story 4 — Remove app-admin + ProcessManager auth remnants (Priority: P1)
+## Phase 6: User Story 4 — Remove app-admin and ProcessManager / legacy auth remnants (Priority: P1)
 
-**Goal**: No application-admin role; purge ProcessManager auth remnants and legacy session-auth docs/code from Project PN
+**Goal**: Eliminate application-admin authorization and purge all ProcessManager / `auth.nacfson.cloud` client redirects and legacy auth references from code, build scripts, and docs.
 
-**Independent Test**: No app-admin authz path; docs/code do not treat ProcessManager as auth authority; JWT-only production path
+**Independent Test**: Repo search shows no ProcessManager auth path, no `auth.nacfson.cloud` client redirects, no app-admin authorization path; build scripts pass without `EXPO_PUBLIC_CENTRAL_AUTH_URL`.
 
 ### Tests for User Story 4
 
-- [ ] T028 [P] [US4] Add/adjust tests so product authz never depends on `is_admin` / admin bindings in `backend/internal/auth/` and `backend/internal/http/` tests
-- [ ] T029 [P] [US4] Explicit cross-user denial test: identity A JWT cannot read identity B learning resource in `backend/internal/http/words_handler_test.go` (or dedicated authz test)
+- [X] T029 [P] [US4] Add tests verifying that `is_admin` or admin privileges have no effect on product authorization in `backend/internal/auth/platform_user_test.go` and `backend/internal/http/auth_handler_test.go`
+- [X] T030 [P] [US4] Add cross-user isolation test verifying identity A cannot access identity B's private learning resources in `backend/internal/http/words_handler_test.go`
 
 ### Implementation for User Story 4
 
-- [ ] T030 [US4] Remove app-admin product authorization (`is_admin` usage for access control, admin-gated APIs/UI) from `backend/internal/auth/`, `backend/internal/http/`, and related frontend surfaces; migrate DB column away or leave unused with docs stating ignored
-- [ ] T031 [US4] Remove ProcessManager auth remnants from Project PN auth docs and agent guides (`backend/docs/oracle-deploy-runbook.md`, `deploy/deploy-exception-runbook.md`, `backend/docs/cursor-secrets.md` auth sections, `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) — production auth = platform Keycloak JWT only
-- [ ] T032 [US4] Delete or gut unused central-auth session client paths and ProcessManager-oriented auth config from `backend/internal/auth/central_client.go`, `backend/cmd/api/main.go`, and `backend/.env.example` after JWT path is wired
+- [X] T031 [US4] Remove app-admin role checks and authorization gates from `backend/internal/http/` and `backend/internal/auth/`
+- [X] T032 [US4] Remove `auth.nacfson.cloud/login` browser redirect and legacy central-auth modal handling from `frontend/src/screens/CentralAuthScreen.tsx` (defer to Traefik ForwardAuth)
+- [X] T033 [US4] Remove `EXPO_PUBLIC_CENTRAL_AUTH_URL` and `auth.nacfson.cloud` fallbacks from `frontend/src/config.ts` and `frontend/.env.example`
+- [X] T034 [US4] Remove hardcoded `EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud` and its assertion gate from `scripts/push-ghcr.sh` and `.github/workflows/publish-ghcr-images.yml`
+- [X] T035 [US4] Purge ProcessManager auth references and central-auth session instructions from `backend/docs/oracle-deploy-runbook.md`, `deploy/deploy-exception-runbook.md`, and `backend/docs/cursor-secrets.md`
+- [X] T036 [US4] Remove or deprecate unused legacy session validation functions from `backend/internal/auth/central_client.go`
 
-**Checkpoint**: US4 independently testable — cleanup complete
+**Checkpoint**: User Story 4 independently testable — clean codebase without admin roles or legacy auth paths.
 
 ---
 
-## Phase 7: User Story 5 — Multi-client verify + key rotation (Priority: P2)
+## Phase 7: User Story 5 — All client platforms and operational continuity (Priority: P2)
 
-**Goal**: Same Bearer verify path for web/native/desktop/extension; JWKS rotation works; no project-owned login bypass; platform owns token acquisition/SSO
+**Goal**: Web, native, desktop, and extension clients all present the same kind of project access credential; backend pod connects to Keycloak JWKS via cluster DNS under NetworkPolicy; JWKS signing keys rotate without breaking the verify model.
 
-**Independent Test**: Valid JWT accepted regardless of client type in tests; new `kid` accepted after JWKS refresh; no PN Google OIDC login path reintroduced
+**Independent Test**: Valid project JWT accepted regardless of client type in test harnesses; new `kid` accepted after JWKS refresh; backend pod connects to Keycloak JWKS via cluster DNS under NetworkPolicy.
 
 ### Tests for User Story 5
 
-- [ ] T033 [P] [US5] Test JWKS key rotation / unknown `kid` refresh success path in `backend/internal/auth/jwt_verifier_test.go`
-- [ ] T034 [P] [US5] Confirm shared API client attaches Bearer consistently in `packages/api` / `frontend/src/api` tests (`frontend/src/api/auth.ts` related tests)
+- [X] T037 [P] [US5] Add unit test for JWKS key rotation verifying unknown `kid` triggers cache refresh and succeeds with new key in `backend/internal/auth/jwt_verifier_test.go`
+- [X] T038 [P] [US5] Add integration assertion verifying shared API client in `packages/api` consistently attaches Bearer token across web and non-web consumers in `packages/api/src/auth.test.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T035 [US5] Ensure JWKS cache refreshes on unknown `kid` then re-verifies in `backend/internal/auth/jwt_verifier.go`
-- [ ] T036 [US5] Update client env examples to platform auth/API URLs (not central-auth/ProcessManager login as production IdP) in `frontend/.env.example` and `packages/api` docs/comments; remove project-owned OIDC/Google login bypass if any remain under `frontend/src/features/auth/`
-- [ ] T037 [US5] Note in `specs/001-gateway-jwt-auth/quickstart.md` that SSO lifetime/silent refresh is platform-owned; PN validates `exp` only
+- [X] T039 [US5] Implement cache refresh on unknown `kid` in `backend/internal/auth/jwt_verifier.go`
+- [X] T040 [US5] Add NetworkPolicy egress rule allowing backend pod egress to `identity` namespace / Keycloak port 8080 in `deploy/projects/pn/boundary/network-policy.yaml`
+- [X] T041 [US5] Remove any project-owned OIDC or Google login bypass code from `frontend/src/features/auth/`
 
-**Checkpoint**: US5 independently testable — multi-client Bearer + rotation
+**Checkpoint**: User Story 5 independently testable — multi-client Bearer, JWKS rotation, and NetworkPolicy egress operational.
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-**Purpose**: Docs, cleanup, full-suite validation
+**Purpose**: Documentation updates, cleanup of dead code and test doubles, and full test suite verification.
 
-- [ ] T038 [P] Update auth docs to gateway JWT model in `backend/docs/backend-overview.md`, `backend/docs/backend-flows.md`, and retire obsolete central-auth/ProcessManager session instructions where they conflict
-- [ ] T039 [P] Align `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` auth routing with platform Keycloak JWT (no ProcessManager auth, no central-auth session as production path)
-- [ ] T040 Remove dead central-auth-only test doubles that contradict JWT mode from `backend/internal/http/helper_test.go` / related tests after migration
-- [ ] T041 Run serial backend suite `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...` and frontend `npm test -w frontend` / `npm run typecheck -w frontend` / `npm run typecheck -w packages/api`
-- [ ] T042 Execute validation checklist from `specs/001-gateway-jwt-auth/quickstart.md` and record pass/fail in operator notes (no live tokens committed)
+- [X] T042 [P] Update architecture and flow documentation to gateway JWT model in `backend/docs/backend-overview.md` and `backend/docs/backend-flows.md`
+- [X] T043 [P] Align task routing and operational guides in `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` to platform Keycloak JWT verification
+- [X] T044 Remove obsolete central-auth mock fixtures and test doubles in `backend/internal/http/helper_test.go`
+- [X] T045 Run serial backend test suite `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`
+- [X] T046 Run frontend tests and workspace typechecks: `npm test -w frontend`, `npm run typecheck -w frontend`, and `npm run typecheck -w packages/api`
+- [X] T047 Execute acceptance checklist from `specs/001-gateway-jwt-auth/quickstart.md` and update `agy_plan/html/001-gateway-jwt-auth.html`
 
 ---
 
@@ -176,89 +184,108 @@
 
 ### Phase Dependencies
 
-- **Phase 1 Setup** → no deps
-- **Phase 2 Foundational** → after Setup; **blocks all stories**
-- **US1 (Phase 3)** → after Foundational — MVP
-- **US2 (Phase 4)** → after Foundational; ideally after verifier exists (T005–T006); can parallelize with US1 once middleware wired
-- **US3 (Phase 5)** → after Foundational + identity schema (T004/T007); benefits from US1 middleware
-- **US4 (Phase 6)** → after JWT path exists (US1/US3); cleanup of admin + ProcessManager remnants
-- **US5 (Phase 7)** → after verifier (T005) + US1 client Bearer path
-- **Polish** → after desired stories complete
+- **Setup (Phase 1)**: No dependencies — can start immediately.
+- **Foundational (Phase 2)**: Depends on Setup completion — **BLOCKS all user stories**.
+- **User Stories (Phase 3+)**: All depend on Foundational phase completion.
+  - US1 (Phase 3) is the primary MVP increment.
+  - US2 (Phase 4) can proceed in parallel with or after US1.
+  - US3 (Phase 5) depends on the foundational identity schema and benefits from US1 middleware.
+  - US4 (Phase 6) depends on US1/US3 to ensure the JWT path works before cleaning up legacy paths.
+  - US5 (Phase 7) depends on US1/US2 verifier and client Bearer paths.
+- **Polish (Phase 8)**: Depends on all user stories being complete.
 
 ### User Story Dependencies
 
-- **US1**: Foundation only
-- **US2**: Foundation (verifier + middleware)
-- **US3**: Foundation identity model; cutover after JWT path works
-- **US4**: After JWT ordinary path; removes app-admin + ProcessManager auth remnants
-- **US5**: Needs verifier + client Bearer from US1
+- **User Story 1 (P1)**: Can start after Foundational (Phase 2) — No dependencies on other stories.
+- **User Story 2 (P1)**: Can start after Foundational (Phase 2) — Rejection matrix builds on verifier and middleware from Phase 2; frontend fail-closed fix is independent of backend logic.
+- **User Story 3 (P1)**: Can start after Foundational (Phase 2) — Operator migration builds on identity table schema from Phase 2; hard cutover requires US1/US2 to be in place.
+- **User Story 4 (P1)**: Can start after US1 is functional — Removes app-admin and legacy auth remnants safely.
+- **User Story 5 (P2)**: Can start after US1/US2 — Expands JWKS rotation and NetworkPolicy for multi-client operational continuity.
+
+### Within Each User Story
+
+- Tests (where included) are written FIRST and must fail before implementation.
+- Models and schema before services.
+- Verifiers and services before endpoints and handlers.
+- Endpoints before client/frontend integrations.
+- Story complete and validated before moving to next priority.
 
 ### Parallel Opportunities
 
-- T002 ∥ T003 after T001 started
-- T005 ∥ T006 during foundational (tests can lead)
-- T010 ∥ T011 (US1 tests)
-- T016 ∥ T017 (US2 tests)
-- T021 ∥ T022 ∥ T023 (US3 tests)
-- T028 ∥ T029 (US4 tests)
-- T038 ∥ T039 (docs polish)
+- Phase 1: T002 and T003 can run in parallel after T001 is started.
+- Phase 2: T005, T006 can run in parallel once dependencies are ready; T004 is independent of T005.
+- Phase 3 (US1): Tests T010 and T011 can run in parallel.
+- Phase 4 (US2): Tests T016, T017, and T018 can all run in parallel across backend and frontend.
+- Phase 5 (US3): Tests T023, T024, and T025 can run in parallel.
+- Phase 6 (US4): Tests T029 and T030 can run in parallel; implementation tasks T032, T033, T034, T035 touch different files and can run in parallel.
+- Phase 7 (US5): Tests T037 and T038 can run in parallel.
+- Phase 8 (Polish): T042 and T043 can run in parallel.
 
 ---
 
-## Parallel Example: User Story 1
+## Parallel Execution Examples
 
+### User Story 1 (Ordinary Access)
 ```bash
-# Tests in parallel:
-Task: "T010 valid JWT → /api/auth/me ordinary in auth_middleware_test.go / auth_handler_test.go"
-Task: "T011 ordinary denied undeclared ops in auth_handler_test.go"
+# Launch tests together:
+Task: "T010 [P] [US1] Add middleware/handler tests for valid project JWT in backend/internal/http/auth_middleware_test.go"
+Task: "T011 [P] [US1] Add authorization tests denying undeclared ops in backend/internal/http/auth_handler_test.go"
 
 # Then implementation sequence:
-Task: "T012 ordinary_role.go"
-Task: "T013 protected routes JWT-only"
-Task: "T014 me/linked-providers + packages/api DTOs"
-Task: "T015 frontend Bearer client"
+Task: "T012 [US1] Declare ordinary capability set in backend/internal/auth/ordinary_role.go"
+Task: "T013 [US1] Ensure protected routes use JWT middleware in backend/internal/http/words_handler.go"
+Task: "T014 [US1] Update me/linked-providers in backend/internal/http/auth_handler.go and packages/api/src/auth.ts"
+Task: "T015 [US1] Update frontend auth client Bearer in frontend/src/api/auth.ts"
 ```
 
----
-
-## Parallel Example: User Story 2
-
+### User Story 2 (Reject Matrix & Gate Fix)
 ```bash
-Task: "T016 HTTP reject matrix in auth_middleware_test.go"
-Task: "T017 JWKS failure / kid tests in jwt_verifier_test.go"
+# Launch tests together across backend and frontend:
+Task: "T016 [P] [US2] Add HTTP reject matrix tests in backend/internal/http/auth_middleware_test.go"
+Task: "T017 [P] [US2] Add JWKS unreachable / unknown kid tests in backend/internal/auth/jwt_verifier_test.go"
+Task: "T018 [P] [US2] Add frontend gate unit test in frontend/App.test.tsx"
+
+# Implementation in parallel:
+Task: "T020 [US2] Implement rejection for ID tokens and foreign audiences in backend/internal/auth/jwt_verifier.go"
+Task: "T022 [US2] Fix fail-open gate bug in checkAuth catch block in frontend/App.tsx"
+```
+
+### User Story 4 (Remnants Cleanup)
+```bash
+# Launch independent cleanup tasks in parallel:
+Task: "T032 [US4] Remove auth.nacfson.cloud redirects in frontend/src/screens/CentralAuthScreen.tsx"
+Task: "T033 [US4] Remove EXPO_PUBLIC_CENTRAL_AUTH_URL in frontend/src/config.ts"
+Task: "T034 [US4] Remove build assertions in scripts/push-ghcr.sh and .github/workflows/publish-ghcr-images.yml"
+Task: "T035 [US4] Purge ProcessManager auth references in backend/docs/oracle-deploy-runbook.md"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (US1 only)
+### MVP First (User Story 1 Only)
 
-1. Phase 1 Setup  
-2. Phase 2 Foundational  
-3. Phase 3 US1 (ordinary JWT access)  
-4. **STOP & VALIDATE** with quickstart §1–2  
-5. Then US2 harden rejects → US3 migration/cutover before production  
+1. Complete Phase 1: Setup (T001–T003)
+2. Complete Phase 2: Foundational (T004–T009) — **CRITICAL**: blocks all stories
+3. Complete Phase 3: User Story 1 (T010–T015)
+4. **STOP and VALIDATE**: Verify valid project JWT → `/api/auth/me` returns 200 with ordinary role; own learning items accessible; undeclared ops denied
+5. Ready for local/dev demonstration of verified platform identity
 
 ### Incremental Delivery
 
-1. Setup + Foundational  
-2. US1 MVP demo  
-3. US2 security matrix  
-4. US3 operator migration + hard cutover  
-5. US4 remove app-admin + ProcessManager auth remnants  
-6. US5 multi-client + JWKS rotation polish  
-7. Phase 8 docs + full test suites  
-
-### Suggested MVP scope
-
-**US1 only** (ordinary verified JWT → local user → own capabilities), on top of Phase 1–2. Do not production-cutover until **US2 + US3 + US4** cleanup.
+1. Setup + Foundational → Database ready, verifier skeleton operational
+2. User Story 1 → Ordinary access works end-to-end (MVP)
+3. User Story 2 → Reject matrix complete, frontend fail-closed gate locked
+4. User Story 3 → Existing account data preserved, operator migration ready, hard cutover enforced
+5. User Story 4 → App-admin removed, ProcessManager remnants and `auth.nacfson.cloud` client redirects purged
+6. User Story 5 → Multi-client Bearer, JWKS rotation, NetworkPolicy egress validated
+7. Phase 8 Polish → Serial backend tests passing, frontend typechecks passing, docs aligned
 
 ---
 
 ## Notes
 
-- SSO session length / silent refresh → platform; not tasked here  
-- Live `sign_in_method` = `google` only; schema may reserve `apple`/`email`  
-- All tasks use checklist format with IDs and paths  
-- Prefer serial Go tests (`-p 1`) for DB suites  
+- All tasks strictly follow checklist format: `- [ ] [TaskID] [P?] [Story?] Description with file path`
+- Exact constraints from `data-model.md` are quoted verbatim in T004, T007, and T026
+- Backend tests must run serially: `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`
+- Frontend Add-tab product lock invariant (`activeTab === 'manual'`) must not be disturbed

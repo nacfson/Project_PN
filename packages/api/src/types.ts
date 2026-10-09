@@ -221,6 +221,9 @@ export type AuthProvider = 'google';
 
 export interface LinkedProvider {
   provider: AuthProvider;
+  issuer?: string;
+  subject?: string;
+  sign_in_method?: string;
   email: string;
   linked_at: string;
 }

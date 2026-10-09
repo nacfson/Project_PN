@@ -82,7 +82,7 @@ jobs:
         run: |
           npm ci --legacy-peer-deps
           cd frontend
-          EXPO_PUBLIC_API_BASE_URL= EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud npm run web:export
+          EXPO_PUBLIC_API_BASE_URL= npm run web:export
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

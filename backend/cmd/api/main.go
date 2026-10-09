@@ -95,21 +95,34 @@ func main() {
 			"wiktapi_url", cfg.OriginWiktAPIBaseURL,
 		)
 	}
+	jwtVerifier := auth.NewJWTVerifier(auth.JWTVerifierConfig{
+		Issuer:      cfg.AuthJWTIssuer,
+		Audience:    cfg.AuthJWTAudience,
+		JWKSURL:     cfg.AuthJWTJWKSURL,
+		AllowedAlgs: cfg.AuthJWTAllowedAlgs,
+		ClockSkew:   cfg.AuthJWTClockSkew,
+	})
+	slog.Info("gateway jwt verifier configured",
+		"issuer", cfg.AuthJWTIssuer,
+		"audience", cfg.AuthJWTAudience,
+		"jwks_url", cfg.AuthJWTJWKSURL,
+		"dev_bypass", cfg.AuthDevBypass,
+	)
+
 	var centralAuth *auth.CentralClient
 	centralAuthURL := cfg.CentralAuthURL
 	if centralAuthURL == "" {
 		centralAuthURL = cfg.CentralAuthInternalURL
 	}
-	if centralAuthURL == "" {
-		slog.Error("CENTRAL_AUTH_URL or CENTRAL_AUTH_INTERNAL_URL is required")
-		os.Exit(1)
+	if centralAuthURL != "" {
+		centralAuth = auth.NewCentralClientWithInternalAuth(
+			centralAuthURL,
+			cfg.CentralAuthInternalURL,
+			cfg.AuthSessionInternalToken,
+			nil,
+		)
 	}
-	centralAuth = auth.NewCentralClientWithInternalAuth(
-		centralAuthURL,
-		cfg.CentralAuthInternalURL,
-		cfg.AuthSessionInternalToken,
-		nil,
-	)
+
 	authService := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
@@ -121,7 +134,6 @@ func main() {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	server := &http.Server{
@@ -130,6 +142,8 @@ func main() {
 			DB:               pool,
 			Words:            wordsService,
 			Auth:             authService,
+			JWTVerifier:      jwtVerifier,
+			AuthDevBypass:    cfg.AuthDevBypass,
 			CentralAuth:      centralAuth,
 			AllowedOrigins:   cfg.AllowedOrigins,
 			AdminLogger:      adminLogger,
@@ -142,7 +156,7 @@ func main() {
 
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
-	slog.Info("auth configuration loaded", "central_auth_url", cfg.CentralAuthURL)
+	slog.Info("auth configuration loaded", "jwt_issuer", cfg.AuthJWTIssuer)
 
 	if cfg.NotificationWorkerEnabled {
 		worker := &notify.Worker{

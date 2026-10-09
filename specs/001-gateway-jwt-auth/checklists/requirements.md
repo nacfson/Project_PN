@@ -36,3 +36,4 @@
 - Validation iteration 4 (2026-10-07): Existing-account continuity = operator migration (primary path).
 - Validation iteration 5 (2026-10-07): Providers this delivery = Google only. `/speckit-plan` completed.
 - Validation iteration 6 (2026-10-07): No app-admin role; ProcessManager auth remnants to remove; access-token + project audience only; cross-user deny retained. Spec/plan/tasks/constitution 1.1.1 updated.
+- Validation iteration 7 (2026-10-09): Synchronized with Platform Identity Migration Runbook (`nacfson_pipeline` contracts, Traefik ForwardAuth, in-cluster JWKS NetworkPolicy, fail-closed client error behavior, and removal of client `auth.nacfson.cloud` redirects). All quality items PASS.

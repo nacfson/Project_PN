@@ -39,3 +39,9 @@ Email may help the operator find the row; it is **not** the stored unique platfo
 | Row counts for preserved `users` | Not wiped by migration |
 | Admin flag | Unchanged unless operator explicitly sets |
 | Legacy central-auth credential after cutover | Rejected |
+
+## Operator runbook
+
+Full Kubernetes topology, Flux layers, NetworkPolicy JWKS egress, env flip, and cutover checklist:
+
+[`backend/docs/platform-identity-migration.md`](../../../backend/docs/platform-identity-migration.md)

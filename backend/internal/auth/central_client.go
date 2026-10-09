@@ -65,6 +65,8 @@ func NewCentralClientWithInternalAuth(publicURL, internalURL, internalToken stri
 	}
 }
 
+// Deprecated: ValidateSession is legacy central-auth session validation, deprecated by 001-gateway-jwt-auth.
+// Production auth uses local JWT verification with in-cluster JWKS.
 func (c *CentralClient) ValidateSession(ctx context.Context, token string) (CentralSession, error) {
 	if token == "mock-dev-token" {
 		devID := "00000000-0000-0000-0000-000000000001"
@@ -126,6 +128,8 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 	return session, nil
 }
 
+// Deprecated: ValidateCookieSession is legacy central-auth session validation, deprecated by 001-gateway-jwt-auth.
+// Browser authentication is mediated upstream by platform Traefik ForwardAuth.
 func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue string) (CentralSession, error) {
 	if strings.TrimSpace(cookieValue) == "" {
 		return CentralSession{}, ErrInvalidToken
@@ -203,6 +207,8 @@ func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue s
 	}, nil
 }
 
+// Deprecated: RefreshSession is legacy central-auth session refresh proxy, deprecated by 001-gateway-jwt-auth.
+// Tokens are refreshed via platform Keycloak / gateway.
 func (c *CentralClient) RefreshSession(ctx context.Context, refreshToken string) (RefreshSessionResponse, error) {
 	refreshToken = strings.TrimSpace(refreshToken)
 	if refreshToken == "mock-dev-token" || refreshToken == "mock-dev-refresh" {

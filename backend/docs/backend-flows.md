@@ -1,19 +1,18 @@
 # Backend Flows
 
-## Central Auth Flow
+## Platform Gateway JWT Auth Flow (001-gateway-jwt-auth)
 
-1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
-2. User signs in with **Google OAuth**.
-3. After authentication, central auth redirects back to the app with session credentials in the URL (`token`, `refresh_token`, `expires_at` via `?` or `#`) or sets the HttpOnly `nacfson_session` cookie for hosted web.
-4. Bearer clients store the full session (`expo-secure-store` on native, `localStorage` on Tauri). Hosted browser web uses the HttpOnly `nacfson_session` cookie instead.
-5. Bearer clients send `Authorization: Bearer <token>` on protected API requests. Browser web sends the session cookie with `credentials: include`.
-6. Backend middleware validates the session via central auth (`GET /api/auth/session` for bearer, `GET /api/internal/cookie-session` for cookies).
-7. Central auth returns `auth_provider` (`google`), `identity`, user, and `expires_at`. Cookie validation slides `expires_at` forward on activity when the session is still valid.
-8. Bearer clients renew access tokens with `POST /api/auth/refresh` (proxied by Project PN) before expiry or after a 401.
-9. Backend calls `EnsureCentralUser()` which provisions or resolves the local user row and automatically binds the Google identity when an account with the verified email exists.
-10. `POST /api/auth/logout` revokes the current central session.
+1. Client accesses the app at `https://pn.nacfson.cloud`.
+2. Unauthenticated requests are intercepted by platform Traefik ForwardAuth (`forward-auth.platform` calling `http://gateway.identity.svc:8080/auth`).
+3. Gateway redirects browser to Keycloak platform realm Google broker (`https://auth.nacfson.cloud/realms/platform`).
+4. On successful Google sign-in, gateway issues a session cookie (`.nacfson.cloud`) and mints a project-scoped access token (`aud = project-pn`).
+5. Traefik ForwardAuth injects `Authorization: Bearer <JWT>` and strips client-supplied headers before proxying upstream to `pn-backend`.
+6. Non-web clients (native, desktop, extension) attach `Authorization: Bearer <project_access_jwt>` directly.
+7. Backend `authMiddleware` validates JWT signature and claims via in-cluster JWKS (`AUTH_JWT_JWKS_URL`), enforcing `aud = project-pn`, exact `iss`, `sub`, and `typ = Bearer`.
+8. `EnsurePlatformUser()` resolves local `users` row strictly by `(issuer, subject)` binding with ordinary learner privileges only.
+9. Token refresh is managed directly by platform Keycloak / gateway; legacy `POST /api/auth/refresh` returns 410 Gone.
+10. See `backend/docs/platform-identity-migration.md` for the operator continuity and cutover runbook.
 
-See `backend/docs/central-auth-session-renewal.md` for the external auth-service contract.
 
 ## Integrated Accounts
 

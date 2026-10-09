@@ -17,22 +17,25 @@ type authHandler struct {
 }
 
 type linkedProviderResponse struct {
-	Provider string    `json:"provider"`
-	Email    string    `json:"email"`
-	LinkedAt time.Time `json:"linked_at"`
+	Provider     string    `json:"provider"`
+	Issuer       string    `json:"issuer,omitempty"`
+	Subject      string    `json:"subject,omitempty"`
+	SignInMethod string    `json:"sign_in_method,omitempty"`
+	Email        string    `json:"email"`
+	LinkedAt     time.Time `json:"linked_at"`
 }
 
 type meResponse struct {
-	ID                 string                      `json:"id"`
-	Email              string                      `json:"email"`
-	EmailVerified      bool                        `json:"email_verified"`
-	EmailVerifiedAt    *time.Time                  `json:"email_verified_at,omitempty"`
-	NativeLanguage     string                      `json:"native_language"`
-	TargetLanguage     string                      `json:"target_language"`
-	UILanguage         string                      `json:"ui_language"`
-	ActiveLanguage     auth.UserLanguage           `json:"active_language"`
-	MergeSuggestion    *auth.MergeSuggestion       `json:"merge_suggestion,omitempty"`
-	LinkedProviders    []linkedProviderResponse    `json:"linked_providers,omitempty"`
+	ID              string                   `json:"id"`
+	Email           string                   `json:"email"`
+	EmailVerified   bool                     `json:"email_verified"`
+	EmailVerifiedAt *time.Time               `json:"email_verified_at,omitempty"`
+	NativeLanguage  string                   `json:"native_language"`
+	TargetLanguage  string                   `json:"target_language"`
+	UILanguage      string                   `json:"ui_language"`
+	ActiveLanguage  auth.UserLanguage        `json:"active_language"`
+	MergeSuggestion *auth.MergeSuggestion    `json:"merge_suggestion,omitempty"`
+	LinkedProviders []linkedProviderResponse `json:"linked_providers,omitempty"`
 }
 
 func (h *authHandler) languageOptions(w http.ResponseWriter, r *http.Request) {
@@ -51,34 +54,8 @@ type refreshResponse struct {
 
 func refreshSessionHandler(central *auth.CentralClient, logger admin.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if central == nil {
-			writeError(w, http.StatusInternalServerError, "central auth is not configured")
-			return
-		}
-
-		var req refreshRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RefreshToken) == "" {
-			writeError(w, http.StatusBadRequest, "refresh_token required")
-			return
-		}
-
-		session, err := central.RefreshSession(r.Context(), req.RefreshToken)
-		if err != nil {
-			if errors.Is(err, auth.ErrInvalidToken) {
-				logger.Logf("AUTH_FAILURE", "refresh failed from %s: %v", r.RemoteAddr, err)
-				writeError(w, http.StatusUnauthorized, "unauthorized")
-				return
-			}
-			writeError(w, http.StatusInternalServerError, "internal error")
-			return
-		}
-
-		logger.Logf("AUTH", "session refreshed from %s", r.RemoteAddr)
-		writeJSON(w, http.StatusOK, refreshResponse{
-			Token:        session.Token,
-			RefreshToken: session.RefreshToken,
-			ExpiresAt:    session.ExpiresAt,
-		})
+		// Deprecated per 001-gateway-jwt-auth contracts/auth-api-surface.md
+		writeError(w, http.StatusGone, "refresh proxy deprecated; tokens are refreshed via platform gateway")
 	}
 }
 
@@ -127,7 +104,6 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	authResult, _ := authResultFromContext(r.Context())
 
 	linked, err := h.svc.ListLinkedProviders(r.Context(), user.ID)
 	if err != nil {
@@ -137,9 +113,12 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 	linkedResp := make([]linkedProviderResponse, 0, len(linked))
 	for _, item := range linked {
 		linkedResp = append(linkedResp, linkedProviderResponse{
-			Provider: item.Provider,
-			Email:    item.Email,
-			LinkedAt: item.LinkedAt,
+			Provider:     item.Provider,
+			Issuer:       item.Issuer,
+			Subject:      item.Subject,
+			SignInMethod: item.SignInMethod,
+			Email:        item.Email,
+			LinkedAt:     item.LinkedAt,
 		})
 	}
 
@@ -182,9 +161,12 @@ func (h *authHandler) linkedProviders(w http.ResponseWriter, r *http.Request) {
 	resp := make([]linkedProviderResponse, 0, len(linked))
 	for _, item := range linked {
 		resp = append(resp, linkedProviderResponse{
-			Provider: item.Provider,
-			Email:    item.Email,
-			LinkedAt: item.LinkedAt,
+			Provider:     item.Provider,
+			Issuer:       item.Issuer,
+			Subject:      item.Subject,
+			SignInMethod: item.SignInMethod,
+			Email:        item.Email,
+			LinkedAt:     item.LinkedAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)

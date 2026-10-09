@@ -19,9 +19,17 @@ These env vars must be available to the `project-pn-backend` Deployment (and the
 |----------|---------|
 | `ENRICH_PRIMARY_API_KEY` | Gemini (default) or other OpenAI-compatible enricher bearer token |
 | `DATABASE_URL` | In-cluster Postgres connection string |
-| `AUTH_SESSION_INTERNAL_TOKEN` | Validates central auth session cookies |
-| `CENTRAL_AUTH_INTERNAL_URL` | Internal URL for session validation |
+| `AUTH_JWT_ISSUER` | Platform Keycloak realm issuer (default `https://auth.nacfson.cloud/realms/platform`) |
+| `AUTH_JWT_AUDIENCE` | Expected client audience (default `project-pn`) |
+| `AUTH_JWT_JWKS_URL` | In-cluster JWKS URL (default `http://keycloak-service.identity.svc:8080/realms/platform/protocol/openid-connect/certs`) |
+| `AUTH_JWT_ALLOWED_ALGS` | Allowed signature algorithms (default `RS256`) |
+| `AUTH_JWT_CLOCK_SKEW` | Max clock skew duration (default `1m`) |
+| `AUTH_DEV_BYPASS` | Non-prod dev token bypass flag (`true`/`false`) |
 | `PUBLIC_APP_URL` | Frontend origin; default `http://localhost:8081` |
+
+> [!NOTE]
+> `AUTH_SESSION_INTERNAL_TOKEN` and `CENTRAL_AUTH_INTERNAL_URL` are legacy central-auth session secrets and are retired post-cutover.
+
 
 Optional enricher overrides (defaults apply when empty):
 

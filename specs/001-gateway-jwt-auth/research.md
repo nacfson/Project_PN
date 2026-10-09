@@ -98,9 +98,21 @@
 
 **Decision**: Live sign-in method this delivery = `google` only. Columns/enums may reserve `apple`/`email` but no PN or platform work in this feature to enable them.
 
-**Rationale**: Explicit user decision for `/speckit-plan`.
+## R12 — Frontend fail-closed initialization
 
-## R12 — Ordinary capabilities declaration
+**Decision**: In `frontend/App.tsx`, error handling in `checkAuth` must strictly set `setAuthState('unauthenticated')` on any error (401, network error, status 0, 500, or 503) and display the `connectionError` banner. Under no circumstance should an unauthenticated launch fall through to `setAuthState('authenticated')`.
+
+**Rationale**: Fixing the fatal logic bug where non-401 startup errors bypassed the auth gate and logged unauthenticated users into `RootNavigator`.
+
+**Alternatives considered**: Retry in loop — can lock the UI; better to show unauthenticated state with a retry button.
+
+## R13 — In-cluster JWKS resolution and NetworkPolicy
+
+**Decision**: In hosted Kubernetes, backend pods fetch Keycloak JWKS via cluster-internal Service DNS (`http://keycloak-service.identity.svc:8080/realms/platform/protocol/openid-connect/certs`). Egress rule from `proj-pn` namespace to `identity` namespace / `keycloak` on port 8080 must be declared in NetworkPolicy.
+
+**Rationale**: Platform runbook §2.6; keeps token verification within the private cluster network without relying on external ingress DNS or public cert validity during pod startup.
+
+## R14 — Ordinary capabilities declaration
 
 **Decision**: Declare ordinary capabilities matching current authenticated learner surface (own learning items, reviews, decks, profile/settings, languages). Fail closed if declaration missing at deploy/runtime config. Document in `contracts/ordinary-role.md` and project manifest alignment.
 

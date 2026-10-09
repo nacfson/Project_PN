@@ -13,9 +13,12 @@ type CentralIdentity struct {
 }
 
 type LinkedProvider struct {
-	Provider string
-	Email    string
-	LinkedAt time.Time
+	Provider     string    `json:"provider"`
+	Issuer       string    `json:"issuer,omitempty"`
+	Subject      string    `json:"subject,omitempty"`
+	SignInMethod string    `json:"sign_in_method,omitempty"`
+	Email        string    `json:"email"`
+	LinkedAt     time.Time `json:"linked_at"`
 }
 
 type MergeSuggestion struct {

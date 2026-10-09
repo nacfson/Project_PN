@@ -2,149 +2,268 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
 )
 
-type fakeCentralUserService struct {
+type fakePlatformUserEnsurer struct {
 	user auth.User
 }
 
-func (f fakeCentralUserService) EnsureCentralUser(_ context.Context, _ auth.CentralSession) (auth.AuthResult, error) {
-	return auth.AuthResult{User: f.user}, nil
+func (f fakePlatformUserEnsurer) EnsurePlatformUser(_ context.Context, issuer, subject, email, signInMethod string) (auth.AuthResult, error) {
+	return auth.AuthResult{
+		User:            f.user,
+		SessionProvider: signInMethod,
+	}, nil
 }
 
-func TestCentralAuthMiddleware_RejectsProxyHeaders(t *testing.T) {
-	svc := &auth.Service{}
-	central := auth.NewCentralClient("http://unused.invalid", nil)
-	mw := authMiddleware(svc, central, admin.NoopLogger{})
+type testAuthSetup struct {
+	verifier *auth.JWTVerifier
+	privKey  *rsa.PrivateKey
+	cfg      auth.JWTVerifierConfig
+}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
-	req.Header.Set("X-User-Id", "00000000-0000-0000-0000-000000000001")
-	req.Header.Set("X-User-Email", "attacker@example.com")
-	rec := httptest.NewRecorder()
+func setupTestVerifier(t *testing.T) testAuthSetup {
+	t.Helper()
 
-	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})).ServeHTTP(rec, req)
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rec.Code)
+	pubJWK, err := jwk.Import(privKey.Public())
+	if err != nil {
+		t.Fatalf("failed to import public JWK: %v", err)
 	}
-	var response struct {
-		Code string `json:"code"`
+	_ = pubJWK.Set(jwk.KeyIDKey, "test-kid")
+	_ = pubJWK.Set(jwk.AlgorithmKey, jwa.RS256())
+
+	keySet := jwk.NewSet()
+	_ = keySet.AddKey(pubJWK)
+
+	cfg := auth.JWTVerifierConfig{
+		Issuer:      "https://auth.nacfson.cloud/realms/platform",
+		Audience:    "project-pn",
+		AllowedAlgs: []string{"RS256"},
+		ClockSkew:   1 * time.Minute,
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("decode error response: %v", err)
-	}
-	if response.Code != "AUTH-101" {
-		t.Fatalf("expected AUTH-101, got %q", response.Code)
+
+	verifier := auth.NewJWTVerifier(cfg)
+	verifier.SetStaticJWKS(keySet)
+
+	return testAuthSetup{
+		verifier: verifier,
+		privKey:  privKey,
+		cfg:      cfg,
 	}
 }
 
-func TestCentralAuthMiddleware_UsesCookieSessionAndIgnoresBearer(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/internal/cookie-session" {
-			t.Fatalf("expected cookie-session endpoint, got %s", r.URL.Path)
-		}
-		if r.Header.Get("Authorization") != "Bearer internal-secret" {
-			t.Fatalf("expected internal auth header, got %q", r.Header.Get("Authorization"))
-		}
-		cookie, err := r.Cookie(auth.CentralSessionCookieName)
-		if err != nil || cookie.Value != "cookie-value" {
-			t.Fatalf("expected forwarded cookie, got %v %#v", err, cookie)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"user_id":"central-cookie-user","email":"cookie@example.com","is_admin":false,"expires_at":"2099-01-01T00:00:00Z"}`))
-	}))
-	defer server.Close()
+func mintTokenForMiddleware(t *testing.T, setup testAuthSetup, iss, aud, sub, typ, headerTyp string, exp time.Time, key *rsa.PrivateKey) string {
+	t.Helper()
 
-	central := auth.NewCentralClientWithInternalAuth("", server.URL, "internal-secret", server.Client())
-	mw := authMiddleware(fakeCentralUserService{user: auth.User{ID: "local-cookie-user", Email: "cookie@example.com"}}, central, admin.NoopLogger{})
+	if key == nil {
+		key = setup.privKey
+	}
+
+	builder := jwt.NewBuilder().
+		Issuer(iss).
+		Audience([]string{aud}).
+		Subject(sub).
+		Expiration(exp).
+		IssuedAt(time.Now().Add(-1 * time.Minute))
+
+	if typ != "" {
+		builder.Claim("typ", typ)
+	}
+
+	tok, err := builder.Build()
+	if err != nil {
+		t.Fatalf("failed to build token: %v", err)
+	}
+
+	headers := jws.NewHeaders()
+	_ = headers.Set("kid", "test-kid")
+	if headerTyp != "" {
+		_ = headers.Set("typ", headerTyp)
+	}
+
+	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(headers)))
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+
+	return string(signed)
+}
+
+func TestAuthMiddleware_ValidProjectJWT(t *testing.T) {
+	setup := setupTestVerifier(t)
+	expectedUser := auth.User{
+		ID:    "user-uuid-1234",
+		Email: "learner@project-pn.local",
+	}
+	ensurer := fakePlatformUserEnsurer{user: expectedUser}
+	mw := authMiddleware(setup.verifier, ensurer, false, admin.NoopLogger{})
+
+	tokenStr := mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "user-sub-1234", "Bearer", "JWT", time.Now().Add(10*time.Minute), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	req.AddCookie(&http.Cookie{Name: auth.CentralSessionCookieName, Value: "cookie-value"})
-	req.Header.Set("Authorization", "Bearer native-token")
-	rec := httptest.NewRecorder()
-
-	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := userFromContext(r.Context())
-		if !ok || user.ID != "local-cookie-user" {
-			t.Fatalf("expected local user from cookie identity, got %+v", user)
-		}
-		session, ok := authSessionFromContext(r.Context())
-		if !ok || session.method != authMethodCookie {
-			t.Fatalf("expected cookie auth session, got %+v", session)
-		}
-		w.WriteHeader(http.StatusOK)
-	})).ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-}
-
-func TestCentralAuthMiddlewareCookieTakesPrecedenceWhenInvalid(t *testing.T) {
-	var paths []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		paths = append(paths, r.URL.Path)
-		if r.URL.Path == "/api/internal/cookie-session" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		t.Fatalf("bearer validation must not run when cookie is present")
-	}))
-	defer server.Close()
-
-	central := auth.NewCentralClientWithInternalAuth("", server.URL, "internal-secret", server.Client())
-	mw := authMiddleware(fakeCentralUserService{}, central, admin.NoopLogger{})
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	req.AddCookie(&http.Cookie{Name: auth.CentralSessionCookieName, Value: "expired-cookie"})
-	req.Header.Set("Authorization", "Bearer native-token")
-	rec := httptest.NewRecorder()
-
-	mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		t.Fatal("next handler must not be called")
-	})).ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rec.Code)
-	}
-	if len(paths) != 1 || paths[0] != "/api/internal/cookie-session" {
-		t.Fatalf("unexpected central auth calls: %v", paths)
-	}
-}
-
-func TestCentralAuthMiddlewareIgnoresSpoofedIdentityHeadersForValidBearer(t *testing.T) {
-	central := mockCentralClient(t)
-	mw := authMiddleware(fakeCentralUserService{user: auth.User{ID: "central-local-user", Email: "real@example.com"}}, central, admin.NoopLogger{})
-
-	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	req.Header.Set("Authorization", "Bearer native-token")
-	req.Header.Set("X-User-Id", "attacker-id")
-	req.Header.Set("X-User-Email", "attacker@example.com")
+	req.Header.Set("Authorization", "Bearer "+tokenStr)
+	// Inject spoofed headers to assert they are stripped
+	req.Header.Set("X-User-Subject", "attacker-sub")
+	req.Header.Set("X-User-Issuer", "attacker-issuer")
 	req.Header.Set("X-User-Roles", "admin")
+
 	rec := httptest.NewRecorder()
 
 	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := userFromContext(r.Context())
-		if !ok || user.ID != "central-local-user" || user.Email != "real@example.com" {
-			t.Fatalf("expected central user, got %+v", user)
+		if !ok || user.ID != expectedUser.ID {
+			t.Fatalf("expected user %s, got %+v", expectedUser.ID, user)
 		}
-		for _, header := range []string{"X-User-Id", "X-User-Email", "X-User-Roles"} {
-			if got := r.Header.Get(header); got != "" {
-				t.Fatalf("expected spoofed header %s to be removed, got %q", header, got)
+		// Confirm forged headers were stripped
+		for _, h := range []string{"X-User-Subject", "X-User-Issuer", "X-User-Roles"} {
+			if r.Header.Get(h) != "" {
+				t.Fatalf("expected header %s to be stripped, got %q", h, r.Header.Get(h))
 			}
 		}
 		w.WriteHeader(http.StatusOK)
 	})).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_RejectMatrix(t *testing.T) {
+	setup := setupTestVerifier(t)
+	ensurer := fakePlatformUserEnsurer{user: auth.User{ID: "user-1"}}
+	mw := authMiddleware(setup.verifier, ensurer, false, admin.NoopLogger{})
+
+	otherKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+
+	testCases := []struct {
+		name          string
+		authHeader    string
+		customHeaders map[string]string
+	}{
+		{
+			name:       "Missing Bearer header",
+			authHeader: "",
+		},
+		{
+			name:       "Spoofed headers without Bearer",
+			authHeader: "",
+			customHeaders: map[string]string{
+				"X-User-Subject": "attacker-sub",
+				"X-User-Issuer":  setup.cfg.Issuer,
+			},
+		},
+		{
+			name:       "Wrong audience",
+			authHeader: "Bearer " + mintTokenForMiddleware(t, setup, setup.cfg.Issuer, "wrong-aud", "sub-1", "Bearer", "JWT", time.Now().Add(10*time.Minute), nil),
+		},
+		{
+			name:       "Wrong issuer",
+			authHeader: "Bearer " + mintTokenForMiddleware(t, setup, "https://wrong.issuer/realms/platform", setup.cfg.Audience, "sub-1", "Bearer", "JWT", time.Now().Add(10*time.Minute), nil),
+		},
+		{
+			name:       "Bad signature",
+			authHeader: "Bearer " + mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "sub-1", "Bearer", "JWT", time.Now().Add(10*time.Minute), otherKey),
+		},
+		{
+			name:       "Expired token",
+			authHeader: "Bearer " + mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "sub-1", "Bearer", "JWT", time.Now().Add(-10*time.Minute), nil),
+		},
+		{
+			name:       "ID token substituted",
+			authHeader: "Bearer " + mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "sub-1", "ID", "ID", time.Now().Add(10*time.Minute), nil),
+		},
+		{
+			name:       "Legacy mock-dev-token rejected in production",
+			authHeader: "Bearer mock-dev-token",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/words/lookup", nil)
+			if tc.authHeader != "" {
+				req.Header.Set("Authorization", tc.authHeader)
+			}
+			for k, v := range tc.customHeaders {
+				req.Header.Set(k, v)
+			}
+			rec := httptest.NewRecorder()
+
+			mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("protected handler must not be executed")
+			})).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected 401 Unauthorized, got %d", rec.Code)
+			}
+
+			var errResp struct {
+				Code string `json:"code"`
+			}
+			_ = json.Unmarshal(rec.Body.Bytes(), &errResp)
+			if errResp.Code != "AUTH-101" {
+				t.Fatalf("expected code AUTH-101, got %q", errResp.Code)
+			}
+		})
+	}
+}
+
+func TestAuthMiddleware_DevBypass(t *testing.T) {
+	setup := setupTestVerifier(t)
+	devUser := auth.User{
+		ID:    "00000000-0000-0000-0000-000000000001",
+		Email: "dev@project-pn.local",
+	}
+	ensurer := fakePlatformUserEnsurer{user: devUser}
+
+	// 1. With devBypass=true, mock-dev-token succeeds
+	devMW := authMiddleware(setup.verifier, ensurer, true, admin.NoopLogger{})
+	req := httptest.NewRequest(http.MethodGet, "/api/words/lookup", nil)
+	req.Header.Set("Authorization", "Bearer mock-dev-token")
+	rec := httptest.NewRecorder()
+
+	devMW(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := userFromContext(r.Context())
+		if !ok || u.ID != devUser.ID {
+			t.Fatalf("expected dev user %s, got %+v", devUser.ID, u)
+		}
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for dev bypass, got %d", rec.Code)
+	}
+
+	// 2. With devBypass=false (production), mock-dev-token is rejected
+	prodMW := authMiddleware(setup.verifier, ensurer, false, admin.NoopLogger{})
+	req2 := httptest.NewRequest(http.MethodGet, "/api/words/lookup", nil)
+	req2.Header.Set("Authorization", "Bearer mock-dev-token")
+	rec2 := httptest.NewRecorder()
+
+	prodMW(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("dev token must not be accepted in prod")
+	})).ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for prod with mock-dev-token, got %d", rec2.Code)
 	}
 }

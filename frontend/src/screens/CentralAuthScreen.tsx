@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Linking, Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { CENTRAL_AUTH_URL } from '../config';
+import { API_BASE_URL } from '../config';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
 import { Button, Card, Icon, Text } from '../ui';
@@ -22,14 +22,15 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
 
   const handleSignIn = async () => {
     setBusy(true);
-    const traceId = analytics.track('auth_started', { provider: 'central_auth' });
+    const traceId = analytics.track('auth_started', { provider: 'platform' });
     try {
       const browserWeb = isBrowserWeb();
-      const redirectUrl = browserWeb ? window.location.origin : 'projectpn://auth';
-      const authUrl = `${CENTRAL_AUTH_URL}/login?rd=${encodeURIComponent(redirectUrl)}`;
       if (browserWeb) {
-        window.location.href = authUrl;
+        // Defer to Traefik ForwardAuth: navigating to origin triggers platform login / Keycloak broker
+        window.location.href = window.location.origin;
       } else {
+        const redirectUrl = 'projectpn://auth';
+        const authUrl = `${API_BASE_URL}/`;
         const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
         if (result.type === 'success') {
           const session = extractSessionFromUrl(result.url);
@@ -38,13 +39,13 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
             if (onTokenReceived) {
               onTokenReceived();
             }
-            analytics.track('auth_succeeded', { provider: 'central_auth' }, traceId);
+            analytics.track('auth_succeeded', { provider: 'platform' }, traceId);
           }
         }
       }
     } catch (err) {
-      analytics.track('auth_failed', { provider: 'central_auth', error_code: 'AUTH-101', retryable: true }, traceId);
-      console.error('Failed to open SSO page', err);
+      analytics.track('auth_failed', { provider: 'platform', error_code: 'AUTH-101', retryable: true }, traceId);
+      console.error('Failed to open login page', err);
     } finally {
       setBusy(false);
     }

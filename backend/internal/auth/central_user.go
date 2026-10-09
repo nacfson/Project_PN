@@ -140,10 +140,15 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 
 func (s *Service) ListLinkedProviders(ctx context.Context, userID string) ([]LinkedProvider, error) {
 	rows, err := s.pool.Query(ctx, `
-		select provider, coalesce(email_at_provider, ''), linked_at
+		select coalesce(provider, 'google'),
+		       coalesce(issuer, ''),
+		       coalesce(subject, provider_subject, ''),
+		       coalesce(sign_in_method, 'google'),
+		       coalesce(email_at_provider, ''),
+		       coalesce(linked_at, created_at, now())
 		from user_identities
 		where user_id = $1::uuid
-		order by linked_at asc
+		order by created_at asc
 	`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list linked providers: %w", err)
@@ -153,7 +158,7 @@ func (s *Service) ListLinkedProviders(ctx context.Context, userID string) ([]Lin
 	var providers []LinkedProvider
 	for rows.Next() {
 		var item LinkedProvider
-		if err := rows.Scan(&item.Provider, &item.Email, &item.LinkedAt); err != nil {
+		if err := rows.Scan(&item.Provider, &item.Issuer, &item.Subject, &item.SignInMethod, &item.Email, &item.LinkedAt); err != nil {
 			return nil, err
 		}
 		providers = append(providers, item)

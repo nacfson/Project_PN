@@ -94,13 +94,16 @@ Requires `Authorization: Bearer <token>`. All protected routes require a verifie
 
 ## Authentication
 
-The backend delegates authentication to **central-auth** (`CENTRAL_AUTH_URL`, public host `auth.nacfson.cloud`). Users sign in with **Google OAuth**. The client sends the session token as `Authorization: Bearer <token>` on every API request. The backend validates each token via `CentralClient.ValidateSession()` (`GET /api/auth/session`), which returns `auth_provider` (`google`) and `identity` (`provider`, `provider_subject`).
+Project PN authenticates requests via **in-cluster Keycloak project-scoped access tokens** (`001-gateway-jwt-auth`). Users authenticate at the platform ingress via Traefik ForwardAuth (`gateway.identity.svc`), which injects `Authorization: Bearer <JWT>` upstream to Project PN.
 
-`EnsureCentralUser()` provisions or resolves a local `users` row and `user_identities` rows:
+The backend independently validates each Bearer JWT using local JWKS caching (`AUTH_JWT_JWKS_URL`) and strict claim verification (`AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE = project-pn`, non-empty `sub`, `typ = Bearer`, allowed algorithms `RS256`). Unverified client-supplied identity headers (`X-User-*`) are stripped before verification.
 
-- Google → `user_identities(provider='google', provider_subject=<google sub>)`
+`EnsurePlatformUser()` provisions or resolves local users strictly by `(issuer, subject)`:
+- Primary key / uniqueness: `UNIQUE (issuer, subject)` on `user_identities`
+- Live sign-in method: `google` (reserved: `apple`, `email`)
+- Learner privilege: Ordinary access only (no application-administrator product role)
+- Email is treated as an informational snapshot; automatic same-email linking is not performed (continuity for existing users is managed via operator migration)
 
-When an existing account has the same verified email, `EnsureCentralUser()` automatically binds the Google identity to the existing user row. For combining data between accounts with different emails, users use the explicit account merge flow (`account_merge_requests`). Provider unlink is not supported in v1.
 
 ## Production Deployment (Oracle Cloud)
 
