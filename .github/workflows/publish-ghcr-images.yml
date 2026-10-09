@@ -55,6 +55,7 @@ jobs:
             org.opencontainers.image.description=Project PN backend API
 
       - name: Build and publish backend image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -64,6 +65,29 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary & Print Result
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "${{ github.sha }}")
+          IMAGE_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend:${SHORT_SHA:0:7}"
+          LATEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend:latest"
+          DIGEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend@${{ steps.build.outputs.digest }}"
+
+          echo ""
+          echo "============================================================"
+          echo " Backend Image Published Successfully:"
+          echo "   Tag:    ${IMAGE_URL}"
+          echo "   Latest: ${LATEST_URL}"
+          echo "   Digest: ${DIGEST_URL}"
+          echo "============================================================"
+          echo ""
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### 📦 Backend Image Published
+          - **Tag URL**: \`${IMAGE_URL}\`
+          - **Latest URL**: \`${LATEST_URL}\`
+          - **Digest**: \`${DIGEST_URL}\`
+          EOF
 
   publish-frontend:
     runs-on: ubuntu-latest
@@ -110,6 +134,7 @@ jobs:
             org.opencontainers.image.description=Project PN frontend (Expo web / nginx)
 
       - name: Build and publish frontend image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
@@ -118,3 +143,26 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary & Print Result
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "${{ github.sha }}")
+          IMAGE_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend:${SHORT_SHA:0:7}"
+          LATEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend:latest"
+          DIGEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend@${{ steps.build.outputs.digest }}"
+
+          echo ""
+          echo "============================================================"
+          echo " Frontend Image Published Successfully:"
+          echo "   Tag:    ${IMAGE_URL}"
+          echo "   Latest: ${LATEST_URL}"
+          echo "   Digest: ${DIGEST_URL}"
+          echo "============================================================"
+          echo ""
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### 📦 Frontend Image Published
+          - **Tag URL**: \`${IMAGE_URL}\`
+          - **Latest URL**: \`${LATEST_URL}\`
+          - **Digest**: \`${DIGEST_URL}\`
+          EOF

@@ -80,6 +80,9 @@ type Config struct {
 
 	AllowedOrigins []string
 
+	SignIn         string
+	GatewayAuthURL string
+
 	CentralAuthURL           string
 	CentralAuthInternalURL   string
 	AuthSessionInternalToken string
@@ -138,6 +141,9 @@ func Load() Config {
 			envOrDefault("PN_DEV_EXTENSION_ID", defaultDevExtensionID),
 			envOrDefault("PN_PROD_EXTENSION_ID", defaultProdExtensionID),
 		),
+
+		SignIn:         envOrDefault("SIGN_IN", "shared"),
+		GatewayAuthURL: envOrDefault("GATEWAY_AUTH_URL", "http://gateway.identity.svc:8080/auth"),
 
 		CentralAuthURL:           strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
 		CentralAuthInternalURL:   strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),

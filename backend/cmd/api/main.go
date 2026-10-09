@@ -131,6 +131,7 @@ func main() {
 	})
 	slog.Info("using central auth URL", "url", centralAuthURL, "public_url", cfg.CentralAuthURL)
 	wordsService := words.New(pool, enricher, adminLogger, learningLogger, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	gatewayClient := auth.NewGatewayClient(cfg.GatewayAuthURL, cfg.SignIn, nil)
 
 	server := &http.Server{
 		Addr: cfg.AppAddr,
@@ -139,6 +140,7 @@ func main() {
 			Words:            wordsService,
 			Auth:             authService,
 			CentralAuth:      centralAuth,
+			GatewayAuth:      gatewayClient,
 			AllowedOrigins:   cfg.AllowedOrigins,
 			AdminLogger:      adminLogger,
 			MetricsCollector: metricsCollector,

@@ -19,7 +19,7 @@ func TestAuthMiddlewareLogsValidationFailure(t *testing.T) {
 
 	central := auth.NewCentralClient(srv.URL, nil)
 	logger := &fakeLogger{}
-	mw := authMiddleware(nil, central, logger)
+	mw := authMiddleware(nil, central, nil, logger)
 
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,17 +1,5 @@
 {
   "sync-docs-on-deploy": {
-    "enabled": true,
-    "PreToolUse": [
-      {
-        "matcher": "run_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/hyungjuyu/Projects/iOS/Project_PN/scripts/sync-docs-on-deploy.sh",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
+    "enabled": false
   }
 }

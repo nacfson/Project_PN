@@ -251,3 +251,78 @@ func (s *Service) userByID(ctx context.Context, userID string) (User, error) {
 	}
 	return user, nil
 }
+
+
+// EnsurePlatformIdentity resolves or creates a local user for a confirmed platform identity (issuer, subject).
+// A signed-in user is only (issuer, subject) for this project's audience. That pair does not grant
+// business permissions. Email is not the identifier.
+func (s *Service) EnsurePlatformIdentity(ctx context.Context, identity ConfirmedIdentity) (User, error) {
+	if s.pool == nil {
+		now := time.Now()
+		return User{
+			ID:              identity.Subject,
+			Email:           fmt.Sprintf("%s@%s", identity.Subject, identity.Audience),
+			EmailVerifiedAt: &now,
+			NativeLanguage:  s.defaultDefinitionLang,
+			TargetLanguage:  s.defaultTargetLang,
+			UILanguage:      s.defaultUILang,
+		}, nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return User{}, fmt.Errorf("auth: begin platform user sync: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var userID string
+	err = tx.QueryRow(ctx, `
+		select user_id::text
+		from user_identities
+		where provider = $1 and provider_subject = $2
+	`, identity.Issuer, identity.Subject).Scan(&userID)
+
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return User{}, fmt.Errorf("auth: lookup platform identity: %w", err)
+		}
+
+		targetLang, _ := s.resolveTargetLang("")
+		nativeLang, _ := s.resolveDefinitionLang("")
+		uiLang, _ := s.resolveUILang("")
+
+		placeholderEmail := fmt.Sprintf("%s@%s", identity.Subject, identity.Audience)
+
+		err = tx.QueryRow(ctx, `
+			insert into users (email, email_verified_at, native_language, target_language, ui_language)
+			values ($1, now(), $2, $3, $4)
+			returning id::text
+		`, placeholderEmail, nativeLang, targetLang, uiLang).Scan(&userID)
+		if err != nil {
+			return User{}, fmt.Errorf("auth: insert platform user: %w", err)
+		}
+
+		_, err = tx.Exec(ctx, `
+			insert into user_identities (user_id, provider, provider_subject, email_at_provider)
+			values ($1::uuid, $2, $3, $4)
+		`, userID, identity.Issuer, identity.Subject, placeholderEmail)
+		if err != nil {
+			return User{}, fmt.Errorf("auth: insert platform identity: %w", err)
+		}
+
+		_, err = tx.Exec(ctx, `
+			insert into user_languages (user_id, target_language, display_language, is_active)
+			values ($1::uuid, $2, $3, true)
+			on conflict (user_id, target_language) do nothing
+		`, userID, targetLang, nativeLang)
+		if err != nil {
+			return User{}, fmt.Errorf("auth: ensure user language: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, fmt.Errorf("auth: commit platform user sync: %w", err)
+	}
+
+	return s.userByID(ctx, userID)
+}

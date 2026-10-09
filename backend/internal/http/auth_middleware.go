@@ -14,11 +14,54 @@ type centralUserEnsurer interface {
 	EnsureCentralUser(ctx context.Context, session auth.CentralSession) (auth.AuthResult, error)
 }
 
-func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger admin.Logger) func(http.Handler) http.Handler {
+type platformIdentityEnsurer interface {
+	EnsurePlatformIdentity(ctx context.Context, identity auth.ConfirmedIdentity) (auth.User, error)
+}
+
+func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, gateway *auth.GatewayClient, logger admin.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			discardClientIdentityHeaders(r)
+			if gateway != nil {
+				// Clear any client-supplied Authorization, X-User-Subject, and X-User-Issuer before making that decision.
+				r.Header.Del("Authorization")
+				r.Header.Del("X-User-Subject")
+				r.Header.Del("X-User-Issuer")
+			}
 
+			// 1. Gateway session confirmation for signIn: shared
+			if gateway != nil && gateway.SignInMode() == auth.SignInShared {
+				if len(r.Cookies()) > 0 {
+					ident, err := gateway.ConfirmIdentity(r.Context(), r.Host, r.Cookies())
+					if err != nil {
+						logger.Logf("AUTH_FAILURE", "gateway confirmation error from %s: %v", r.RemoteAddr, err)
+						writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+						return
+					}
+					if ident != nil {
+						if pEnsurer, ok := svc.(platformIdentityEnsurer); ok {
+							user, err := pEnsurer.EnsurePlatformIdentity(r.Context(), *ident)
+							if err != nil {
+								logger.Logf("AUTH_FAILURE", "ensure platform identity error: %v", err)
+								writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
+								return
+							}
+							ctx := withUser(r.Context(), user)
+							next.ServeHTTP(w, r.WithContext(ctx))
+							return
+						}
+					}
+				}
+			}
+
+			// A project with signIn omitted or none must not start sign-in, must not call the gateway,
+			// and must not treat a presented claim as a user.
+			if gateway != nil && gateway.SignInMode() != auth.SignInShared {
+				writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+				return
+			}
+
+			// 2. Fallback to legacy CentralClient (local dev, native bearer clients, tests)
 			var (
 				session     auth.CentralSession
 				credentials authSession
@@ -26,7 +69,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 			)
 			if cookie, cookieErr := r.Cookie(auth.CentralSessionCookieName); cookieErr == nil {
 				if central == nil {
-					writeCodedError(w, http.StatusInternalServerError, "AUTH-102", "central auth is not configured", false)
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
 				session, err = central.ValidateCookieSession(r.Context(), cookie.Value)
@@ -52,7 +95,7 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 					return
 				}
 				if central == nil {
-					writeCodedError(w, http.StatusInternalServerError, "AUTH-102", "central auth is not configured", false)
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
 				session, err = central.ValidateSession(r.Context(), token)
@@ -81,16 +124,12 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger 
 
 // optionalAuthMiddleware preserves anonymous analytics delivery while attaching
 // an API-verified actor whenever a browser cookie or bearer credential exists.
-func optionalAuthMiddleware(svc centralUserEnsurer, central *auth.CentralClient, logger admin.Logger) func(http.Handler) http.Handler {
-	required := authMiddleware(svc, central, logger)
+func optionalAuthMiddleware(svc centralUserEnsurer, central *auth.CentralClient, gateway *auth.GatewayClient, logger admin.Logger) func(http.Handler) http.Handler {
+	required := authMiddleware(svc, central, gateway, logger)
 	return func(next http.Handler) http.Handler {
 		protected := required(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if bearerToken(r) != "" {
-				protected.ServeHTTP(w, r)
-				return
-			}
-			if _, err := r.Cookie(auth.CentralSessionCookieName); err == nil {
+			if bearerToken(r) != "" || len(r.Cookies()) > 0 {
 				protected.ServeHTTP(w, r)
 				return
 			}
@@ -124,6 +163,8 @@ func bearerToken(r *http.Request) string {
 }
 
 func discardClientIdentityHeaders(r *http.Request) {
+	r.Header.Del("X-User-Subject")
+	r.Header.Del("X-User-Issuer")
 	r.Header.Del("X-User-Id")
 	r.Header.Del("X-User-Email")
 	r.Header.Del("X-User-Roles")

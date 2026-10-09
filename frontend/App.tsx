@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { me } from './src/api/auth';
-import { onboardingStorage } from './src/api/storage';
+import { onboardingStorage } from './src/api/onboardingStorage';
 import { sessionStorage } from './src/api/sessionStorage';
-import { AddQueueProvider } from './src/hooks/useAddQueue';
-import { useSessionRenewal } from './src/hooks/useSessionRenewal';
+import { AddQueueProvider } from './src/contexts/AddQueueContext';
 import { AppLanguageProvider } from './src/i18n';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { LinkAccountBanner } from './src/features/auth/LinkAccountBanner';
+import { GuestBanner } from './src/features/auth/GuestBanner';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -19,8 +19,17 @@ import { isExtensionLoginFlow, sendSessionToExtension } from './src/utils/extens
 import { isBrowserWeb } from './src/utils/platform';
 import { onUnauthorized } from './src/api/client';
 import { analytics } from './src/analytics/analytics';
+import { useSessionRenewal } from './src/hooks/useSessionRenewal';
 
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
+
+function isSignInPath(): boolean {
+  if (typeof window !== 'undefined' && window.location) {
+    const p = window.location.pathname.toLowerCase();
+    return p === '/sign-in' || p === '/signin' || p === '/login';
+  }
+  return false;
+}
 
 function LoadingScreen() {
   const { colors } = useTheme();
@@ -34,13 +43,21 @@ function LoadingScreen() {
   );
 }
 
-function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
-  useSessionRenewal(true);
+function AuthenticatedApp({
+  onLogout,
+  isGuest,
+  onSignIn,
+}: {
+  onLogout: () => void;
+  isGuest?: boolean;
+  onSignIn?: () => void;
+}) {
+  useSessionRenewal(!isGuest);
 
   return (
     <LanguageProvider>
       <AddQueueProvider>
-        <LinkAccountBanner />
+        {isGuest && onSignIn ? <GuestBanner onSignIn={onSignIn} /> : <LinkAccountBanner />}
         <RootNavigator onLogout={onLogout} />
       </AddQueueProvider>
     </LanguageProvider>
@@ -51,6 +68,7 @@ function AppContent() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showSignIn, setShowSignIn] = useState(isSignInPath());
   const { colors, mode } = useTheme();
 
   const authStateRef = useRef<AuthState>('loading');
@@ -102,6 +120,7 @@ function AppContent() {
       }
       await me();
       setAuthState('authenticated');
+      setShowSignIn(false);
       analytics.track('auth_succeeded', { method: isBrowserWeb() ? 'cookie' : 'bearer' });
       setConnectionError(null);
       await notifyExtensionIfNeeded();
@@ -191,7 +210,7 @@ function AppContent() {
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       {authState === 'authenticated' ? (
         <AuthenticatedApp onLogout={() => setAuthState('unauthenticated')} />
-      ) : (
+      ) : showSignIn ? (
         <SafeAreaView
           edges={['top', 'right', 'bottom', 'left']}
           style={[styles.safe, { backgroundColor: colors.background }]}
@@ -199,8 +218,15 @@ function AppContent() {
           <CentralAuthScreen 
             onTokenReceived={checkAuth} 
             connectionError={connectionError}
+            onContinueBrowsing={() => setShowSignIn(false)}
           />
         </SafeAreaView>
+      ) : (
+        <AuthenticatedApp
+          onLogout={() => setAuthState('unauthenticated')}
+          isGuest={true}
+          onSignIn={() => setShowSignIn(true)}
+        />
       )}
     </>
   );
