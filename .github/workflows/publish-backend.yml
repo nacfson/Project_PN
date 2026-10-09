@@ -11,12 +11,6 @@ name: Publish backend image (GHCR)
 # See backend/docs/ghcr-deploy.md.
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
-    paths:
-      - 'backend/**'
-      - '.github/workflows/publish-backend.yml'
   workflow_dispatch:
 
 jobs:
