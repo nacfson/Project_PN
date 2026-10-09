@@ -1,15 +1,18 @@
 name: Publish Project PN images
 
-# Publishes backend + frontend images to GHCR on every push to main.
+# Validates and publishes backend + frontend images to GHCR on push to main or PR.
 #
-# Auth: prefer repo secret GHCR_TOKEN (PAT with write:packages). GITHUB_TOKEN
-# alone fails for packages that were created outside Actions without
-# "Inherit access from repository" / Manage Actions access Write on the
-# package (seen as permission_denied: read_package on project-pn-frontend).
-# Keep OCI source labels so packages stay linked to this repo.
+# Preflight gate:
+# 1. Statically lints module imports across all workspaces.
+# 2. Builds and validates the frontend web bundle with Expo Metro.
+# Only when all preflight checks pass are the Docker images built and published.
+# On pull requests, only the preflight checks run to block invalid merges.
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
   workflow_dispatch:
@@ -23,7 +26,43 @@ env:
   IMAGE_OWNER: ${{ github.repository_owner }}
 
 jobs:
+  preflight-checks:
+    name: Lint & Preflight Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint module imports
+        run: npm run lint:imports
+
+      - name: Build and validate frontend web bundle
+        run: |
+          cd frontend
+          EXPO_PUBLIC_API_BASE_URL= EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud npm run web:export
+
+      - name: Upload frontend web bundle
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
   publish-backend:
+    name: Build & Publish Backend
+    needs: [preflight-checks]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -55,6 +94,7 @@ jobs:
             org.opencontainers.image.description=Project PN backend API
 
       - name: Build and publish backend image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -65,24 +105,43 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Summary & Print Result
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "${{ github.sha }}")
+          IMAGE_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend:${SHORT_SHA:0:7}"
+          LATEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend:latest"
+          DIGEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend@${{ steps.build.outputs.digest }}"
+
+          echo ""
+          echo "============================================================"
+          echo " Backend Image Published Successfully:"
+          echo "   Tag:    ${IMAGE_URL}"
+          echo "   Latest: ${LATEST_URL}"
+          echo "   Digest: ${DIGEST_URL}"
+          echo "============================================================"
+          echo ""
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### 📦 Backend Image Published
+          - **Tag URL**: \`${IMAGE_URL}\`
+          - **Latest URL**: \`${LATEST_URL}\`
+          - **Digest**: \`${DIGEST_URL}\`
+          EOF
+
   publish-frontend:
+    name: Build & Publish Frontend
+    needs: [preflight-checks]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Download frontend web bundle
+        uses: actions/download-artifact@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Build frontend web bundle
-        run: |
-          npm ci --legacy-peer-deps
-          cd frontend
-          EXPO_PUBLIC_API_BASE_URL= npm run web:export
+          name: frontend-dist
+          path: frontend/dist
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -110,6 +169,7 @@ jobs:
             org.opencontainers.image.description=Project PN frontend (Expo web / nginx)
 
       - name: Build and publish frontend image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
@@ -118,3 +178,26 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary & Print Result
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "${{ github.sha }}")
+          IMAGE_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend:${SHORT_SHA:0:7}"
+          LATEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend:latest"
+          DIGEST_URL="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend@${{ steps.build.outputs.digest }}"
+
+          echo ""
+          echo "============================================================"
+          echo " Frontend Image Published Successfully:"
+          echo "   Tag:    ${IMAGE_URL}"
+          echo "   Latest: ${LATEST_URL}"
+          echo "   Digest: ${DIGEST_URL}"
+          echo "============================================================"
+          echo ""
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### 📦 Frontend Image Published
+          - **Tag URL**: \`${IMAGE_URL}\`
+          - **Latest URL**: \`${LATEST_URL}\`
+          - **Digest**: \`${DIGEST_URL}\`
+          EOF

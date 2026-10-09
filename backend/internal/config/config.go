@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -9,7 +11,13 @@ import (
 const (
 	defaultAppAddr        = ":8080"
 	defaultMigrationsPath = "file://db/migrations"
-	// No defaultDatabaseURL — DATABASE_URL must be provided by the environment.
+	// No defaultDatabaseURL — set DATABASE_URL explicitly (local Compose) or
+	// assemble from DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_TOKEN (vault-db-proxy).
+
+	defaultDBHost = "vault-db-proxy.vault.svc"
+	defaultDBPort = "5432"
+	defaultDBName = "proj_pn"
+	defaultDBUser = "project:pn:workload:backend"
 
 	defaultUserID         = "00000000-0000-0000-0000-000000000001"
 	defaultTargetLang     = "en"
@@ -72,6 +80,9 @@ type Config struct {
 
 	AllowedOrigins []string
 
+	SignIn         string
+	GatewayAuthURL string
+
 	CentralAuthURL           string
 	CentralAuthInternalURL   string
 	AuthSessionInternalToken string
@@ -117,7 +128,7 @@ func Load() Config {
 
 	return Config{
 		AppAddr:        envOrDefault("APP_ADDR", defaultAppAddr),
-		DatabaseURL:    os.Getenv("DATABASE_URL"),
+		DatabaseURL:    resolveDatabaseURL(),
 		MigrationsPath: envOrDefault("MIGRATIONS_PATH", defaultMigrationsPath),
 
 		OriginWiktAPIBaseURL: envOrDefault("ORIGIN_WIKTAPI_BASE_URL", defaultOriginWiktAPIBaseURL),
@@ -147,6 +158,9 @@ func Load() Config {
 			envOrDefault("PN_PROD_EXTENSION_ID", defaultProdExtensionID),
 		),
 
+		SignIn:         envOrDefault("SIGN_IN", "shared"),
+		GatewayAuthURL: envOrDefault("GATEWAY_AUTH_URL", "http://gateway.identity.svc:8080/auth"),
+
 		CentralAuthURL:           strings.TrimRight(os.Getenv("CENTRAL_AUTH_URL"), "/"),
 		CentralAuthInternalURL:   strings.TrimRight(os.Getenv("CENTRAL_AUTH_INTERNAL_URL"), "/"),
 		AuthSessionInternalToken: strings.TrimSpace(os.Getenv("AUTH_SESSION_INTERNAL_TOKEN")),
@@ -168,6 +182,26 @@ func Load() Config {
 		LearningLogDir:   os.Getenv("LEARNING_LOG_DIR"),
 		AnalyticsEnabled: envBool("ANALYTICS_ENABLED", false),
 	}
+}
+
+// resolveDatabaseURL prefers an explicit DATABASE_URL (local Compose / Oracle).
+// When omitted, assembles a connection string from DB_* parts for the
+// nacfson_pipeline vault-db-proxy (caller identity token as password).
+func resolveDatabaseURL() string {
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		return databaseURL
+	}
+	if os.Getenv("DB_HOST") == "" {
+		return ""
+	}
+	dbHost := envOrDefault("DB_HOST", defaultDBHost)
+	dbPort := envOrDefault("DB_PORT", defaultDBPort)
+	dbName := envOrDefault("DB_NAME", defaultDBName)
+	dbUser := envOrDefault("DB_USER", defaultDBUser)
+	// Under Zero-Plaintext Proxy, the workload caller token is the password field.
+	dbPass := envOrDefault("DB_TOKEN", dbUser)
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		url.QueryEscape(dbUser), url.QueryEscape(dbPass), dbHost, dbPort, dbName)
 }
 
 func buildAllowedOrigins(base []string, devExtensionID, prodExtensionID string) []string {

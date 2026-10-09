@@ -15,16 +15,26 @@ sudo env KUBECONFIG=/secure/production.conf kubectl -n project-pn ...
 
 ## `/healthz` OK but `/readyz` fails
 
-**Cause:** API cannot reach Postgres (`DATABASE_URL` wrong, postgres pod down, or migrations not applied).
+**Cause:** API cannot reach Postgres (`DATABASE_URL` / `DB_*` wrong, postgres or vault-db-proxy down, or migrations not applied).
 
-**Fix:**
+**Fix (Oracle legacy):**
 
 ```sh
 sudo env KUBECONFIG=/secure/production.conf kubectl -n project-pn get pods
 sudo env KUBECONFIG=/secure/production.conf kubectl -n project-pn logs deploy/project-pn-backend -c api --tail=100
 ```
 
-Run migrate Job with current backend image if schema is behind.
+Run migrate Job with current backend image if schema is behind (or rely on startup migrate in newer images).
+
+**Fix (nacfson_pipeline):**
+
+```sh
+kubectl -n proj-pn get pods
+kubectl -n proj-pn logs deploy/pn-backend --tail=100
+kubectl -n vault get pods -l app.kubernetes.io/name=vault-db-proxy
+```
+
+Confirm `DB_HOST`/`DB_TOKEN` are set (no plaintext `DATABASE_URL` password), netpol allows egress to `vault-db-proxy`, and `/readyz` succeeds after proxy handshake.
 
 ---
 

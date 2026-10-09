@@ -14,10 +14,13 @@ LABEL org.opencontainers.image.source="https://github.com/nacfson/Project_PN"
 LABEL org.opencontainers.image.description="Project PN backend API"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin app
 WORKDIR /app
-COPY --from=builder /out/api /out/migrate /out/retranslate-senses ./
-COPY db/migrations ./db/migrations
+COPY --from=builder --chown=10001:10001 /out/api /out/migrate /out/retranslate-senses ./
+COPY --chown=10001:10001 db/migrations ./db/migrations
 ENV APP_ADDR=:8080
 EXPOSE 8080
+USER 10001:10001
 CMD ["./api"]

@@ -56,7 +56,9 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "lint:imports": "node ../scripts/lint-imports.mjs .",
+    "lint": "npm run lint:imports"
   },
   "private": true
 }

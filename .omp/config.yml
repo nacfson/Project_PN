@@ -1,0 +1,16 @@
+# Project PN — Oh My Pi harness settings.
+#
+# Approval guardrail (added 2026-09-09 after an agent implemented code
+# changes without the user's approval):
+#
+# The harness default approval mode is `yolo` (auto-approves read, write,
+# and exec tools). This project overrides it to `always-ask`:
+#   - read-only tools (read, grep, glob, ...) still run automatically;
+#   - every workspace-mutating tool (edit, write, ast_edit, lsp apply/
+#     rename, ...) and every exec tool (bash, eval, task subagents, ...)
+#     now prompts for explicit user approval before running.
+#
+# Agents therefore cannot implement or verify code unless the user
+# approves each action in this project.
+tools:
+  approvalMode: always-ask

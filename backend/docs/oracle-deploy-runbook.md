@@ -1,6 +1,8 @@
 # Oracle Cloud Deploy Runbook
 
-Production Project PN runs on **Oracle Cloud Ampere (arm64)** in k3s namespace `project-pn`.
+> **Migration note:** Target production is moving to **nacfson_pipeline** (`proj-pn` namespace) with `vault-db-proxy` Zero-Plaintext connectivity. See [Pipeline DB cutover](#pipeline-db-cutover-nacfson_pipeline) below. This Oracle section remains the legacy rollback path until cutover is complete.
+
+Production Project PN (legacy) runs on **Oracle Cloud Ampere (arm64)** in k3s namespace `project-pn`.
 
 - **App**: $APP_PUBLIC_URL
 - **Auth**: `auth.nacfson.cloud` (namespace `nacfson-auth`)
@@ -19,7 +21,7 @@ Internet → host nginx (TLS :443) → ingress-nginx NodePort → k3s Ingress
   → enricher (optional sidecar/service)
 ```
 
-Migrations run as a one-shot Job `project-pn-migrate` (`./migrate up`), not on API startup.
+On the Oracle path, migrations historically ran as a one-shot Job `project-pn-migrate` (`./migrate up`). New backend images also apply migrations on API startup (idempotent), which is required for the pipeline vault-db-proxy path.
 
 ## Publish images (GHCR)
 
@@ -88,6 +90,46 @@ curl -fsS -o /dev/null -w '%{http_code}\n' ${APP_PUBLIC_URL}/
 curl -fsS -o /dev/null -w '%{http_code}\n' ${APP_PUBLIC_URL}/api/curriculum/packs
 # 401 without auth = route live
 ```
+
+## Pipeline DB cutover (nacfson_pipeline)
+
+Target stack: FluxCD-managed namespace `proj-pn`, database `proj_pn` owned by `user_pn`, connectivity via `vault-db-proxy.vault.svc:5432` with caller token `project:pn:workload:backend` (no plaintext DB password in the pod).
+
+### Prerequisites
+
+1. Platform `postgres-init-job` created `proj_pn` / `user_pn`; OpenBao secret `kv/database/pn-user` seeded.
+2. `vault-db-proxy` healthy; run `tests/vault/test_db_proxy.sh` in the nacfson_pipeline repo.
+3. Backend image includes DB_* URL assembly, startup migrate, and UID 10001.
+4. Pipeline manifests set `DB_HOST`/`DB_TOKEN` and netpol egress to `vault-db-proxy` (not direct Postgres).
+
+### Restore historical data (local dump)
+
+You already have a downloaded `.tar.gz` / `.dump.gz`. Port-forward admin Postgres, then:
+
+```bash
+kubectl -n identity port-forward svc/postgres 5432:5432
+# in another shell:
+PGPASSWORD=… scripts/migrate-local-dump-to-pipeline.sh /path/to/your-dump.tar.gz
+```
+
+The script restores into `proj_pn`, reassigns ownership to `user_pn`, and prints row counts for `users`, `words`, `decks`, `review_states`.
+
+### Acceptance drills
+
+| Drill | Command / check | Pass criteria |
+|-------|-----------------|---------------|
+| Wire proxy handshake | `tests/vault/test_db_proxy.sh` | Valid token accepted; invalid → SQLSTATE `28000` |
+| Cross-DB isolation | connect as PN caller to `keycloak` | Rejected with SQLSTATE `42501` |
+| Data sanity | row counts after restore | Match origin dump |
+| App liveness | `curl -fsS http://pn-backend:8080/healthz` (and `/readyz`) | HTTP 200; pool healthy |
+
+### Cutover and rollback
+
+1. Validate pipeline stack in parallel while Oracle `project-pn` stays live.
+2. Point DNS/ingress at pipeline when drills pass.
+3. **Rollback data:** re-run `scripts/migrate-local-dump-to-pipeline.sh` (uses `pg_restore --clean --if-exists`).
+4. **Rollback traffic:** leave Oracle deployments running until confident; revert ingress to Oracle if needed.
+5. **Rollback workload:** revert Flux/Git image tag in `deploy/projects/pn/workloads/backend-deployment.yaml`.
 
 ## Secrets and repeated deploys
 
