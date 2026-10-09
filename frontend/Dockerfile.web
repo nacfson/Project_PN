@@ -5,3 +5,11 @@ LABEL org.opencontainers.image.source="https://github.com/nacfson/Project_PN"
 LABEL org.opencontainers.image.description="Project PN frontend (Expo web / nginx)"
 
 COPY dist /usr/share/nginx/web
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY nginx/docker-entrypoint.sh /docker-entrypoint-pn.sh
+
+RUN chmod +x /docker-entrypoint-pn.sh \
+    && rm -f /etc/nginx/conf.d/default.conf
+
+ENTRYPOINT ["/docker-entrypoint-pn.sh"]
+CMD ["nginx", "-g", "daemon off;"]
