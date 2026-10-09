@@ -6,6 +6,10 @@
     "browser-extension",
     "packages/*"
   ],
+  "scripts": {
+    "lint:imports": "node scripts/lint-imports.mjs",
+    "lint": "npm run lint:imports"
+  },
   "devDependencies": {
     "@babel/runtime": "^7.26.0"
   }
