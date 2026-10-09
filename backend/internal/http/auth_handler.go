@@ -17,24 +17,25 @@ type authHandler struct {
 }
 
 type linkedProviderResponse struct {
-	Provider string    `json:"provider"`
-	Email    string    `json:"email"`
-	LinkedAt time.Time `json:"linked_at"`
+	Provider     string    `json:"provider"`
+	Issuer       string    `json:"issuer,omitempty"`
+	Subject      string    `json:"subject,omitempty"`
+	SignInMethod string    `json:"sign_in_method,omitempty"`
+	Email        string    `json:"email"`
+	LinkedAt     time.Time `json:"linked_at"`
 }
 
 type meResponse struct {
-	ID                 string                      `json:"id"`
-	Email              string                      `json:"email"`
-	EmailVerified      bool                        `json:"email_verified"`
-	EmailVerifiedAt    *time.Time                  `json:"email_verified_at,omitempty"`
-	NativeLanguage     string                      `json:"native_language"`
-	TargetLanguage     string                      `json:"target_language"`
-	UILanguage         string                      `json:"ui_language"`
-	ActiveLanguage     auth.UserLanguage           `json:"active_language"`
-	LinkRecommendation *auth.LinkRecommendation    `json:"link_recommendation,omitempty"`
-	LinkRequest        *auth.LinkRequest           `json:"link_request,omitempty"`
-	MergeSuggestion    *auth.MergeSuggestion       `json:"merge_suggestion,omitempty"`
-	LinkedProviders    []linkedProviderResponse    `json:"linked_providers,omitempty"`
+	ID              string                   `json:"id"`
+	Email           string                   `json:"email"`
+	EmailVerified   bool                     `json:"email_verified"`
+	EmailVerifiedAt *time.Time               `json:"email_verified_at,omitempty"`
+	NativeLanguage  string                   `json:"native_language"`
+	TargetLanguage  string                   `json:"target_language"`
+	UILanguage      string                   `json:"ui_language"`
+	ActiveLanguage  auth.UserLanguage        `json:"active_language"`
+	MergeSuggestion *auth.MergeSuggestion    `json:"merge_suggestion,omitempty"`
+	LinkedProviders []linkedProviderResponse `json:"linked_providers,omitempty"`
 }
 
 func (h *authHandler) languageOptions(w http.ResponseWriter, r *http.Request) {
@@ -53,34 +54,8 @@ type refreshResponse struct {
 
 func refreshSessionHandler(central *auth.CentralClient, logger admin.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if central == nil {
-			writeError(w, http.StatusInternalServerError, "central auth is not configured")
-			return
-		}
-
-		var req refreshRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RefreshToken) == "" {
-			writeError(w, http.StatusBadRequest, "refresh_token required")
-			return
-		}
-
-		session, err := central.RefreshSession(r.Context(), req.RefreshToken)
-		if err != nil {
-			if errors.Is(err, auth.ErrInvalidToken) {
-				logger.Logf("AUTH_FAILURE", "refresh failed from %s: %v", r.RemoteAddr, err)
-				writeError(w, http.StatusUnauthorized, "unauthorized")
-				return
-			}
-			writeError(w, http.StatusInternalServerError, "internal error")
-			return
-		}
-
-		logger.Logf("AUTH", "session refreshed from %s", r.RemoteAddr)
-		writeJSON(w, http.StatusOK, refreshResponse{
-			Token:        session.Token,
-			RefreshToken: session.RefreshToken,
-			ExpiresAt:    session.ExpiresAt,
-		})
+		// Deprecated per 001-gateway-jwt-auth contracts/auth-api-surface.md
+		writeError(w, http.StatusGone, "refresh proxy deprecated; tokens are refreshed via platform gateway")
 	}
 }
 
@@ -129,7 +104,6 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	authResult, _ := authResultFromContext(r.Context())
 
 	linked, err := h.svc.ListLinkedProviders(r.Context(), user.ID)
 	if err != nil {
@@ -139,9 +113,12 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 	linkedResp := make([]linkedProviderResponse, 0, len(linked))
 	for _, item := range linked {
 		linkedResp = append(linkedResp, linkedProviderResponse{
-			Provider: item.Provider,
-			Email:    item.Email,
-			LinkedAt: item.LinkedAt,
+			Provider:     item.Provider,
+			Issuer:       item.Issuer,
+			Subject:      item.Subject,
+			SignInMethod: item.SignInMethod,
+			Email:        item.Email,
+			LinkedAt:     item.LinkedAt,
 		})
 	}
 
@@ -155,28 +132,18 @@ func (h *authHandler) me(w http.ResponseWriter, r *http.Request) {
 		mergeSuggestion = &suggestions[0]
 	}
 
-	var linkRequest *auth.LinkRequest
-	if pending, err := h.svc.GetPendingLinkRequest(r.Context(), user.ID); err == nil {
-		linkRequest = &pending
-	} else if !errors.Is(err, auth.ErrLinkRequestNotFound) {
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-
 	h.logger.Logf("AUTH", "%s identity confirmed from %s", user.Email, r.RemoteAddr)
 	writeJSON(w, http.StatusOK, meResponse{
-		ID:                 user.ID,
-		Email:              user.Email,
-		EmailVerified:      user.IsEmailVerified(),
-		EmailVerifiedAt:    user.EmailVerifiedAt,
-		NativeLanguage:     user.NativeLanguage,
-		TargetLanguage:     user.TargetLanguage,
-		UILanguage:         user.UILanguage,
-		ActiveLanguage:     user.ActiveLanguage,
-		LinkRecommendation: authResult.LinkRecommendation,
-		LinkRequest:        linkRequest,
-		MergeSuggestion:    mergeSuggestion,
-		LinkedProviders:    linkedResp,
+		ID:              user.ID,
+		Email:           user.Email,
+		EmailVerified:   user.IsEmailVerified(),
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		NativeLanguage:  user.NativeLanguage,
+		TargetLanguage:  user.TargetLanguage,
+		UILanguage:      user.UILanguage,
+		ActiveLanguage:  user.ActiveLanguage,
+		MergeSuggestion: mergeSuggestion,
+		LinkedProviders: linkedResp,
 	})
 }
 
@@ -194,143 +161,15 @@ func (h *authHandler) linkedProviders(w http.ResponseWriter, r *http.Request) {
 	resp := make([]linkedProviderResponse, 0, len(linked))
 	for _, item := range linked {
 		resp = append(resp, linkedProviderResponse{
-			Provider: item.Provider,
-			Email:    item.Email,
-			LinkedAt: item.LinkedAt,
+			Provider:     item.Provider,
+			Issuer:       item.Issuer,
+			Subject:      item.Subject,
+			SignInMethod: item.SignInMethod,
+			Email:        item.Email,
+			LinkedAt:     item.LinkedAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)
-}
-
-func (h *authHandler) linkProviderGone(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusGone, "use POST /api/auth/link-requests; target must approve via magic link")
-}
-
-func (h *authHandler) createLinkRequest(w http.ResponseWriter, r *http.Request) {
-	user, ok := userFromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	authResult, ok := authResultFromContext(r.Context())
-	if !ok || authResult.PendingIdentity == nil {
-		writeError(w, http.StatusBadRequest, "no link recommendation available")
-		return
-	}
-	req, err := h.svc.CreateLinkRequest(r.Context(), user.ID, *authResult.PendingIdentity)
-	if err != nil {
-		if errors.Is(err, auth.ErrNoPendingIdentity) {
-			writeError(w, http.StatusBadRequest, "no link recommendation available")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	writeJSON(w, http.StatusCreated, req)
-}
-
-func (h *authHandler) currentLinkRequest(w http.ResponseWriter, r *http.Request) {
-	user, ok := userFromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	req, err := h.svc.GetPendingLinkRequest(r.Context(), user.ID)
-	if err != nil {
-		if errors.Is(err, auth.ErrLinkRequestNotFound) {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	writeJSON(w, http.StatusOK, req)
-}
-
-func (h *authHandler) resendLinkRequest(w http.ResponseWriter, r *http.Request) {
-	user, ok := userFromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	requestID := strings.TrimSpace(r.PathValue("id"))
-	if requestID == "" {
-		writeError(w, http.StatusBadRequest, "id required")
-		return
-	}
-	req, err := h.svc.ResendLinkRequest(r.Context(), user.ID, requestID)
-	if err != nil {
-		switch {
-		case errors.Is(err, auth.ErrLinkRequestNotFound):
-			writeError(w, http.StatusNotFound, "link request not found")
-		case errors.Is(err, auth.ErrLinkRequestExpired):
-			writeError(w, http.StatusBadRequest, "link request expired")
-		case errors.Is(err, auth.ErrLinkResendCooldown):
-			writeError(w, http.StatusTooManyRequests, "wait before resending")
-		default:
-			writeError(w, http.StatusInternalServerError, "internal error")
-		}
-		return
-	}
-	writeJSON(w, http.StatusOK, req)
-}
-
-func (h *authHandler) cancelLinkRequest(w http.ResponseWriter, r *http.Request) {
-	user, ok := userFromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	authResult, _ := authResultFromContext(r.Context())
-	requestID := strings.TrimSpace(r.PathValue("id"))
-	if requestID == "" {
-		writeError(w, http.StatusBadRequest, "id required")
-		return
-	}
-	if err := h.svc.CancelLinkRequest(r.Context(), user.ID, authResult.SessionProvider, requestID); err != nil {
-		if errors.Is(err, auth.ErrLinkRequestNotFound) {
-			writeError(w, http.StatusNotFound, "link request not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *authHandler) confirmLinkRequest(w http.ResponseWriter, r *http.Request) {
-	user, ok := userFromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	authResult, ok := authResultFromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	requestID := strings.TrimSpace(r.PathValue("id"))
-	if requestID == "" {
-		writeError(w, http.StatusBadRequest, "id required")
-		return
-	}
-	err := h.svc.ConfirmLinkRequest(r.Context(), user.ID, authResult.SessionProvider, user.Email, requestID)
-	if err != nil {
-		switch {
-		case errors.Is(err, auth.ErrLinkConfirmForbidden):
-			writeError(w, http.StatusForbidden, "email magic-link session required to approve")
-		case errors.Is(err, auth.ErrLinkRequestNotFound):
-			writeError(w, http.StatusNotFound, "link request not found")
-		case errors.Is(err, auth.ErrLinkRequestExpired):
-			writeError(w, http.StatusBadRequest, "link request expired")
-		case errors.Is(err, auth.ErrLinkIdentityConflict):
-			writeError(w, http.StatusConflict, "identity already linked to another account")
-		default:
-			writeError(w, http.StatusInternalServerError, "internal error")
-		}
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 type mergeRequestBody struct {

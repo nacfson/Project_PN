@@ -22,8 +22,6 @@ Optional environment variables:
   GHCR_USERNAME=<github-username>   # defaults to GHCR_OWNER
   PUSH_LATEST=1                     # also push :latest (default 1)
   BUILDX_BUILDER=project-pn-multi   # buildx builder name
-  EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud
-                                    # baked into frontend web export (required for Sign In)
 
 Images:
   backend  → ghcr.io/<owner>/project-pn-backend
@@ -116,24 +114,17 @@ docker buildx inspect --bootstrap >/dev/null
 
 if [[ "$TARGET" == "frontend" || "$TARGET" == "all" ]]; then
   command -v npm >/dev/null 2>&1 || die "missing required command: npm (needed to build frontend/dist)"
-  # Same-origin API via Ingress/nginx proxy; Brain auth must be absolute.
+  # Same-origin API via Ingress/nginx proxy; auth is mediated by platform ForwardAuth.
   EXPO_PUBLIC_API_BASE_URL="${EXPO_PUBLIC_API_BASE_URL-}"
-  EXPO_PUBLIC_CENTRAL_AUTH_URL="${EXPO_PUBLIC_CENTRAL_AUTH_URL:-https://auth.nacfson.cloud}"
   log "building frontend web bundle into frontend/dist"
   log "  EXPO_PUBLIC_API_BASE_URL=${EXPO_PUBLIC_API_BASE_URL:-(empty/same-origin)}"
-  log "  EXPO_PUBLIC_CENTRAL_AUTH_URL=${EXPO_PUBLIC_CENTRAL_AUTH_URL}"
   (
     cd frontend
     npm install --legacy-peer-deps
     EXPO_PUBLIC_API_BASE_URL="$EXPO_PUBLIC_API_BASE_URL" \
-      EXPO_PUBLIC_CENTRAL_AUTH_URL="$EXPO_PUBLIC_CENTRAL_AUTH_URL" \
       npm run web:export
   )
   [[ -d frontend/dist ]] || die "frontend/dist missing after web:export"
-  # Guard against accidentally baking empty auth (would send users to /login on pn.*).
-  if ! grep -R --quiet -F 'auth.nacfson.cloud' frontend/dist; then
-    die "frontend/dist does not contain auth.nacfson.cloud — EXPO_PUBLIC_CENTRAL_AUTH_URL was not baked in"
-  fi
   push_image "project-pn-frontend" "frontend/Dockerfile.web" "frontend"
 fi
 

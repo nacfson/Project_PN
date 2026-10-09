@@ -48,7 +48,7 @@ describe('deck API', () => {
       const res = await createDeck('New Deck', 'en');
 
       expect(res).toBe(newDeck);
-      expect(mockedCreateDeckApi).toHaveBeenCalledWith('New Deck', 'en');
+      expect(mockedCreateDeckApi).toHaveBeenCalledWith('New Deck', 'en', undefined);
     });
   });
 
@@ -56,7 +56,7 @@ describe('deck API', () => {
     it('renames the deck', async () => {
       await renameDeck('deck-2', 'Renamed');
 
-      expect(mockedRenameDeckApi).toHaveBeenCalledWith('deck-2', 'Renamed');
+      expect(mockedRenameDeckApi).toHaveBeenCalledWith('deck-2', 'Renamed', undefined);
     });
   });
 
@@ -64,7 +64,7 @@ describe('deck API', () => {
     it('deletes the deck', async () => {
       await deleteDeck('deck-2');
 
-      expect(mockedDeleteDeckApi).toHaveBeenCalledWith('deck-2');
+      expect(mockedDeleteDeckApi).toHaveBeenCalledWith('deck-2', undefined);
     });
   });
 
@@ -74,7 +74,7 @@ describe('deck API', () => {
 
       await moveItemsToDeck('deck-2', ['uws-1', 'uws-2']);
 
-      expect(mockedMoveItemsToDeckApi).toHaveBeenCalledWith('deck-2', ['uws-1', 'uws-2']);
+      expect(mockedMoveItemsToDeckApi).toHaveBeenCalledWith('deck-2', ['uws-1', 'uws-2'], undefined);
     });
   });
 });

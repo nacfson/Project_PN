@@ -52,24 +52,22 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
+	jwtFix := setupTestJWTFixture(t)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
-		CentralAuth:    mockCentralClient(t),
+		JWTVerifier:    jwtFix.Verifier,
 		AllowedOrigins: []string{"http://localhost:8081"},
 		AdminLogger:    admin.NoopLogger{},
 	})
 
 	emailAddr := uniqueEmail("user-handler")
-	token := "token-" + emailAddr
-	registerTestToken(token, emailAddr)
-	_, err = authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "magic_link"))
+	sub := "sub-" + emailAddr
+	token := jwtFix.MintToken(t, sub, emailAddr)
+	_, err = authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, sub, emailAddr, "google")
 	if err != nil {
-		t.Fatalf("ensure test central user: %v", err)
+		t.Fatalf("ensure platform user: %v", err)
 	}
 
 	return router, token

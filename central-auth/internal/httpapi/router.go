@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/nacfson/central-auth/internal/config"
-	"github.com/nacfson/central-auth/internal/mail"
 	"github.com/nacfson/central-auth/internal/oauth"
 	"github.com/nacfson/central-auth/internal/session"
 )
@@ -23,12 +22,11 @@ const sessionCookieName = "nacfson_session"
 type Server struct {
 	sessions *session.Service
 	google   *oauth.GoogleService
-	mailer   mail.Mailer
 	cfg      config.Config
 }
 
-func NewRouter(sessions *session.Service, google *oauth.GoogleService, mailer mail.Mailer, cfg config.Config) http.Handler {
-	s := &Server{sessions: sessions, google: google, mailer: mailer, cfg: cfg}
+func NewRouter(sessions *session.Service, google *oauth.GoogleService, cfg config.Config) http.Handler {
+	s := &Server{sessions: sessions, google: google, cfg: cfg}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -40,12 +38,8 @@ func NewRouter(sessions *session.Service, google *oauth.GoogleService, mailer ma
 	})
 
 	r.Get("/login", s.showLogin)
-	r.Post("/login/magic-link", s.submitLoginMagicLink)
 	r.Get("/auth/google", s.startGoogle)
 	r.Get("/auth/google/callback", s.completeGoogle)
-
-	r.Post("/api/auth/magic-link", s.sendMagicLink)
-	r.Get("/auth/callback", s.completeMagicLink)
 
 	r.Get("/api/auth/session", s.getSession)
 	r.Delete("/api/auth/session", s.deleteSession)
@@ -57,31 +51,6 @@ func NewRouter(sessions *session.Service, google *oauth.GoogleService, mailer ma
 
 func (s *Server) showLogin(w http.ResponseWriter, r *http.Request) {
 	renderLoginPage(w, s.cfg, loginRedirectURL(r), "", "")
-}
-
-func (s *Server) submitLoginMagicLink(w http.ResponseWriter, r *http.Request) {
-	email := magicLinkFormEmail(r)
-	rd := magicLinkFormRedirect(r)
-	if email == "" {
-		renderLoginPage(w, s.cfg, rd, "Email is required.", "error")
-		return
-	}
-	raw, err := s.sessions.CreateMagicLink(r.Context(), email)
-	if err != nil {
-		renderLoginPage(w, s.cfg, rd, "Could not send magic link. Try again.", "error")
-		return
-	}
-	callback := buildPublicCallbackURL(s.cfg, raw, rd)
-	if s.mailer != nil {
-		if err := s.mailer.SendMagicLink(r.Context(), email, callback); err != nil {
-			slog.Error("magic link email failed", "error", err, "email", email)
-			renderLoginPage(w, s.cfg, rd, "Could not send magic link. Try again.", "error")
-			return
-		}
-	} else if s.cfg.DevLogMagicLinks {
-		slog.Info("magic link created", "email", strings.ToLower(email), "url", callback)
-	}
-	renderLoginPage(w, s.cfg, rd, "Check your email for a sign-in link.", "success")
 }
 
 func (s *Server) startGoogle(w http.ResponseWriter, r *http.Request) {
@@ -126,63 +95,6 @@ func (s *Server) completeGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 	if issueCookie && result.Credentials.CookieValue != "" {
 		setSessionCookie(w, s.cfg.CookieDomain, result.Credentials.CookieValue, s.cfg.SessionMaxAge)
-	}
-	http.Redirect(w, r, target, http.StatusFound)
-}
-
-type magicLinkRequest struct {
-	Email string `json:"email"`
-}
-
-func (s *Server) sendMagicLink(w http.ResponseWriter, r *http.Request) {
-	var req magicLinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Email) == "" {
-		writeError(w, http.StatusBadRequest, "email required")
-		return
-	}
-	rd := strings.TrimSpace(r.URL.Query().Get("rd"))
-	raw, err := s.sessions.CreateMagicLink(r.Context(), req.Email)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not create magic link")
-		return
-	}
-	callback := buildPublicCallbackURL(s.cfg, raw, rd)
-	if s.mailer != nil {
-		if err := s.mailer.SendMagicLink(r.Context(), req.Email, callback); err != nil {
-			slog.Error("magic link email failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "could not send magic link")
-			return
-		}
-	} else if s.cfg.DevLogMagicLinks {
-		slog.Info("magic link created", "email", strings.ToLower(req.Email), "url", callback)
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
-}
-
-func (s *Server) completeMagicLink(w http.ResponseWriter, r *http.Request) {
-	rawToken := strings.TrimSpace(r.URL.Query().Get("token"))
-	redirectURL := strings.TrimSpace(r.URL.Query().Get("rd"))
-	if rawToken == "" {
-		writeError(w, http.StatusBadRequest, "token required")
-		return
-	}
-	issueCookie := shouldIssueCookie(redirectURL)
-	creds, _, err := s.sessions.CompleteMagicLink(r.Context(), rawToken, issueCookie)
-	if err != nil {
-		if errors.Is(err, session.ErrInvalidToken) {
-			writeError(w, http.StatusUnauthorized, "invalid magic link")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "could not complete magic link")
-		return
-	}
-	target, err := buildRedirectURL(redirectURL, creds, issueCookie)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid redirect")
-		return
-	}
-	if issueCookie && creds.CookieValue != "" {
-		setSessionCookie(w, s.cfg.CookieDomain, creds.CookieValue, s.cfg.SessionMaxAge)
 	}
 	http.Redirect(w, r, target, http.StatusFound)
 }
@@ -262,7 +174,7 @@ func sessionResponse(sess session.Session) map[string]any {
 	authProvider := sess.AuthProvider
 	providerSubject := sess.ProviderSubject
 	if authProvider == "" {
-		authProvider = oauth.ProviderMagicLink
+		authProvider = oauth.ProviderGoogle
 		providerSubject = sess.User.ID
 	}
 	return map[string]any{
@@ -284,7 +196,7 @@ func cookieSessionResponse(sess session.Session) map[string]any {
 	authProvider := sess.AuthProvider
 	providerSubject := sess.ProviderSubject
 	if authProvider == "" {
-		authProvider = oauth.ProviderMagicLink
+		authProvider = oauth.ProviderGoogle
 		providerSubject = sess.User.ID
 	}
 	return map[string]any{

@@ -12,14 +12,12 @@ import (
 
 func TestAuthMiddlewareLogsValidationFailure(t *testing.T) {
 	// Central returns 401 for every session request, so ValidateSession errors.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	defer srv.Close()
-
-	central := auth.NewCentralClient(srv.URL, nil)
+	verifier := auth.NewJWTVerifier(auth.JWTVerifierConfig{
+		Issuer:   "https://auth.nacfson.cloud/realms/platform",
+		Audience: "project-pn",
+	})
 	logger := &fakeLogger{}
-	mw := authMiddleware(nil, central, nil, logger)
+	mw := authMiddleware(verifier, nil, false, logger)
 
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +37,7 @@ func TestAuthMiddlewareLogsValidationFailure(t *testing.T) {
 	if nextCalled {
 		t.Error("next handler should not have been called")
 	}
-	if !logger.has("AUTH_FAILURE", "session validation failed") {
+	if !logger.has("AUTH_FAILURE", "jwt verification failed") {
 		t.Fatalf("expected AUTH_FAILURE log, got %+v", logger.entries())
 	}
 }
@@ -84,7 +82,7 @@ func TestAuthMeLogsIdentityConfirmation(t *testing.T) {
 	authResult, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + email,
 		Email: email,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}

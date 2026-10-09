@@ -22,9 +22,8 @@ import (
 )
 
 const (
-	ProviderGoogle     = "google"
-	ProviderMagicLink  = "magic_link"
-	OAuthStateTTL      = 10 * time.Minute
+	ProviderGoogle = "google"
+	OAuthStateTTL  = 10 * time.Minute
 )
 
 var ErrInvalidState = errors.New("invalid oauth state")

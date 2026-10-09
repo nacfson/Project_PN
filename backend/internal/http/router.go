@@ -21,8 +21,9 @@ type Dependencies struct {
 	DB               *pgxpool.Pool
 	Words            *words.Service
 	Auth             *auth.Service
+	JWTVerifier      *auth.JWTVerifier
+	AuthDevBypass    bool
 	CentralAuth      *auth.CentralClient
-	GatewayAuth      *auth.GatewayClient
 	AllowedOrigins   []string
 	AdminLogger      admin.Logger
 	MetricsCollector *admin.MetricsCollector
@@ -61,7 +62,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	r.Get("/readyz", readyz(deps.DB))
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
-		authMW = authMiddleware(deps.Auth, deps.CentralAuth, deps.GatewayAuth, deps.AdminLogger)
+		authMW = authMiddleware(deps.JWTVerifier, deps.Auth, deps.AuthDevBypass, deps.AdminLogger)
 		ah := &authHandler{svc: deps.Auth, logger: deps.AdminLogger}
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
@@ -73,12 +74,6 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Use(csrfProtection(deps.AllowedOrigins))
 				protected.Get("/me", ah.me)
 				protected.Get("/linked-providers", ah.linkedProviders)
-				protected.Post("/link-provider", ah.linkProviderGone)
-				protected.Post("/link-requests", ah.createLinkRequest)
-				protected.Get("/link-requests/current", ah.currentLinkRequest)
-				protected.Post("/link-requests/{id}/resend", ah.resendLinkRequest)
-				protected.Post("/link-requests/{id}/cancel", ah.cancelLinkRequest)
-				protected.Post("/link-requests/{id}/confirm", ah.confirmLinkRequest)
 				protected.Get("/merge-suggestions", ah.mergeSuggestions)
 				protected.Post("/merge-requests", ah.createMergeRequest)
 				protected.Post("/merge-requests/{id}/confirm", ah.confirmMergeRequest)
@@ -108,7 +103,7 @@ func NewRouter(deps Dependencies) http.Handler {
 		ah := analyticsHandler{logger: deps.AnalyticsLogger}
 		r.Route("/api/analytics", func(analyticsRouter chi.Router) {
 			if deps.Auth != nil {
-				analyticsRouter.Use(optionalAuthMiddleware(deps.Auth, deps.CentralAuth, deps.GatewayAuth, deps.AdminLogger))
+				analyticsRouter.Use(optionalAuthMiddleware(deps.JWTVerifier, deps.Auth, deps.AuthDevBypass, deps.AdminLogger))
 			}
 			analyticsRouter.Post("/events", ah.collect)
 		})

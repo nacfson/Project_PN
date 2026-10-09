@@ -137,9 +137,16 @@ Image rollouts do **not** remove secrets. Configure `ENRICH_PRIMARY_API_KEY` and
 
 Do not put secrets in this repo or in GHCR image layers.
 
-## Auth rolls (`auth.nacfson.cloud`)
+## Platform Identity & Auth (`auth.nacfson.cloud`)
 
-Central auth runs in namespace `nacfson-auth` as `auth-service` using image `ghcr.io/nacfson/central-auth:<tag>`. Do **not** roll back to `processmanager`.
+> [!IMPORTANT]
+> Project PN authentication has migrated from legacy `central-auth` / ProcessManager to the `nacfson_pipeline` platform (Keycloak + Traefik ForwardAuth + in-cluster JWT verification).
+> Refer to [`platform-identity-migration.md`](platform-identity-migration.md) for the active operator cutover runbook, NetworkPolicy, and Flux reconciliation layers.
+> The legacy `central-auth` deployment below is retained for historical context only.
+
+### Legacy central-auth (retired)
+
+Central auth formerly ran in namespace `nacfson-auth` as `auth-service` using image `ghcr.io/nacfson/central-auth:<tag>`.
 
 SSH + kubectl on Oracle host (`KUBECONFIG=/secure/production.conf`, full path `/usr/local/bin/kubectl`):
 

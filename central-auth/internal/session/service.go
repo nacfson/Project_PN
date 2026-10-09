@@ -72,71 +72,8 @@ func (s *Service) EnsureUser(ctx context.Context, email string) (User, error) {
 	return user, nil
 }
 
-func (s *Service) CreateMagicLink(ctx context.Context, email string) (string, error) {
-	user, err := s.EnsureUser(ctx, email)
-	if err != nil {
-		return "", err
-	}
-	raw, err := token.Generate()
-	if err != nil {
-		return "", err
-	}
-	_, err = s.pool.Exec(ctx, `
-		insert into magic_link_tokens (user_id, token_hash, expires_at)
-		values ($1, $2, $3)
-	`, user.ID, token.Hash(raw), time.Now().Add(s.cfg.MagicLinkTTL))
-	if err != nil {
-		return "", err
-	}
-	return raw, nil
-}
-
-func (s *Service) CompleteMagicLink(ctx context.Context, rawToken string, issueCookie bool) (Credentials, User, error) {
-	hash := token.Hash(strings.TrimSpace(rawToken))
-	var userID string
-	err := s.pool.QueryRow(ctx, `
-		select user_id::text
-		from magic_link_tokens
-		where token_hash = $1
-		  and consumed_at is null
-		  and expires_at > now()
-	`, hash).Scan(&userID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Credentials{}, User{}, ErrInvalidToken
-		}
-		return Credentials{}, User{}, err
-	}
-	if _, err := s.pool.Exec(ctx, `
-		update magic_link_tokens
-		set consumed_at = now()
-		where token_hash = $1
-	`, hash); err != nil {
-		return Credentials{}, User{}, err
-	}
-	user, err := s.getUserByID(ctx, userID)
-	if err != nil {
-		return Credentials{}, User{}, err
-	}
-	if err := s.ensureMagicLinkIdentity(ctx, user.ID, user.Email); err != nil {
-		return Credentials{}, User{}, err
-	}
-	creds, err := s.createSession(ctx, user, issueCookie, "magic_link", user.ID)
-	return creds, user, err
-}
-
 func (s *Service) CreateSessionForUser(ctx context.Context, user User, issueCookie bool, authProvider, providerSubject string) (Credentials, error) {
 	return s.createSession(ctx, user, issueCookie, authProvider, providerSubject)
-}
-
-func (s *Service) ensureMagicLinkIdentity(ctx context.Context, userID, email string) error {
-	_, err := s.pool.Exec(ctx, `
-		insert into user_identities (user_id, provider, provider_subject, email_at_provider)
-		values ($1, 'magic_link', $1, $2)
-		on conflict (provider, provider_subject) do update
-		set email_at_provider = excluded.email_at_provider
-	`, userID, strings.ToLower(strings.TrimSpace(email)))
-	return err
 }
 
 func (s *Service) ValidateAccess(ctx context.Context, accessToken string) (Session, error) {

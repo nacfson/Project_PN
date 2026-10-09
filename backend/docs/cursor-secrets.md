@@ -11,31 +11,25 @@ Manage them through **Cursor environment secrets** (Cursor dashboard → Cloud A
 - `.env.example` files document **variable names** only; values stay empty in the repo.
 - For local development on a machine outside Cursor Cloud, copy `.env.example` → `.env` and fill values locally (gitignored).
 
-## Production secrets (Oracle k3s — legacy)
+## Production secrets (Oracle k3s)
 
 These env vars must be available to the `project-pn-backend` Deployment (and the `enricher` Deployment if lookup enrichment runs there):
 
 | Variable | Purpose |
 |----------|---------|
 | `ENRICH_PRIMARY_API_KEY` | Gemini (default) or other OpenAI-compatible enricher bearer token |
-| `DATABASE_URL` | In-cluster Postgres connection string (Oracle path only) |
-| `AUTH_SESSION_INTERNAL_TOKEN` | Validates central auth session cookies |
-| `CENTRAL_AUTH_INTERNAL_URL` | Internal URL for session validation |
-| `PUBLIC_APP_URL` | Frontend origin for magic-link redirect (`/link-approve?requestId=…`); default `http://localhost:8081` |
+| `DATABASE_URL` | In-cluster Postgres connection string |
+| `AUTH_JWT_ISSUER` | Platform Keycloak realm issuer (default `https://auth.nacfson.cloud/realms/platform`) |
+| `AUTH_JWT_AUDIENCE` | Expected client audience (default `project-pn`) |
+| `AUTH_JWT_JWKS_URL` | In-cluster JWKS URL (default `http://keycloak-service.identity.svc:8080/realms/platform/protocol/openid-connect/certs`) |
+| `AUTH_JWT_ALLOWED_ALGS` | Allowed signature algorithms (default `RS256`) |
+| `AUTH_JWT_CLOCK_SKEW` | Max clock skew duration (default `1m`) |
+| `AUTH_DEV_BYPASS` | Non-prod dev token bypass flag (`true`/`false`) |
+| `PUBLIC_APP_URL` | Frontend origin; default `http://localhost:8081` |
 
-## Production DB connectivity (nacfson_pipeline)
+> [!NOTE]
+> `AUTH_SESSION_INTERNAL_TOKEN` and `CENTRAL_AUTH_INTERNAL_URL` are legacy central-auth session secrets and are retired post-cutover.
 
-Target production connects through **vault-db-proxy** (Zero-Plaintext). Do **not** mount a plaintext Postgres password.
-
-| Variable | Purpose |
-|----------|---------|
-| `DB_HOST` | `vault-db-proxy.vault.svc` |
-| `DB_PORT` | `5432` |
-| `DB_NAME` | `proj_pn` |
-| `DB_USER` | Caller identity (`project:pn:workload:backend`) |
-| `DB_TOKEN` | Caller token (same string as `DB_USER` for Wire v3 literal tokens) |
-
-When `DATABASE_URL` is unset and `DB_HOST` is set, the backend assembles the pgx URL with the token as the password field. Local Compose continues to use a full `DATABASE_URL`.
 
 Optional enricher overrides (defaults apply when empty):
 
@@ -58,8 +52,6 @@ Production `auth-service` runs **central-auth** (`ghcr.io/nacfson/central-auth`)
 | `PUBLIC_BASE_URL` | `https://auth.nacfson.cloud` |
 | `ADMIN_EMAILS` | Comma-separated admin emails |
 | `AUTH_SESSION_INTERNAL_TOKEN` | Must match Project PN backend |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Magic-link email (production uses SMTP via `auth-bootstrap`) |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Optional Resend fallback when SMTP is not configured |
 
 GCP OAuth redirect URI (Web client): `https://auth.nacfson.cloud/auth/google/callback`.
 

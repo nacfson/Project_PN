@@ -34,7 +34,7 @@ where id = '00000000-0000-0000-0000-000000000001';
 insert into user_identities (user_id, provider, provider_subject, email_at_provider)
 values (
     '00000000-0000-0000-0000-000000000001',
-    'nacfson',
+    'google',
     '00000000-0000-0000-0000-000000000001',
     'dev@project-pn.local'
 )

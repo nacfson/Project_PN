@@ -1,26 +1,23 @@
 # Backend Flows
 
-## Central Auth Flow
+## Platform Gateway JWT Auth Flow (001-gateway-jwt-auth)
 
-1. Client opens the Nacfson Cloud login page (`{CENTRAL_AUTH_URL}/login?rd={redirectUrl}`).
-2. User signs in with **Google (primary)** or requests a **magic-link email** (secondary).
-3. After authentication, central auth redirects back to the app with session credentials in the URL (`token`, `refresh_token`, `expires_at` via `?` or `#`) or sets the HttpOnly `nacfson_session` cookie for hosted web.
-4. Bearer clients store the full session (`expo-secure-store` on native, `localStorage` on Tauri). Hosted browser web uses the HttpOnly `nacfson_session` cookie instead.
-5. Bearer clients send `Authorization: Bearer <token>` on protected API requests. Browser web sends the session cookie with `credentials: include`.
-6. Backend middleware validates the session via central auth (`GET /api/auth/session` for bearer, `GET /api/internal/cookie-session` for cookies).
-7. Central auth returns `auth_provider`, `identity`, user, and `expires_at`. Cookie validation slides `expires_at` forward on activity when the session is still valid.
-8. Bearer clients renew access tokens with `POST /api/auth/refresh` (proxied by Project PN) before expiry or after a 401.
-9. Backend calls `EnsureCentralUser()` which provisions or resolves the local user row and may return a `link_recommendation` when a second provider matches an existing email.
-10. Same-email link: initiator `POST /api/auth/link-requests` → central-auth magic link to `{PUBLIC_APP_URL}/link-approve?requestId=…` → target confirms with email session via `POST /api/auth/link-requests/{id}/confirm`.
-11. `POST /api/auth/logout` revokes the current central session.
+1. Client accesses the app at `https://pn.nacfson.cloud`.
+2. Unauthenticated requests are intercepted by platform Traefik ForwardAuth (`forward-auth.platform` calling `http://gateway.identity.svc:8080/auth`).
+3. Gateway redirects browser to Keycloak platform realm Google broker (`https://auth.nacfson.cloud/realms/platform`).
+4. On successful Google sign-in, gateway issues a session cookie (`.nacfson.cloud`) and mints a project-scoped access token (`aud = project-pn`).
+5. Traefik ForwardAuth injects `Authorization: Bearer <JWT>` and strips client-supplied headers before proxying upstream to `pn-backend`.
+6. Non-web clients (native, desktop, extension) attach `Authorization: Bearer <project_access_jwt>` directly.
+7. Backend `authMiddleware` validates JWT signature and claims via in-cluster JWKS (`AUTH_JWT_JWKS_URL`), enforcing `aud = project-pn`, exact `iss`, `sub`, and `typ = Bearer`.
+8. `EnsurePlatformUser()` resolves local `users` row strictly by `(issuer, subject)` binding with ordinary learner privileges only.
+9. Token refresh is managed directly by platform Keycloak / gateway; legacy `POST /api/auth/refresh` returns 410 Gone.
+10. See `backend/docs/platform-identity-migration.md` for the operator continuity and cutover runbook.
 
-See `backend/docs/central-auth-session-renewal.md` for the external auth-service contract.
-See `backend/docs/account-link-target-approval.md` for link request details.
 
 ## Integrated Accounts
 
-- Providers: `google` (Google OAuth) and `nacfson` (magic link / central auth user id).
-- Same verified email: UI recommends linking; initiator proposes via `POST /api/auth/link-requests`; target approves via central-auth magic link (15m TTL).
+- Provider: `google` (Google OAuth).
+- Same verified email: automatically bound on Google sign-in.
 - Different emails, same domain: soft merge hint in Settings; manual merge via `POST /api/auth/merge-requests` + confirm (target user logged in).
 - Word lists are unioned on merge; duplicate `(user, word_sense)` rows keep the target account schedule.
 

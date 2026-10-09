@@ -2,8 +2,6 @@ import { createNativeStackNavigator, type NativeStackNavigationOptions } from '@
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { ConnectedAccountsScreen } from '../features/profile/ConnectedAccountsScreen';
 import { AccountMergeScreen } from '../features/auth/AccountMergeScreen';
-import { LinkAccountProposeScreen } from '../features/auth/LinkAccountProposeScreen';
-import { LinkApproveScreen } from '../features/auth/LinkApproveScreen';
 import { LanguagePairsScreen } from '../features/profile/LanguagePairsScreen';
 import { AddLanguagePairScreen } from '../features/profile/AddLanguagePairScreen';
 import { EditLanguagePairScreen } from '../features/profile/EditLanguagePairScreen';
@@ -17,8 +15,6 @@ export type SettingsStackParamList = {
   EditLanguagePair: { targetLanguage: string; displayLanguage: string };
   ConnectedAccounts: undefined;
   AccountMerge: { sourceUserId: string; sourceEmail: string; targetEmail: string };
-  LinkAccountPropose: { provider: string; email: string };
-  LinkApprove: { requestId: string };
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -70,16 +66,6 @@ export function SettingsStack({ onLogout }: SettingsStackProps) {
         name="AccountMerge"
         component={AccountMergeScreen}
         options={{ title: t('auth.mergeTitle') }}
-      />
-      <Stack.Screen
-        name="LinkAccountPropose"
-        component={LinkAccountProposeScreen}
-        options={{ title: t('auth.linkProposeTitle') }}
-      />
-      <Stack.Screen
-        name="LinkApprove"
-        component={LinkApproveScreen}
-        options={{ title: t('auth.linkApproveTitle') }}
       />
     </Stack.Navigator>
   );

@@ -8,7 +8,6 @@ import { Card, Icon, LoadingState, Screen, Text } from '../../ui';
 
 function providerLabel(provider: string, t: (key: string) => string): string {
   if (provider === 'google') return t('settings.providerGoogle');
-  if (provider === 'nacfson') return t('settings.providerEmail');
   return provider;
 }
 
@@ -44,7 +43,7 @@ export function ConnectedAccountsScreen() {
               <View key={`${item.provider}-${item.email}`} style={styles.row}>
                 <View style={[styles.iconCircle, { backgroundColor: colors.primaryContainer }]}>
                   <Icon
-                    name={item.provider === 'google' ? 'logo-google' : 'mail-outline'}
+                    name="logo-google"
                     size="md"
                     color={colors.primary}
                   />

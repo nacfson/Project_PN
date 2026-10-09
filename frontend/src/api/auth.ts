@@ -1,15 +1,9 @@
 import {
-  cancelLinkRequest,
-  confirmLinkRequest,
   confirmMergeRequest,
-  createLinkRequest,
   createMergeRequest,
-  getCurrentLinkRequest,
   getLinkedProviders,
-  resendLinkRequest,
 } from '@project-pn/api';
-import type { LinkRequest, LinkedProvider, MeResponse } from '@project-pn/api';
-import { CENTRAL_AUTH_URL } from '../config';
+import type { LinkedProvider, MeResponse } from '@project-pn/api';
 import {
   getLanguageOptions as getLanguageOptionsApi,
   logout as logoutApi,
@@ -52,37 +46,16 @@ export async function refreshSession(refreshToken: string) {
 
 export async function logout(): Promise<void> {
   try {
-    if (typeof window !== 'undefined') {
-      try {
-        await fetch(`${CENTRAL_AUTH_URL}/auth/logout`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        });
-      } catch (err) {
-        console.warn('Platform logout error:', err);
-      }
-    }
-    await logoutApi().catch(() => {});
+    await logoutApi();
   } finally {
     clearLanguageOptionsCache();
     await sessionStorage.clearSession();
-    if (typeof window !== 'undefined' && window.location) {
-      window.location.href = window.location.origin;
-    }
   }
 }
 
 export {
   getLinkedProviders,
-  createLinkRequest,
-  getCurrentLinkRequest,
-  resendLinkRequest,
-  cancelLinkRequest,
-  confirmLinkRequest,
   createMergeRequest,
   confirmMergeRequest,
 };
-export type { LinkRequest, LinkedProvider, MeResponse };
+export type { LinkedProvider, MeResponse };

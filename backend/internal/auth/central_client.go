@@ -65,14 +65,16 @@ func NewCentralClientWithInternalAuth(publicURL, internalURL, internalToken stri
 	}
 }
 
+// Deprecated: ValidateSession is legacy central-auth session validation, deprecated by 001-gateway-jwt-auth.
+// Production auth uses local JWT verification with in-cluster JWKS.
 func (c *CentralClient) ValidateSession(ctx context.Context, token string) (CentralSession, error) {
 	if token == "mock-dev-token" {
 		devID := "00000000-0000-0000-0000-000000000001"
 		return CentralSession{
 			ExpiresAt:    time.Now().Add(720 * time.Hour),
-			AuthProvider: "magic_link",
+			AuthProvider: "google",
 			Identity: CentralIdentity{
-				Provider:        "magic_link",
+				Provider:        "google",
 				ProviderSubject: devID,
 			},
 			User: CentralUser{
@@ -126,6 +128,8 @@ func (c *CentralClient) ValidateSession(ctx context.Context, token string) (Cent
 	return session, nil
 }
 
+// Deprecated: ValidateCookieSession is legacy central-auth session validation, deprecated by 001-gateway-jwt-auth.
+// Browser authentication is mediated upstream by platform Traefik ForwardAuth.
 func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue string) (CentralSession, error) {
 	if strings.TrimSpace(cookieValue) == "" {
 		return CentralSession{}, ErrInvalidToken
@@ -185,7 +189,7 @@ func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue s
 	authProvider := payload.AuthProvider
 	identity := payload.Identity
 	if authProvider == "" {
-		authProvider = "magic_link"
+		authProvider = "google"
 	}
 	if identity.ProviderSubject == "" {
 		identity = CentralIdentity{Provider: authProvider, ProviderSubject: payload.UserID}
@@ -203,6 +207,8 @@ func (c *CentralClient) ValidateCookieSession(ctx context.Context, cookieValue s
 	}, nil
 }
 
+// Deprecated: RefreshSession is legacy central-auth session refresh proxy, deprecated by 001-gateway-jwt-auth.
+// Tokens are refreshed via platform Keycloak / gateway.
 func (c *CentralClient) RefreshSession(ctx context.Context, refreshToken string) (RefreshSessionResponse, error) {
 	refreshToken = strings.TrimSpace(refreshToken)
 	if refreshToken == "mock-dev-token" || refreshToken == "mock-dev-refresh" {
@@ -316,43 +322,6 @@ func (c *CentralClient) LogoutCookieSession(ctx context.Context, cookieValue str
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("auth: central cookie logout status %d", resp.StatusCode)
-	}
-	return nil
-}
-
-func (c *CentralClient) SendMagicLink(ctx context.Context, email, redirectURL string) error {
-	email = NormalizeEmail(email)
-	if email == "" {
-		return ErrInvalidToken
-	}
-	endpoint, err := url.Parse(c.backendURL() + "/api/auth/magic-link")
-	if err != nil {
-		return fmt.Errorf("auth: magic link URL: %w", err)
-	}
-	q := endpoint.Query()
-	if strings.TrimSpace(redirectURL) != "" {
-		q.Set("rd", redirectURL)
-	}
-	endpoint.RawQuery = q.Encode()
-
-	body, err := json.Marshal(map[string]string{"email": email})
-	if err != nil {
-		return fmt.Errorf("auth: magic link body: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("auth: magic link request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("auth: magic link request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("auth: magic link status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 	return nil
 }

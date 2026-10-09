@@ -20,7 +20,7 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 	authProvider := session.AuthProvider
 	providerSubject := session.Identity.ProviderSubject
 	if authProvider == "" {
-		authProvider = "magic_link"
+		authProvider = ProviderGoogle
 	}
 	if providerSubject == "" {
 		providerSubject = session.User.ID
@@ -47,11 +47,7 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 	}
 	defer tx.Rollback(ctx)
 
-	var (
-		userID             string
-		linkRecommendation *LinkRecommendation
-		pendingIdentity    *PendingIdentity
-	)
+	var userID string
 
 	err = tx.QueryRow(ctx, `
 		select user_id::text
@@ -91,26 +87,16 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 			}
 		} else {
 			userID = existingUserID
-			var hasProvider bool
-			err = tx.QueryRow(ctx, `
-				select exists(
-					select 1 from user_identities
-					where user_id = $1::uuid and provider = $2
-				)
-			`, userID, pnProvider).Scan(&hasProvider)
+			_, err = tx.Exec(ctx, `
+				insert into user_identities (user_id, provider, provider_subject, email_at_provider)
+				values ($1::uuid, $2, $3, $4)
+				on conflict (provider, provider_subject) do update
+				set user_id = excluded.user_id,
+				    email_at_provider = excluded.email_at_provider,
+				    linked_at = now()
+			`, userID, pnProvider, pnSubject, emailAddr)
 			if err != nil {
-				return AuthResult{}, fmt.Errorf("auth: check provider link: %w", err)
-			}
-			if !hasProvider {
-				linkRecommendation = &LinkRecommendation{
-					Provider: pnProvider,
-					Email:    emailAddr,
-				}
-				pendingIdentity = &PendingIdentity{
-					Provider:        pnProvider,
-					ProviderSubject: pnSubject,
-					Email:           emailAddr,
-				}
+				return AuthResult{}, fmt.Errorf("auth: link identity: %w", err)
 			}
 		}
 	}
@@ -147,31 +133,22 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 		return AuthResult{}, err
 	}
 	return AuthResult{
-		User:               user,
-		SessionProvider:    pnProvider,
-		LinkRecommendation: linkRecommendation,
-		PendingIdentity:    pendingIdentity,
+		User:            user,
+		SessionProvider: pnProvider,
 	}, nil
-}
-
-func (s *Service) LinkProvider(ctx context.Context, userID string, pending PendingIdentity) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("auth: begin link provider: %w", err)
-	}
-	defer tx.Rollback(ctx)
-	if err := linkProviderTx(ctx, tx, userID, pending); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
 }
 
 func (s *Service) ListLinkedProviders(ctx context.Context, userID string) ([]LinkedProvider, error) {
 	rows, err := s.pool.Query(ctx, `
-		select provider, coalesce(email_at_provider, ''), linked_at
+		select coalesce(provider, 'google'),
+		       coalesce(issuer, ''),
+		       coalesce(subject, provider_subject, ''),
+		       coalesce(sign_in_method, 'google'),
+		       coalesce(email_at_provider, ''),
+		       coalesce(linked_at, created_at, now())
 		from user_identities
 		where user_id = $1::uuid
-		order by linked_at asc
+		order by created_at asc
 	`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list linked providers: %w", err)
@@ -181,7 +158,7 @@ func (s *Service) ListLinkedProviders(ctx context.Context, userID string) ([]Lin
 	var providers []LinkedProvider
 	for rows.Next() {
 		var item LinkedProvider
-		if err := rows.Scan(&item.Provider, &item.Email, &item.LinkedAt); err != nil {
+		if err := rows.Scan(&item.Provider, &item.Issuer, &item.Subject, &item.SignInMethod, &item.Email, &item.LinkedAt); err != nil {
 			return nil, err
 		}
 		providers = append(providers, item)

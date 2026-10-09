@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -10,110 +9,76 @@ import (
 	"project-pn/internal/auth"
 )
 
-type centralUserEnsurer interface {
-	EnsureCentralUser(ctx context.Context, session auth.CentralSession) (auth.AuthResult, error)
+type platformUserEnsurer interface {
+	EnsurePlatformUser(ctx context.Context, issuer, subject, email, signInMethod string) (auth.AuthResult, error)
 }
 
-type platformIdentityEnsurer interface {
-	EnsurePlatformIdentity(ctx context.Context, identity auth.ConfirmedIdentity) (auth.User, error)
-}
-
-func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, gateway *auth.GatewayClient, logger admin.Logger) func(http.Handler) http.Handler {
+func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypass bool, logger admin.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			discardClientIdentityHeaders(r)
-			if gateway != nil {
-				// Clear any client-supplied Authorization, X-User-Subject, and X-User-Issuer before making that decision.
-				r.Header.Del("Authorization")
-				r.Header.Del("X-User-Subject")
-				r.Header.Del("X-User-Issuer")
-			}
 
-			// 1. Gateway session confirmation for signIn: shared
-			if gateway != nil && gateway.SignInMode() == auth.SignInShared {
-				if len(r.Cookies()) > 0 {
-					ident, err := gateway.ConfirmIdentity(r.Context(), r.Host, r.Cookies())
-					if err != nil {
-						logger.Logf("AUTH_FAILURE", "gateway confirmation error from %s: %v", r.RemoteAddr, err)
-						writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
-						return
-					}
-					if ident != nil {
-						if pEnsurer, ok := svc.(platformIdentityEnsurer); ok {
-							user, err := pEnsurer.EnsurePlatformIdentity(r.Context(), *ident)
-							if err != nil {
-								logger.Logf("AUTH_FAILURE", "ensure platform identity error: %v", err)
-								writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
-								return
-							}
-							ctx := withUser(r.Context(), user)
-							next.ServeHTTP(w, r.WithContext(ctx))
-							return
-						}
-					}
-				}
-			}
-
-			// A project with signIn omitted or none must not start sign-in, must not call the gateway,
-			// and must not treat a presented claim as a user.
-			if gateway != nil && gateway.SignInMode() != auth.SignInShared {
+			token := bearerToken(r)
+			if token == "" {
 				writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 				return
 			}
 
-			// 2. Fallback to legacy CentralClient (local dev, native bearer clients, tests)
 			var (
-				session     auth.CentralSession
-				credentials authSession
-				err         error
+				authResult auth.AuthResult
+				err        error
 			)
-			if cookie, cookieErr := r.Cookie(auth.CentralSessionCookieName); cookieErr == nil {
-				if central == nil {
-					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
-					return
-				}
-				session, err = central.ValidateCookieSession(r.Context(), cookie.Value)
-				credentials = authSession{
-					method:     authMethodCookie,
-					credential: cookie.Value,
-				}
+
+			// Non-production dev bypass: strictly gated by devBypass flag
+			if devBypass && auth.IsDevBypassToken(token) {
+				authResult, err = svc.EnsurePlatformUser(
+					r.Context(),
+					"https://auth.nacfson.cloud/realms/platform",
+					auth.DevUserID,
+					auth.DevEmail,
+					"google",
+				)
 				if err != nil {
-					if errors.Is(err, auth.ErrInternalAuthNotConfigured) {
-						logger.Logf("AUTH_FAILURE", "cookie session validation is not configured from %s: %v", r.RemoteAddr, err)
-						writeCodedError(w, http.StatusInternalServerError, "AUTH-102", "central auth is not configured", false)
-						return
-					}
-					logger.Logf("AUTH_FAILURE", "cookie session validation failed from %s: %v", r.RemoteAddr, err)
-					clearCentralSessionCookie(w, r)
-					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+					writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
 					return
 				}
 			} else {
-				token := bearerToken(r)
-				if token == "" {
+				if verifier == nil {
+					if logger != nil {
+						logger.Logf("AUTH_FAILURE", "jwt verifier unconfigured from %s", r.RemoteAddr)
+					}
 					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
-				if central == nil {
+
+				claims, verifyErr := verifier.Verify(r.Context(), token)
+				if verifyErr != nil {
+					if logger != nil {
+						logger.Logf("AUTH_FAILURE", "jwt verification failed from %s: %v", r.RemoteAddr, verifyErr)
+					}
 					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 					return
 				}
-				session, err = central.ValidateSession(r.Context(), token)
-				credentials = authSession{
-					method:     authMethodBearer,
-					credential: token,
-				}
+
+				authResult, err = svc.EnsurePlatformUser(
+					r.Context(),
+					claims.Issuer,
+					claims.Subject,
+					claims.Email,
+					claims.SignInMethod,
+				)
 				if err != nil {
-					logger.Logf("AUTH_FAILURE", "session validation failed from %s: %v", r.RemoteAddr, err)
-					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+					if logger != nil {
+						logger.Logf("AUTH_FAILURE", "ensure platform user failed: %v", err)
+					}
+					writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
 					return
 				}
 			}
 
-			authResult, err := svc.EnsureCentralUser(r.Context(), session)
-			if err != nil {
-				writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
-				return
+			credentials := authSession{
+				method:     authMethodBearer,
+				credential: token,
 			}
 			ctx := withAuthSession(r.Context(), credentials)
 			ctx = withAuthResult(ctx, authResult)
@@ -122,14 +87,13 @@ func authMiddleware(svc centralUserEnsurer, central *auth.CentralClient, gateway
 	}
 }
 
-// optionalAuthMiddleware preserves anonymous analytics delivery while attaching
-// an API-verified actor whenever a browser cookie or bearer credential exists.
-func optionalAuthMiddleware(svc centralUserEnsurer, central *auth.CentralClient, gateway *auth.GatewayClient, logger admin.Logger) func(http.Handler) http.Handler {
-	required := authMiddleware(svc, central, gateway, logger)
+// optionalAuthMiddleware attaches an API-verified actor if a Bearer credential exists.
+func optionalAuthMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypass bool, logger admin.Logger) func(http.Handler) http.Handler {
+	required := authMiddleware(verifier, svc, devBypass, logger)
 	return func(next http.Handler) http.Handler {
 		protected := required(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if bearerToken(r) != "" || len(r.Cookies()) > 0 {
+			if bearerToken(r) != "" {
 				protected.ServeHTTP(w, r)
 				return
 			}
@@ -143,7 +107,7 @@ func requireVerified(logger admin.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user, ok := userFromContext(r.Context())
 			if !ok || !user.IsEmailVerified() {
-				if ok {
+				if ok && logger != nil {
 					logger.Logf("VERIFY_REQUIRED", "%s requested %s %s but email is not verified", user.Email, r.Method, r.URL.Path)
 				}
 				writeCodedError(w, http.StatusForbidden, "AUTH-201", "email verification required", false)

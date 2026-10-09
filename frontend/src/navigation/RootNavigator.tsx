@@ -14,13 +14,6 @@ const linking = {
     screens: {
       Settings: {
         screens: {
-          LinkApprove: {
-            path: 'link-approve',
-            parse: {
-              requestId: (id: string) => id,
-            },
-          },
-          LinkAccountPropose: 'link-account',
           ConnectedAccounts: 'connected-accounts',
           SettingsRoot: '',
         },

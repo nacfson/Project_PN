@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +13,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"project-pn/internal/admin"
 	"project-pn/internal/auth"
@@ -22,11 +29,20 @@ import (
 	"project-pn/internal/words"
 )
 
-func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
-	return testAuthRouterWithCentral(t, nil)
+type testRouterSetup struct {
+	router   http.Handler
+	authSvc  *auth.Service
+	verifier *auth.JWTVerifier
+	privKey  *rsa.PrivateKey
+	cfg      auth.JWTVerifierConfig
 }
 
-func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.Handler, *auth.Service) {
+func testAuthRouter(t *testing.T) (http.Handler, *auth.Service) {
+	s := testAuthRouterWithJWT(t)
+	return s.router, s.authSvc
+}
+
+func testAuthRouterWithJWT(t *testing.T) testRouterSetup {
 	t.Helper()
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -46,7 +62,7 @@ func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.
 	}
 	t.Cleanup(pool.Close)
 
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, user_identities, account_merge_requests, account_link_requests CASCADE;`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, user_identities, account_merge_requests CASCADE;`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -61,102 +77,142 @@ func testAuthRouterWithCentral(t *testing.T, central *auth.CentralClient) (http.
 		ForceDefinitionLang:    cfg.ForceDefinitionLang,
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
-		MagicLinkSender:        &noopMagicLinks{},
-		PublicAppURL:           "http://localhost:8081",
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+	pubJWK, err := jwk.Import(privKey.Public())
+	if err != nil {
+		t.Fatalf("import jwk: %v", err)
+	}
+	_ = pubJWK.Set(jwk.KeyIDKey, "test-kid")
+	_ = pubJWK.Set(jwk.AlgorithmKey, jwa.RS256())
+
+	keySet := jwk.NewSet()
+	_ = keySet.AddKey(pubJWK)
+
+	jwtCfg := auth.JWTVerifierConfig{
+		Issuer:      "https://auth.nacfson.cloud/realms/platform",
+		Audience:    "project-pn",
+		AllowedAlgs: []string{"RS256"},
+		ClockSkew:   1 * time.Minute,
+	}
+	verifier := auth.NewJWTVerifier(jwtCfg)
+	verifier.SetStaticJWKS(keySet)
 
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
-		CentralAuth:    central,
+		JWTVerifier:    verifier,
+		AuthDevBypass:  false,
 		AllowedOrigins: []string{"http://localhost:8081"},
 		AdminLogger:    admin.NoopLogger{},
 	})
-	return router, authSvc
+
+	return testRouterSetup{
+		router:   router,
+		authSvc:  authSvc,
+		verifier: verifier,
+		privKey:  privKey,
+		cfg:      jwtCfg,
+	}
 }
 
-func TestRefreshSessionProxiesToCentral(t *testing.T) {
-	centralServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/api/auth/refresh" {
-			t.Fatalf("unexpected central request %s %s", r.Method, r.URL.Path)
-		}
-		var body struct {
-			RefreshToken string `json:"refresh_token"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RefreshToken != "old-refresh" {
-			t.Fatalf("unexpected refresh body: %v", body)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"token":"new-access","refresh_token":"new-refresh","expires_at":"2099-01-01T00:00:00Z"}`))
-	}))
-	defer centralServer.Close()
+func mintTestJWT(t *testing.T, s testRouterSetup, sub, email, provider string) string {
+	t.Helper()
 
-	router, _ := testAuthRouterWithCentral(t, auth.NewCentralClient(centralServer.URL, centralServer.Client()))
+	builder := jwt.NewBuilder().
+		Issuer(s.cfg.Issuer).
+		Audience([]string{s.cfg.Audience}).
+		Subject(sub).
+		Expiration(time.Now().Add(10 * time.Minute)).
+		IssuedAt(time.Now().Add(-1 * time.Minute)).
+		Claim("typ", "Bearer")
+
+	if email != "" {
+		builder.Claim("email", email)
+	}
+	if provider != "" {
+		builder.Claim("identity_provider", provider)
+	}
+
+	tok, err := builder.Build()
+	if err != nil {
+		t.Fatalf("build token: %v", err)
+	}
+
+	headers := jws.NewHeaders()
+	_ = headers.Set("kid", "test-kid")
+	_ = headers.Set("typ", "JWT")
+
+	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.RS256(), s.privKey, jws.WithProtectedHeaders(headers)))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	return string(signed)
+}
+
+func TestRefreshSessionReturnsGone(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", strings.NewReader(`{"refresh_token":"old-refresh"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	router.ServeHTTP(rec, req)
+	setup.router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	var session struct {
-		Token        string `json:"token"`
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&session); err != nil {
-		t.Fatalf("decode refresh response: %v", err)
-	}
-	if session.Token != "new-access" || session.RefreshToken != "new-refresh" {
-		t.Fatalf("unexpected session %+v", session)
+	// Deprecated per 001-gateway-jwt-auth contracts/auth-api-surface.md
+	if rec.Code != http.StatusGone {
+		t.Fatalf("expected 410 Gone, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
-func TestCookieAuthMeLoadsLocalProfile(t *testing.T) {
-	var centralUserRequests int
-	centralServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/internal/cookie-session" {
-			t.Fatalf("unexpected central path %q", r.URL.Path)
-		}
-		if r.Header.Get("Authorization") != "Bearer internal-secret" {
-			t.Fatalf("unexpected central auth header %q", r.Header.Get("Authorization"))
-		}
-		cookie, err := r.Cookie(auth.CentralSessionCookieName)
-		if err != nil || cookie.Value != "cookie-value" {
-			t.Fatalf("unexpected forwarded cookie: %v %#v", err, cookie)
-		}
-		centralUserRequests++
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"user_id":"central-cookie-user","email":"cookie-user@example.com","is_admin":false,"expires_at":"2099-01-01T00:00:00Z"}`))
-	}))
-	defer centralServer.Close()
+func TestJWTIssuerMeLoadsLocalProfile(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
+	token := mintTestJWT(t, setup, "sub-learner-101", "learner@platform.local", "google")
 
-	router, _ := testAuthRouterWithCentral(t, auth.NewCentralClientWithInternalAuth("", centralServer.URL, "internal-secret", centralServer.Client()))
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	req.AddCookie(&http.Cookie{Name: auth.CentralSessionCookieName, Value: "cookie-value"})
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
-	router.ServeHTTP(rec, req)
+	setup.router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
+
 	var profile meResponse
 	if err := json.NewDecoder(rec.Body).Decode(&profile); err != nil {
 		t.Fatalf("decode profile: %v", err)
 	}
-	if profile.Email != "cookie-user@example.com" {
-		t.Fatalf("expected cookie user profile, got %+v", profile)
+	if profile.Email != "learner@platform.local" {
+		t.Fatalf("expected learner email, got %+v", profile)
 	}
-	if centralUserRequests != 1 {
-		t.Fatalf("expected one central cookie request, got %d", centralUserRequests)
+	if len(profile.LinkedProviders) != 1 {
+		t.Fatalf("expected 1 linked provider, got %d", len(profile.LinkedProviders))
 	}
-	cookies := rec.Result().Cookies()
-	if len(cookies) != 1 || cookies[0].Name != csrfCookieName || cookies[0].Value == "" {
-		t.Fatalf("expected csrf cookie, got %v", cookies)
+	lp := profile.LinkedProviders[0]
+	if lp.SignInMethod != "google" || lp.Subject != "sub-learner-101" {
+		t.Fatalf("expected google sign in method and subject, got %+v", lp)
+	}
+}
+
+func TestOrdinaryUserDeniedUndeclaredOperations(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
+	token := mintTestJWT(t, setup, "sub-learner-102", "ordinary@platform.local", "google")
+
+	// Attempting an undeclared admin endpoint must return 404 Not Found (or 403 Forbidden)
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	setup.router.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("undeclared admin endpoint must not return 200, got %d", rec.Code)
 	}
 }
 
@@ -222,3 +278,4 @@ func uniqueEmail(prefix string) string {
 type noopMagicLinks struct{}
 
 func (noopMagicLinks) SendMagicLink(context.Context, string, string) error { return nil }
+

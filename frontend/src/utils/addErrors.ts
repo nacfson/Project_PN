@@ -22,7 +22,6 @@ const ADD_ERROR_INFO: Record<string, AddErrorInfo> = {
   'ADD-404': { code: 'ADD-404', messageKey: 'add.error.providerInvalid', retryable: true },
   'AUTH-101': { code: 'AUTH-101', messageKey: 'add.error.signInRequired', retryable: false },
   'AUTH-102': { code: 'AUTH-102', messageKey: 'add.error.authUnavailable', retryable: true },
-  'AUTH-201': { code: 'AUTH-201', messageKey: 'add.error.emailVerification', retryable: false },
   'AUTH-599': { code: 'AUTH-599', messageKey: 'add.error.unknown', retryable: true },
   'SEC-101': { code: 'SEC-101', messageKey: 'add.error.securityCheck', retryable: true },
   'SEC-102': { code: 'SEC-102', messageKey: 'add.error.securityCheck', retryable: true },

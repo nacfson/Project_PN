@@ -69,24 +69,22 @@ func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler
 		ForceUILang:            cfg.ForceUILang,
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), logger, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	jwtFix := setupTestJWTFixture(t)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
-		CentralAuth:    mockCentralClient(t),
+		JWTVerifier:    jwtFix.Verifier,
 		AllowedOrigins: []string{"http://localhost:8081"},
 		AdminLogger:    logger,
 	})
 
 	emailAddr := uniqueEmail("words-validation")
-	token := "token-" + emailAddr
-	registerTestToken(token, emailAddr)
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "magic_link"))
+	sub := "sub-" + emailAddr
+	token := jwtFix.MintToken(t, sub, emailAddr)
+	result, err := authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, sub, emailAddr, "google")
 	if err != nil {
-		t.Fatalf("ensure test central user: %v", err)
+		t.Fatalf("ensure test platform user: %v", err)
 	}
 	user := result.User
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
@@ -184,24 +182,22 @@ func TestLookupAcceptsSourceContext(t *testing.T) {
 	})
 	recEnricher := &recordingEnricher{}
 	wordsSvc := words.New(pool, recEnricher, admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	jwtFix := setupTestJWTFixture(t)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
 		Auth:           authSvc,
-		CentralAuth:    mockCentralClient(t),
+		JWTVerifier:    jwtFix.Verifier,
 		AllowedOrigins: []string{"http://localhost:8081"},
 		AdminLogger:    admin.NoopLogger{},
 	})
 
 	emailAddr := uniqueEmail("lookup-context")
-	token := "token-" + emailAddr
-	registerTestToken(token, emailAddr)
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "magic_link"))
+	sub := "sub-" + emailAddr
+	token := jwtFix.MintToken(t, sub, emailAddr)
+	result, err := authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, sub, emailAddr, "google")
 	if err != nil {
-		t.Fatalf("ensure user: %v", err)
+		t.Fatalf("ensure platform user: %v", err)
 	}
 	user := result.User
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
@@ -488,7 +484,7 @@ func TestChangeMeaningConflictReturns409(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + strings.TrimPrefix(token, "token-"),
 		Email: strings.TrimPrefix(token, "token-"),
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("ensure user: %v", err)
 	}
@@ -707,27 +703,28 @@ func TestListLearningItemsPaginatesAndFilters(t *testing.T) {
 	router, token, pool, authSvc := validationRouterWithPool(t)
 	ctx := context.Background()
 
-	emailAddr := token[6:]
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "magic_link"))
+	jwtFix := defaultJWTFixture(t)
+	primaryEmail := uniqueEmail("primary-learner")
+	primarySub := "sub-" + primaryEmail
+	token = jwtFix.MintToken(t, primarySub, primaryEmail)
+	result, err := authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, primarySub, primaryEmail, "google")
 	if err != nil {
 		t.Fatalf("authenticate primary user: %v", err)
 	}
 	user := result.User
+	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "", "")
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
+		t.Fatalf("ensure primary default deck: %v", err)
+	}
+
 	otherEmail := uniqueEmail("words-other")
-	otherToken := "token-" + otherEmail
-	registerTestToken(otherToken, otherEmail)
-	otherResult, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + otherEmail,
-		Email: otherEmail,
-	}, "magic_link"))
+	otherSub := "sub-" + otherEmail
+	_ = jwtFix.MintToken(t, otherSub, otherEmail)
+	otherResult, err := authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, otherSub, otherEmail, "google")
 	if err != nil {
 		t.Fatalf("authenticate other user: %v", err)
 	}
 	otherUser := otherResult.User
-	wordsSvc := words.New(pool, nil, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "", "")
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, otherUser.ID, "en"); err != nil {
 		t.Fatalf("ensure other default deck: %v", err)
 	}
@@ -972,7 +969,7 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
@@ -1218,7 +1215,7 @@ func TestGetStatsSummary(t *testing.T) {
 	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
 		ID:    "central-" + emailAddr,
 		Email: emailAddr,
-	}, "magic_link"))
+	}, "google"))
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
@@ -1292,3 +1289,119 @@ func TestGetStatsSummary(t *testing.T) {
 		t.Fatalf("expected at least 2 new stage items, got %d", summary.StageCounts["new"])
 	}
 }
+
+func TestCrossUserLearningResourceIsolation(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for words handler HTTP tests")
+	}
+
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+	if err := migrations.Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration: %v", err)
+	}
+
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts, user_identities, sense_translations CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
+	cfg := config.Load()
+	authSvc := auth.New(pool, auth.Options{
+		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
+		DefaultTargetLang:      cfg.DefaultTargetLang,
+		DefaultUILang:          cfg.UILang,
+		AllowedDefinitionLangs: cfg.AllowedDefinitionLangs,
+		AllowedTargetLangs:     cfg.AllowedTargetLangs,
+		AllowedUILangs:         cfg.AllowedUILangs,
+		ForceDefinitionLang:    cfg.ForceDefinitionLang,
+		ForceTargetLang:        cfg.ForceTargetLang,
+		ForceUILang:            cfg.ForceUILang,
+	})
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+
+	jwtFix := setupTestJWTFixture(t)
+	router := NewRouter(Dependencies{
+		DB:             pool,
+		Words:          wordsSvc,
+		Auth:           authSvc,
+		JWTVerifier:    jwtFix.Verifier,
+		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
+	})
+
+	// User A
+	emailA := uniqueEmail("user-a-isolation")
+	subA := "sub-" + emailA
+	tokenA := jwtFix.MintToken(t, subA, emailA)
+	resA, err := authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, subA, emailA, "google")
+	if err != nil {
+		t.Fatalf("ensure user A: %v", err)
+	}
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, resA.User.ID, "en"); err != nil {
+		t.Fatalf("ensure default deck A: %v", err)
+	}
+
+	// User B
+	emailB := uniqueEmail("user-b-isolation")
+	subB := "sub-" + emailB
+	tokenB := jwtFix.MintToken(t, subB, emailB)
+	resB, err := authSvc.EnsurePlatformUser(ctx, jwtFix.Issuer, subB, emailB, "google")
+	if err != nil {
+		t.Fatalf("ensure user B: %v", err)
+	}
+	if _, err := wordsSvc.EnsureDefaultDeck(ctx, resB.User.ID, "en"); err != nil {
+		t.Fatalf("ensure default deck B: %v", err)
+	}
+
+	// 1. User A adds a learning item
+	addReq := authRequest(t, http.MethodPost, "/api/learning-items", `{"word_text":"isolated","definition_text":"alone","part_of_speech":"adj","source_context":"I am isolated."}`, tokenA)
+	addRec := httptest.NewRecorder()
+	router.ServeHTTP(addRec, addReq)
+	if addRec.Code != http.StatusCreated && addRec.Code != http.StatusOK {
+		t.Fatalf("user A add item: expected 201/200, got %d: %s", addRec.Code, addRec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(addRec.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created item: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatalf("expected non-empty item ID for user A")
+	}
+
+	// 2. User B lists learning items - must NOT contain User A's item
+	listReq := authRequest(t, http.MethodGet, "/api/learning-items", "", tokenB)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("user B list items: expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+	var bItems []struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(listRec.Body).Decode(&bItems); err != nil {
+		t.Fatalf("decode user B items: %v", err)
+	}
+	for _, item := range bItems {
+		if item.ID == created.ID {
+			t.Fatalf("cross-user privacy violation: user B saw user A's item %s", created.ID)
+		}
+	}
+
+	// 3. User B tries to delete/archive User A's item - must fail (404 Not Found)
+	delReq := authRequest(t, http.MethodDelete, "/api/learning-items/"+created.ID, "", tokenB)
+	delRec := httptest.NewRecorder()
+	router.ServeHTTP(delRec, delReq)
+	if delRec.Code != http.StatusNotFound {
+		t.Fatalf("user B deleting user A's item must return 404, got %d: %s", delRec.Code, delRec.Body.String())
+	}
+}
+

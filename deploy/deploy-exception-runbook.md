@@ -61,9 +61,9 @@ Wrong message vs bad key:
 
 ## 401 on all API routes after login
 
-**Cause:** Central auth misconfiguration (`CENTRAL_AUTH_URL`, `CENTRAL_AUTH_INTERNAL_URL`, or `AUTH_SESSION_INTERNAL_TOKEN`).
+**Cause:** Platform JWT verification misconfiguration (`AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, or `AUTH_JWT_JWKS_URL`), NetworkPolicy blocking pod egress to Keycloak port 8080, or expired/invalid project access token.
 
-**Fix:** Verify `auth-service` pods in `nacfson-auth` (central-auth, not ProcessManager). Align `AUTH_SESSION_INTERNAL_TOKEN` between Project PN backend and `auth-bootstrap`. Roll auth via [`oracle-deploy-runbook.md`](../backend/docs/oracle-deploy-runbook.md).
+**Fix:** Verify in-cluster JWKS reachability from `pn-backend` pod (`http://keycloak-service.identity.svc:8080/realms/platform/protocol/openid-connect/certs`). Ensure `deploy/projects/pn/boundary/network-policy.yaml` allows egress to `identity` namespace on port 8080. Confirm `AUTH_JWT_ISSUER` exactly matches `https://auth.nacfson.cloud/realms/platform` and `AUTH_JWT_AUDIENCE` is `project-pn`. See [`backend/docs/platform-identity-migration.md`](../backend/docs/platform-identity-migration.md).
 
 ---
 

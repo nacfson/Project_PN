@@ -1,5 +1,10 @@
 # Account Link — Target Approval Architecture
 
+> [!NOTE]
+> **SUPERSEDED**: The magic-link email verification and target approval system was eliminated.
+> Authentication is now Google OAuth only. Same-email accounts are automatically linked on sign-in, and combining accounts across different emails uses explicit account merge (`account_merge_requests`).
+> This document is retained for historical architectural reference.
+
 Design for replacing one-tap `POST /api/auth/link-provider` with a two-sided link request: **initiator proposes**, **target approves via central-auth magic link**, then the pending provider identity is written to `user_identities`.
 
 UI mockup: `frontend/docs/link-account-target-approval-mockup.html`.

@@ -213,31 +213,19 @@ export interface MeResponse {
   target_language: string;
   ui_language: string;
   active_language: UserLanguage;
-  link_recommendation?: LinkRecommendation | null;
-  link_request?: LinkRequest | null;
   merge_suggestion?: MergeSuggestion | null;
   linked_providers?: LinkedProvider[];
 }
 
-export type AuthProvider = 'google' | 'nacfson' | 'magic_link';
+export type AuthProvider = 'google';
 
 export interface LinkedProvider {
   provider: AuthProvider;
+  issuer?: string;
+  subject?: string;
+  sign_in_method?: string;
   email: string;
   linked_at: string;
-}
-
-export interface LinkRecommendation {
-  provider: AuthProvider;
-  email: string;
-}
-
-export interface LinkRequest {
-  id: string;
-  status: 'pending' | 'completed' | 'cancelled' | 'expired' | string;
-  pending_provider: AuthProvider | string;
-  email: string;
-  expires_at: string;
 }
 
 export interface MergeSuggestion {
