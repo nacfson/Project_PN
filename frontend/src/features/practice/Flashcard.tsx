@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   hintOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,

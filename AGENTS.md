@@ -101,6 +101,7 @@ Future expansion tables are listed in `backend/docs/backend-future-scope.md` and
 - Before writing, editing, or deleting files, clearly state what will change.
 - Do not run destructive commands without explicit user approval.
 - After code edits, run the relevant build or validation command when one exists.
+- Run `npm run verify` (stack health) and `npm run verify:full` (also lint, typechecks, tests) to validate; quality gates have no skip option and CI enforces them.
 - For documentation-only edits, verify by reading/searching the changed document.
 
 ## Cursor Cloud specific instructions

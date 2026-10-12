@@ -172,6 +172,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             {options.tabBarIcon &&
               options.tabBarIcon({
                 focused: isFocused,
+                color: isFocused ? colors.primary : colors.onSurfaceVariant,
+                size: 24,
               })}
             <Text
               style={[
@@ -208,7 +210,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           tabBar={(props) => <CustomTabBar {...props} />}
           screenOptions={{
             headerShown: false,
-            sceneContainerStyle: styles.scene,
+            sceneStyle: styles.scene,
           }}
         >
           <Tab.Screen

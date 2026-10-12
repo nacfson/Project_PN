@@ -3,6 +3,7 @@ import { sessionStorage } from './sessionStorage';
 import { API_BASE_URLS } from '../config';
 import { isBrowserWeb } from '../utils/platform';
 import { extractTokenFromUrl } from '../utils/authLaunch';
+import { reportUnreachableBackend } from './devBackendHint';
 
 function getCsrfToken(): string | null {
   if (!isBrowserWeb() || typeof document === 'undefined') {
@@ -48,6 +49,7 @@ configureApi({
     await sessionStorage.setSession(session);
   },
   getCsrfToken,
+  onNetworkError: __DEV__ ? (info) => { reportUnreachableBackend(info); } : undefined,
   onUnauthorized: () => {
     if (!isBrowserWeb()) {
       sessionStorage.clearSession().catch((err) => {

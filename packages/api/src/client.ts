@@ -10,6 +10,12 @@ export interface ApiConfig {
   getRefreshToken?: () => Promise<string | null>;
   onSessionRefreshed?: (session: SessionResponse) => void | Promise<void>;
   onUnauthorized?: () => void;
+  /**
+   * Called when every configured base URL failed at the network level (no HTTP
+   * response at all), e.g. the backend is not running. Optional; used for
+   * development-time diagnostics.
+   */
+  onNetworkError?: (info: { baseUrls: string[]; errors: string[] }) => void;
 }
 
 let config: ApiConfig | undefined;
@@ -207,6 +213,11 @@ async function fetchWithFallback(path: string, init: RequestInit): Promise<Respo
       const message = err instanceof Error ? err.message : String(err);
       errors.push(`${baseUrl}: ${message}`);
     }
+  }
+  try {
+    getConfig().onNetworkError?.({ baseUrls: urls, errors });
+  } catch {
+    // Diagnostics must never mask the underlying network error.
   }
   throw new Error(`All API endpoints failed: ${errors.join('; ')}`);
 }

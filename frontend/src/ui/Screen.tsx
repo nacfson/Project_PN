@@ -1,5 +1,14 @@
 import React, { createContext, useContext } from 'react';
-import { StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  type FlatListProps,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ScrollViewProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
@@ -14,7 +23,9 @@ import Animated, {
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from './Text';
 
-export interface ScreenProps extends ScrollViewProps {
+export interface ScreenProps
+  extends ScrollViewProps,
+    Partial<Omit<FlatListProps<any>, keyof ScrollViewProps | 'ListHeaderComponent'>> {
   padded?: boolean;
   title?: string;
   style?: StyleProp<ViewStyle>;
@@ -70,7 +81,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
         lastScrollY.value = currentY;
 
         if (onScroll) {
-          runOnJS(onScroll)({ nativeEvent: event });
+          runOnJS(onScroll)({ nativeEvent: event } as unknown as NativeSyntheticEvent<NativeScrollEvent>);
         }
       },
     });

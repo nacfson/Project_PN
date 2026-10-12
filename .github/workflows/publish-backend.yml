@@ -14,7 +14,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Manual publishing is not an exception: every quality gate must pass first.
+  quality-gates:
+    name: Quality gates
+    uses: ./.github/workflows/quality-gates.yml
+
   publish:
+    needs: [quality-gates]
     runs-on: ubuntu-latest
     permissions:
       contents: read

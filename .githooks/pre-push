@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Fast pre-push gates (spec 002, US3). CI runs the full, authoritative set.
+# This hook has no skip flag or environment override by design.
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+run() { # label command...
+  local label="$1"
+  shift
+  echo "pre-push: ${label}"
+  if ! "$@"; then
+    echo "pre-push: FAILED: ${label}" >&2
+    echo "pre-push: push blocked. Fix the failure above and push again." >&2
+    exit 1
+  fi
+}
+
+run "lint:imports" npm run --silent lint:imports
+run "typecheck frontend" npm run --silent typecheck -w frontend
+run "typecheck packages/api" npm run --silent typecheck -w packages/api
+run "frontend tests" npm test --silent -w frontend
+
+echo "pre-push: all fast checks passed"

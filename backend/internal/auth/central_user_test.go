@@ -20,8 +20,8 @@ func TestEnsureCentralUser_AutoLinksSameEmail(t *testing.T) {
 		t.Fatalf("first ensure: %v", err)
 	}
 
-	google2 := SessionFromCentralUser(CentralUser{ID: "central-2", Email: email}, "google")
-	second, err := svc.EnsureCentralUser(ctx, google2)
+	apple2 := SessionFromCentralUser(CentralUser{ID: "central-2", Email: email}, "apple")
+	second, err := svc.EnsureCentralUser(ctx, apple2)
 	if err != nil {
 		t.Fatalf("second ensure: %v", err)
 	}

@@ -94,7 +94,7 @@ export function Confetti({ active }: ConfettiProps) {
   if (!active || reduced) return null;
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none" testID="confetti-container">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="confetti-container">
       {particlesRef.current.map((p) => {
         // Interpolate transformations
         const translateY = p.progress.interpolate({

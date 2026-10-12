@@ -45,7 +45,7 @@ function getColorsForTheme(variation: ThemeVariation) {
 
   if (!varOverrides) return base;
 
-  const overrides: Partial<typeof base> = {};
+  const overrides: { -readonly [K in keyof typeof base]?: (typeof base)[K] } = {};
 
   if ('background' in varOverrides) overrides.background = varOverrides.background;
   if ('surface' in varOverrides) {

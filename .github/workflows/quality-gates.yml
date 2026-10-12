@@ -1,0 +1,165 @@
+name: Quality gates
+
+# Mandatory, non-skippable verification for Project PN (spec 002).
+#
+# - Runs on every pull request to main and can be called by publish workflows
+#   (`workflow_call`), so images are never published unless every gate passes.
+# - There is intentionally no failure-tolerance setting, no manual override
+#   input, and no conditional skip on any job below.
+# - Repository owner: mark every job below as a required status check on `main`.
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  POSTGRES_USER: project_pn
+  POSTGRES_PASSWORD: ci_only_password
+  POSTGRES_DB: project_pn_ci
+  DATABASE_URL: postgres://project_pn:ci_only_password@localhost:5432/project_pn_ci?sslmode=disable
+  MIGRATIONS_PATH: file://db/migrations
+  GOTOOLCHAIN: go1.26.0
+
+jobs:
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - name: Lint module imports
+        run: npm run lint:imports
+      - name: Typecheck frontend
+        run: npm run typecheck -w frontend
+      - name: Typecheck shared API package
+        run: npm run typecheck -w packages/api
+
+  frontend-tests:
+    name: frontend-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - name: Frontend tests (includes AddScreen Manual-first)
+        run: npm test -w frontend
+      - name: Shared API package tests
+        run: npm test -w packages/api
+
+  add-tab-invariant:
+    name: add-tab-invariant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: AddScreen default tab must be 'manual'
+        run: |
+          set -euo pipefail
+          line="$(grep -nE "useState<'passage' \| 'manual'>" frontend/src/navigation/AddScreen.tsx || true)"
+          echo "${line}"
+          if ! echo "${line}" | grep -q "useState<'passage' | 'manual'>('manual')"; then
+            echo "AddScreen default activeTab is not 'manual' (product lock)." >&2
+            exit 1
+          fi
+
+  backend-tests:
+    name: backend-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U project_pn -d project_pn_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Apply migrations
+        working-directory: backend
+        run: go run ./cmd/migrate up
+      - name: "Backend tests (serial, shared database)"
+        working-directory: backend
+        run: go test -p 1 ./...
+
+  contract-e2e:
+    name: contract-e2e
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U project_pn -d project_pn_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - name: Apply migrations
+        working-directory: backend
+        run: go run ./cmd/migrate up
+      - name: Start real backend (ephemeral CI database, dev auth bypass)
+        working-directory: backend
+        env:
+          APP_ADDR: ":8080"
+          AUTH_DEV_BYPASS: "true"
+        run: |
+          go build -o /tmp/pn-api ./cmd/api
+          nohup /tmp/pn-api > /tmp/pn-api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/readyz >/dev/null 2>&1; then
+              echo "backend ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend did not become ready" >&2
+          cat /tmp/pn-api.log >&2
+          exit 1
+      - name: Client/backend contract test
+        env:
+          CONTRACT_E2E_BASE_URL: http://localhost:8080
+        run: npm run test:contract -w packages/api
+      - name: Backend log on failure
+        if: failure()
+        run: cat /tmp/pn-api.log || true

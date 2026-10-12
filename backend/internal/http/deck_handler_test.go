@@ -10,24 +10,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"project-pn/internal/admin"
-	"project-pn/internal/auth"
 	"project-pn/internal/learninglog"
 	"project-pn/internal/words"
 )
 
 func TestDeckCRUD(t *testing.T) {
-	router, token, pool, authSvc := validationRouterWithPool(t)
+	router, token, pool, _, user := validationRouterWithUser(t)
 	ctx := context.Background()
-
-	emailAddr := token[6:]
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "google"))
-	if err != nil {
-		t.Fatalf("ensure central user: %v", err)
-	}
-	user := result.User
 
 	// List decks ensures a default deck for the active language.
 	listReq := authRequest(t, http.MethodGet, "/api/decks", "", token)
@@ -132,18 +121,8 @@ func TestDeckCRUD(t *testing.T) {
 }
 
 func TestDeckMoveItemsRequiresMatchingLanguage(t *testing.T) {
-	router, token, pool, authSvc := validationRouterWithPool(t)
+	router, token, pool, authSvc, user := validationRouterWithUser(t)
 	ctx := context.Background()
-
-	emailAddr := token[6:]
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "google"))
-	if err != nil {
-		t.Fatalf("ensure central user: %v", err)
-	}
-	user := result.User
 
 	// Add a second language pair so we can create a deck for it.
 	if _, err := authSvc.AddUserLanguage(ctx, user.ID, "es", "en", false); err != nil {
