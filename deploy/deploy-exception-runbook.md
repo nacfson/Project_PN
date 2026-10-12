@@ -51,6 +51,16 @@ Wrong message vs bad key:
 
 ---
 
+## Frontend container never reaches the backend
+
+**Symptom:** The frontend pod exits on startup, or the SPA loads while `/healthz`, `/readyz`, and `/api/` through the frontend return connection errors. Nginx logs `can't create /etc/nginx/conf.d/default.conf: Read-only file system` (or cannot open `/var/log/nginx/error.log` / `/run/nginx.pid`).
+
+**Cause:** The frontend image runs with a read-only root filesystem. Those paths are on that filesystem, so nginx exits before it can proxy to `PN_BACKEND_HOST` (default `pn-backend:8080`).
+
+**Fix:** Use a frontend image whose entrypoint renders nginx config, the pid file, and proxy temp paths under `/tmp` (or `/dev/shm` when `/tmp` is read-only). `/dev/shm` needs no extra volume. Mount an `emptyDir` on `/tmp` when proxied uploads or responses need more than the `/dev/shm` size. Set `PN_BACKEND_HOST` to the backend Service name when it is not `pn-backend`.
+
+---
+
 ## CORS error in browser
 
 **Cause:** `ALLOWED_ORIGINS` on the API does not include the page origin (e.g. ${APP_PUBLIC_URL}).
