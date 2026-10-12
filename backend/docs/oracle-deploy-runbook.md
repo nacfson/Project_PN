@@ -21,6 +21,8 @@ Internet → host nginx (TLS :443) → ingress-nginx NodePort → k3s Ingress
   → enricher (optional sidecar/service)
 ```
 
+> On the nacfson_pipeline path, TLS terminates at platform Traefik (spec 008) and PN pods receive plain HTTP. See [`NETWORK_SETUP.md`](../../deploy/NETWORK_SETUP.md#tls-platform-owned-spec-008).
+
 On the Oracle path, migrations historically ran as a one-shot Job `project-pn-migrate` (`./migrate up`). New backend images also apply migrations on API startup (idempotent), which is required for the pipeline vault-db-proxy path.
 
 ## Publish images (GHCR)

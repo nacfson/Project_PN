@@ -102,12 +102,21 @@ GCP Console OAuth client must include redirect URI `https://auth.nacfson.cloud/a
 
 ## TLS / certificate errors
 
-**Cause:** Host nginx or ingress TLS secret expired or replaced with self-signed cert.
+On the platform path, TLS for `pn.nacfson.cloud` terminates at Traefik in namespace `platform` (spec 008). The certificate, key and renewal are platform-owned. PN pods receive plain HTTP. See [`NETWORK_SETUP.md`](NETWORK_SETUP.md#tls-platform-owned-spec-008).
 
-**Fix:** Renew LE certs on Oracle host; sync into ingress TLS secrets if required. Check issuer:
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Issuer is `TRAEFIK DEFAULT CERT`; browsers warn; iOS API calls fail | Platform certificate for the hostname is missing or not Ready | Escalate to the platform. Read-only check: `kubectl get certificate -n platform`. Nothing to change in PN (no cert objects belong in `proj-pn`). |
+| `ERR_TOO_MANY_REDIRECTS` | An HTTP→HTTPS redirect was added inside the app (it sees `http` on the wire) | Remove the app-side redirect. Traefik already redirects. |
+| `project_pn_csrf` cookie lacks `Secure` in production | `X-Forwarded-Proto: https` is not reaching `pn-backend` | Check the IngressRoute / middlewares. Do not hard-code a scheme in the app. |
+| Legacy Oracle path: expired or self-signed cert | Host nginx or ingress TLS secret expired | Renew LE certs on the Oracle host; sync into ingress TLS secrets if required. |
+
+Check the served certificate and redirect:
 
 ```sh
-echo | openssl s_client -connect $APP_PUBLIC_URL:443 -servername $APP_PUBLIC_URL 2>/dev/null | openssl x509 -noout -issuer
+curl -sS -o /dev/null -w '%{http_code}\n' https://pn.nacfson.cloud/
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' http://pn.nacfson.cloud/
+echo | openssl s_client -connect pn.nacfson.cloud:443 -servername pn.nacfson.cloud 2>/dev/null | openssl x509 -noout -issuer -subject -enddate
 ```
 
 ---

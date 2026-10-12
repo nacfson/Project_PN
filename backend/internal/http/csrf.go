@@ -107,6 +107,13 @@ func originAllowed(origin string, allowedOrigins []string) bool {
 	return false
 }
 
+// requestIsSecure reports whether the visitor reached us over HTTPS.
+// TLS terminates at platform Traefik (spec 008), so r.TLS is nil in production
+// and the original scheme arrives in X-Forwarded-Proto. Trusting the header is
+// safe because the proj-pn NetworkPolicy admits only the platform namespace and
+// pn-frontend, and Traefik overwrites client-supplied forwarded headers.
+// Never redirect to HTTPS here: Traefik already does it, and the app sees
+// plain http on the wire, so an app-side redirect would loop.
 func requestIsSecure(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
