@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -142,5 +143,56 @@ func TestClearCentralSessionCookie(t *testing.T) {
 	cookie := cookies[0]
 	if cookie.Name != auth.CentralSessionCookieName || cookie.Domain != "nacfson.cloud" || cookie.MaxAge != -1 {
 		t.Fatalf("unexpected clearing cookie: %+v", cookie)
+	}
+}
+
+// TLS terminates at platform Traefik (spec 008): the backend sees plain HTTP
+// and must derive the visitor's scheme from X-Forwarded-Proto.
+func TestRequestIsSecureBehindTLSTerminatingProxy(t *testing.T) {
+	tests := []struct {
+		name   string
+		proto  string
+		tls    bool
+		secure bool
+	}{
+		{name: "platform traefik forwards https", proto: "https", secure: true},
+		{name: "header is case and space insensitive", proto: " HTTPS ", secure: true},
+		{name: "local dev plain http without header", secure: false},
+		{name: "explicit http", proto: "http", secure: false},
+		{name: "direct tls connection", tls: true, secure: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+			if tt.proto != "" {
+				req.Header.Set("X-Forwarded-Proto", tt.proto)
+			}
+			if tt.tls {
+				req.TLS = &tls.ConnectionState{}
+			} else {
+				req.TLS = nil
+			}
+			if got := requestIsSecure(req); got != tt.secure {
+				t.Fatalf("requestIsSecure() = %v, want %v", got, tt.secure)
+			}
+		})
+	}
+}
+
+func TestCSRFCookieNotSecureForLocalPlainHTTP(t *testing.T) {
+	req := cookieAuthRequest(http.MethodGet, "/api/auth/me")
+	req.TLS = nil
+	rec := httptest.NewRecorder()
+
+	csrfProtection([]string{"http://localhost:8081"})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rec, req)
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected one csrf cookie, got %d", len(cookies))
+	}
+	if cookies[0].Secure {
+		t.Fatalf("csrf cookie must not be Secure over local plain HTTP, or browsers drop it")
 	}
 }

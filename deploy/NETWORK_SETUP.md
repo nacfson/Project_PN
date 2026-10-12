@@ -4,6 +4,19 @@ Production traffic for Project PN and central auth on `*.nacfson.cloud`.
 
 ## Production path
 
+### Platform path (nacfson_pipeline, target)
+
+```text
+Client → Cloudflare DNS / proxy (optional orange-cloud)
+      → Traefik (namespace platform) — TLS terminated here (platform cert, spec 008)
+      → plain HTTP inside the cluster
+      → pn-frontend:80 (SPA)  |  pn-backend:8080 (PathPrefix /api)   (namespace proj-pn)
+```
+
+See [TLS (platform-owned, spec 008)](#tls-platform-owned-spec-008).
+
+### Legacy path (Oracle host nginx, rollback only)
+
 ```text
 Client → Cloudflare DNS / proxy (optional orange-cloud)
       → Oracle host nginx (TLS :443)
@@ -47,7 +60,7 @@ Nameservers for `nacfson.cloud` are Cloudflare. After any registrar NS cutover, 
 | `@` (apex) | `A` | Oracle public IPv4 | Proxied if you serve a site on the apex |
 | `www` | `A` or `CNAME` | same origin, or `@` | Proxied if used |
 
-**SSL/TLS mode:** Full (strict). Origin nginx already terminates Let’s Encrypt for the Project PN and auth hostnames. Flexible mode causes broken or mis-encrypted origin connections (often Cloudflare 525/526).
+**SSL/TLS mode:** Full (strict). The origin serves a publicly trusted Let’s Encrypt certificate for the Project PN and auth hostnames (platform Traefik on the platform path; host nginx on the legacy Oracle path). Flexible mode causes broken or mis-encrypted origin connections (often Cloudflare 525/526).
 
 **Cutover checklist:**
 
@@ -56,7 +69,33 @@ Nameservers for `nacfson.cloud` are Cloudflare. After any registrar NS cutover, 
 3. Confirm `curl -fsS ${APP_PUBLIC_URL}/healthz` and `/readyz` return success and responses include `CF-RAY` when proxied.
 4. Optional Cursor secrets for agent-managed DNS: `CLOUDFLARE_API_TOKEN` (Zone → DNS → Edit) and `CLOUDFLARE_ZONE_ID`.
 
-## TLS
+## TLS (platform-owned, spec 008)
+
+On the nacfson_pipeline platform, Traefik (namespace `platform`) terminates TLS for `pn.nacfson.cloud`. The platform owns the Let's Encrypt certificate, the private key and renewal (renewed with at least 30 days of validity left). `http://` requests get a permanent (301/308) redirect to HTTPS at Traefik. The `proj-pn` namespace holds no certificate, key, validation pod or TLS firewall exception.
+
+PN pods receive **plain HTTP**: Traefik → `pn-frontend:80` (SPA) and `pn-backend:8080` (`/api`). Traefik sets `X-Forwarded-Proto: https` and `X-Forwarded-Host`. The `strip-forged-headers` middleware does not remove them.
+
+App rules:
+
+- Never add certificate/key files, a TLS listener (`:443`, `ListenAndServeTLS`), or an in-app HTTP→HTTPS redirect. The app sees `http` on the wire, so an app-side redirect loops.
+- Build public URLs from configuration (`https://pn.nacfson.cloud`) or `window.location.origin`. Never use the raw request scheme.
+- Cookies keep `Secure` / `HttpOnly` / `SameSite`. The backend derives the CSRF cookie's `Secure` flag from `X-Forwarded-Proto` (`requestIsSecure` in `backend/internal/http/csrf.go`). That header is trusted because the `proj-pn` NetworkPolicy admits only the `platform` namespace and `pn-frontend`.
+- Outgoing calls to external services (WiktApi, Gemini, Google) use HTTPS with normal certificate verification. Never disable verification.
+- In-cluster calls (Keycloak JWKS, identity gateway) stay plain HTTP. **Cluster traffic is not encrypted** (no mTLS / service mesh). Do not rely on it for end-to-end confidentiality.
+
+Publishing a new hostname: ask the platform to add it to the platform certificate list, then add the route with `tls: {}` in the project IngressRoute. Pre-deploy validation rejects a route whose hostname is not covered (FR-010).
+
+Verify after a rollout:
+
+```sh
+curl -sS -o /dev/null -w '%{http_code}\n' https://pn.nacfson.cloud/
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' http://pn.nacfson.cloud/
+# Issuer must be Let's Encrypt, not "TRAEFIK DEFAULT CERT"
+echo | openssl s_client -connect pn.nacfson.cloud:443 -servername pn.nacfson.cloud 2>/dev/null \
+  | openssl x509 -noout -issuer -subject -enddate
+```
+
+### Legacy (Oracle host nginx)
 
 TLS terminates on the **Oracle host nginx** (Let's Encrypt via acme.sh or equivalent), proxying to ingress-nginx. Certificate material may also exist as k3s TLS secrets (e.g. `project-pn/pn-tls`). When Cloudflare proxy is enabled, Cloudflare presents its edge cert to clients and connects to origin with Full (strict).
 

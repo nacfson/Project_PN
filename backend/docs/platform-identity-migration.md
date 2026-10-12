@@ -55,7 +55,7 @@ Relevant legacy artifacts (do not use as production auth after cutover):
 ```text
 Browser
   → https://pn.nacfson.cloud
-       Traefik (kube-system / platform ingress)
+       Traefik (kube-system / platform ingress) — TLS terminated here (platform cert, spec 008)
          middleware strip-forged-headers  (platform ns)
          middleware forward-auth          (platform ns)
            → GET http://gateway.identity.svc:8080/auth
@@ -66,6 +66,8 @@ Browser
        backend independently verifies JWT via cluster JWKS
        platform_identity = (iss, sub) → user_identities → users.id
 ```
+
+PN pods receive plain HTTP with `X-Forwarded-Proto: https` and `X-Forwarded-Host` set by Traefik. See [`deploy/NETWORK_SETUP.md`](../../deploy/NETWORK_SETUP.md#tls-platform-owned-spec-008).
 
 Public identity hostname (VPS): `https://auth.nacfson.cloud`  
 Cookie domain (gateway env): `.nacfson.cloud`  
