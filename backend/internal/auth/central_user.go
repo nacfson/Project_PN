@@ -69,6 +69,12 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 			return AuthResult{}, fmt.Errorf("auth: lookup user email: %w", err)
 		}
 
+		method := "google"
+		if pnProvider == "apple" || pnProvider == "email" {
+			method = pnProvider
+		}
+		const defaultIssuer = "https://auth.nacfson.cloud/realms/platform"
+
 		if errors.Is(err, pgx.ErrNoRows) {
 			err = tx.QueryRow(ctx, `
 				insert into users (email, email_verified_at, native_language, target_language, ui_language)
@@ -79,22 +85,22 @@ func (s *Service) EnsureCentralUser(ctx context.Context, session CentralSession)
 				return AuthResult{}, fmt.Errorf("auth: insert user: %w", err)
 			}
 			_, err = tx.Exec(ctx, `
-				insert into user_identities (user_id, provider, provider_subject, email_at_provider)
-				values ($1::uuid, $2, $3, $4)
-			`, userID, pnProvider, pnSubject, emailAddr)
+				insert into user_identities (user_id, issuer, subject, sign_in_method, provider, provider_subject, email_at_provider)
+				values ($1::uuid, $2, $3, $4, $5, $6, $7)
+			`, userID, defaultIssuer, pnSubject, method, pnProvider, pnSubject, emailAddr)
 			if err != nil {
 				return AuthResult{}, fmt.Errorf("auth: insert identity: %w", err)
 			}
 		} else {
 			userID = existingUserID
 			_, err = tx.Exec(ctx, `
-				insert into user_identities (user_id, provider, provider_subject, email_at_provider)
-				values ($1::uuid, $2, $3, $4)
-				on conflict (provider, provider_subject) do update
+				insert into user_identities (user_id, issuer, subject, sign_in_method, provider, provider_subject, email_at_provider)
+				values ($1::uuid, $2, $3, $4, $5, $6, $7)
+				on conflict (issuer, subject) do update
 				set user_id = excluded.user_id,
 				    email_at_provider = excluded.email_at_provider,
 				    linked_at = now()
-			`, userID, pnProvider, pnSubject, emailAddr)
+			`, userID, defaultIssuer, pnSubject, method, pnProvider, pnSubject, emailAddr)
 			if err != nil {
 				return AuthResult{}, fmt.Errorf("auth: link identity: %w", err)
 			}

@@ -103,7 +103,7 @@ This script will:
 1. Start PostgreSQL via `backend/docker compose up -d` (skipped with `--skip-db`).
 2. Wait for Postgres to become healthy.
 3. Run backend migrations (`go run ./cmd/migrate up`; skipped with `--skip-migrate`).
-4. Start the backend API in the background.
+4. Start the backend API in the background with `AUTH_DEV_BYPASS=true` (local only).
 5. Start the Expo web dev server in the foreground (`npm run web`).
 6. Stop the backend API when the web dev server exits.
 
@@ -114,6 +114,31 @@ For faster restarts when Postgres is already running and migrations are up to da
 ```sh
 scripts/start-web-dev.sh --skip-db --skip-migrate
 ```
+
+### Manual ordered startup and verification
+
+If you prefer to start each piece yourself (or the script is not suitable), use this exact order from the repo root:
+
+```sh
+cp -n backend/.env.example backend/.env && cp -n frontend/.env.example frontend/.env
+docker compose -f backend/compose.yaml --env-file backend/.env up -d
+(cd backend && set -a && source .env && set +a && go run ./cmd/migrate up)
+# terminal 1: API (AUTH_DEV_BYPASS=true is local-only; .env.example keeps it false)
+(cd backend && set -a && source .env && set +a && AUTH_DEV_BYPASS=true go run ./cmd/api)
+# terminal 2: web client
+(cd frontend && npm run web)
+```
+
+Open `http://localhost:8081/?token=mock-dev-token` to sign in as the dev user, then confirm the whole stack with:
+
+```sh
+npm run verify        # stack health: env files, database, API alive/ready, web client, client-to-backend
+npm run verify:full   # also lint, typechecks, frontend/API tests, and serial backend tests
+```
+
+`npm run verify` exits non-zero and names each failing component with a fix hint. A `401`/`403` on `client-to-backend` means the backend is reachable but `AUTH_DEV_BYPASS` is off. The frontend also logs `Backend unreachable at <address>` in development when the API cannot be reached.
+
+`npm run verify:full` runs the backend tests, which truncate the database in `DATABASE_URL`. Use a throwaway local database, not data you care about.
 
 ## Production deploy (Oracle Cloud k3s)
 
@@ -209,10 +234,10 @@ daily learning logs.
 
 ## Tests
 
-Run unit tests:
+Run unit tests (always serial; DB-backed packages share one database):
 
 ```sh
-GOTOOLCHAIN=go1.26.0 go test ./...
+GOTOOLCHAIN=go1.26.0 go test -p 1 ./...
 ```
 
 Schema acceptance tests require `DATABASE_URL` and a running local PostgreSQL instance:

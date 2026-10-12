@@ -55,10 +55,12 @@ All backend and frontend changes MUST pass automated test suites and static type
 - **Task Routing Adherence**: Before modifying code, developers and AI agents MUST consult the task routing matrix in `AGENTS.md` / `GEMINI.md` and review corresponding architectural documents.
 - **Pre-Commit / Pre-Merge Checklist**:
   1. Rebase cleanly onto the latest `main` branch.
-  2. Execute backend test suite serially: `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`.
-  3. Execute frontend test suite: `npm test -w frontend`.
-  4. Verify AddScreen invariant: assert Manual-first tab is default in `AddScreen.tsx` and passing in `AddScreen.test.tsx`.
-  5. Validate type safety: `npm run typecheck -w frontend` and `npm run typecheck -w packages/api`.
+  2. Execute local stack verification: `npm run verify` (stack health) or `npm run verify:full` (full static analysis, frontend/contract tests, and serial backend tests).
+  3. Execute backend test suite serially: `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`.
+  4. Execute frontend test suite: `npm test -w frontend`.
+  5. Verify AddScreen invariant: assert Manual-first tab is default in `AddScreen.tsx` and passing in `AddScreen.test.tsx`.
+  6. Validate type safety: `npm run typecheck -w frontend` and `npm run typecheck -w packages/api`.
+  7. Automated Quality Gates: All mandatory CI quality gate jobs in `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`) MUST pass without bypass or skip options before merge or container image publishing.
 - **Safety Policy**: No destructive operations (dropping tables, force pushing to main, deleting migrations) are permitted without explicit user authorization.
 
 ## Governance
@@ -74,4 +76,4 @@ All backend and frontend changes MUST pass automated test suites and static type
 - **Compliance & Review Expectations**: Every pull request, automated agent contribution, and code review MUST explicitly verify compliance with this constitution. PRs introducing architectural regression or violating invariants MUST be blocked until aligned.
 - **Operational Procedures**: Runtime runbooks, setup guidelines, and detailed API documentation in `backend/docs/` and `docs/` serve as secondary guidance conforming strictly to these constitutional principles.
 
-**Version**: 1.1.1 | **Ratified**: 2026-06-13 | **Last Amended**: 2026-10-07
+**Version**: 1.1.2 | **Ratified**: 2026-06-13 | **Last Amended**: 2026-10-11

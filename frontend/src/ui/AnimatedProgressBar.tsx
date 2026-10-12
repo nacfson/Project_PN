@@ -90,7 +90,7 @@ export function AnimatedProgressBar({ percent, height = 12 }: AnimatedProgressBa
         {!reduced && (
           <Animated.View
             style={{
-              ...StyleSheet.absoluteFillObject,
+              ...StyleSheet.absoluteFill,
               backgroundColor: 'rgba(255, 255, 255, 0.15)',
               opacity: shimmerAnim,
             }}

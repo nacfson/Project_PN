@@ -128,11 +128,11 @@ else
   log "skipping migrations (--skip-migrate)"
 fi
 
-log "seeding local dev guest account"
-./scripts/seed-dev-guest.sh
-
-log "starting backend API"
-(cd backend && exec go run ./cmd/api) &
+# The dev user is created on the first authenticated request when the local-only
+# dev auth bypass is on, so no seed step is needed (the old guest seed targeted
+# a fixed user id that no longer exists and aborted this script).
+log "starting backend API (local dev auth bypass enabled)"
+(cd backend && exec env AUTH_DEV_BYPASS=true go run ./cmd/api) &
 API_PID=$!
 
 log "waiting for backend API to be ready"

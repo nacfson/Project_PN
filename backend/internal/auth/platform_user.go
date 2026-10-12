@@ -113,6 +113,18 @@ func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email
 		}
 	}
 
+	_, err = tx.Exec(ctx, `
+		insert into user_languages (user_id, target_language, display_language, is_active)
+		select $1::uuid, $2, $3, true
+		where not exists (
+			select 1 from user_languages where user_id = $1::uuid
+		)
+		on conflict (user_id, target_language) do nothing
+	`, userID, targetLang, nativeLang)
+	if err != nil {
+		return AuthResult{}, fmt.Errorf("auth: ensure user language: %w", err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return AuthResult{}, fmt.Errorf("auth: commit user sync: %w", err)
 	}

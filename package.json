@@ -8,9 +8,13 @@
   ],
   "scripts": {
     "lint:imports": "node scripts/lint-imports.mjs",
-    "lint": "npm run lint:imports"
+    "lint": "npm run lint:imports",
+    "verify": "scripts/verify-local.sh",
+    "verify:full": "scripts/verify-local.sh --full",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
-    "@babel/runtime": "^7.26.0"
+    "@babel/runtime": "^7.26.0",
+    "@types/react": "~19.2.2"
   }
 }

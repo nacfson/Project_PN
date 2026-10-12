@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { LinkedProvider } from '@project-pn/api';
 import { getLinkedProviders } from '../../api/auth';
-import { useAppLanguage } from '../../i18n';
+import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Card, Icon, LoadingState, Screen, Text } from '../../ui';
 
-function providerLabel(provider: string, t: (key: string) => string): string {
+function providerLabel(provider: string, t: (key: TranslationKey) => string): string {
   if (provider === 'google') return t('settings.providerGoogle');
   return provider;
 }

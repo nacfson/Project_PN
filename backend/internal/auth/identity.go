@@ -1,6 +1,9 @@
 package auth
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	ProviderNacfson = "nacfson"
@@ -33,10 +36,15 @@ type AuthResult struct {
 }
 
 func MapCentralProvider(authProvider, providerSubject, centralUserID string) (pnProvider, pnSubject string) {
-	if providerSubject != "" {
-		return ProviderGoogle, providerSubject
+	provider := strings.ToLower(strings.TrimSpace(authProvider))
+	if provider == "" {
+		provider = ProviderGoogle
 	}
-	return ProviderGoogle, centralUserID
+	sub := providerSubject
+	if sub == "" {
+		sub = centralUserID
+	}
+	return provider, sub
 }
 
 func PNProviderLabel(provider string) string {
@@ -53,7 +61,7 @@ func SessionFromCentralUser(user CentralUser, authProvider string) CentralSessio
 	if authProvider == "" {
 		authProvider = "google"
 	}
-	subject := "google-sub-" + user.ID
+	subject := authProvider + "-sub-" + user.ID
 	return CentralSession{
 		AuthProvider: authProvider,
 		Identity: CentralIdentity{

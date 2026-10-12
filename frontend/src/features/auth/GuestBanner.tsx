@@ -22,7 +22,6 @@ export function GuestBanner({ onSignIn }: GuestBannerProps) {
       </View>
       <Button
         label={t('auth.signIn')}
-        size="sm"
         variant="tonal"
         onPress={onSignIn}
       />

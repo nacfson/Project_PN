@@ -29,10 +29,20 @@ func validationRouter(t *testing.T) (http.Handler, string) {
 }
 
 func validationRouterWithPool(t *testing.T) (http.Handler, string, *pgxpool.Pool, *auth.Service) {
-	return validationRouterWithLogger(t, admin.NoopLogger{})
+	h, tok, p, a, _ := validationRouterWithUser(t)
+	return h, tok, p, a
+}
+
+func validationRouterWithUser(t *testing.T) (http.Handler, string, *pgxpool.Pool, *auth.Service, auth.User) {
+	return validationRouterWithLoggerAndUser(t, admin.NoopLogger{})
 }
 
 func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler, string, *pgxpool.Pool, *auth.Service) {
+	h, tok, p, a, _ := validationRouterWithLoggerAndUser(t, logger)
+	return h, tok, p, a
+}
+
+func validationRouterWithLoggerAndUser(t *testing.T, logger admin.Logger) (http.Handler, string, *pgxpool.Pool, *auth.Service, auth.User) {
 	t.Helper()
 
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -69,7 +79,7 @@ func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler
 		ForceUILang:            cfg.ForceUILang,
 	})
 	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), logger, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
-	jwtFix := setupTestJWTFixture(t)
+	jwtFix := defaultJWTFixture(t)
 	router := NewRouter(Dependencies{
 		DB:             pool,
 		Words:          wordsSvc,
@@ -90,7 +100,7 @@ func validationRouterWithLogger(t *testing.T, logger admin.Logger) (http.Handler
 	if _, err := wordsSvc.EnsureDefaultDeck(ctx, user.ID, "en"); err != nil {
 		t.Fatalf("ensure default deck: %v", err)
 	}
-	return router, token, pool, authSvc
+	return router, token, pool, authSvc, user
 }
 
 func authRequest(t *testing.T, method, path, body, token string) *http.Request {
@@ -478,17 +488,8 @@ func TestArchiveLearningItemHidesFromListAndReAddUnarchives(t *testing.T) {
 }
 
 func TestChangeMeaningConflictReturns409(t *testing.T) {
-	router, token, pool, authSvc := validationRouterWithPool(t)
+	router, token, pool, _, user := validationRouterWithUser(t)
 	ctx := context.Background()
-	// Re-ensure to get user id matching token from validationRouter.
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + strings.TrimPrefix(token, "token-"),
-		Email: strings.TrimPrefix(token, "token-"),
-	}, "google"))
-	if err != nil {
-		t.Fatalf("ensure user: %v", err)
-	}
-	user := result.User
 
 	lemma := "chgmean" + time.Now().Format("150405.000000")
 	var wordID, senseA, senseB string
@@ -962,18 +963,8 @@ func TestApiRoutesAbsentWithoutWordsService(t *testing.T) {
 }
 
 func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
-	router, token, pool, authSvc := validationRouterWithPool(t)
+	router, token, pool, _, user := validationRouterWithUser(t)
 	ctx := context.Background()
-
-	emailAddr := token[6:]
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "google"))
-	if err != nil {
-		t.Fatalf("authenticate: %v", err)
-	}
-	user := result.User
 
 	suffix := time.Now().Format("150405.000000")
 	dueLemma := "due-" + suffix
@@ -986,7 +977,7 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 	// Fetch the user word sense id we just inserted
 	var uwsID string
 	var wsID string
-	err = pool.QueryRow(ctx, `
+	err := pool.QueryRow(ctx, `
 		select uws.id::text, uws.word_sense_id::text
 		from user_word_senses uws
 		join word_senses ws on ws.id = uws.word_sense_id
@@ -1208,18 +1199,8 @@ func TestGetDueReviewItemsAndBatchReviews(t *testing.T) {
 }
 
 func TestGetStatsSummary(t *testing.T) {
-	router, token, pool, authSvc := validationRouterWithPool(t)
+	router, token, pool, _, user := validationRouterWithUser(t)
 	ctx := context.Background()
-
-	emailAddr := token[6:]
-	result, err := authSvc.EnsureCentralUser(ctx, auth.SessionFromCentralUser(auth.CentralUser{
-		ID:    "central-" + emailAddr,
-		Email: emailAddr,
-	}, "google"))
-	if err != nil {
-		t.Fatalf("authenticate: %v", err)
-	}
-	user := result.User
 
 	suffix := time.Now().Format("150405.000000")
 	dueLemma := "stats-due-" + suffix
@@ -1232,7 +1213,7 @@ func TestGetStatsSummary(t *testing.T) {
 	insertLearningItemFixture(t, pool, user.ID, futureLemma, "future definitions", future, false)
 
 	var uwsID string
-	err = pool.QueryRow(ctx, `
+	err := pool.QueryRow(ctx, `
 		select uws.id::text
 		from user_word_senses uws
 		join word_senses ws on ws.id = uws.word_sense_id
@@ -1360,8 +1341,28 @@ func TestCrossUserLearningResourceIsolation(t *testing.T) {
 		t.Fatalf("ensure default deck B: %v", err)
 	}
 
+	var senseID string
+	if err := pool.QueryRow(ctx, `
+		with w as (
+			insert into words (language_code, lemma, normalized_text, part_of_speech)
+			values ('en', 'isolated', 'isolated', 'adj')
+			returning id
+		)
+		insert into word_senses (word_id, definition, meaning_order)
+		select id, 'alone', 1 from w
+		returning id::text
+	`).Scan(&senseID); err != nil {
+		t.Fatalf("insert isolated sense fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into sense_translations (word_sense_id, language_code, definition)
+		values ($1::uuid, 'ko', '고립된')
+	`, senseID); err != nil {
+		t.Fatalf("insert isolated translation fixture: %v", err)
+	}
+
 	// 1. User A adds a learning item
-	addReq := authRequest(t, http.MethodPost, "/api/learning-items", `{"word_text":"isolated","definition_text":"alone","part_of_speech":"adj","source_context":"I am isolated."}`, tokenA)
+	addReq := authRequest(t, http.MethodPost, "/api/learning-items", `{"word_sense_id":"`+senseID+`","display_language_code":"ko","source_context":"I am isolated."}`, tokenA)
 	addRec := httptest.NewRecorder()
 	router.ServeHTTP(addRec, addReq)
 	if addRec.Code != http.StatusCreated && addRec.Code != http.StatusOK {
@@ -1384,13 +1385,11 @@ func TestCrossUserLearningResourceIsolation(t *testing.T) {
 	if listRec.Code != http.StatusOK {
 		t.Fatalf("user B list items: expected 200, got %d: %s", listRec.Code, listRec.Body.String())
 	}
-	var bItems []struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(listRec.Body).Decode(&bItems); err != nil {
+	var bPage words.LearningItemsPage
+	if err := json.NewDecoder(listRec.Body).Decode(&bPage); err != nil {
 		t.Fatalf("decode user B items: %v", err)
 	}
-	for _, item := range bItems {
+	for _, item := range bPage.Items {
 		if item.ID == created.ID {
 			t.Fatalf("cross-user privacy violation: user B saw user A's item %s", created.ID)
 		}

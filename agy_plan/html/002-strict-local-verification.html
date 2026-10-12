@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Plan: Strict Verification System (002)</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#1f2937;line-height:1.5}
+h1,h2{border-bottom:1px solid #e5e7eb;padding-bottom:.3rem}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #d1d5db;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#f3f4f6}code,pre{background:#f3f4f6;border-radius:4px}pre{padding:.8rem;overflow:auto}code{padding:0 .25rem}
+.add{color:#166534}.del{color:#991b1b}
+</style></head><body>
+<h1>Strict Verification System &amp; Local Stack Connectivity Fix</h1>
+<p>Spec <code>specs/002-strict-local-verification/spec.md</code> · Branch <code>002-strict-local-verification</code> · 2026-10-11</p>
+
+<h2>Problem</h2>
+<p>Frontend could not reach the backend because the whole local stack was down. No existing check detects this: CI only lints imports and exports the web bundle, there are no hooks, and tests/typechecks are not enforced.</p>
+
+<h2>Architecture</h2>
+<svg viewBox="0 0 860 260" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="system-ui" font-size="13">
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0L8,4L0,8z" fill="#374151"/></marker></defs>
+<rect x="10" y="20" width="170" height="60" rx="8" fill="#dbeafe" stroke="#1d4ed8"/><text x="95" y="55" text-anchor="middle">Developer</text>
+<rect x="230" y="10" width="190" height="50" rx="8" fill="#dcfce7" stroke="#166534"/><text x="325" y="40" text-anchor="middle">verify-local.sh</text>
+<rect x="230" y="90" width="190" height="50" rx="8" fill="#dcfce7" stroke="#166534"/><text x="325" y="120" text-anchor="middle">pre-push hook (fast)</text>
+<rect x="470" y="10" width="170" height="50" rx="8" fill="#fef9c3" stroke="#a16207"/><text x="555" y="40" text-anchor="middle">DB · API · Web client</text>
+<rect x="230" y="180" width="190" height="60" rx="8" fill="#fee2e2" stroke="#991b1b"/><text x="325" y="205" text-anchor="middle">CI quality gates</text><text x="325" y="222" text-anchor="middle">(required, no skip)</text>
+<rect x="470" y="180" width="170" height="60" rx="8" fill="#e0e7ff" stroke="#4338ca"/><text x="555" y="215" text-anchor="middle">Contract E2E test</text>
+<rect x="690" y="180" width="160" height="60" rx="8" fill="#f3e8ff" stroke="#7e22ce"/><text x="770" y="215" text-anchor="middle">Publish images</text>
+<line x1="180" y1="40" x2="230" y2="35" stroke="#374151" marker-end="url(#a)"/>
+<line x1="180" y1="65" x2="230" y2="110" stroke="#374151" marker-end="url(#a)"/>
+<line x1="420" y1="35" x2="470" y2="35" stroke="#374151" marker-end="url(#a)"/>
+<line x1="95" y1="80" x2="230" y2="205" stroke="#374151" marker-end="url(#a)"/>
+<line x1="420" y1="210" x2="470" y2="210" stroke="#374151" marker-end="url(#a)"/>
+<line x1="640" y1="210" x2="690" y2="210" stroke="#374151" marker-end="url(#a)"/>
+</svg>
+
+<h2>Scope</h2>
+<table><tr><th>Story</th><th>Change</th></tr>
+<tr><td>US1 (P1)</td><td><code>scripts/verify-local.sh</code>, <code>npm run verify[:full]</code></td></tr>
+<tr><td>US2 (P1)</td><td><code>.github/workflows/quality-gates.yml</code>; publish jobs <code>needs</code> all gates; required checks on main</td></tr>
+<tr><td>US3 (P2)</td><td><code>.githooks/pre-push</code> + <code>core.hooksPath</code> via <code>prepare</code></td></tr>
+<tr><td>US4 (P2)</td><td>Dev-only unreachable message in client config; fix/remove broken <code>start-web-dev.sh</code> seed path; setup doc</td></tr>
+<tr><td>FR-009</td><td><code>packages/api/src/contract.e2e.test.ts</code> against real backend</td></tr></table>
+
+<h2>Key diffs (illustrative)</h2>
+<pre>
+<span class="add">+ frontend/package.json   "typecheck": "tsc --noEmit"</span>
+<span class="add">+ package.json           "verify": "scripts/verify-local.sh", "verify:full": "scripts/verify-local.sh --full", "prepare": "git config core.hooksPath .githooks"</span>
+  publish-ghcr-images.yml
+<span class="del">- needs: [preflight-checks]</span>
+<span class="add">+ needs: [preflight-checks, static, frontend-tests, add-tab-invariant, backend-tests, contract-e2e]</span>
+</pre>
+
+<h2>Constitution check</h2>
+<p>All principles pass. No schema change. Strengthens Principle V (serial Go tests, typechecks, end-to-end contract verification).</p>
+
+<h2>Automated verification</h2>
+<ul>
+<li><code>npm run verify</code> fails with the stack down, passes when healthy</li>
+<li><code>npm run verify:full</code>: lint, typechecks, frontend/API tests, <code>go test -p 1 ./...</code></li>
+<li>Deliberate-regression PRs (Go test, type error, Add default, contract field) each blocked in CI</li>
+<li>Pre-push blocks a type error locally</li>
+</ul>
+<p>See <code>quickstart.md</code> and <code>contracts/</code> in the spec directory.</p>
+</body></html>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRoute } from '@react-navigation/native';
-import type { RouteProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import { confirmMergeRequest, createMergeRequest, logout } from '../../api/auth';
 import { useAppLanguage } from '../../i18n';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';

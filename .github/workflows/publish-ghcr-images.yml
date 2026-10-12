@@ -5,7 +5,7 @@ name: Publish Project PN images
 # Preflight gate:
 # 1. Statically lints module imports across all workspaces.
 # 2. Builds and validates the frontend web bundle with Expo Metro.
-# Only when all preflight checks pass are the Docker images built and published.
+# Only when all preflight checks AND the quality gates pass are the Docker images built and published.
 # On pull requests, only the preflight checks run to block invalid merges.
 
 on:
@@ -26,6 +26,14 @@ env:
   IMAGE_OWNER: ${{ github.repository_owner }}
 
 jobs:
+  # Mandatory quality gates (spec 002). Called here so no image is published
+  # unless every gate passes. On pull requests the same workflow already runs
+  # directly (see quality-gates.yml), so it is only called for push/dispatch.
+  quality-gates:
+    name: Quality gates
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/quality-gates.yml
+
   preflight-checks:
     name: Lint & Preflight Validation
     runs-on: ubuntu-latest
@@ -61,7 +69,7 @@ jobs:
 
   publish-backend:
     name: Build & Publish Backend
-    needs: [preflight-checks]
+    needs: [preflight-checks, quality-gates]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -130,7 +138,7 @@ jobs:
 
   publish-frontend:
     name: Build & Publish Frontend
-    needs: [preflight-checks]
+    needs: [preflight-checks, quality-gates]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:

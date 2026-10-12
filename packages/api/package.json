@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:contract": "sh -c ': ${CONTRACT_E2E_BASE_URL:?CONTRACT_E2E_BASE_URL must be set}' && jest --testPathPattern contract.e2e"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

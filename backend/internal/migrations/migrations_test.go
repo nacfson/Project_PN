@@ -107,10 +107,13 @@ func TestMultiwordPosPhraseMigrationHandlesConflictingPOS(t *testing.T) {
 		t.Fatalf("ensure up to date: %v", err)
 	}
 
-	// Roll back the phrase retag migrations (downs are no-ops) then seed conflicting
-	// multi-word POS rows and re-apply so 000025/000026 must not hit words_identity_unique.
-	if err := Down(migrationsPath, databaseURL, 2); err != nil {
-		t.Fatalf("down before seed: %v", err)
+	// Roll back past the phrase retag migrations (000025 and 000026) to version 24,
+	// then seed conflicting multi-word POS rows and re-apply so 000025/000026 must not hit words_identity_unique.
+	latestVersion, _ := latestMigrationVersion(t)
+	if latestVersion > 24 {
+		if err := Down(migrationsPath, databaseURL, int(latestVersion-24)); err != nil {
+			t.Fatalf("down before seed: %v", err)
+		}
 	}
 
 	ctx := context.Background()
