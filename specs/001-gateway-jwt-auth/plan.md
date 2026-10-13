@@ -46,7 +46,7 @@ This feature’s purpose in **this repository** is explicit. Specs alone are not
 | `backend/internal/http/auth_handler.go` | `/api/auth/me` for platform identity; deprecate/remove central-auth refresh proxy; logout via platform |
 | `backend/internal/auth/platform_user.go` | `EnsurePlatformUser` by `(issuer, subject)`; no same-email auto-link as primary continuity; no app-admin grant (replaces `central_user.go`) |
 | `frontend/App.tsx` | Fix fatal fallthrough bug in `checkAuth` catch block: on backend connection/network errors, strictly set `setAuthState('unauthenticated')` with error banner rather than defaulting to `authenticated` |
-| `frontend/src/screens/CentralAuthScreen.tsx` | Stop redirecting to `auth.nacfson.cloud/login`; align with platform gateway login |
+| `frontend/src/screens/CentralAuthScreen.tsx` | Stop redirecting to legacy `auth.nacfson.cloud/login`; route browser web sign-in to platform gateway `/oauth/start?return=<origin>/` |
 | `frontend/src/config.ts`, `frontend/.env.example` | Remove `EXPO_PUBLIC_CENTRAL_AUTH_URL` / `auth.nacfson.cloud` fallbacks; align API base URLs |
 | `scripts/push-ghcr.sh`, `.github/workflows/publish-ghcr-images.yml` | Remove hardcoded `EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud` and the assertion failing builds if absent |
 | `frontend/src/api/auth.ts`, `frontend/src/utils/authLaunch.ts` | Send `Authorization: Bearer <project access JWT>` only |

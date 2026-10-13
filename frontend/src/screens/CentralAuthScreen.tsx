@@ -26,8 +26,9 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
     try {
       const browserWeb = isBrowserWeb();
       if (browserWeb) {
-        // Defer to Traefik ForwardAuth: navigating to origin triggers platform login / Keycloak broker
-        window.location.href = window.location.origin;
+        const authHost = process.env.EXPO_PUBLIC_AUTH_HOST || 'https://auth.nacfson.cloud';
+        const returnUrl = encodeURIComponent(`${window.location.origin}/`);
+        window.location.href = `${authHost}/oauth/start?return=${returnUrl}`;
       } else {
         const redirectUrl = 'projectpn://auth';
         const authUrl = `${API_BASE_URL}/`;

@@ -73,6 +73,11 @@ Public identity hostname (VPS): `https://auth.nacfson.cloud`
 Cookie domain (gateway env): `.nacfson.cloud`  
 Realm issuer (exact): `https://auth.nacfson.cloud/realms/platform`
 
+### 1.3 Client Login Initiation & 401 Handling
+
+- **Browser SPA login flow**: The web client initiates login via `https://auth.nacfson.cloud/oauth/start?return=<returnTarget>`. The platform gateway coordinates the Keycloak Google broker flow, sets the platform session cookie on `.nacfson.cloud`, and redirects back to `pn.nacfson.cloud`.
+- **Client 401 handling**: When protected endpoints return 401 (e.g. unauthenticated or expired session), the API client (`packages/api/src/client.ts`) handles the response stream once without double consumption, raising `ApiError(status: 401)`. The application cleanly recognizes the user as unauthenticated rather than flagging a backend connection failure.
+
 ---
 
 ## 2. Kubernetes topology (granular)
