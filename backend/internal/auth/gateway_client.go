@@ -49,6 +49,7 @@ type ConfirmedIdentity struct {
 	Subject  string
 	Issuer   string
 	Audience string
+	Token    string
 }
 
 type jwtPayload struct {
@@ -195,5 +196,6 @@ func (c *GatewayClient) ConfirmIdentity(ctx context.Context, host string, cookie
 		Subject:  sub,
 		Issuer:   iss,
 		Audience: expectedAudience,
+		Token:    token,
 	}, nil
 }
