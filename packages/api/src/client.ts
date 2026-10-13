@@ -275,9 +275,9 @@ export async function getJson<TResponse>(path: string, options?: RequestOptions)
   }
 
   let parsed = await parseResponse(response);
-  const originalOk = response.ok;
-  response = await handleUnauthorized(response, parsed, path, options, execute);
-  if (!originalOk || !response.ok) {
+  const retriedResponse = await handleUnauthorized(response, parsed, path, options, execute);
+  if (retriedResponse !== response) {
+    response = retriedResponse;
     parsed = await parseResponse(response);
   }
   throwOnError(response, parsed);
@@ -306,9 +306,9 @@ export async function postJson<TResponse>(
   }
 
   let parsed = await parseResponse(response);
-  const originalOk = response.ok;
-  response = await handleUnauthorized(response, parsed, path, options, execute);
-  if (!originalOk || !response.ok) {
+  const retriedResponse = await handleUnauthorized(response, parsed, path, options, execute);
+  if (retriedResponse !== response) {
+    response = retriedResponse;
     parsed = await parseResponse(response);
   }
   throwOnError(response, parsed);
@@ -337,9 +337,9 @@ export async function patchJson<TResponse>(
   }
 
   let parsed = await parseResponse(response);
-  const originalOk = response.ok;
-  response = await handleUnauthorized(response, parsed, path, options, execute);
-  if (!originalOk || !response.ok) {
+  const retriedResponse = await handleUnauthorized(response, parsed, path, options, execute);
+  if (retriedResponse !== response) {
+    response = retriedResponse;
     parsed = await parseResponse(response);
   }
   throwOnError(response, parsed);
@@ -366,9 +366,9 @@ export async function deleteJson<TResponse>(
   }
 
   let parsed = await parseResponse(response);
-  const originalOk = response.ok;
-  response = await handleUnauthorized(response, parsed, path, options, execute);
-  if (!originalOk || !response.ok) {
+  const retriedResponse = await handleUnauthorized(response, parsed, path, options, execute);
+  if (retriedResponse !== response) {
+    response = retriedResponse;
     parsed = await parseResponse(response);
   }
   throwOnError(response, parsed);
@@ -411,9 +411,9 @@ export async function postFormData<TResponse>(
   }
 
   let parsed = await parseResponse(response);
-  const originalOk = response.ok;
-  response = await handleUnauthorized(response, parsed, path, options, execute);
-  if (!originalOk || !response.ok) {
+  const retriedResponse = await handleUnauthorized(response, parsed, path, options, execute);
+  if (retriedResponse !== response) {
+    response = retriedResponse;
     parsed = await parseResponse(response);
   }
   throwOnError(response, parsed);
@@ -443,9 +443,14 @@ export async function postNoContent(
 
   if (!response.ok) {
     let parsed = await parseResponse(response);
-    response = await handleUnauthorized(response, parsed, path, options, execute);
+    const retriedResponse = await handleUnauthorized(response, parsed, path, options, execute);
+    if (retriedResponse !== response) {
+      response = retriedResponse;
+      if (!response.ok) {
+        parsed = await parseResponse(response);
+      }
+    }
     if (!response.ok) {
-      parsed = await parseResponse(response);
       throwOnError(response, parsed);
     }
   }

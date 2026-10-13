@@ -97,7 +97,7 @@ Project PN has no application-administrator product role. Remove `is_admin`-styl
 1. **Given** the post-change codebase, **When** a verified learner uses the product, **Then** there is no application-admin capability to grant or exercise.
 2. **Given** docs and config for Project PN auth, **When** reviewed, **Then** they describe platform Keycloak JWT only — not ProcessManager auth and not central-auth session validation as production auth.
 3. **Given** legacy ProcessManager or central-auth session credentials, **When** presented to Project PN after cutover, **Then** they are rejected.
-4. **Given** the frontend client, **When** unauthenticated, **Then** it does not redirect to `auth.nacfson.cloud/login`; platform Traefik ForwardAuth handles browser login redirects.
+4. **Given** the frontend client, **When** unauthenticated, **Then** browser web initiates sign-in by navigating to the platform login start endpoint (e.g. `https://auth.nacfson.cloud/oauth/start?return=<returnTarget>`); it does not redirect to obsolete legacy `auth.nacfson.cloud/login`, and Traefik ForwardAuth validates sessions for protected backend requests.
 
 ---
 
@@ -145,7 +145,7 @@ Web, native, desktop, and extension clients all present the same kind of project
 - **FR-003**: The project MUST NOT trust gateway identity headers alone; after successful credential verification, header mirrors MAY be checked for consistency with verified claims but MUST NOT authorize by themselves.
 - **FR-004**: The project MUST accept only Keycloak **access** tokens whose **audience** is this project (`project-pn`). It MUST reject credentials intended for other projects, foreign issuers, bad signatures, expired credentials, disallowed algorithms (including none), missing subject, OIDC **ID tokens**, Google access tokens, and other non-project-access credentials.
 - **FR-005**: The project MUST support signing-key rotation by refreshing trust material when an unknown key id appears, then re-verifying; if trust material cannot be obtained, the project MUST fail closed.
-- **FR-006**: The project MUST NOT implement browser login, Google OAuth, or identity-broker flows that bypass the platform gateway; those remain platform responsibilities. The frontend MUST NOT redirect to legacy `auth.nacfson.cloud/login`.
+- **FR-006**: The project MUST NOT implement browser login, Google OAuth, or identity-broker flows that bypass the platform gateway; those remain platform responsibilities. The web frontend initiates sign-in by delegating to the platform's `/oauth/start?return=...` entrypoint and MUST NOT use legacy `auth.nacfson.cloud/login` or custom broker flows.
 - **FR-007**: The project MUST NOT accept Google access tokens or raw OIDC ID tokens as API credentials for Project PN (same rule as FR-004 access-token-only policy).
 - **FR-008**: The project MUST NOT mint or trust business-role claims from the gateway. There is **no application-administrator role** in this delivery: do not implement admin bindings, `is_admin` product authorization, or admin-gated learner/product APIs.
 - **FR-009**: After first successful sign-in, any verified `(issuer, subject)` MUST receive ordinary access only: landing experience plus explicitly declared ordinary capabilities; undeclared operations MUST be denied.

@@ -193,6 +193,34 @@ test('retries once after refreshing an expired bearer session', async () => {
   });
 });
 
+test('throws ApiError with status 401 when refresh is not possible without consuming body stream twice', async () => {
+  configureApi({
+    baseUrls: ['http://localhost:9999'],
+    getToken: async () => 'token',
+  });
+
+  global.fetch = jest.fn().mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ error: 'unauthorized', code: 'AUTH-101' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
+  );
+
+  await expect(getJson('/api/auth/me')).rejects.toMatchObject({
+    status: 401,
+    code: 'AUTH-101',
+    message: 'unauthorized',
+  });
+
+  await expect(postJson('/api/words', { text: 'test' })).rejects.toMatchObject({
+    status: 401,
+    code: 'AUTH-101',
+    message: 'unauthorized',
+  });
+});
+
 test('tries fallback URLs', async () => {
   configureApi({
     baseUrls: ['http://first', 'http://second'],

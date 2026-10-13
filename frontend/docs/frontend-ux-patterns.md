@@ -68,6 +68,7 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 ## OAuth / third-party sign-in
 
+- Browser web sign-in initiates by navigating to the platform login start endpoint (`https://auth.nacfson.cloud/oauth/start?return=<origin>/`), which triggers Keycloak Google broker flow and returns to the SPA origin upon completion.
 - If a provider is not configured, show a generic user-facing message such as "Google sign-in is not configured for this build."
 - Show environment-variable hints **only** when `__DEV__` is true.
 

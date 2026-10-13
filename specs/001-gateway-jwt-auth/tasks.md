@@ -136,7 +136,7 @@
 ### Implementation for User Story 4
 
 - [X] T031 [US4] Remove app-admin role checks and authorization gates from `backend/internal/http/` and `backend/internal/auth/`
-- [X] T032 [US4] Remove `auth.nacfson.cloud/login` browser redirect and legacy central-auth modal handling from `frontend/src/screens/CentralAuthScreen.tsx` (defer to Traefik ForwardAuth)
+- [X] T032 [US4] Remove `auth.nacfson.cloud/login` browser redirect and route browser web sign-in to platform `/oauth/start?return=<origin>/` in `frontend/src/screens/CentralAuthScreen.tsx`
 - [X] T033 [US4] Remove `EXPO_PUBLIC_CENTRAL_AUTH_URL` and `auth.nacfson.cloud` fallbacks from `frontend/src/config.ts` and `frontend/.env.example`
 - [X] T034 [US4] Remove hardcoded `EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud` and its assertion gate from `scripts/push-ghcr.sh` and `.github/workflows/publish-ghcr-images.yml`
 - [X] T035 [US4] Purge ProcessManager auth references and central-auth session instructions from `backend/docs/oracle-deploy-runbook.md`, `deploy/deploy-exception-runbook.md`, and `backend/docs/cursor-secrets.md`
