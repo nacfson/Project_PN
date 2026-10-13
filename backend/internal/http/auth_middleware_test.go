@@ -115,7 +115,7 @@ func TestAuthMiddleware_ValidProjectJWT(t *testing.T) {
 		Email: "learner@project-pn.local",
 	}
 	ensurer := fakePlatformUserEnsurer{user: expectedUser}
-	mw := authMiddleware(setup.verifier, ensurer, false, admin.NoopLogger{})
+	mw := authMiddleware(setup.verifier, ensurer, false, nil, admin.NoopLogger{})
 
 	tokenStr := mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "user-sub-1234", "Bearer", "JWT", time.Now().Add(10*time.Minute), nil)
 
@@ -150,7 +150,7 @@ func TestAuthMiddleware_ValidProjectJWT(t *testing.T) {
 func TestAuthMiddleware_RejectMatrix(t *testing.T) {
 	setup := setupTestVerifier(t)
 	ensurer := fakePlatformUserEnsurer{user: auth.User{ID: "user-1"}}
-	mw := authMiddleware(setup.verifier, ensurer, false, admin.NoopLogger{})
+	mw := authMiddleware(setup.verifier, ensurer, false, nil, admin.NoopLogger{})
 
 	otherKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 
@@ -236,7 +236,7 @@ func TestAuthMiddleware_DevBypass(t *testing.T) {
 	ensurer := fakePlatformUserEnsurer{user: devUser}
 
 	// 1. With devBypass=true, mock-dev-token succeeds
-	devMW := authMiddleware(setup.verifier, ensurer, true, admin.NoopLogger{})
+	devMW := authMiddleware(setup.verifier, ensurer, true, nil, admin.NoopLogger{})
 	req := httptest.NewRequest(http.MethodGet, "/api/words/lookup", nil)
 	req.Header.Set("Authorization", "Bearer mock-dev-token")
 	rec := httptest.NewRecorder()
@@ -254,7 +254,7 @@ func TestAuthMiddleware_DevBypass(t *testing.T) {
 	}
 
 	// 2. With devBypass=false (production), mock-dev-token is rejected
-	prodMW := authMiddleware(setup.verifier, ensurer, false, admin.NoopLogger{})
+	prodMW := authMiddleware(setup.verifier, ensurer, false, nil, admin.NoopLogger{})
 	req2 := httptest.NewRequest(http.MethodGet, "/api/words/lookup", nil)
 	req2.Header.Set("Authorization", "Bearer mock-dev-token")
 	rec2 := httptest.NewRecorder()
@@ -265,5 +265,73 @@ func TestAuthMiddleware_DevBypass(t *testing.T) {
 
 	if rec2.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for prod with mock-dev-token, got %d", rec2.Code)
+	}
+}
+
+func TestAuthMiddleware_CookieGatewayConfirmation(t *testing.T) {
+	setup := setupTestVerifier(t)
+	expectedUser := auth.User{
+		ID:    "cookie-user-1234",
+		Email: "cookie@project-pn.local",
+	}
+	ensurer := fakePlatformUserEnsurer{user: expectedUser}
+
+	tokenStr := mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "cookie-sub-1234", "Bearer", "JWT", time.Now().Add(10*time.Minute), nil)
+
+	mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("PLATFORM_SESSION")
+		if err != nil || cookie.Value != "valid-cookie" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Authorization", "Bearer "+tokenStr)
+		w.Header().Set("X-User-Subject", "cookie-sub-1234")
+		w.Header().Set("X-User-Issuer", setup.cfg.Issuer)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockGateway.Close()
+
+	gatewayClient := auth.NewGatewayClient(mockGateway.URL, auth.SignInShared, mockGateway.Client())
+	mw := authMiddleware(setup.verifier, ensurer, false, gatewayClient, admin.NoopLogger{})
+
+	// 1. Valid cookie succeeds and injects user
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req.Host = "pn.example.com"
+	req.AddCookie(&http.Cookie{Name: "PLATFORM_SESSION", Value: "valid-cookie"})
+	rec := httptest.NewRecorder()
+
+	var capturedSession authSession
+	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := userFromContext(r.Context())
+		if !ok || u.ID != expectedUser.ID {
+			t.Fatalf("expected user %s, got %+v", expectedUser.ID, u)
+		}
+		s, sOk := authSessionFromContext(r.Context())
+		if !sOk {
+			t.Fatal("expected authSession in context")
+		}
+		capturedSession = s
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for valid cookie, got %d", rec.Code)
+	}
+	if capturedSession.method != authMethodCookie {
+		t.Fatalf("expected session method cookie, got %v", capturedSession.method)
+	}
+
+	// 2. Invalid cookie is rejected with 401
+	badReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	badReq.Host = "pn.example.com"
+	badReq.AddCookie(&http.Cookie{Name: "PLATFORM_SESSION", Value: "bad-cookie"})
+	badRec := httptest.NewRecorder()
+
+	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler must not be called on bad cookie")
+	})).ServeHTTP(badRec, badReq)
+
+	if badRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for bad cookie, got %d", badRec.Code)
 	}
 }

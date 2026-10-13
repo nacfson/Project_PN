@@ -129,6 +129,11 @@ func main() {
 		)
 	}
 
+	var gatewayClient *auth.GatewayClient
+	if cfg.GatewayAuthURL != "" {
+		gatewayClient = auth.NewGatewayClient(cfg.GatewayAuthURL, cfg.SignIn, nil)
+	}
+
 	authService := auth.New(pool, auth.Options{
 		DefaultDefinitionLang:  cfg.DefaultDefinitionLang,
 		DefaultTargetLang:      cfg.DefaultTargetLang,
@@ -151,6 +156,7 @@ func main() {
 			JWTVerifier:      jwtVerifier,
 			AuthDevBypass:    cfg.AuthDevBypass,
 			CentralAuth:      centralAuth,
+			Gateway:          gatewayClient,
 			AllowedOrigins:   cfg.AllowedOrigins,
 			AdminLogger:      adminLogger,
 			MetricsCollector: metricsCollector,

@@ -13,12 +13,30 @@ type platformUserEnsurer interface {
 	EnsurePlatformUser(ctx context.Context, issuer, subject, email, signInMethod string) (auth.AuthResult, error)
 }
 
-func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypass bool, logger admin.Logger) func(http.Handler) http.Handler {
+func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypass bool, gateway *auth.GatewayClient, logger admin.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			discardClientIdentityHeaders(r)
 
+			sessionMethod := authMethodBearer
 			token := bearerToken(r)
+			if token == "" {
+				if gateway != nil && gateway.SignInMode() == auth.SignInShared && len(r.Cookies()) > 0 {
+					ident, err := gateway.ConfirmIdentity(r.Context(), r.Host, r.Cookies())
+					if err != nil {
+						if logger != nil {
+							logger.Logf("AUTH_FAILURE", "gateway confirmation error from %s: %v", r.RemoteAddr, err)
+						}
+						writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+						return
+					}
+					if ident != nil && ident.Token != "" {
+						token = ident.Token
+						sessionMethod = authMethodCookie
+					}
+				}
+			}
+
 			if token == "" {
 				writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
 				return
@@ -77,7 +95,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 			}
 
 			credentials := authSession{
-				method:     authMethodBearer,
+				method:     sessionMethod,
 				credential: token,
 			}
 			ctx := withAuthSession(r.Context(), credentials)
@@ -87,13 +105,13 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 	}
 }
 
-// optionalAuthMiddleware attaches an API-verified actor if a Bearer credential exists.
-func optionalAuthMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypass bool, logger admin.Logger) func(http.Handler) http.Handler {
-	required := authMiddleware(verifier, svc, devBypass, logger)
+// optionalAuthMiddleware attaches an API-verified actor if a Bearer credential or session cookie exists.
+func optionalAuthMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypass bool, gateway *auth.GatewayClient, logger admin.Logger) func(http.Handler) http.Handler {
+	required := authMiddleware(verifier, svc, devBypass, gateway, logger)
 	return func(next http.Handler) http.Handler {
 		protected := required(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if bearerToken(r) != "" {
+			if bearerToken(r) != "" || (gateway != nil && len(r.Cookies()) > 0) {
 				protected.ServeHTTP(w, r)
 				return
 			}

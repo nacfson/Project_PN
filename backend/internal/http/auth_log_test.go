@@ -17,7 +17,7 @@ func TestAuthMiddlewareLogsValidationFailure(t *testing.T) {
 		Audience: "project-pn",
 	})
 	logger := &fakeLogger{}
-	mw := authMiddleware(verifier, nil, false, logger)
+	mw := authMiddleware(verifier, nil, false, nil, logger)
 
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
