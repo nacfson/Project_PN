@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Implementation Plan: 003-bff-session-handle-auth (Spec 009 BFF Auth)</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --heading: #f0f6fc;
+      --primary: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --code-bg: #090d13;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 32px 20px;
+    }
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    h1, h2, h3, h4 {
+      color: var(--heading);
+      font-weight: 600;
+    }
+    h1 {
+      font-size: 2.1rem;
+      margin-bottom: 8px;
+    }
+    .meta-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .badge {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+    }
+    .badge-primary { background: rgba(88, 166, 255, 0.15); color: var(--primary); border: 1px solid rgba(88, 166, 255, 0.3); }
+    .badge-success { background: rgba(63, 185, 80, 0.15); color: var(--success); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-warning { background: rgba(210, 153, 34, 0.15); color: var(--warning); border: 1px solid rgba(210, 153, 34, 0.3); }
+    .badge-danger { background: rgba(248, 81, 73, 0.15); color: var(--danger); border: 1px solid rgba(248, 81, 73, 0.3); }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: var(--heading);
+    }
+    pre, code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+    code {
+      background-color: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #79c0ff;
+    }
+    pre {
+      background-color: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+    .diff-del {
+      background-color: rgba(248, 81, 73, 0.15);
+      color: #ff7b72;
+      display: block;
+    }
+    .diff-add {
+      background-color: rgba(63, 185, 80, 0.15);
+      color: #7ee787;
+      display: block;
+    }
+    .diagram-container {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Implementation Plan: 4-Layer Cookie-Free BFF &amp; Sealed Session Handle Auth</h1>
+      <p>Feature <code>003-bff-session-handle-auth</code> — Aligning Project PN with <code>nacfson_pipeline</code> Spec 009 (PR #40)</p>
+      <div class="meta-badges">
+        <span class="badge badge-primary">Feature: 003-bff-session-handle-auth</span>
+        <span class="badge badge-success">Constitution Check: PASS</span>
+        <span class="badge badge-warning">Security Gates: CWE-352 / CWE-384 / CWE-770 / Gitleaks</span>
+        <span class="badge badge-primary">Zero DB Migrations</span>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>1. Architecture &amp; Sequence Diagram</h2>
+      <p>Replaces cross-subdomain <code>PLATFORM_SESSION</code> browser cookies with a host-scoped BFF handshake and Vault-sealed <code>v1.&lt;session_handle&gt;</code> Bearer credentials.</p>
+      <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant FE as Project PN Frontend<br/>(pn.nacfson.cloud)
+    participant BE as Project PN Backend<br/>(/api/auth/*)
+    participant GW as Platform Gateway &amp; Keycloak<br/>(auth.nacfson.cloud / gateway.identity.svc:8080)
+
+    FE->>BE: GET /api/auth/login
+    Note over BE: Generate 16B hex nonce<br/>Set __Host-pa_nonce (10m, HttpOnly, Secure, Lax)<br/>pa_bind = base64url(sha256(nonce))
+    BE-->>FE: 302 Redirect -> https://auth.nacfson.cloud/oauth/start?return=.../api/auth/callback?pa_bind=...
+    FE->>GW: GET /oauth/start (Headless Google OIDC)
+    GW-->>FE: 302 Redirect -> /api/auth/callback?pa_bind=...&amp;ticket=v1.&lt;ticket&gt;
+    FE->>BE: GET /api/auth/callback?pa_bind=...&amp;ticket=v1.&lt;ticket&gt;
+    Note over BE: ConstantTimeCompare(__Host-pa_nonce, pa_bind)<br/>Clear __Host-pa_nonce (MaxAge: -1)
+    BE->>GW: POST http://gateway.identity.svc:8080/auth/exchange {"ticket": "v1..."}
+    GW-->>BE: 200 OK {"session_handle": "v1...", "subject", "issuer", "audience": "project-pn"}
+    BE->>GW: GET http://gateway.identity.svc:8080/auth (Authorization: Bearer v1...)
+    GW-->>BE: 200 OK (Authorization: Bearer &lt;keycloak-jwt&gt;)
+    Note over BE: EnsurePlatformUser(issuer, subject, email, "google")<br/>Store 32-char hex pickup code (30s TTL)
+    BE-->>FE: 302 Redirect -> https://pn.nacfson.cloud/?code=&lt;32-char-hex&gt;
+    Note over FE: Scrub ?code= via history.replaceState
+    FE->>BE: POST /api/auth/session {"code": "&lt;32-char-hex&gt;"} (MaxBytesReader 4KB)
+    Note over BE: Atomic lookup + delete pickup code
+    BE-->>FE: 200 OK {"token": "v1.&lt;session_handle&gt;", "refresh_token": "v1...", "expires_at": "..."}
+    FE->>BE: Protected API Request (Authorization: Bearer v1.&lt;session_handle&gt;)
+    BE->>GW: GET http://gateway.identity.svc:8080/auth (Bearer v1.&lt;session_handle&gt;)
+    GW-->>BE: 200 OK (Bearer &lt;keycloak-jwt&gt; + optional X-Refreshed-Session-Handle)
+    Note over BE: JWTVerifier.Verify(&lt;keycloak-jwt&gt;) + preserve v1. handle in authSession
+    BE-->>FE: 200 OK (+ optional X-Refreshed-Session-Handle)
+        </pre>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Scope Breakdown by File</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Layer</th>
+            <th>Planned Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>backend/internal/auth/gateway_client.go</code></td>
+            <td>Backend Auth</td>
+            <td>Add <code>ExchangeResponse</code>, <code>ConfirmSessionHandle(ctx, host, sessionHandle)</code>, <code>ExchangeTicket(ctx, host, ticket)</code>, and <code>LogoutSessionHandle(ctx, sessionHandle)</code>.</td>
+          </tr>
+          <tr>
+            <td><code>backend/internal/http/auth_middleware.go</code></td>
+            <td>Backend HTTP</td>
+            <td>Detect <code>Bearer v1.&lt;session_handle&gt;</code>, call <code>gateway.ConfirmSessionHandle</code>, set <code>X-Refreshed-Session-Handle</code> when present, pass underlying Keycloak JWT to <code>verifier.Verify</code>, and retain original <code>v1.</code> handle in <code>authSession</code>.</td>
+          </tr>
+          <tr>
+            <td><code>backend/internal/http/auth_handler.go</code></td>
+            <td>Backend HTTP</td>
+            <td>Implement <code>GET /api/auth/login</code>, <code>GET /api/auth/callback</code>, <code>POST /api/auth/session</code> (with 30s single-use pickup store and 4KB <code>http.MaxBytesReader</code>), and update <code>centralLogout</code> to call <code>gateway.LogoutSessionHandle</code> for <code>v1.</code> credentials.</td>
+          </tr>
+          <tr>
+            <td><code>backend/internal/http/router.go</code> &amp; <code>backend/cmd/api/main.go</code></td>
+            <td>Backend Wiring</td>
+            <td>Add <code>PublicAppURL</code> and <code>CentralAuthURL</code> / <code>AuthJWTIssuer</code> origin plumbing to <code>Dependencies</code>; mount unauthenticated <code>/login</code>, <code>/callback</code>, and <code>/session</code> under <code>/api/auth</code>.</td>
+          </tr>
+          <tr>
+            <td><code>frontend/src/screens/CentralAuthScreen.tsx</code></td>
+            <td>Frontend UI</td>
+            <td>Update browser web <code>handleSignIn()</code> to navigate to <code>${API_BASE_URL}/api/auth/login</code>.</td>
+          </tr>
+          <tr>
+            <td><code>frontend/src/utils/authLaunch.ts</code></td>
+            <td>Frontend Auth</td>
+            <td>Update <code>parseSessionFromLaunchUrl()</code> on browser web to detect <code>?code=</code>, scrub URL via <code>window.history.replaceState</code>, and exchange via <code>POST ${API_BASE_URL}/api/auth/session</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>3. Key Code Diffs</h2>
+
+      <h3>3.1 <code>backend/internal/http/auth_middleware.go</code> — Unwrapping <code>Bearer v1.&lt;session_handle&gt;</code></h3>
+      <pre><code><span class="diff-del">-			token := bearerToken(r)</span>
+<span class="diff-add">+			rawToken := bearerToken(r)</span>
+<span class="diff-add">+			token := rawToken</span>
+<span class="diff-add">+			if strings.HasPrefix(rawToken, "v1.") {</span>
+<span class="diff-add">+				if gateway == nil {</span>
+<span class="diff-add">+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)</span>
+<span class="diff-add">+					return</span>
+<span class="diff-add">+				}</span>
+<span class="diff-add">+				ident, refreshedHandle, err := gateway.ConfirmSessionHandle(r.Context(), r.Host, rawToken)</span>
+<span class="diff-add">+				if err != nil || ident == nil || ident.Token == "" {</span>
+<span class="diff-add">+					if logger != nil &amp;&amp; err != nil {</span>
+<span class="diff-add">+						logger.Logf("AUTH_FAILURE", "gateway session handle confirmation failed from %s: %v", r.RemoteAddr, err)</span>
+<span class="diff-add">+					}</span>
+<span class="diff-add">+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)</span>
+<span class="diff-add">+					return</span>
+<span class="diff-add">+				}</span>
+<span class="diff-add">+				if refreshedHandle != "" {</span>
+<span class="diff-add">+					w.Header().Set("X-Refreshed-Session-Handle", refreshedHandle)</span>
+<span class="diff-add">+				}</span>
+<span class="diff-add">+				token = ident.Token</span>
+<span class="diff-add">+			}</span>
+...
+			credentials := authSession{
+				method:     sessionMethod,
+<span class="diff-del">-				credential: token,</span>
+<span class="diff-add">+				credential: rawCredentialOrToken(rawToken, token),</span>
+			}</code></pre>
+
+      <h3>3.2 <code>backend/internal/http/auth_handler.go</code> — BFF Endpoints &amp; Security Controls</h3>
+      <pre><code><span class="diff-add">+func (h *authHandler) session(w http.ResponseWriter, r *http.Request) {</span>
+<span class="diff-add">+	r.Body = http.MaxBytesReader(w, r.Body, 4&lt;&lt;10)</span>
+<span class="diff-add">+	var body struct {</span>
+<span class="diff-add">+		Code string `json:"code"`</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	if err := json.NewDecoder(r.Body).Decode(&amp;body); err != nil || len(strings.TrimSpace(body.Code)) != 32 {</span>
+<span class="diff-add">+		writeError(w, http.StatusBadRequest, "invalid pickup code")</span>
+<span class="diff-add">+		return</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	entry, ok := h.consumePickupCode(strings.TrimSpace(body.Code))</span>
+<span class="diff-add">+	if !ok {</span>
+<span class="diff-add">+		writeError(w, http.StatusUnauthorized, "unauthorized")</span>
+<span class="diff-add">+		return</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	writeJSON(w, http.StatusOK, refreshResponse{</span>
+<span class="diff-add">+		Token:        entry.SessionHandle,</span>
+<span class="diff-add">+		RefreshToken: entry.SessionHandle,</span>
+<span class="diff-add">+		ExpiresAt:    entry.SessionExpiresAt,</span>
+<span class="diff-add">+	})</span>
+<span class="diff-add">+}</span></code></pre>
+
+      <h3>3.3 <code>frontend/src/screens/CentralAuthScreen.tsx</code> &amp; <code>frontend/src/utils/authLaunch.ts</code></h3>
+      <pre><code>// CentralAuthScreen.tsx
+       if (browserWeb) {
+<span class="diff-del">-        const authHost = process.env.EXPO_PUBLIC_AUTH_HOST || 'https://auth.nacfson.cloud';</span>
+<span class="diff-del">-        const returnUrl = encodeURIComponent(`${window.location.origin}/`);</span>
+<span class="diff-del">-        window.location.href = `${authHost}/oauth/start?return=${returnUrl}`;</span>
+<span class="diff-add">+        window.location.href = `${API_BASE_URL}/api/auth/login`;</span>
+       }
+
+// authLaunch.ts
+     if (isBrowserWeb()) {
+<span class="diff-del">-      return null;</span>
+<span class="diff-add">+      const params = new URLSearchParams(window.location.search);</span>
+<span class="diff-add">+      const code = params.get('code');</span>
+<span class="diff-add">+      if (!code) return null;</span>
+<span class="diff-add">+      params.delete('code');</span>
+<span class="diff-add">+      const search = params.toString();</span>
+<span class="diff-add">+      const cleanUrl = `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`;</span>
+<span class="diff-add">+      window.history.replaceState({}, document.title, cleanUrl);</span>
+<span class="diff-add">+      const resp = await fetch(`${API_BASE_URL}/api/auth/session`, {</span>
+<span class="diff-add">+        method: 'POST',</span>
+<span class="diff-add">+        headers: { 'Content-Type': 'application/json' },</span>
+<span class="diff-add">+        body: JSON.stringify({ code }),</span>
+<span class="diff-add">+      });</span>
+<span class="diff-add">+      if (!resp.ok) return null;</span>
+<span class="diff-add">+      return (await resp.json()) as SessionResponse;</span>
+     }</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>4. Security Audit &amp; Automated Verification Steps</h2>
+      <ul>
+        <li><strong>CWE-770 (Bounded Body)</strong>: <code>POST /api/auth/session</code> wraps <code>r.Body</code> with <code>http.MaxBytesReader(w, r.Body, 4&lt;&lt;10)</code> and requires <code>len(code) == 32</code>.</li>
+        <li><strong>CWE-352 (Login CSRF Binding)</strong>: <code>GET /api/auth/login</code> sets <code>__Host-pa_nonce</code> and binds <code>pa_bind</code> SHA-256 base64url digest; <code>GET /api/auth/callback</code> verifies using <code>subtle.ConstantTimeCompare</code>.</li>
+        <li><strong>CWE-384 (Single-Use 30s Pickup Code)</strong>: Atomic lookup + deletion + TTL eviction under <code>sync.Mutex</code>.</li>
+        <li><strong>Gitleaks Compliance</strong>: All test JWTs constructed dynamically via <code>base64.RawURLEncoding.EncodeToString</code> / <code>jwx</code>.</li>
+      </ul>
+      <pre><code># 1. Serial Backend Tests
+cd backend &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; GOTOOLCHAIN=go1.26.0 go test -p 1 ./...
+
+# 2. Frontend Unit Tests &amp; Add-Screen Invariant
+npm test -w frontend -- --watchAll=false
+npm test -w frontend -- --testPathPattern=AddScreen --watchAll=false
+
+# 3. Typechecks
+npm run typecheck -w frontend &amp;&amp; npm run typecheck -w packages/api</code></pre>
+    </section>
+  </div>
+</body>
+</html>

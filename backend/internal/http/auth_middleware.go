@@ -19,8 +19,32 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 			discardClientIdentityHeaders(r)
 
 			sessionMethod := authMethodBearer
-			token := bearerToken(r)
-			if token == "" {
+			rawBearer := bearerToken(r)
+			token := rawBearer
+			sessionCredential := rawBearer
+
+			if strings.HasPrefix(rawBearer, "v1.") {
+				if gateway == nil {
+					if logger != nil {
+						logger.Logf("AUTH_FAILURE", "gateway unconfigured for v1 session handle from %s", r.RemoteAddr)
+					}
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+					return
+				}
+				ident, refreshedHandle, err := gateway.ConfirmSessionHandle(r.Context(), r.Host, rawBearer)
+				if err != nil || ident == nil || ident.Token == "" {
+					if logger != nil && err != nil {
+						logger.Logf("AUTH_FAILURE", "gateway session handle confirmation failed from %s: %v", r.RemoteAddr, err)
+					}
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+					return
+				}
+				if refreshedHandle != "" {
+					w.Header().Set("X-Refreshed-Session-Handle", refreshedHandle)
+				}
+				token = ident.Token
+				sessionCredential = rawBearer
+			} else if token == "" {
 				if gateway != nil && gateway.SignInMode() == auth.SignInShared && len(r.Cookies()) > 0 {
 					ident, err := gateway.ConfirmIdentity(r.Context(), r.Host, r.Cookies())
 					if err != nil {
@@ -32,6 +56,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 					}
 					if ident != nil && ident.Token != "" {
 						token = ident.Token
+						sessionCredential = ident.Token
 						sessionMethod = authMethodCookie
 					}
 				}
@@ -96,7 +121,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 
 			credentials := authSession{
 				method:     sessionMethod,
-				credential: token,
+				credential: sessionCredential,
 			}
 			ctx := withAuthSession(r.Context(), credentials)
 			ctx = withAuthResult(ctx, authResult)

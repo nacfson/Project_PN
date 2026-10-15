@@ -335,3 +335,75 @@ func TestAuthMiddleware_CookieGatewayConfirmation(t *testing.T) {
 		t.Fatalf("expected 401 for bad cookie, got %d", badRec.Code)
 	}
 }
+
+func TestAuthMiddleware_BearerV1SessionHandle(t *testing.T) {
+	setup := setupTestVerifier(t)
+	expectedUser := auth.User{
+		ID:    "v1-user-1234",
+		Email: "v1@project-pn.local",
+	}
+	ensurer := fakePlatformUserEnsurer{user: expectedUser}
+
+	tokenStr := mintTokenForMiddleware(t, setup, setup.cfg.Issuer, setup.cfg.Audience, "v1-sub-1234", "Bearer", "JWT", time.Now().Add(10*time.Minute), nil)
+
+	mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer v1.valid-handle" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Authorization", "Bearer "+tokenStr)
+		w.Header().Set("X-User-Subject", "v1-sub-1234")
+		w.Header().Set("X-User-Issuer", setup.cfg.Issuer)
+		w.Header().Set("X-Refreshed-Session-Handle", "v1.rotated-handle")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockGateway.Close()
+
+	gatewayClient := auth.NewGatewayClient(mockGateway.URL, auth.SignInShared, mockGateway.Client())
+	mw := authMiddleware(setup.verifier, ensurer, false, gatewayClient, admin.NoopLogger{})
+
+	// 1. Valid Bearer v1.<session_handle> confirms via gateway, verifies JWT, sets X-Refreshed-Session-Handle, and preserves v1. credential in authSession
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req.Host = "pn.nacfson.cloud"
+	req.Header.Set("Authorization", "Bearer v1.valid-handle")
+	rec := httptest.NewRecorder()
+
+	var capturedSession authSession
+	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := userFromContext(r.Context())
+		if !ok || u.ID != expectedUser.ID {
+			t.Fatalf("expected user %s, got %+v", expectedUser.ID, u)
+		}
+		s, sOk := authSessionFromContext(r.Context())
+		if !sOk {
+			t.Fatal("expected authSession in context")
+		}
+		capturedSession = s
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for valid v1 handle, got %d", rec.Code)
+	}
+	if rec.Header().Get("X-Refreshed-Session-Handle") != "v1.rotated-handle" {
+		t.Fatalf("expected X-Refreshed-Session-Handle 'v1.rotated-handle', got %q", rec.Header().Get("X-Refreshed-Session-Handle"))
+	}
+	if capturedSession.credential != "v1.valid-handle" {
+		t.Fatalf("expected preserved credential 'v1.valid-handle', got %q", capturedSession.credential)
+	}
+
+	// 2. Invalid Bearer v1.<session_handle> is rejected with 401
+	badReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	badReq.Host = "pn.nacfson.cloud"
+	badReq.Header.Set("Authorization", "Bearer v1.invalid-handle")
+	badRec := httptest.NewRecorder()
+
+	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler must not be called on invalid v1 handle")
+	})).ServeHTTP(badRec, badReq)
+
+	if badRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for invalid v1 handle, got %d", badRec.Code)
+	}
+}
+
