@@ -405,5 +405,18 @@ func TestAuthMiddleware_BearerV1SessionHandle(t *testing.T) {
 	if badRec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for invalid v1 handle, got %d", badRec.Code)
 	}
+
+	// 3. Zero-config project mode: v1 session handle succeeds even when verifier is nil (no JWKS URL)
+	zeroConfigMW := authMiddleware(nil, ensurer, false, gatewayClient, admin.NoopLogger{})
+	reqZero := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	reqZero.Host = "pn.nacfson.cloud"
+	reqZero.Header.Set("Authorization", "Bearer v1.valid-handle")
+	recZero := httptest.NewRecorder()
+	zeroConfigMW(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})).ServeHTTP(recZero, reqZero)
+	if recZero.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK with nil verifier when Gateway confirms v1 handle, got %d", recZero.Code)
+	}
 }
 

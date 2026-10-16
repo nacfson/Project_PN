@@ -284,3 +284,26 @@ func TestGatewayClient_LogoutSessionHandle(t *testing.T) {
 	}
 }
 
+func TestNormalizeGatewayHost_MainDomainRule(t *testing.T) {
+	cases := []struct {
+		raw      string
+		expected string
+	}{
+		{"", "pn.nacfson.cloud"},
+		{"localhost:8080", "pn.nacfson.cloud"},
+		{"127.0.0.1:8080", "pn.nacfson.cloud"},
+		{"pn-backend", "pn.nacfson.cloud"},
+		{"pn-backend:8080", "pn.nacfson.cloud"},
+		{"pn-backend.proj-pn.svc:8080", "pn.nacfson.cloud"},
+		{"pn-backend.proj-pn.svc.cluster.local:8080", "pn.nacfson.cloud"},
+		{"pn.nacfson.cloud:443", "pn.nacfson.cloud"},
+		{"pn.example.com:8080", "pn.example.com"},
+	}
+	for _, tc := range cases {
+		if got := normalizeGatewayHost(tc.raw); got != tc.expected {
+			t.Errorf("normalizeGatewayHost(%q) = %q, want %q", tc.raw, got, tc.expected)
+		}
+	}
+}
+
+

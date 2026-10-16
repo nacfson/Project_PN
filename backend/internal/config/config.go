@@ -120,7 +120,7 @@ func Load() Config {
 
 	jwtIssuer := strings.TrimRight(strings.TrimSpace(envOrDefault("AUTH_JWT_ISSUER", "https://auth.nacfson.cloud/realms/platform")), "/")
 	jwtAudience := strings.TrimSpace(envOrDefault("AUTH_JWT_AUDIENCE", "project-pn"))
-	jwtJWKSURL := strings.TrimSpace(envOrDefault("AUTH_JWT_JWKS_URL", "http://keycloak-service.identity.svc:8080/realms/platform/protocol/openid-connect/certs"))
+	jwtJWKSURL := strings.TrimSpace(os.Getenv("AUTH_JWT_JWKS_URL"))
 	allowedAlgs := splitAndTrim(envOrDefault("AUTH_JWT_ALLOWED_ALGS", "RS256"))
 	if len(allowedAlgs) == 0 {
 		allowedAlgs = []string{"RS256"}

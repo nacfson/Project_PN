@@ -115,10 +115,13 @@ func normalizeGatewayHost(host string) string {
 		}
 	}
 	h = strings.TrimSpace(strings.ToLower(h))
-	if h == "" || h == "localhost" || h == "127.0.0.1" || h == "example.com" {
+	if h == "" || h == "localhost" || h == "127.0.0.1" || h == "example.com" ||
+		!strings.Contains(h, ".") || strings.HasSuffix(h, ".svc") ||
+		strings.HasSuffix(h, ".cluster.local") || strings.HasPrefix(h, "pn-backend") ||
+		strings.HasPrefix(h, "pn-frontend") {
 		return "pn.nacfson.cloud"
 	}
-	return host
+	return h
 }
 
 // ConfirmIdentity asks the gateway over the cluster network at http://gateway.identity.svc:8080/auth
@@ -136,12 +139,13 @@ func (c *GatewayClient) ConfirmIdentity(ctx context.Context, host string, cookie
 		return nil, nil
 	}
 
+	effectiveHost := normalizeGatewayHost(host)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.gatewayURL, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("X-Forwarded-Host", host)
+	req.Header.Set("X-Forwarded-Host", effectiveHost)
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
 	}
@@ -158,7 +162,7 @@ func (c *GatewayClient) ConfirmIdentity(ctx context.Context, host string, cookie
 		return nil, nil
 	}
 
-	ident, _, err := parseConfirmedIdentityResponse(resp, host)
+	ident, _, err := parseConfirmedIdentityResponse(resp, effectiveHost)
 	return ident, err
 }
 
@@ -277,8 +281,10 @@ func (c *GatewayClient) LogoutSessionHandle(ctx context.Context, sessionHandle s
 
 func parseConfirmedIdentityResponse(resp *http.Response, host string) (*ConfirmedIdentity, string, error) {
 	authHeader := resp.Header.Get("Authorization")
-	subject := resp.Header.Get("X-User-Subject")
-	issuer := resp.Header.Get("X-User-Issuer")
+	subject := strings.TrimSpace(resp.Header.Get("X-User-Subject"))
+	issuer := strings.TrimSpace(resp.Header.Get("X-User-Issuer"))
+	emailHeader := strings.TrimSpace(resp.Header.Get("X-User-Email"))
+	audienceHeader := strings.TrimSpace(resp.Header.Get("X-Project-Audience"))
 	refreshedHandle := strings.TrimSpace(resp.Header.Get("X-Refreshed-Session-Handle"))
 
 	if !strings.HasPrefix(authHeader, "Bearer ") {
@@ -311,13 +317,12 @@ func parseConfirmedIdentityResponse(resp *http.Response, host string) (*Confirme
 		return nil, "", nil
 	}
 
-	// Audience check
-	if !claims.matchesAudience(expectedAudience) {
-		return nil, "", nil
-	}
-
-	// Issuer check
-	if issuer != "" && claims.Issuer != "" && claims.Issuer != issuer {
+	// Audience check: trust the Gateway verified X-Project-Audience header, or fall back to JWT aud claim
+	if audienceHeader != "" {
+		if audienceHeader != expectedAudience {
+			return nil, "", nil
+		}
+	} else if !claims.matchesAudience(expectedAudience) {
 		return nil, "", nil
 	}
 
@@ -326,24 +331,29 @@ func parseConfirmedIdentityResponse(resp *http.Response, host string) (*Confirme
 		return nil, "", nil
 	}
 
-	sub := claims.Subject
+	sub := subject
 	if sub == "" {
-		sub = subject
+		sub = claims.Subject
 	}
-	iss := claims.Issuer
+	iss := issuer
 	if iss == "" {
-		iss = issuer
+		iss = claims.Issuer
 	}
 
 	if sub == "" {
 		return nil, "", errors.New("empty subject in confirmed identity")
 	}
 
+	email := emailHeader
+	if email == "" {
+		email = strings.TrimSpace(claims.Email)
+	}
+
 	return &ConfirmedIdentity{
 		Subject:  sub,
 		Issuer:   iss,
 		Audience: expectedAudience,
-		Email:    strings.TrimSpace(claims.Email),
+		Email:    email,
 		Token:    token,
 	}, refreshedHandle, nil
 }

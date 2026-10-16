@@ -197,11 +197,6 @@ func (h *authHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := ident.Email
-	if h.verifier != nil && ident.Token != "" {
-		if claims, verifyErr := h.verifier.Verify(r.Context(), ident.Token); verifyErr == nil && claims.Email != "" {
-			email = claims.Email
-		}
-	}
 
 	if _, err := h.svc.EnsurePlatformUser(r.Context(), exch.Issuer, exch.Subject, email, "google"); err != nil {
 		if h.logger != nil {
@@ -230,6 +225,17 @@ func (h *authHandler) callback(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:        now.Add(pickupCodeTTL),
 	}, now)
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.CentralSessionCookieName,
+		Value:    exch.SessionHandle,
+		Path:     "/",
+		MaxAge:   int(expiresIn.Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	_, _ = ensureCSRFToken(w, r)
+
 	http.Redirect(w, r, fmt.Sprintf("%s/?code=%s", h.publicAppURL, code), http.StatusFound)
 }
 
@@ -246,11 +252,27 @@ func (h *authHandler) session(w http.ResponseWriter, r *http.Request) {
 	}
 
 	code := strings.TrimSpace(body.Code)
-	entry, ok := h.consumePickupCode(code, time.Now().UTC())
+	now := time.Now().UTC()
+	entry, ok := h.consumePickupCode(code, now)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+
+	maxAge := int(entry.SessionExpiresAt.Sub(now).Seconds())
+	if maxAge <= 0 {
+		maxAge = 8 * 3600
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.CentralSessionCookieName,
+		Value:    entry.SessionHandle,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	_, _ = ensureCSRFToken(w, r)
 
 	writeJSON(w, http.StatusOK, refreshResponse{
 		Token:        entry.SessionHandle,
@@ -357,6 +379,17 @@ func centralLogout(central *auth.CentralClient, logger admin.Logger, gateways ..
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
+			http.SetCookie(w, &http.Cookie{
+				Name:     auth.CentralSessionCookieName,
+				Value:    "",
+				Path:     "/",
+				Expires:  time.Unix(1, 0),
+				MaxAge:   -1,
+				Secure:   true,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+			})
+			clearCentralSessionCookie(w, r)
 			if logger != nil {
 				logger.Logf("AUTH", "logout from %s", r.RemoteAddr)
 			}
