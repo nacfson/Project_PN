@@ -48,7 +48,7 @@ function ThemeProbe() {
 }
 
 async function renderTheme() {
-  const result = render(
+  const result = await render(
     <ThemeProvider>
       <ThemeProbe />
     </ThemeProvider>,
@@ -84,9 +84,7 @@ describe('ThemeProvider mode/variation sync', () => {
   it('setMode(light) switches to bentoLight and light background', async () => {
     await renderTheme();
 
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('set-light'));
-    });
+    await fireEvent.press(screen.getByTestId('set-light'));
 
     expect(screen.getByTestId('mode').props.children).toBe('light');
     expect(screen.getByTestId('variation').props.children).toBe('bentoLight');
@@ -100,12 +98,8 @@ describe('ThemeProvider mode/variation sync', () => {
   it('setMode(dark) from light restores bentoIndigo by default', async () => {
     await renderTheme();
 
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('set-light'));
-    });
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('set-dark'));
-    });
+    await fireEvent.press(screen.getByTestId('set-light'));
+    await fireEvent.press(screen.getByTestId('set-dark'));
 
     expect(screen.getByTestId('mode').props.children).toBe('dark');
     expect(screen.getByTestId('variation').props.children).toBe('bentoIndigo');
@@ -117,9 +111,7 @@ describe('ThemeProvider mode/variation sync', () => {
   it('setVariation(bentoSunset) syncs mode to dark', async () => {
     await renderTheme();
 
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('set-sunset'));
-    });
+    await fireEvent.press(screen.getByTestId('set-sunset'));
 
     expect(screen.getByTestId('mode').props.children).toBe('dark');
     expect(screen.getByTestId('variation').props.children).toBe('bentoSunset');
@@ -133,9 +125,7 @@ describe('ThemeProvider mode/variation sync', () => {
   it('setVariation(bentoLight) syncs mode to light', async () => {
     await renderTheme();
 
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('set-light-var'));
-    });
+    await fireEvent.press(screen.getByTestId('set-light-var'));
 
     expect(screen.getByTestId('mode').props.children).toBe('light');
     expect(screen.getByTestId('variation').props.children).toBe('bentoLight');
@@ -144,17 +134,11 @@ describe('ThemeProvider mode/variation sync', () => {
   it('toggleMode light→dark restores last dark variation (sunset)', async () => {
     await renderTheme();
 
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('set-sunset'));
-    });
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('toggle'));
-    });
+    await fireEvent.press(screen.getByTestId('set-sunset'));
+    await fireEvent.press(screen.getByTestId('toggle'));
     expect(screen.getByTestId('variation').props.children).toBe('bentoLight');
 
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('toggle'));
-    });
+    await fireEvent.press(screen.getByTestId('toggle'));
 
     expect(screen.getByTestId('mode').props.children).toBe('dark');
     expect(screen.getByTestId('variation').props.children).toBe('bentoSunset');

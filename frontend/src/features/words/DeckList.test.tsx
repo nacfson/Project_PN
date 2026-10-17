@@ -53,7 +53,7 @@ describe('DeckList', () => {
       wrapper: Wrapper,
     });
 
-    fireEvent.press(screen.getByText('Verbs (5)'));
+    await fireEvent.press(screen.getByText('Verbs (5)'));
     expect(onSelect).toHaveBeenCalledWith('d2');
   });
 
@@ -63,7 +63,7 @@ describe('DeckList', () => {
       wrapper: Wrapper,
     });
 
-    fireEvent.press(screen.getByText('All decks (8)'));
+    await fireEvent.press(screen.getByText('All decks (8)'));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
@@ -73,7 +73,7 @@ describe('DeckList', () => {
       wrapper: Wrapper,
     });
 
-    fireEvent.press(screen.getByText('New deck'));
+    await fireEvent.press(screen.getByText('New deck'));
     expect(onCreate).toHaveBeenCalled();
   });
 
@@ -83,7 +83,7 @@ describe('DeckList', () => {
       wrapper: Wrapper,
     });
 
-    fireEvent.press(screen.getAllByLabelText('Rename deck')[0]);
+    await fireEvent.press(screen.getAllByLabelText('Rename deck')[0]);
     expect(onEdit).toHaveBeenCalledWith(decks[0]);
   });
 });

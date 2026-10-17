@@ -25,14 +25,10 @@ describe('ContextualCommandBar', () => {
       { wrapper: Wrapper },
     );
     const renameButton = screen.getByText('Rename');
-    await act(async () => {
-      fireEvent.press(renameButton);
-    });
+    await fireEvent.press(renameButton);
     expect(onRename).toHaveBeenCalled();
     const clearButton = screen.getByTestId('command-bar-clear');
-    await act(async () => {
-      fireEvent.press(clearButton);
-    });
+    await fireEvent.press(clearButton);
     expect(onClear).toHaveBeenCalled();
   });
 
@@ -55,9 +51,7 @@ describe('ContextualCommandBar', () => {
       { wrapper: Wrapper },
     );
     const deleteButton = screen.getByText('Delete');
-    await act(async () => {
-      fireEvent.press(deleteButton);
-    });
+    await fireEvent.press(deleteButton);
     expect(onPress).not.toHaveBeenCalled();
   });
 });

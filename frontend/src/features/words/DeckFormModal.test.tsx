@@ -22,7 +22,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 function pressByText(text: string) {
   const elements = screen.getAllByText(text);
-  fireEvent.press(elements[elements.length - 1]);
+  return fireEvent.press(elements[elements.length - 1]);
 }
 
 const deck = {
@@ -43,9 +43,9 @@ describe('DeckFormModal', () => {
       wrapper: Wrapper,
     });
 
-    fireEvent.changeText(screen.getByPlaceholderText('Deck name'), '  Nouns  ');
+    await fireEvent.changeText(screen.getByPlaceholderText('Deck name'), '  Nouns  ');
     await waitFor(() => expect(screen.getByDisplayValue('  Nouns  ')).toBeTruthy());
-    pressByText('New deck');
+    await pressByText('New deck');
 
     expect(onSubmit).toHaveBeenCalledWith('Nouns');
   });
@@ -58,7 +58,7 @@ describe('DeckFormModal', () => {
 
     const submitButtons = screen.getAllByText('New deck');
     expect(submitButtons[submitButtons.length - 1]).toBeDisabled();
-    fireEvent(screen.getByPlaceholderText('Deck name'), 'submitEditing');
+    await fireEvent(screen.getByPlaceholderText('Deck name'), 'submitEditing');
 
     await waitFor(() => expect(screen.getByText('Please enter a deck name.')).toBeTruthy());
     expect(onSubmit).not.toHaveBeenCalled();
@@ -86,10 +86,10 @@ describe('DeckFormModal', () => {
       { wrapper: Wrapper },
     );
 
-    fireEvent.press(screen.getByText('Delete deck'));
+    await fireEvent.press(screen.getByText('Delete deck'));
     await waitFor(() => expect(screen.getByText('Delete')).toBeTruthy());
 
-    fireEvent.press(screen.getByText('Delete'));
+    await fireEvent.press(screen.getByText('Delete'));
     expect(onDelete).toHaveBeenCalled();
   });
 

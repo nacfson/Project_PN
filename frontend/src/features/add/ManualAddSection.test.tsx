@@ -98,14 +98,14 @@ describe('ManualAddSection', () => {
     await renderSection();
 
     const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
-    fireEvent.changeText(wordInput, 'charge');
+    await fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 
     const contextInput = screen.getByPlaceholderText(/Optional sentence/);
-    fireEvent.changeText(contextInput, 'Charge the battery overnight.');
+    await fireEvent.changeText(contextInput, 'Charge the battery overnight.');
     await waitFor(() => expect(contextInput.props.value).toBe('Charge the battery overnight.'));
 
-    fireEvent.press(screen.getByText('Find my sense'));
+    await fireEvent.press(screen.getByText('Find my sense'));
 
     await waitFor(() => {
       expect(lookupWord).toHaveBeenCalledWith(
@@ -120,7 +120,7 @@ describe('ManualAddSection', () => {
     await waitFor(() => {
       expect(screen.getByText('to store energy')).toBeTruthy();
     });
-    fireEvent.press(screen.getByText('to store energy'));
+    await fireEvent.press(screen.getByText('to store energy'));
 
     await waitFor(() => {
       expect(addLearningItem).toHaveBeenCalledWith(
@@ -137,18 +137,18 @@ describe('ManualAddSection', () => {
     await renderSection();
 
     const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
-    fireEvent.changeText(wordInput, 'charge');
+    await fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 
     const noteInput = screen.getByPlaceholderText(/Optional gloss/);
-    fireEvent.changeText(noteInput, '충전하다');
+    await fireEvent.changeText(noteInput, '충전하다');
     await waitFor(() => expect(noteInput.props.value).toBe('충전하다'));
 
-    fireEvent.press(screen.getByText('Find my sense'));
+    await fireEvent.press(screen.getByText('Find my sense'));
     await waitFor(() => {
       expect(screen.getByText('to store energy')).toBeTruthy();
     });
-    fireEvent.press(screen.getByText('to store energy'));
+    await fireEvent.press(screen.getByText('to store energy'));
 
     await waitFor(() => {
       expect(addLearningItem).toHaveBeenCalledWith(
@@ -187,11 +187,11 @@ describe('ManualAddSection', () => {
     await renderSection();
 
     const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
-    fireEvent.changeText(wordInput, 'look up');
+    await fireEvent.changeText(wordInput, 'look up');
     await waitFor(() => expect(wordInput.props.value).toBe('look up'));
     await waitFor(() => expect(screen.getByText('phrase')).toBeTruthy());
 
-    fireEvent.press(screen.getByText('Find my sense'));
+    await fireEvent.press(screen.getByText('Find my sense'));
 
     await waitFor(() => {
       expect(lookupWord).toHaveBeenCalledWith(
@@ -208,11 +208,11 @@ describe('ManualAddSection', () => {
     await renderSection();
 
     const input = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
-    fireEvent.changeText(input, 'hello123');
+    await fireEvent.changeText(input, 'hello123');
     await waitFor(() => {
       expect(input.props.value).toBe('hello123');
     });
-    fireEvent(input, 'blur');
+    await fireEvent(input, 'blur');
     await waitFor(() => {
       expect(screen.getByText('Please enter a valid word or phrase.')).toBeTruthy();
     });

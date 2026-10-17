@@ -37,7 +37,7 @@ describe('CentralAuthScreen', () => {
 
       await render(<CentralAuthScreen />, { wrapper: Wrapper });
       const button = screen.getByText('Continue to Sign In');
-      fireEvent.press(button);
+      await fireEvent.press(button);
 
       expect(global.window.location.href).toBe(`${API_BASE_URL}/api/auth/login`);
     } finally {

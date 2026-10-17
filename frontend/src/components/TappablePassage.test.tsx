@@ -40,7 +40,7 @@ describe('TappablePassage', () => {
   it('selects a single word when phrase mode is off', async () => {
     const onToggleSpan = jest.fn();
     const view = await renderPassage({ onToggleSpan });
-    fireEvent.press(view.getByTestId('passage-word-0'));
+    await fireEvent.press(view.getByTestId('passage-word-0'));
     expect(onToggleSpan).toHaveBeenCalledWith({ start: 0, end: 0, text: 'look' });
   });
 
@@ -61,11 +61,11 @@ describe('TappablePassage', () => {
         </ThemeProvider>
       </AppLanguageProvider>,
     );
-    fireEvent.press(getByTestId('passage-word-0'));
+    await fireEvent.press(getByTestId('passage-word-0'));
     expect(onPhraseAnchor).toHaveBeenCalledWith(0);
     expect(onToggleSpan).not.toHaveBeenCalled();
 
-    rerender(
+    await rerender(
       <AppLanguageProvider>
         <ThemeProvider>
           <TappablePassage
@@ -79,7 +79,7 @@ describe('TappablePassage', () => {
         </ThemeProvider>
       </AppLanguageProvider>,
     );
-    fireEvent.press(getByTestId('passage-word-1'));
+    await fireEvent.press(getByTestId('passage-word-1'));
     expect(onToggleSpan).toHaveBeenCalledWith({ start: 0, end: 1, text: 'look up' });
   });
 });

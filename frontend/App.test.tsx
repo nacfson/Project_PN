@@ -51,7 +51,7 @@ describe('App fail-closed auth gate (001-gateway-jwt-auth)', () => {
   it('fails closed to unauthenticated on backend network/connection error', async () => {
     (authApi.me as jest.Mock).mockRejectedValue(new Error('Network error: failed to connect to backend'));
 
-    render(<App />);
+    await render(<App />);
 
     // Must show CentralAuthScreen and NEVER AuthenticatedApp
     await waitFor(() => {
@@ -66,7 +66,7 @@ describe('App fail-closed auth gate (001-gateway-jwt-auth)', () => {
     err.status = 401;
     (authApi.me as jest.Mock).mockRejectedValue(err);
 
-    render(<App />);
+    await render(<App />);
 
     await waitFor(() => {
       expect(screen.getByText('Continue to Sign In')).toBeTruthy();
@@ -87,7 +87,7 @@ describe('App fail-closed auth gate (001-gateway-jwt-auth)', () => {
       active_language: { id: 'lang-1', target_language: 'en' },
     });
 
-    render(<App />);
+    await render(<App />);
 
     await waitFor(() => {
       expect(screen.getByTestId('authenticated-app')).toBeTruthy();

@@ -22,7 +22,7 @@ describe('CinematicCard', () => {
       </CinematicCard>,
       { wrapper: ThemeProvider },
     );
-    fireEvent.press(screen.getByText('Press me'));
+    await fireEvent.press(screen.getByText('Press me'));
     expect(onPress).toHaveBeenCalled();
   });
 });

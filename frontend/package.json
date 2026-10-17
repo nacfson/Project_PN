@@ -59,7 +59,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint:imports": "node ../scripts/lint-imports.mjs .",
-    "lint": "npm run lint:imports"
+    "lint:rntl-async": "node ../scripts/lint-rntl-async.mjs .",
+    "lint": "npm run lint:imports && npm run lint:rntl-async"
   },
   "private": true
 }

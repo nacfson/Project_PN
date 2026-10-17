@@ -8,6 +8,47 @@ if (typeof nodeGlobal.IS_REACT_ACT_ENVIRONMENT === 'undefined') {
   nodeGlobal.IS_REACT_ACT_ENVIRONMENT = true;
 }
 
+// Fail tests if React logs unwrapped state updates (HookContainer / components) or overlapping act() calls.
+const util = require('util');
+const originalConsoleError = console.error;
+let actViolations = [];
+
+console.error = (...args) => {
+  const formatted = util.format(...args);
+  // Ignore React Native's internal Animated / CountUpText interval ticks in Node test environment
+  if (
+    formatted.includes('inside a test was not wrapped in act(...)') &&
+    (formatted.includes('An update to Animated(') ||
+      formatted.includes('An update to CountUpText'))
+  ) {
+    return;
+  }
+  const isUnwrappedAct = formatted.includes('inside a test was not wrapped in act(...)');
+  const isOverlappingAct = formatted.includes('You seem to have overlapping act() calls');
+  const isMisconfiguredAct = formatted.includes(
+    'The current testing environment is not configured to support act(...)',
+  );
+
+  if (isUnwrappedAct || isOverlappingAct || isMisconfiguredAct) {
+    actViolations.push(formatted.split('\n')[0]);
+  }
+  originalConsoleError.apply(console, args);
+};
+
+beforeEach(() => {
+  actViolations = [];
+});
+
+afterEach(() => {
+  if (actViolations.length > 0) {
+    const violations = actViolations.slice();
+    actViolations = [];
+    throw new Error(
+      `React act(...) violation detected during test:\n- ${violations.join('\n- ')}\nWrap state-updating calls in await act(async () => ...) and await async @testing-library/react-native helpers (render, rerender, fireEvent, cleanup).`,
+    );
+  }
+});
+
 // Mock vector icons so tests can render UI components without loading native font modules.
 jest.mock('@expo/vector-icons/Ionicons', () => {
   const mockReact = require('react');

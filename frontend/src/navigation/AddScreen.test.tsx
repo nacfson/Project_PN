@@ -97,7 +97,7 @@ describe('AddScreen', () => {
 
     // Click on From Passage tab
     const passageTab = screen.getByTestId('tab-passage');
-    fireEvent.press(passageTab);
+    await fireEvent.press(passageTab);
 
     // Passage capture flow should be visible
     await waitFor(() => expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy());
@@ -106,7 +106,7 @@ describe('AddScreen', () => {
 
     // Click back to Manual Add tab
     const manualTab = screen.getByTestId('tab-manual');
-    fireEvent.press(manualTab);
+    await fireEvent.press(manualTab);
 
     // Manual add section should be visible again
     await waitFor(() => expect(screen.getByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeTruthy());
@@ -127,7 +127,7 @@ describe('AddScreen', () => {
       error: null,
       refresh: jest.fn(),
     });
-    rerender(<AddScreen />);
+    await rerender(<AddScreen />);
 
     await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
     expect(mockedListDecks).toHaveBeenLastCalledWith('es', 'private');
