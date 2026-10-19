@@ -444,18 +444,89 @@ func TestBFFLoginCallbackSessionAndLogoutFlow(t *testing.T) {
 		t.Fatalf("expected 401 on replayed pickup code, got %d", replayRec.Code)
 	}
 
-	// 8. POST /api/auth/logout with Bearer v1.<session_handle> revokes handle at gateway and returns 204
+	// 8. POST /api/auth/logout with Bearer v1.<session_handle> revokes handle at gateway and returns 200 {"status":"revoked"}
 	logoutReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	logoutReq.Host = "pn.nacfson.cloud"
 	logoutReq.Header.Set("Authorization", "Bearer "+sessResp.Token)
 	logoutReq.Header.Set("Origin", "https://pn.nacfson.cloud")
 	logoutRec := httptest.NewRecorder()
 	router.ServeHTTP(logoutRec, logoutReq)
-	if logoutRec.Code != http.StatusNoContent {
-		t.Fatalf("expected 204 from /api/auth/logout, got %d body=%s", logoutRec.Code, logoutRec.Body.String())
+	if logoutRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/auth/logout, got %d body=%s", logoutRec.Code, logoutRec.Body.String())
+	}
+	var logoutBody map[string]string
+	if err := json.NewDecoder(logoutRec.Body).Decode(&logoutBody); err != nil {
+		t.Fatalf("decode logout response: %v", err)
+	}
+	if logoutBody["status"] != "revoked" {
+		t.Fatalf("expected status=revoked, got %+v", logoutBody)
 	}
 	if logoutCalledWith != "Bearer v1.sealed-session-handle-777" {
 		t.Fatalf("expected gateway logout called with Bearer v1.sealed-session-handle-777, got %q", logoutCalledWith)
+	}
+}
+
+func TestBFFLogoutForwards502And503WithoutClaimingRevoked(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		gatewayStatus  int
+		gatewayPayload string
+		wantStatus     int
+		wantError      string
+	}{
+		{
+			name:           "forwards 502 when Keycloak refuses delete",
+			gatewayStatus:  http.StatusBadGateway,
+			gatewayPayload: `{"error":"revocation_failed","message":"Keycloak did not delete the session"}`,
+			wantStatus:     http.StatusBadGateway,
+			wantError:      "revocation_failed",
+		},
+		{
+			name:           "forwards 503 when Keycloak is unreachable",
+			gatewayStatus:  http.StatusServiceUnavailable,
+			gatewayPayload: `{"error":"service_unavailable","message":"Keycloak unreachable"}`,
+			wantStatus:     http.StatusServiceUnavailable,
+			wantError:      "service_unavailable",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.gatewayStatus)
+				_, _ = w.Write([]byte(tc.gatewayPayload))
+			}))
+			defer mockGateway.Close()
+
+			gwClient := auth.NewGatewayClient(mockGateway.URL+"/auth", auth.SignInShared, mockGateway.Client())
+			logger := &fakeLogger{}
+			handler := centralLogout(nil, logger, gwClient)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			req = req.WithContext(withAuthSession(req.Context(), authSession{
+				method:     authMethodBearer,
+				credential: "v1.active-session-handle",
+			}))
+			rec := httptest.NewRecorder()
+
+			handler(rec, req)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("expected status %d, got %d body=%s", tc.wantStatus, rec.Code, rec.Body.String())
+			}
+			var body map[string]string
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode error body: %v", err)
+			}
+			if body["status"] == "revoked" {
+				t.Fatalf("failed logout must never claim status=revoked: %+v", body)
+			}
+			if body["error"] != tc.wantError {
+				t.Fatalf("expected error %q, got %+v", tc.wantError, body)
+			}
+			if len(rec.Result().Cookies()) != 0 {
+				t.Fatalf("expected no cookie clearing on failed bearer logout, got %+v", rec.Result().Cookies())
+			}
+		})
 	}
 }
 

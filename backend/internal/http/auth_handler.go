@@ -369,12 +369,27 @@ func centralLogout(central *auth.CentralClient, logger admin.Logger, gateways ..
 
 		if strings.HasPrefix(session.credential, "v1.") {
 			if gateway == nil {
-				writeError(w, http.StatusInternalServerError, "gateway auth is not configured")
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+					"error":   "service_unavailable",
+					"message": "gateway auth is not configured",
+				})
 				return
 			}
 			if err := gateway.LogoutSessionHandle(r.Context(), session.credential); err != nil {
 				if logger != nil {
 					logger.Logf("AUTH_FAILURE", "gateway logout failed from %s: %v", r.RemoteAddr, err)
+				}
+				var gwErr *auth.GatewayLogoutError
+				if errors.As(err, &gwErr) {
+					errCode := "revocation_failed"
+					if gwErr.StatusCode == http.StatusServiceUnavailable {
+						errCode = "service_unavailable"
+					}
+					writeJSON(w, gwErr.StatusCode, map[string]string{
+						"error":   errCode,
+						"message": gwErr.Message,
+					})
+					return
 				}
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
@@ -393,7 +408,9 @@ func centralLogout(central *auth.CentralClient, logger admin.Logger, gateways ..
 			if logger != nil {
 				logger.Logf("AUTH", "logout from %s", r.RemoteAddr)
 			}
-			w.WriteHeader(http.StatusNoContent)
+			writeJSON(w, http.StatusOK, map[string]string{
+				"status": "revoked",
+			})
 			return
 		}
 
