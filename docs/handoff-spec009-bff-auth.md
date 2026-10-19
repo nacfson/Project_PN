@@ -49,7 +49,7 @@ Project PN Frontend
 | `https://auth.nacfson.cloud/oauth/start` | `GET` | Browser (via `/api/auth/login` redirect) | `?return=<url-encoded-project-backend-callback>` | Sets host-only `OIDC_AUTH_STATE` on `auth.nacfson.cloud`; `302 Found` to Keycloak with `kc_idp_hint=google` |
 | `http://gateway.identity.svc:8080/auth/exchange` | `POST` | Project PN Backend (cluster-internal) | Header: `X-Forwarded-Host: pn.nacfson.cloud`<br>Body: `{"ticket": "v1...."}` | `200 OK` JSON:<br>`{"session_handle": "v1....", "subject": "<sub-uuid>", "issuer": "https://auth.nacfson.cloud/realms/platform", "audience": "project-pn", "expires_in": 28800}` |
 | `http://gateway.identity.svc:8080/auth` | `GET` | Project PN Backend (cluster-internal) | Headers:<br>`Authorization: Bearer v1.<session_handle>`<br>`X-Forwarded-Host: pn.nacfson.cloud` | `200 OK` Headers:<br>`Authorization: Bearer <verified-keycloak-access-jwt>`<br>`X-User-Subject: <sub-uuid>`<br>`X-User-Issuer: https://auth.nacfson.cloud/realms/platform`<br>`X-Project-Audience: project-pn`<br>`X-Refreshed-Session-Handle: v1.<rotated>` *(optional)* |
-| `http://gateway.identity.svc:8080/auth/logout` | `POST` | Project PN Backend (cluster-internal) | Header:<br>`Authorization: Bearer v1.<session_handle>` | `200 OK` JSON:<br>`{"status": "revoked"}` |
+| `http://gateway.identity.svc:8080/auth/logout` | `POST` | Project PN Backend (cluster-internal) | Header:<br>`Authorization: Bearer v1.<session_handle>` | `200 OK` JSON:<br>`{"status": "revoked"}` (only when Keycloak `DELETE` returned `204` or `200`); `502 Bad Gateway` when Keycloak refuses delete; `503 Service Unavailable` when Keycloak is unreachable |
 
 ---
 
@@ -118,7 +118,7 @@ Register three public endpoints on the Project PN Backend router (no auth middle
        - `X-Forwarded-Host: ` + `host`
      - On `200 OK`, reads the Gateway's response `Authorization: Bearer <keycloak-jwt>`, `X-User-Subject`, `X-User-Issuer`, and optional `X-Refreshed-Session-Handle`.
      - Validates the returned `<keycloak-jwt>` audience (`project-pn`), subject, and issuer (using the existing `ConfirmIdentity` claim checks) and returns `ConfirmedIdentity` (where `ident.Token` is the underlying Keycloak JWT).
-   - Add `ExchangeTicket(ctx context.Context, host, ticket string)` and `LogoutSessionHandle(ctx context.Context, sessionHandle string)` (`POST http://gateway.identity.svc:8080/auth/logout` with `Authorization: Bearer <sessionHandle>`).
+   - Add `ExchangeTicket(ctx context.Context, host, ticket string)` and `LogoutSessionHandle(ctx context.Context, sessionHandle string)` (`POST http://gateway.identity.svc:8080/auth/logout` with `Authorization: Bearer <sessionHandle>`, succeeding only when the gateway returns `200 OK` with `{"status":"revoked"}` and returning `*GatewayLogoutError` on `502`/`503`).
 
 2. In `backend/internal/http/auth_middleware.go`:
    - When `token := bearerToken(r)` has prefix `"v1."` (a Vault-sealed `session_handle`) and `gateway != nil`:
@@ -128,7 +128,7 @@ Register three public endpoints on the Project PN Backend router (no auth middle
      - Replace `token` for downstream JWT claim extraction (`verifier.Verify(r.Context(), ident.Token)`) while preserving the original `v1.<session_handle>` in `authSession` so `POST /api/auth/logout` can revoke it at the gateway!
 
 3. In `backend/internal/http/auth_handler.go` (`centralLogout`):
-   - When `session.credential` starts with `"v1."`, call `gateway.LogoutSessionHandle(r.Context(), session.credential)` (`POST http://gateway.identity.svc:8080/auth/logout`).
+   - When `session.credential` starts with `"v1."`, call `gateway.LogoutSessionHandle(r.Context(), session.credential)` (`POST http://gateway.identity.svc:8080/auth/logout`), return `200 OK` `{"status":"revoked"}` on confirmed revocation, and forward `502`/`503` unchanged without claiming `status: "revoked"`.
 
 ---
 

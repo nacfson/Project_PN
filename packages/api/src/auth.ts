@@ -1,4 +1,4 @@
-import { getJson, postJson, postNoContent } from './client';
+import { ApiError, getJson, postJson, postNoContent } from './client';
 import type {
   LanguageOptionsResponse,
   LinkedProvider,
@@ -20,8 +20,11 @@ export function refreshSession(refreshToken: string): Promise<SessionResponse> {
   return postJson<SessionResponse>('/api/auth/refresh', { refresh_token: refreshToken }, { auth: false });
 }
 
-export function logout(): Promise<void> {
-  return postNoContent('/api/auth/logout');
+export async function logout(): Promise<void> {
+  const res = await postJson<{ status?: string } | null>('/api/auth/logout', undefined);
+  if (res !== null && res?.status !== 'revoked') {
+    throw new ApiError(502, 'Session revocation was not confirmed by the gateway.');
+  }
 }
 
 export function getLinkedProviders(): Promise<LinkedProvider[]> {

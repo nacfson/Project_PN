@@ -1,4 +1,5 @@
 import type { MeResponse, LanguageOptionsResponse, AllowedLanguages } from './types';
+import { logout } from './auth';
 import {
   configureApi,
   getJson,
@@ -271,5 +272,39 @@ describe('DTO shape', () => {
     expect(allowed.target_languages).toEqual(['en', 'ko']);
     expect(allowed.definition_languages).toEqual(['ko', 'en']);
     expect(allowed.ui_languages).toEqual(['ko', 'en']);
+  });
+});
+
+describe('logout', () => {
+  it('resolves when POST /api/auth/logout returns 200 with status revoked', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ status: 'revoked' }),
+    });
+    await expect(logout()).resolves.toBeUndefined();
+  });
+
+  it('rejects with 502 ApiError when gateway revocation fails with 502', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      text: async () => JSON.stringify({ error: 'revocation_failed', message: 'Keycloak did not delete the session' }),
+    });
+    await expect(logout()).rejects.toMatchObject({
+      status: 502,
+      message: 'revocation_failed',
+    });
+  });
+
+  it('rejects with 502 ApiError if 200 response does not confirm status revoked', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ status: 'pending' }),
+    });
+    await expect(logout()).rejects.toMatchObject({
+      status: 502,
+    });
   });
 });

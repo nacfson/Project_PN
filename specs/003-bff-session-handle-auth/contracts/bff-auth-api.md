@@ -88,17 +88,19 @@ Revokes the caller's session. Protected route (`authMiddleware` + `csrfProtectio
 - **Inbound Header**:
   - `Authorization: Bearer v1.<session_handle>`
 - **Behavior**:
-  - When the session credential starts with `"v1."`, calls internal gateway `POST /auth/logout` with `Authorization: Bearer v1.<session_handle>`.
+  - When the session credential starts with `"v1."`, calls internal gateway `POST /auth/logout` with `Authorization: Bearer v1.<session_handle>` (sends only the login; never sends a Keycloak client id, client secret, or session id).
 - **Responses**:
-  - `204 No Content`: Session handle revoked at gateway.
-  - `401 Unauthorized`: Missing/invalid session or gateway revocation failure.
+  - `200 OK` (`{"status":"revoked"}`): Session handle revoked at gateway (only when gateway returns `200 OK` with `status == "revoked"` after Keycloak `DELETE /admin/realms/platform/sessions/{sessionId}` returned `204` or `200`).
+  - `502 Bad Gateway` (`{"error":"revocation_failed","message":"..."}`): Forwarded when the gateway reports Keycloak refused the session delete or did not confirm `status: "revoked"`. Never claims `status: "revoked"`.
+  - `503 Service Unavailable` (`{"error":"service_unavailable","message":"..."}`): Forwarded when the gateway reports Keycloak unreachable or when the internal gateway is unreachable. Never claims `status: "revoked"`.
+  - `401 Unauthorized`: Missing or invalid session credential before revocation.
 
 ---
 
 ## 2. Cluster-Internal Platform Gateway Contract (`http://gateway.identity.svc:8080`)
 
-| Endpoint | Method | Request Headers & Body | Expected `200 OK` Response |
+| Endpoint | Method | Request Headers & Body | Expected Response |
 | :--- | :--- | :--- | :--- |
-| `/auth/exchange` | `POST` | `X-Forwarded-Host: pn.nacfson.cloud`<br>`Content-Type: application/json`<br>`{"ticket": "v1...."}` | `{"session_handle": "v1....", "subject": "<uuid>", "issuer": "https://auth.nacfson.cloud/realms/platform", "audience": "project-pn", "expires_in": 28800}` |
-| `/auth` | `GET` | `Authorization: Bearer v1.<session_handle>`<br>`X-Forwarded-Host: pn.nacfson.cloud` | Headers:<br>`Authorization: Bearer <verified-keycloak-access-jwt>`<br>`X-User-Subject: <uuid>`<br>`X-User-Issuer: https://auth.nacfson.cloud/realms/platform`<br>`X-Project-Audience: project-pn`<br>`X-Refreshed-Session-Handle: v1.<rotated>` *(optional)* |
-| `/auth/logout` | `POST` | `Authorization: Bearer v1.<session_handle>` | `{"status": "revoked"}` |
+| `/auth/exchange` | `POST` | `X-Forwarded-Host: pn.nacfson.cloud`<br>`Content-Type: application/json`<br>`{"ticket": "v1...."}` | `200 OK`: `{"session_handle": "v1....", "subject": "<uuid>", "issuer": "https://auth.nacfson.cloud/realms/platform", "audience": "project-pn", "expires_in": 28800}` |
+| `/auth` | `GET` | `Authorization: Bearer v1.<session_handle>`<br>`X-Forwarded-Host: pn.nacfson.cloud` | `200 OK` Headers:<br>`Authorization: Bearer <verified-keycloak-access-jwt>`<br>`X-User-Subject: <uuid>`<br>`X-User-Issuer: https://auth.nacfson.cloud/realms/platform`<br>`X-Project-Audience: project-pn`<br>`X-Refreshed-Session-Handle: v1.<rotated>` *(optional)* |
+| `/auth/logout` | `POST` | `Authorization: Bearer v1.<session_handle>` | `200 OK` (`{"status": "revoked"}`) only when Keycloak `DELETE /admin/realms/platform/sessions/{sessionId}` returned `204` or `200`; `502 Bad Gateway` when Keycloak refuses delete; `503 Service Unavailable` when Keycloak is unreachable |

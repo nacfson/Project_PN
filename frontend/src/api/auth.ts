@@ -47,10 +47,17 @@ export async function refreshSession(refreshToken: string) {
 export async function logout(): Promise<void> {
   try {
     await logoutApi();
-  } finally {
+  } catch (err) {
+    const status = (err as { status?: number } | null)?.status;
+    if (status === 502 || status === 503) {
+      throw err;
+    }
     clearLanguageOptionsCache();
     await sessionStorage.clearSession();
+    throw err;
   }
+  clearLanguageOptionsCache();
+  await sessionStorage.clearSession();
 }
 
 export {
