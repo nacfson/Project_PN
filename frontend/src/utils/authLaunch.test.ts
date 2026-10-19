@@ -131,6 +131,66 @@ describe('authLaunch utils', () => {
         expect(token).toBeNull();
         expect(mockReplaceState).not.toHaveBeenCalled();
       });
+
+      it('exchanges ?code= pickup code via POST /api/auth/session and scrubs URL via history.replaceState', async () => {
+        const pickupCode = '0123456789abcdef0123456789abcdef';
+        (global as any).window.location = {
+          href: `https://pn.nacfson.cloud/?code=${pickupCode}&keep=1#study`,
+          search: `?code=${pickupCode}&keep=1`,
+          pathname: '/',
+          hash: '#study',
+        };
+        const mockFetch = jest.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            token: 'v1.sealed-session-handle',
+            refresh_token: 'v1.sealed-session-handle',
+            expires_at: '2026-10-16T00:00:00Z',
+          }),
+        });
+        const originalFetch = global.fetch;
+        global.fetch = mockFetch as any;
+
+        try {
+          const token = await parseTokenFromLaunchUrl();
+          expect(token).toBe('v1.sealed-session-handle');
+          expect(mockReplaceState).toHaveBeenCalledWith({}, 'Mock Title', '/?keep=1#study');
+          expect(mockFetch).toHaveBeenCalledWith(
+            expect.stringContaining('/api/auth/session'),
+            expect.objectContaining({
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: pickupCode }),
+            }),
+          );
+        } finally {
+          global.fetch = originalFetch;
+        }
+      });
+
+      it('returns null after scrubbing URL when POST /api/auth/session returns 401', async () => {
+        const pickupCode = 'fedcba9876543210fedcba9876543210';
+        (global as any).window.location = {
+          href: `https://pn.nacfson.cloud/?code=${pickupCode}`,
+          search: `?code=${pickupCode}`,
+          pathname: '/',
+          hash: '',
+        };
+        const mockFetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 401,
+        });
+        const originalFetch = global.fetch;
+        global.fetch = mockFetch as any;
+
+        try {
+          const token = await parseTokenFromLaunchUrl();
+          expect(token).toBeNull();
+          expect(mockReplaceState).toHaveBeenCalledWith({}, 'Mock Title', '/');
+        } finally {
+          global.fetch = originalFetch;
+        }
+      });
     });
 
     describe('Native platforms', () => {

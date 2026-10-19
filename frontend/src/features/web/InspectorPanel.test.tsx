@@ -51,7 +51,7 @@ describe('InspectorPanel', () => {
       </InspectorPanel>,
       { wrapper: Wrapper }
     );
-    fireEvent.press(screen.getByTestId('inspector-backdrop'));
+    await fireEvent.press(screen.getByTestId('inspector-backdrop'));
     expect(onClose).toHaveBeenCalled();
   });
 });

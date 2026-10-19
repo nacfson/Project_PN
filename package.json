@@ -8,7 +8,8 @@
   ],
   "scripts": {
     "lint:imports": "node scripts/lint-imports.mjs",
-    "lint": "npm run lint:imports",
+    "lint:rntl-async": "node scripts/lint-rntl-async.mjs",
+    "lint": "npm run lint:imports && npm run lint:rntl-async",
     "verify": "scripts/verify-local.sh",
     "verify:full": "scripts/verify-local.sh --full",
     "prepare": "git config core.hooksPath .githooks || true"

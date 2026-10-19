@@ -79,7 +79,7 @@ function renderSheet(
 describe('ChangeMeaningSheet', () => {
   afterEach(async () => {
     await flushAsync();
-    cleanup();
+    await cleanup();
   });
 
   beforeEach(() => {
@@ -136,14 +136,14 @@ describe('ChangeMeaningSheet', () => {
   it('loads senses and PATCHes the selected meaning without changing due_at', async () => {
     const onChanged = jest.fn();
     const onClose = jest.fn();
-    renderSheet({ onChanged, onClose });
+    await renderSheet({ onChanged, onClose });
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
-    fireEvent.press(screen.getByText('충전하다'));
+    await fireEvent.press(screen.getByText('충전하다'));
     await waitFor(() => {
       expect(screen.getByText('Save meaning')).not.toBeDisabled();
     });
-    fireEvent.press(screen.getByText('Save meaning'));
+    await fireEvent.press(screen.getByText('Save meaning'));
 
     await waitFor(() => {
       expect(changeLearningItemSense).toHaveBeenCalled();
@@ -164,13 +164,13 @@ describe('ChangeMeaningSheet', () => {
   });
 
   it('finds more senses with force lookup when context is set', async () => {
-    renderSheet();
+    await renderSheet();
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
     const contextInput = screen.getByPlaceholderText(/Optional sentence/);
-    fireEvent.changeText(contextInput, 'Please charge the invoice today.');
+    await fireEvent.changeText(contextInput, 'Please charge the invoice today.');
     await waitFor(() => expect(contextInput.props.value).toBe('Please charge the invoice today.'));
-    fireEvent.press(screen.getByText('Find more senses'));
+    await fireEvent.press(screen.getByText('Find more senses'));
 
     await waitFor(() => {
       expect(lookupWord).toHaveBeenCalledWith(
@@ -186,11 +186,11 @@ describe('ChangeMeaningSheet', () => {
   });
 
   it('does not force lookup when context is empty', async () => {
-    renderSheet();
+    await renderSheet();
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
     (lookupWord as jest.Mock).mockClear();
-    fireEvent.press(screen.getByText('Find more senses'));
+    await fireEvent.press(screen.getByText('Find more senses'));
     await waitFor(() => {
       expect(screen.getByText(/Add a sentence that shows the meaning/)).toBeTruthy();
     });
@@ -229,10 +229,10 @@ describe('ChangeMeaningSheet', () => {
     );
 
     const personalInput = await screen.findByPlaceholderText(/Type a short gloss/);
-    fireEvent.changeText(personalInput, '청구하다');
+    await fireEvent.changeText(personalInput, '청구하다');
     await waitFor(() => expect(personalInput.props.value).toBe('청구하다'));
 
-    fireEvent.press(screen.getByText('Save my meaning'));
+    await fireEvent.press(screen.getByText('Save my meaning'));
 
     await waitFor(() => {
       expect(setLearningItemPersonalNote).toHaveBeenCalledWith('uws-1', '청구하다');
@@ -252,14 +252,14 @@ describe('ChangeMeaningSheet', () => {
     });
     const onChanged = jest.fn();
     const onClose = jest.fn();
-    renderSheet({ onChanged, onClose, preferPersonalNote: true });
+    await renderSheet({ onChanged, onClose, preferPersonalNote: true });
 
     await waitFor(() => expect(screen.getByText('충전하다')).toBeTruthy());
-    fireEvent.press(screen.getByText('충전하다'));
+    await fireEvent.press(screen.getByText('충전하다'));
     const noteInput = screen.getByPlaceholderText(/Type a short gloss/);
-    fireEvent.changeText(noteInput, '내 표현');
+    await fireEvent.changeText(noteInput, '내 표현');
     await waitFor(() => expect(noteInput.props.value).toBe('내 표현'));
-    fireEvent.press(screen.getByText('Save meaning'));
+    await fireEvent.press(screen.getByText('Save meaning'));
 
     await waitFor(() => {
       expect(changeLearningItemSense).toHaveBeenCalledWith('uws-1', 'ws-2', undefined, '내 표현');

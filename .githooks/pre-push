@@ -16,6 +16,7 @@ run() { # label command...
 }
 
 run "lint:imports" npm run --silent lint:imports
+run "lint:rntl-async" npm run --silent lint:rntl-async
 run "typecheck frontend" npm run --silent typecheck -w frontend
 run "typecheck packages/api" npm run --silent typecheck -w packages/api
 run "frontend tests" npm test --silent -w frontend

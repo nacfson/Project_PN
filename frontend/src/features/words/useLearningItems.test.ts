@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useLearningItems } from './useLearningItems';
 import { listLearningItems } from '../../api/learningItems';
 import { AppLanguageProvider } from '../../i18n';
@@ -86,7 +86,9 @@ describe('useLearningItems', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.hasMore).toBe(true);
 
-    result.current.maybeLoadMoreFromScroll(100);
+    await act(async () => {
+      result.current.maybeLoadMoreFromScroll(100);
+    });
     await waitFor(() => expect(mockedListLearningItems).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(result.current.items).toHaveLength(2));
     expect(result.current.hasMore).toBe(false);
@@ -106,7 +108,9 @@ describe('useLearningItems', () => {
     const { result } = await renderHook(() => useLearningItems(''), { wrapper: Wrapper });
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
-    await result.current.loadMore();
+    await act(async () => {
+      await result.current.loadMore();
+    });
     await waitFor(() => expect(mockedListLearningItems).toHaveBeenCalledTimes(2));
     expect(mockedListLearningItems).toHaveBeenLastCalledWith(
       expect.objectContaining({ cursor: 'cursor-2' }),

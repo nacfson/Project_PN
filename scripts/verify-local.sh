@@ -180,7 +180,7 @@ run_check() { # id workdir command...
 }
 
 if [[ "$FULL" -eq 1 ]]; then
-  run_check lint "$REPO_ROOT" npm run lint:imports
+  run_check lint "$REPO_ROOT" npm run lint
   run_check typecheck-frontend "$REPO_ROOT" npm run typecheck -w frontend
   run_check typecheck-api "$REPO_ROOT" npm run typecheck -w packages/api
   run_check tests-frontend "$REPO_ROOT" npm test -w frontend

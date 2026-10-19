@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { CentralAuthScreen } from './CentralAuthScreen';
+import { API_BASE_URL } from '../config';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 
@@ -21,7 +22,7 @@ describe('CentralAuthScreen', () => {
     expect(screen.getByText('A word is global, but memory is personal.')).toBeTruthy();
   });
 
-  it('redirects browser web to platform oauth start endpoint on press', async () => {
+  it('redirects browser web to project backend /api/auth/login endpoint on press', async () => {
     const originalPlatform = Platform.OS;
     const originalWindow = global.window;
     try {
@@ -36,11 +37,9 @@ describe('CentralAuthScreen', () => {
 
       await render(<CentralAuthScreen />, { wrapper: Wrapper });
       const button = screen.getByText('Continue to Sign In');
-      fireEvent.press(button);
+      await fireEvent.press(button);
 
-      expect(global.window.location.href).toBe(
-        'https://auth.nacfson.cloud/oauth/start?return=https%3A%2F%2Fpn.nacfson.cloud%2F',
-      );
+      expect(global.window.location.href).toBe(`${API_BASE_URL}/api/auth/login`);
     } finally {
       Platform.OS = originalPlatform;
       global.window = originalWindow;

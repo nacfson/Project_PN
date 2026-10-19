@@ -19,20 +19,75 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 			discardClientIdentityHeaders(r)
 
 			sessionMethod := authMethodBearer
-			token := bearerToken(r)
-			if token == "" {
-				if gateway != nil && gateway.SignInMode() == auth.SignInShared && len(r.Cookies()) > 0 {
-					ident, err := gateway.ConfirmIdentity(r.Context(), r.Host, r.Cookies())
-					if err != nil {
-						if logger != nil {
-							logger.Logf("AUTH_FAILURE", "gateway confirmation error from %s: %v", r.RemoteAddr, err)
-						}
-						writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
-						return
+			rawBearer := bearerToken(r)
+			token := rawBearer
+			sessionCredential := rawBearer
+
+			var confirmedIdent *auth.ConfirmedIdentity
+			if strings.HasPrefix(rawBearer, "v1.") {
+				if gateway == nil {
+					if logger != nil {
+						logger.Logf("AUTH_FAILURE", "gateway unconfigured for v1 session handle from %s", r.RemoteAddr)
 					}
-					if ident != nil && ident.Token != "" {
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+					return
+				}
+				ident, refreshedHandle, err := gateway.ConfirmSessionHandle(r.Context(), r.Host, rawBearer)
+				if err != nil || ident == nil || ident.Token == "" {
+					if logger != nil && err != nil {
+						logger.Logf("AUTH_FAILURE", "gateway session handle confirmation failed from %s: %v", r.RemoteAddr, err)
+					}
+					writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+					return
+				}
+				if refreshedHandle != "" {
+					w.Header().Set("X-Refreshed-Session-Handle", refreshedHandle)
+				}
+				confirmedIdent = ident
+				token = ident.Token
+				sessionCredential = rawBearer
+			} else if token == "" {
+				if gateway != nil && gateway.SignInMode() == auth.SignInShared && len(r.Cookies()) > 0 {
+					if c, cookieErr := r.Cookie(auth.CentralSessionCookieName); cookieErr == nil && strings.HasPrefix(strings.TrimSpace(c.Value), "v1.") {
+						rawHandle := strings.TrimSpace(c.Value)
+						ident, refreshedHandle, err := gateway.ConfirmSessionHandle(r.Context(), r.Host, rawHandle)
+						if err != nil || ident == nil || ident.Token == "" {
+							if logger != nil && err != nil {
+								logger.Logf("AUTH_FAILURE", "gateway cookie session handle confirmation failed from %s: %v", r.RemoteAddr, err)
+							}
+							writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+							return
+						}
+						if refreshedHandle != "" {
+							http.SetCookie(w, &http.Cookie{
+								Name:     auth.CentralSessionCookieName,
+								Value:    refreshedHandle,
+								Path:     "/",
+								MaxAge:   8 * 3600,
+								HttpOnly: true,
+								Secure:   true,
+								SameSite: http.SameSiteLaxMode,
+							})
+						}
+						confirmedIdent = ident
 						token = ident.Token
+						sessionCredential = rawHandle
 						sessionMethod = authMethodCookie
+					} else {
+						ident, err := gateway.ConfirmIdentity(r.Context(), r.Host, r.Cookies())
+						if err != nil {
+							if logger != nil {
+								logger.Logf("AUTH_FAILURE", "gateway confirmation error from %s: %v", r.RemoteAddr, err)
+							}
+							writeCodedError(w, http.StatusUnauthorized, "AUTH-101", "unauthorized", false)
+							return
+						}
+						if ident != nil && ident.Token != "" {
+							confirmedIdent = ident
+							token = ident.Token
+							sessionCredential = ident.Token
+							sessionMethod = authMethodCookie
+						}
 					}
 				}
 			}
@@ -47,8 +102,24 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 				err        error
 			)
 
-			// Non-production dev bypass: strictly gated by devBypass flag
-			if devBypass && auth.IsDevBypassToken(token) {
+			// 1. Gateway-confirmed session handle or cookie: trust the internal gateway verification directly (no Keycloak JWKS dependency).
+			if confirmedIdent != nil {
+				authResult, err = svc.EnsurePlatformUser(
+					r.Context(),
+					confirmedIdent.Issuer,
+					confirmedIdent.Subject,
+					confirmedIdent.Email,
+					"google",
+				)
+				if err != nil {
+					if logger != nil {
+						logger.Logf("AUTH_FAILURE", "ensure platform user failed: %v", err)
+					}
+					writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
+					return
+				}
+			} else if devBypass && auth.IsDevBypassToken(token) {
+				// 2. Non-production dev bypass: strictly gated by devBypass flag
 				authResult, err = svc.EnsurePlatformUser(
 					r.Context(),
 					"https://auth.nacfson.cloud/realms/platform",
@@ -96,7 +167,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 
 			credentials := authSession{
 				method:     sessionMethod,
-				credential: token,
+				credential: sessionCredential,
 			}
 			ctx := withAuthSession(r.Context(), credentials)
 			ctx = withAuthResult(ctx, authResult)

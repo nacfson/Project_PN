@@ -132,14 +132,14 @@ describe('MyWordsScreen', () => {
 
     // Tap the deck card to select it on web
     const deckCard = screen.getByText('Default');
-    fireEvent.press(deckCard);
+    await fireEvent.press(deckCard);
 
     // Command bar should show selected count
     await waitFor(() => expect(screen.getByText('1 selected')).toBeTruthy());
 
     // Clear selection
     const clearButton = screen.getByTestId('command-bar-clear');
-    fireEvent.press(clearButton);
+    await fireEvent.press(clearButton);
 
     await waitFor(() => expect(screen.queryByText('1 selected')).toBeNull());
   });
@@ -158,7 +158,7 @@ describe('MyWordsScreen', () => {
     expect(infoIcons.length).toBeGreaterThanOrEqual(1);
 
     // Press the icon — fireEvent walks up the fiber tree to find the onPress handler
-    fireEvent.press(infoIcons[0]);
+    await fireEvent.press(infoIcons[0]);
 
     await waitFor(() => expect(screen.getByText('Rename deck')).toBeTruthy());
   });
@@ -191,7 +191,7 @@ describe('MyWordsScreen', () => {
       refresh: jest.fn(),
       removeItemsLocally: jest.fn(),
     });
-    rerender(<MyWordsScreen />);
+    await rerender(<MyWordsScreen />);
 
     await waitFor(() => expect(screen.getByText('Todas')).toBeTruthy());
     expect(mockedListDecks).toHaveBeenLastCalledWith('es', 'private');
@@ -255,7 +255,6 @@ describe('MyWordsScreen', () => {
       loadMore: jest.fn(),
       maybeLoadMoreFromScroll: jest.fn(),
       refresh: jest.fn(),
-      removeItemsLocally: jest.fn(),
       removeItemsLocally: jest.fn(),
     });
 
@@ -332,7 +331,7 @@ describe('MyWordsScreen', () => {
     await render(<MyWordsScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('Load more words')).toBeTruthy());
-    fireEvent.press(screen.getByText('Load more words'));
+    await fireEvent.press(screen.getByText('Load more words'));
     expect(loadMore).toHaveBeenCalled();
   });
 
@@ -388,14 +387,14 @@ describe('MyWordsScreen', () => {
       (el) => el.type === 'Text' && el.props.children === 'folder-open-outline',
     );
     expect(moveIcons.length).toBeGreaterThanOrEqual(1);
-    fireEvent.press(moveIcons[0]);
+    await fireEvent.press(moveIcons[0]);
 
     // Modal should appear with destination deck
     await waitFor(() => expect(screen.getAllByText('Verbs').length).toBeGreaterThanOrEqual(2));
 
     // Select the destination deck inside the modal (last occurrence)
     const verbsOptions = screen.getAllByText('Verbs');
-    fireEvent.press(verbsOptions[verbsOptions.length - 1]);
+    await fireEvent.press(verbsOptions[verbsOptions.length - 1]);
 
     await waitFor(() => expect(mockedMoveItemsToDeck).toHaveBeenCalledWith('d2', ['uws-3']));
   });
@@ -452,7 +451,7 @@ describe('MyWordsScreen', () => {
       (el) => el.type === 'Text' && el.props.children === 'trash-outline',
     );
     expect(trashIcons.length).toBeGreaterThanOrEqual(1);
-    fireEvent.press(trashIcons[0]);
+    await fireEvent.press(trashIcons[0]);
 
     await waitFor(() => expect(removeItemsLocally).toHaveBeenCalledWith(['uws-remove']));
     await waitFor(() => expect(mockedArchiveLearningItem).toHaveBeenCalledWith('uws-remove'));

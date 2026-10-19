@@ -51,11 +51,11 @@ describe('useReducedMotion', () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     matchMediaListeners = [];
     nativeListeners = [];
     jest.restoreAllMocks();
-    cleanup();
+    await cleanup();
   });
 
   it('returns false on web when prefers-reduced-motion does not match', async () => {
@@ -111,7 +111,7 @@ describe('useReducedMotion', () => {
 
     const { unmount } = await renderHook(() => useReducedMotion());
 
-    unmount();
+    await unmount();
 
     await waitFor(() => expect(remove).toHaveBeenCalled());
   });

@@ -23,13 +23,13 @@ describe('TargetDeckSelector', () => {
     await render(<TargetDeckSelector decks={decks} selectedId="d1" onSelect={onSelect} />, { wrapper: Wrapper });
 
     expect(screen.getByText('All Words')).toBeTruthy();
-    fireEvent.press(screen.getByText('All Words'));
+    await fireEvent.press(screen.getByText('All Words'));
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Search decks')).toBeTruthy();
       expect(screen.getByText('Travel')).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('Travel'));
+    await fireEvent.press(screen.getByText('Travel'));
     expect(onSelect).toHaveBeenCalledWith('d2');
   });
 });

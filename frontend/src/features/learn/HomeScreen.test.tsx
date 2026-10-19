@@ -70,7 +70,7 @@ describe('HomeScreen', () => {
     await render(<HomeScreen />, { wrapper: Wrapper });
     expect(screen.queryByTestId('forecast-tooltip')).toBeNull();
     const firstNode = screen.getByTestId('forecast-node-0');
-    fireEvent.press(firstNode);
+    await fireEvent.press(firstNode);
     await waitFor(() => {
       expect(screen.getByTestId('forecast-tooltip')).toBeTruthy();
     });
@@ -80,7 +80,7 @@ describe('HomeScreen', () => {
     await render(<HomeScreen />, { wrapper: Wrapper });
     expect(screen.queryByTestId('xp-details-bubble')).toBeNull();
     const orb = screen.getByTestId('xp-progress-orb');
-    fireEvent.press(orb);
+    await fireEvent.press(orb);
     await waitFor(() => {
       expect(screen.getByTestId('xp-details-bubble')).toBeTruthy();
     });

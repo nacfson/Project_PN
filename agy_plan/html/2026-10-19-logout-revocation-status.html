@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Implementation Plan: 2026-10-19 Logout Revocation Status Contract</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #020617;
+      color: #f1f5f9;
+    }
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes dashForward {
+      to {
+        stroke-dashoffset: -24;
+      }
+    }
+    .edge-active {
+      stroke-dasharray: 6 6;
+      animation: dashForward 1.1s linear infinite;
+    }
+    .dimmed {
+      opacity: 0.16;
+      transition: opacity 0.25s ease;
+    }
+    .node-box {
+      transition: all 0.25s ease;
+    }
+    .diff-add {
+      background: rgba(52, 211, 153, 0.14);
+      color: #6ee7b7;
+      display: block;
+      padding: 0 8px;
+    }
+    .diff-del {
+      background: rgba(251, 113, 133, 0.14);
+      color: #fda4af;
+      display: block;
+      padding: 0 8px;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <!-- Sticky Header -->
+  <header class="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="mx-auto max-w-6xl px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 mono">
+            IMPLEMENTATION PLAN
+          </span>
+          <span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mono">
+            CONTRACT_AUTH_DOOR §3.4
+          </span>
+          <span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 mono">
+            Spec 009 BFF Logout
+          </span>
+        </div>
+        <h1 class="text-xl font-bold text-white mt-1">
+          BFF Logout Revocation Status &amp; Error Forwarding Plan
+        </h1>
+      </div>
+      <nav class="flex gap-2">
+        <button onclick="switchTab('architecture')" id="tab-btn-architecture" class="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+          1. Architecture &amp; Simulator
+        </button>
+        <button onclick="switchTab('scope')" id="tab-btn-scope" class="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200">
+          2. Contract &amp; Scope Matrix
+        </button>
+        <button onclick="switchTab('diffs')" id="tab-btn-diffs" class="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200">
+          3. Proposed Code Diffs
+        </button>
+        <button onclick="switchTab('verify')" id="tab-btn-verify" class="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200">
+          4. Verification Gates
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-6 py-8 space-y-8">
+    <!-- Tab 1: Architecture & Simulator -->
+    <section id="tab-architecture" class="space-y-6">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+        <h2 class="text-lg font-semibold text-white mb-2">Executive Summary</h2>
+        <p class="text-sm text-slate-300 leading-relaxed">
+          All five <code class="text-cyan-400">nacfson_pipeline</code> contracts (<code class="text-cyan-400">CONTRACT_AUTH_DOOR.md</code>, <code class="text-cyan-400">session-revocation.md</code>, <code class="text-cyan-400">gateway-internal-auth-api.md</code>, <code class="text-cyan-400">shared-verification-module.md</code>, and <code class="text-cyan-400">transit-signing.md</code>) enforce a single synchronous revocation invariant: <code class="text-emerald-400">POST /api/auth/logout</code> MUST return <code class="text-emerald-400">200 OK {"status":"revoked"}</code> only when the internal gateway confirms that Keycloak deleted the session (<code class="text-emerald-400">204/200</code>), and MUST forward <code class="text-rose-400">502 Bad Gateway</code> or <code class="text-amber-400">503 Service Unavailable</code> unchanged without claiming revocation or wiping the client's bearer <code class="text-cyan-400">v1.&lt;session_handle&gt;</code>.
+        </p>
+      </div>
+
+      <!-- Interactive Scenario Simulator -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 class="text-base font-semibold text-white">Interactive Logout Revocation Flow Simulator</h3>
+            <p class="text-xs text-slate-400">Select a Keycloak / Gateway outcome to inspect the required BFF &amp; Frontend behavior.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setScenario('revoked')" id="scen-revoked" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              Scenario A: Keycloak 204 (Revoked -> 200)
+            </button>
+            <button onclick="setScenario('refused')" id="scen-refused" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+              Scenario B: Keycloak Refuses 403 (-> 502)
+            </button>
+            <button onclick="setScenario('unreachable')" id="scen-unreachable" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+              Scenario C: Gateway/Keycloak Down (-> 503)
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 overflow-x-auto">
+          <svg viewBox="0 0 920 210" class="w-full h-auto min-w-[720px]">
+            <!-- Edges -->
+            <line id="edge-fe-bff" x1="190" y1="95" x2="290" y2="95" stroke="#38bdf8" stroke-width="2.5" class="edge-active" />
+            <line id="edge-bff-gw" x1="480" y1="95" x2="580" y2="95" stroke="#38bdf8" stroke-width="2.5" class="edge-active" />
+            <line id="edge-gw-kc" x1="740" y1="95" x2="810" y2="95" stroke="#34d399" stroke-width="2.5" class="edge-active" />
+
+            <!-- Nodes -->
+            <g id="node-fe" class="node-box">
+              <rect x="20" y="50" width="170" height="90" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="2" />
+              <text x="105" y="82" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="600">PN Frontend</text>
+              <text x="105" y="102" text-anchor="middle" fill="#94a3b8" font-size="11" class="mono">Bearer v1.&lt;handle&gt;</text>
+              <text id="fe-state" x="105" y="122" text-anchor="middle" fill="#34d399" font-size="10" class="mono">Clears sessionStorage</text>
+            </g>
+
+            <g id="node-bff" class="node-box">
+              <rect x="290" y="50" width="190" height="90" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="2" />
+              <text x="385" y="82" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="600">PN Backend BFF</text>
+              <text x="385" y="102" text-anchor="middle" fill="#94a3b8" font-size="11" class="mono">POST /api/auth/logout</text>
+              <text id="bff-verdict" x="385" y="122" text-anchor="middle" fill="#34d399" font-size="10" class="mono">200 {"status":"revoked"}</text>
+            </g>
+
+            <g id="node-gw" class="node-box">
+              <rect x="580" y="50" width="160" height="90" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="2" />
+              <text x="660" y="82" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="600">Identity Gateway</text>
+              <text x="660" y="102" text-anchor="middle" fill="#94a3b8" font-size="11" class="mono">POST /auth/logout</text>
+              <text id="gw-verdict" x="660" y="122" text-anchor="middle" fill="#34d399" font-size="10" class="mono">200 status=revoked</text>
+            </g>
+
+            <g id="node-kc" class="node-box">
+              <rect x="810" y="50" width="95" height="90" rx="12" fill="#0f172a" stroke="#34d399" stroke-width="2" />
+              <text x="857" y="82" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="600">Keycloak</text>
+              <text x="857" y="102" text-anchor="middle" fill="#94a3b8" font-size="10" class="mono">DELETE /sessions</text>
+              <text id="kc-verdict" x="857" y="122" text-anchor="middle" fill="#34d399" font-size="10" class="mono">204 No Content</text>
+            </g>
+          </svg>
+        </div>
+
+        <div id="sim-log" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs mono space-y-1.5">
+          <div class="text-emerald-400 font-semibold">[VERDICT: 200 OK {"status":"revoked"}]</div>
+          <div class="text-slate-300">1. Gateway authenticates as <span class="text-cyan-400">session-revocation-client</span> and sends <span class="text-cyan-400">DELETE /admin/realms/platform/sessions/{sid}</span>.</div>
+          <div class="text-slate-300">2. Keycloak returns <span class="text-emerald-400">204 No Content</span>; Gateway responds <span class="text-emerald-400">200 OK {"status":"revoked"}</span>.</div>
+          <div class="text-slate-300">3. PN BFF verifies <span class="text-emerald-400">status == "revoked"</span>, clears cookies, and returns <span class="text-emerald-400">200 OK {"status":"revoked"}</span>.</div>
+          <div class="text-slate-300">4. PN Frontend clears <span class="text-cyan-400">sessionStorage</span>; next request with the old handle is rejected with <span class="text-rose-400">401</span>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Contract & Scope Matrix -->
+    <section id="tab-scope" class="hidden space-y-6">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+        <h2 class="text-lg font-semibold text-white mb-4">Pipeline Contract Alignment Matrix</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-300">
+                <th class="py-3 px-4">Condition</th>
+                <th class="py-3 px-4">Old Project PN Behavior</th>
+                <th class="py-3 px-4">Required Pipeline Contract Behavior</th>
+                <th class="py-3 px-4">Owning Task</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/80 text-slate-300">
+              <tr>
+                <td class="py-3 px-4 mono text-xs">Gateway 200 {"status":"revoked"}</td>
+                <td class="py-3 px-4 text-rose-400 mono text-xs">204 No Content (empty body)</td>
+                <td class="py-3 px-4 text-emerald-400 mono text-xs">200 OK {"status":"revoked"}</td>
+                <td class="py-3 px-4 mono text-xs text-cyan-400">Task 1, Task 2, Task 3</td>
+              </tr>
+              <tr>
+                <td class="py-3 px-4 mono text-xs">Gateway 502 (Keycloak refused DELETE)</td>
+                <td class="py-3 px-4 text-rose-400 mono text-xs">401 Unauthorized + client wipes token</td>
+                <td class="py-3 px-4 text-emerald-400 mono text-xs">502 Bad Gateway forwarded; handle kept for retry</td>
+                <td class="py-3 px-4 mono text-xs text-cyan-400">Task 1, Task 2, Task 3</td>
+              </tr>
+              <tr>
+                <td class="py-3 px-4 mono text-xs">Gateway 503 or Unreachable</td>
+                <td class="py-3 px-4 text-rose-400 mono text-xs">401 Unauthorized + client wipes token</td>
+                <td class="py-3 px-4 text-emerald-400 mono text-xs">503 Service Unavailable; handle kept for retry</td>
+                <td class="py-3 px-4 mono text-xs text-cyan-400">Task 1, Task 2, Task 3</td>
+              </tr>
+              <tr>
+                <td class="py-3 px-4 mono text-xs">Gateway 200 without status="revoked"</td>
+                <td class="py-3 px-4 text-rose-400 mono text-xs">Accepted as success (204)</td>
+                <td class="py-3 px-4 text-emerald-400 mono text-xs">Rejected as 502 Bad Gateway (unconfirmed)</td>
+                <td class="py-3 px-4 mono text-xs text-cyan-400">Task 1, Task 3</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+        <h2 class="text-lg font-semibold text-white mb-4">Files Modified by Task</h2>
+        <ul class="space-y-3 text-sm text-slate-300">
+          <li><span class="mono text-cyan-400">Task 1:</span> <code class="mono">backend/internal/auth/gateway_client.go</code>, <code class="mono">backend/internal/auth/gateway_client_test.go</code></li>
+          <li><span class="mono text-cyan-400">Task 2:</span> <code class="mono">backend/internal/http/auth_handler.go</code>, <code class="mono">backend/internal/http/auth_handler_test.go</code></li>
+          <li><span class="mono text-cyan-400">Task 3:</span> <code class="mono">packages/api/src/auth.ts</code>, <code class="mono">packages/api/src/client.test.ts</code>, <code class="mono">frontend/src/api/auth.ts</code>, <code class="mono">specs/003-bff-session-handle-auth/contracts/bff-auth-api.md</code>, <code class="mono">specs/003-bff-session-handle-auth/spec.md</code>, <code class="mono">docs/handoff-spec009-bff-auth.md</code>, <code class="mono">backend/docs/backend-overview.md</code></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Tab 3: Proposed Code Diffs -->
+    <section id="tab-diffs" class="hidden space-y-6">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h2 class="text-base font-semibold text-white mono">1. backend/internal/auth/gateway_client.go</h2>
+        <pre class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs overflow-x-auto leading-relaxed">
+<span class="diff-add">+type GatewayLogoutError struct {</span>
+<span class="diff-add">+	StatusCode int</span>
+<span class="diff-add">+	Message    string</span>
+<span class="diff-add">+	Cause      error</span>
+<span class="diff-add">+}</span>
+<span class="diff-add">+</span>
+<span class="diff-add">+func (e *GatewayLogoutError) Error() string {</span>
+<span class="diff-add">+	if e.Cause != nil {</span>
+<span class="diff-add">+		return fmt.Sprintf("gateway logout status %d (%s): %v", e.StatusCode, e.Message, e.Cause)</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	return fmt.Sprintf("gateway logout status %d: %s", e.StatusCode, e.Message)</span>
+<span class="diff-add">+}</span>
+<span class="diff-add">+</span>
+<span class="diff-add">+func (e *GatewayLogoutError) Unwrap() error { return e.Cause }</span>
+...
+<span class="diff-del">-	resp, err := c.httpClient.Do(req)</span>
+<span class="diff-del">-	if err != nil {</span>
+<span class="diff-del">-		return err</span>
+<span class="diff-del">-	}</span>
+<span class="diff-del">-	defer resp.Body.Close()</span>
+<span class="diff-del">-</span>
+<span class="diff-del">-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {</span>
+<span class="diff-del">-		return ErrInvalidToken</span>
+<span class="diff-del">-	}</span>
+<span class="diff-del">-	return nil</span>
+<span class="diff-add">+	resp, err := c.httpClient.Do(req)</span>
+<span class="diff-add">+	if err != nil {</span>
+<span class="diff-add">+		return &amp;GatewayLogoutError{StatusCode: http.StatusServiceUnavailable, Message: "authentication gateway unreachable", Cause: err}</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	defer resp.Body.Close()</span>
+<span class="diff-add">+</span>
+<span class="diff-add">+	var payload struct {</span>
+<span class="diff-add">+		Status  string `json:"status"`</span>
+<span class="diff-add">+		Message string `json:"message"`</span>
+<span class="diff-add">+	}</span>
+<span class="diff-add">+	_ = json.NewDecoder(io.LimitReader(resp.Body, 4&lt;&lt;10)).Decode(&amp;payload)</span>
+<span class="diff-add">+</span>
+<span class="diff-add">+	switch resp.StatusCode {</span>
+<span class="diff-add">+	case http.StatusOK:</span>
+<span class="diff-add">+		if payload.Status != "revoked" {</span>
+<span class="diff-add">+			return &amp;GatewayLogoutError{StatusCode: http.StatusBadGateway, Message: "gateway did not confirm session revocation"}</span>
+<span class="diff-add">+		}</span>
+<span class="diff-add">+		return nil</span>
+<span class="diff-add">+	case http.StatusBadGateway:</span>
+<span class="diff-add">+		return &amp;GatewayLogoutError{StatusCode: http.StatusBadGateway, Message: nonEmpty(payload.Message, "Keycloak did not delete the session")}</span>
+<span class="diff-add">+	case http.StatusServiceUnavailable:</span>
+<span class="diff-add">+		return &amp;GatewayLogoutError{StatusCode: http.StatusServiceUnavailable, Message: nonEmpty(payload.Message, "authentication gateway unavailable")}</span>
+<span class="diff-add">+	case http.StatusUnauthorized, http.StatusBadRequest:</span>
+<span class="diff-add">+		return ErrInvalidToken</span>
+<span class="diff-add">+	default:</span>
+<span class="diff-add">+		return &amp;GatewayLogoutError{StatusCode: http.StatusBadGateway, Message: nonEmpty(payload.Message, fmt.Sprintf("gateway logout failed with status %d", resp.StatusCode))}</span>
+<span class="diff-add">+	}</span></pre>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h2 class="text-base font-semibold text-white mono">2. backend/internal/http/auth_handler.go (`centralLogout`)</h2>
+        <pre class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs overflow-x-auto leading-relaxed">
+<span class="diff-del">-			if gateway == nil {</span>
+<span class="diff-del">-				writeError(w, http.StatusInternalServerError, "gateway auth is not configured")</span>
+<span class="diff-del">-				return</span>
+<span class="diff-del">-			}</span>
+<span class="diff-del">-			if err := gateway.LogoutSessionHandle(r.Context(), session.credential); err != nil {</span>
+<span class="diff-del">-				if logger != nil {</span>
+<span class="diff-del">-					logger.Logf("AUTH_FAILURE", "gateway logout failed from %s: %v", r.RemoteAddr, err)</span>
+<span class="diff-del">-				}</span>
+<span class="diff-del">-				writeError(w, http.StatusUnauthorized, "unauthorized")</span>
+<span class="diff-del">-				return</span>
+<span class="diff-del">-			}</span>
+<span class="diff-add">+			if gateway == nil {</span>
+<span class="diff-add">+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "service_unavailable", "message": "gateway auth is not configured"})</span>
+<span class="diff-add">+				return</span>
+<span class="diff-add">+			}</span>
+<span class="diff-add">+			if err := gateway.LogoutSessionHandle(r.Context(), session.credential); err != nil {</span>
+<span class="diff-add">+				if logger != nil {</span>
+<span class="diff-add">+					logger.Logf("AUTH_FAILURE", "gateway logout failed from %s: %v", r.RemoteAddr, err)</span>
+<span class="diff-add">+				}</span>
+<span class="diff-add">+				var gwErr *auth.GatewayLogoutError</span>
+<span class="diff-add">+				if errors.As(err, &amp;gwErr) {</span>
+<span class="diff-add">+					errCode := "revocation_failed"</span>
+<span class="diff-add">+					if gwErr.StatusCode == http.StatusServiceUnavailable {</span>
+<span class="diff-add">+						errCode = "service_unavailable"</span>
+<span class="diff-add">+					}</span>
+<span class="diff-add">+					writeJSON(w, gwErr.StatusCode, map[string]string{"error": errCode, "message": gwErr.Message})</span>
+<span class="diff-add">+					return</span>
+<span class="diff-add">+				}</span>
+<span class="diff-add">+				writeError(w, http.StatusUnauthorized, "unauthorized")</span>
+<span class="diff-add">+				return</span>
+<span class="diff-add">+			}</span>
+...
+<span class="diff-del">-			w.WriteHeader(http.StatusNoContent)</span>
+<span class="diff-add">+			writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})</span></pre>
+      </div>
+    </section>
+
+    <!-- Tab 4: Verification Gates -->
+    <section id="tab-verify" class="hidden space-y-6">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h2 class="text-lg font-semibold text-white">Automated Verification Gate Playbook</h2>
+        <p class="text-xs text-slate-400">Check off each command as you run the verification gates.</p>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-4 bg-slate-950 border border-slate-800 rounded-xl p-3.5">
+            <label class="flex items-center gap-3 text-xs mono text-slate-200 cursor-pointer">
+              <input type="checkbox" class="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+              <span id="cmd-1">cd backend &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; GOTOOLCHAIN=go1.26.0 go test -p 1 ./internal/auth/... ./internal/http/...</span>
+            </label>
+            <button onclick="copyCmd('cmd-1', this)" class="px-3 py-1 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-cyan-300 mono">Copy</button>
+          </div>
+
+          <div class="flex items-center justify-between gap-4 bg-slate-950 border border-slate-800 rounded-xl p-3.5">
+            <label class="flex items-center gap-3 text-xs mono text-slate-200 cursor-pointer">
+              <input type="checkbox" class="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+              <span id="cmd-2">npm test -w packages/api &amp;&amp; npm run typecheck -w packages/api &amp;&amp; npm run typecheck -w frontend</span>
+            </label>
+            <button onclick="copyCmd('cmd-2', this)" class="px-3 py-1 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-cyan-300 mono">Copy</button>
+          </div>
+
+          <div class="flex items-center justify-between gap-4 bg-slate-950 border border-slate-800 rounded-xl p-3.5">
+            <label class="flex items-center gap-3 text-xs mono text-slate-200 cursor-pointer">
+              <input type="checkbox" class="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+              <span id="cmd-3">npm test -w frontend -- --testPathPattern=AddScreen --watchAll=false</span>
+            </label>
+            <button onclick="copyCmd('cmd-3', this)" class="px-3 py-1 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-cyan-300 mono">Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function switchTab(id) {
+      ['architecture', 'scope', 'diffs', 'verify'].forEach((t) => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== id);
+        const btn = document.getElementById('tab-btn-' + t);
+        if (t === id) {
+          btn.className = 'px-3.5 py-1.5 rounded-lg text-sm font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/40';
+        } else {
+          btn.className = 'px-3.5 py-1.5 rounded-lg text-sm font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200';
+        }
+      });
+    }
+
+    function setScenario(mode) {
+      const log = document.getElementById('sim-log');
+      const feState = document.getElementById('fe-state');
+      const bffVerdict = document.getElementById('bff-verdict');
+      const gwVerdict = document.getElementById('gw-verdict');
+      const kcVerdict = document.getElementById('kc-verdict');
+      const edgeGwKc = document.getElementById('edge-gw-kc');
+      const nodeKc = document.getElementById('node-kc');
+
+      ['revoked', 'refused', 'unreachable'].forEach((m) => {
+        const btn = document.getElementById('scen-' + m);
+        btn.className = m === mode
+          ? 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+          : 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700';
+      });
+
+      if (mode === 'revoked') {
+        nodeKc.classList.remove('dimmed');
+        edgeGwKc.setAttribute('stroke', '#34d399');
+        kcVerdict.textContent = '204 No Content';
+        kcVerdict.setAttribute('fill', '#34d399');
+        gwVerdict.textContent = '200 status=revoked';
+        gwVerdict.setAttribute('fill', '#34d399');
+        bffVerdict.textContent = '200 {"status":"revoked"}';
+        bffVerdict.setAttribute('fill', '#34d399');
+        feState.textContent = 'Clears sessionStorage';
+        feState.setAttribute('fill', '#34d399');
+        log.innerHTML = `
+          <div class="text-emerald-400 font-semibold">[VERDICT: 200 OK {"status":"revoked"}]</div>
+          <div class="text-slate-300">1. Gateway obtains token as <span class="text-cyan-400">session-revocation-client</span> and sends <span class="text-cyan-400">DELETE /admin/realms/platform/sessions/{sid}</span>.</div>
+          <div class="text-slate-300">2. Keycloak returns <span class="text-emerald-400">204 No Content</span>; Gateway responds <span class="text-emerald-400">200 OK {"status":"revoked"}</span>.</div>
+          <div class="text-slate-300">3. PN BFF verifies <span class="text-emerald-400">status == "revoked"</span>, clears cookies, and returns <span class="text-emerald-400">200 OK {"status":"revoked"}</span>.</div>
+          <div class="text-slate-300">4. PN Frontend clears <span class="text-cyan-400">sessionStorage</span>; next request with the old handle is rejected with <span class="text-rose-400">401</span>.</div>
+        `;
+      } else if (mode === 'refused') {
+        nodeKc.classList.remove('dimmed');
+        edgeGwKc.setAttribute('stroke', '#fb7185');
+        kcVerdict.textContent = '403 Forbidden';
+        kcVerdict.setAttribute('fill', '#fb7185');
+        gwVerdict.textContent = '502 revocation_failed';
+        gwVerdict.setAttribute('fill', '#fb7185');
+        bffVerdict.textContent = '502 Bad Gateway';
+        bffVerdict.setAttribute('fill', '#fb7185');
+        feState.textContent = 'Keeps handle for retry';
+        feState.setAttribute('fill', '#fbbf24');
+        log.innerHTML = `
+          <div class="text-rose-400 font-semibold">[VERDICT: 502 Bad Gateway {"error":"revocation_failed"}]</div>
+          <div class="text-slate-300">1. Keycloak refuses <span class="text-rose-400">DELETE /admin/realms/platform/sessions/{sid}</span> (e.g., missing <span class="text-amber-400">manage-users</span> role -> 403).</div>
+          <div class="text-slate-300">2. Gateway returns <span class="text-rose-400">502 Bad Gateway</span> and MUST NOT claim <span class="text-rose-400">status: revoked</span>.</div>
+          <div class="text-slate-300">3. PN BFF forwards <span class="text-rose-400">502 Bad Gateway</span> unchanged without clearing bearer session.</div>
+          <div class="text-slate-300">4. PN Frontend keeps <span class="text-cyan-400">v1.&lt;session_handle&gt;</span> in <span class="text-cyan-400">sessionStorage</span> so a subsequent logout can revoke it.</div>
+        `;
+      } else {
+        nodeKc.classList.add('dimmed');
+        edgeGwKc.setAttribute('stroke', '#fbbf24');
+        kcVerdict.textContent = 'Unreachable';
+        kcVerdict.setAttribute('fill', '#fbbf24');
+        gwVerdict.textContent = '503 Unavailable';
+        gwVerdict.setAttribute('fill', '#fbbf24');
+        bffVerdict.textContent = '503 Service Unavailable';
+        bffVerdict.setAttribute('fill', '#fbbf24');
+        feState.textContent = 'Keeps handle for retry';
+        feState.setAttribute('fill', '#fbbf24');
+        log.innerHTML = `
+          <div class="text-amber-400 font-semibold">[VERDICT: 503 Service Unavailable {"error":"service_unavailable"}]</div>
+          <div class="text-slate-300">1. Keycloak or the internal Gateway is unreachable on the cluster network.</div>
+          <div class="text-slate-300">2. Gateway / BFF returns <span class="text-amber-400">503 Service Unavailable</span> and MUST NOT claim <span class="text-rose-400">status: revoked</span>.</div>
+          <div class="text-slate-300">3. PN Frontend preserves <span class="text-cyan-400">v1.&lt;session_handle&gt;</span> in <span class="text-cyan-400">sessionStorage</span> until a later logout receives confirmed revocation.</div>
+        `;
+      }
+    }
+
+    function copyCmd(id, btn) {
+      const text = document.getElementById(id).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1200);
+      });
+    }
+  </script>
+</body>
+</html>

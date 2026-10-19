@@ -43,7 +43,7 @@ describe('CaptureSection', () => {
 
     expect(screen.queryByText('Tap words to select')).toBeNull();
 
-    fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'hello');
+    await fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'hello');
     await waitFor(() => expect(screen.getByText('Tap words to select')).toBeTruthy());
     expect(screen.getByText('hello')).toBeTruthy();
 
@@ -54,34 +54,34 @@ describe('CaptureSection', () => {
   it('shows Step 3 (POS, selected chips, Add button) only when at least one word is selected', async () => {
     await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
 
-    fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'fox dog');
+    await fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'fox dog');
     await waitFor(() => expect(screen.getByText('fox')).toBeTruthy());
 
     expect(screen.queryByText('Part of speech (optional)')).toBeNull();
 
-    fireEvent.press(screen.getByText('fox'));
+    await fireEvent.press(screen.getByText('fox'));
 
     await waitFor(() => expect(screen.getByText('Part of speech (optional)')).toBeTruthy());
     expect(screen.getByText('Add selected (1)')).toBeTruthy();
 
-    fireEvent.press(screen.getByText('Add selected (1)'));
+    await fireEvent.press(screen.getByText('Add selected (1)'));
     expect(enqueueMany).toHaveBeenCalledWith(['fox'], 'Any', 'deck-123', 'en');
   });
 
   it('selects a multi-word phrase in phrase mode', async () => {
     await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
 
-    fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'look up the word');
+    await fireEvent.changeText(screen.getByPlaceholderText('Paste or type text here...'), 'look up the word');
     await waitFor(() => expect(screen.getByTestId('passage-word-0')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('phrase-mode-toggle'));
+    await fireEvent.press(screen.getByTestId('phrase-mode-toggle'));
     await waitFor(() => expect(screen.getByText('Tap start and end words to select a phrase')).toBeTruthy());
 
-    fireEvent.press(screen.getByTestId('passage-word-0'));
-    fireEvent.press(screen.getByTestId('passage-word-1'));
+    await fireEvent.press(screen.getByTestId('passage-word-0'));
+    await fireEvent.press(screen.getByTestId('passage-word-1'));
 
     await waitFor(() => expect(screen.getByText('Add selected (1)')).toBeTruthy());
-    fireEvent.press(screen.getByText('Add selected (1)'));
+    await fireEvent.press(screen.getByText('Add selected (1)'));
     expect(enqueueMany).toHaveBeenCalledWith(['look up'], 'phrase', 'deck-123', 'en');
   });
 });

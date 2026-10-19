@@ -279,3 +279,271 @@ type noopMagicLinks struct{}
 
 func (noopMagicLinks) SendMagicLink(context.Context, string, string) error { return nil }
 
+func TestBFFLoginCallbackSessionAndLogoutFlow(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
+	tokenStr := mintTestJWT(t, setup, "sub-bff-777", "bff-learner@platform.local", "google")
+
+	var logoutCalledWith string
+	mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/auth/exchange":
+			var body struct {
+				Ticket string `json:"ticket"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.Ticket != "v1.good-ticket" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(auth.ExchangeResponse{
+				SessionHandle: "v1.sealed-session-handle-777",
+				Subject:       "sub-bff-777",
+				Issuer:        setup.cfg.Issuer,
+				Audience:      "project-pn",
+				ExpiresIn:     28800,
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/auth":
+			if r.Header.Get("Authorization") != "Bearer v1.sealed-session-handle-777" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Authorization", "Bearer "+tokenStr)
+			w.Header().Set("X-User-Subject", "sub-bff-777")
+			w.Header().Set("X-User-Issuer", setup.cfg.Issuer)
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodPost && r.URL.Path == "/auth/logout":
+			logoutCalledWith = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"status":"revoked"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockGateway.Close()
+
+	gwClient := auth.NewGatewayClient(mockGateway.URL+"/auth", auth.SignInShared, mockGateway.Client())
+	router := NewRouter(Dependencies{
+		Auth:             setup.authSvc,
+		JWTVerifier:      setup.verifier,
+		Gateway:          gwClient,
+		PublicAppURL:     "https://pn.nacfson.cloud",
+		PublicAuthOrigin: "https://auth.nacfson.cloud",
+		AllowedOrigins:   []string{"https://pn.nacfson.cloud"},
+		AdminLogger:      admin.NoopLogger{},
+	})
+
+	// 1. GET /api/auth/login sets __Host-pa_nonce and redirects to /oauth/start
+	loginReq := httptest.NewRequest(http.MethodGet, "/api/auth/login", nil)
+	loginRec := httptest.NewRecorder()
+	router.ServeHTTP(loginRec, loginReq)
+
+	if loginRec.Code != http.StatusFound {
+		t.Fatalf("expected 302 from /api/auth/login, got %d", loginRec.Code)
+	}
+	var nonceCookie *http.Cookie
+	for _, c := range loginRec.Result().Cookies() {
+		if c.Name == "__Host-pa_nonce" {
+			nonceCookie = c
+			break
+		}
+	}
+	if nonceCookie == nil || len(nonceCookie.Value) != 32 || !nonceCookie.HttpOnly || !nonceCookie.Secure || nonceCookie.MaxAge != 600 {
+		t.Fatalf("invalid __Host-pa_nonce cookie: %+v", nonceCookie)
+	}
+
+	loc := loginRec.Header().Get("Location")
+	if !strings.HasPrefix(loc, "https://auth.nacfson.cloud/oauth/start?return=") {
+		t.Fatalf("unexpected login redirect Location: %s", loc)
+	}
+	// Extract pa_bind from return URL
+	idx := strings.Index(loc, "pa_bind%3D")
+	if idx == -1 {
+		t.Fatalf("expected pa_bind in return URL: %s", loc)
+	}
+	paBindEncoded := loc[idx+len("pa_bind%3D"):]
+	if amp := strings.Index(paBindEncoded, "%26"); amp != -1 {
+		paBindEncoded = paBindEncoded[:amp]
+	}
+
+	// 2. CWE-352: Callback without cookie or with mismatched pa_bind returns 400 Bad Request
+	csrfReq := httptest.NewRequest(http.MethodGet, "/api/auth/callback?pa_bind=wrong-bind&ticket=v1.good-ticket", nil)
+	csrfReq.AddCookie(nonceCookie)
+	csrfRec := httptest.NewRecorder()
+	router.ServeHTTP(csrfRec, csrfReq)
+	if csrfRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on mismatched pa_bind, got %d", csrfRec.Code)
+	}
+
+	// 3. Callback with invalid ticket clears nonce and redirects to PublicAppURL/
+	badTicketReq := httptest.NewRequest(http.MethodGet, "/api/auth/callback?pa_bind="+paBindEncoded+"&ticket=v1.bad-ticket", nil)
+	badTicketReq.AddCookie(nonceCookie)
+	badTicketRec := httptest.NewRecorder()
+	router.ServeHTTP(badTicketRec, badTicketReq)
+	if badTicketRec.Code != http.StatusFound || badTicketRec.Header().Get("Location") != "https://pn.nacfson.cloud/" {
+		t.Fatalf("expected 302 to https://pn.nacfson.cloud/, got %d %s", badTicketRec.Code, badTicketRec.Header().Get("Location"))
+	}
+
+	// 4. Valid callback provisions user, stores 32-char pickup code, and redirects to https://pn.nacfson.cloud/?code=...
+	cbReq := httptest.NewRequest(http.MethodGet, "/api/auth/callback?pa_bind="+paBindEncoded+"&ticket=v1.good-ticket", nil)
+	cbReq.AddCookie(nonceCookie)
+	cbRec := httptest.NewRecorder()
+	router.ServeHTTP(cbRec, cbReq)
+	if cbRec.Code != http.StatusFound {
+		t.Fatalf("expected 302 from valid callback, got %d", cbRec.Code)
+	}
+	cbLoc := cbRec.Header().Get("Location")
+	if !strings.HasPrefix(cbLoc, "https://pn.nacfson.cloud/?code=") {
+		t.Fatalf("expected redirect with ?code=, got %s", cbLoc)
+	}
+	pickupCode := strings.TrimPrefix(cbLoc, "https://pn.nacfson.cloud/?code=")
+	if len(pickupCode) != 32 {
+		t.Fatalf("expected 32-char hex pickup code, got %q", pickupCode)
+	}
+
+	// 5. CWE-770: POST /api/auth/session rejects oversized body (> 4 KB) and invalid code lengths with 400
+	oversized := `{"code":"` + strings.Repeat("a", 5000) + `"}`
+	overReq := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(oversized))
+	overReq.Header.Set("Content-Type", "application/json")
+	overRec := httptest.NewRecorder()
+	router.ServeHTTP(overRec, overReq)
+	if overRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for >4KB session body, got %d", overRec.Code)
+	}
+
+	shortReq := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(`{"code":"short"}`))
+	shortReq.Header.Set("Content-Type", "application/json")
+	shortRec := httptest.NewRecorder()
+	router.ServeHTTP(shortRec, shortReq)
+	if shortRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-32-char code, got %d", shortRec.Code)
+	}
+
+	// 6. Valid POST /api/auth/session returns 200 OK with v1.<session_handle>
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(`{"code":"`+pickupCode+`"}`))
+	sessReq.Header.Set("Content-Type", "application/json")
+	sessRec := httptest.NewRecorder()
+	router.ServeHTTP(sessRec, sessReq)
+	if sessRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/auth/session, got %d body=%s", sessRec.Code, sessRec.Body.String())
+	}
+	var sessResp refreshResponse
+	if err := json.NewDecoder(sessRec.Body).Decode(&sessResp); err != nil {
+		t.Fatalf("decode session response: %v", err)
+	}
+	if sessResp.Token != "v1.sealed-session-handle-777" || sessResp.RefreshToken != "v1.sealed-session-handle-777" {
+		t.Fatalf("unexpected session response: %+v", sessResp)
+	}
+
+	// 7. CWE-384: Replaying the same pickup code a second time returns 401 Unauthorized
+	replayReq := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(`{"code":"`+pickupCode+`"}`))
+	replayReq.Header.Set("Content-Type", "application/json")
+	replayRec := httptest.NewRecorder()
+	router.ServeHTTP(replayRec, replayReq)
+	if replayRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 on replayed pickup code, got %d", replayRec.Code)
+	}
+
+	// 8. POST /api/auth/logout with Bearer v1.<session_handle> revokes handle at gateway and returns 200 {"status":"revoked"}
+	logoutReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	logoutReq.Host = "pn.nacfson.cloud"
+	logoutReq.Header.Set("Authorization", "Bearer "+sessResp.Token)
+	logoutReq.Header.Set("Origin", "https://pn.nacfson.cloud")
+	logoutRec := httptest.NewRecorder()
+	router.ServeHTTP(logoutRec, logoutReq)
+	if logoutRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/auth/logout, got %d body=%s", logoutRec.Code, logoutRec.Body.String())
+	}
+	var logoutBody map[string]string
+	if err := json.NewDecoder(logoutRec.Body).Decode(&logoutBody); err != nil {
+		t.Fatalf("decode logout response: %v", err)
+	}
+	if logoutBody["status"] != "revoked" {
+		t.Fatalf("expected status=revoked, got %+v", logoutBody)
+	}
+	if logoutCalledWith != "Bearer v1.sealed-session-handle-777" {
+		t.Fatalf("expected gateway logout called with Bearer v1.sealed-session-handle-777, got %q", logoutCalledWith)
+	}
+}
+
+func TestBFFLogoutForwards502And503WithoutClaimingRevoked(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		gatewayStatus  int
+		gatewayPayload string
+		wantStatus     int
+		wantError      string
+	}{
+		{
+			name:           "forwards 502 when Keycloak refuses delete",
+			gatewayStatus:  http.StatusBadGateway,
+			gatewayPayload: `{"error":"revocation_failed","message":"Keycloak did not delete the session"}`,
+			wantStatus:     http.StatusBadGateway,
+			wantError:      "revocation_failed",
+		},
+		{
+			name:           "forwards 503 when Keycloak is unreachable",
+			gatewayStatus:  http.StatusServiceUnavailable,
+			gatewayPayload: `{"error":"service_unavailable","message":"Keycloak unreachable"}`,
+			wantStatus:     http.StatusServiceUnavailable,
+			wantError:      "service_unavailable",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.gatewayStatus)
+				_, _ = w.Write([]byte(tc.gatewayPayload))
+			}))
+			defer mockGateway.Close()
+
+			gwClient := auth.NewGatewayClient(mockGateway.URL+"/auth", auth.SignInShared, mockGateway.Client())
+			logger := &fakeLogger{}
+			handler := centralLogout(nil, logger, gwClient)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			req = req.WithContext(withAuthSession(req.Context(), authSession{
+				method:     authMethodBearer,
+				credential: "v1.active-session-handle",
+			}))
+			rec := httptest.NewRecorder()
+
+			handler(rec, req)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("expected status %d, got %d body=%s", tc.wantStatus, rec.Code, rec.Body.String())
+			}
+			var body map[string]string
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode error body: %v", err)
+			}
+			if body["status"] == "revoked" {
+				t.Fatalf("failed logout must never claim status=revoked: %+v", body)
+			}
+			if body["error"] != tc.wantError {
+				t.Fatalf("expected error %q, got %+v", tc.wantError, body)
+			}
+			if len(rec.Result().Cookies()) != 0 {
+				t.Fatalf("expected no cookie clearing on failed bearer logout, got %+v", rec.Result().Cookies())
+			}
+		})
+	}
+}
+
+func TestPickupCodeExpiryEviction(t *testing.T) {
+	h := newAuthHandler(nil, nil, nil, "https://pn.nacfson.cloud", "https://auth.nacfson.cloud", admin.NoopLogger{})
+	now := time.Now().UTC()
+	code := "0123456789abcdef0123456789abcdef"
+	h.storePickupCode(code, pickupEntry{
+		SessionHandle:    "v1.expired-handle",
+		SessionExpiresAt: now.Add(time.Hour),
+		ExpiresAt:        now.Add(pickupCodeTTL),
+	}, now)
+
+	// Attempting to consume after 31 seconds must fail and evict
+	if _, ok := h.consumePickupCode(code, now.Add(31*time.Second)); ok {
+		t.Fatal("expected expired pickup code to be rejected")
+	}
+}
+
+

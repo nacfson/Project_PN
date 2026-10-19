@@ -70,8 +70,8 @@ function wrap(ui: React.ReactElement) {
 }
 
 describe('SensePicker', () => {
-  afterEach(() => {
-    cleanup();
+  afterEach(async () => {
+    await cleanup();
   });
 
   it('badges the closest context sense and adds that best match', async () => {
@@ -92,7 +92,7 @@ describe('SensePicker', () => {
       ),
     );
     expect(screen.getByText('Closest to your sentence')).toBeTruthy();
-    fireEvent.press(screen.getByText('Add best match'));
+    await fireEvent.press(screen.getByText('Add best match'));
     expect(onConfirm).toHaveBeenCalledWith('battery');
   });
 
@@ -113,7 +113,7 @@ describe('SensePicker', () => {
         />,
       ),
     );
-    fireEvent.press(screen.getByText('None of these match'));
+    await fireEvent.press(screen.getByText('None of these match'));
     await waitFor(() => {
       expect(screen.getByText(/Add a sentence that shows the meaning/)).toBeTruthy();
     });
@@ -138,9 +138,9 @@ describe('SensePicker', () => {
         />,
       ),
     );
-    fireEvent.press(screen.getByText('충전하다'));
+    await fireEvent.press(screen.getByText('충전하다'));
+    await fireEvent.press(screen.getByText('None of these match'));
     await waitFor(() => {
-      fireEvent.press(screen.getByText('None of these match'));
       expect(onForceExisting).toHaveBeenCalledWith('w1', 'Charge the battery overnight.');
     });
   });

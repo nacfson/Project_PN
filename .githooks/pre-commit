@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Fast pre-commit lint gates (<0.5s): module resolution + RNTL v14 async await check.
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+run() { # label command...
+  local label="$1"
+  shift
+  echo "pre-commit: ${label}"
+  if ! "$@"; then
+    echo "pre-commit: FAILED: ${label}" >&2
+    echo "pre-commit: commit blocked. Fix the failure above and commit again." >&2
+    exit 1
+  fi
+}
+
+run "lint:imports" npm run --silent lint:imports
+run "lint:rntl-async" npm run --silent lint:rntl-async
+
+echo "pre-commit: all checks passed"

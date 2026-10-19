@@ -22,7 +22,7 @@ describe('Chip', () => {
     const { getByText } = await render(<Chip label="Click Me" onPress={onPress} />, {
       wrapper: ThemeProvider,
     });
-    fireEvent.press(getByText('Click Me'));
+    await fireEvent.press(getByText('Click Me'));
     expect(onPress).toHaveBeenCalled();
   });
 });

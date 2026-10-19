@@ -45,14 +45,10 @@ describe('ManualAddScreen', () => {
 
     const input = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
 
-    await act(async () => {
-      fireEvent.changeText(input, '你好');
-    });
+    await fireEvent.changeText(input, '你好');
 
     const button = screen.getByText('Look up');
-    await act(async () => {
-      fireEvent.press(button);
-    });
+    await fireEvent.press(button);
 
     expect(mockEnqueue).toHaveBeenCalledWith(
       '你好',

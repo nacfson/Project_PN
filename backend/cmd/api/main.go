@@ -157,6 +157,8 @@ func main() {
 			AuthDevBypass:    cfg.AuthDevBypass,
 			CentralAuth:      centralAuth,
 			Gateway:          gatewayClient,
+			PublicAppURL:     cfg.PublicAppURL,
+			PublicAuthOrigin: cfg.CentralAuthURL,
 			AllowedOrigins:   cfg.AllowedOrigins,
 			AdminLogger:      adminLogger,
 			MetricsCollector: metricsCollector,

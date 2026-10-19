@@ -1,10 +1,13 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -33,7 +36,7 @@ func NewGatewayClient(gatewayURL, signInMode string, httpClient *http.Client) *G
 		httpClient = &http.Client{Timeout: 5 * time.Second}
 	}
 	return &GatewayClient{
-		gatewayURL: gatewayURL,
+		gatewayURL: strings.TrimRight(gatewayURL, "/"),
 		httpClient: httpClient,
 		signInMode: signInMode,
 	}
@@ -49,13 +52,24 @@ type ConfirmedIdentity struct {
 	Subject  string
 	Issuer   string
 	Audience string
+	Email    string
 	Token    string
+}
+
+// ExchangeResponse represents the payload returned by POST /auth/exchange on the internal gateway.
+type ExchangeResponse struct {
+	SessionHandle string `json:"session_handle"`
+	Subject       string `json:"subject"`
+	Issuer        string `json:"issuer"`
+	Audience      string `json:"audience"`
+	ExpiresIn     int64  `json:"expires_in"`
 }
 
 type jwtPayload struct {
 	Issuer    string      `json:"iss"`
 	Subject   string      `json:"sub"`
 	Audience  interface{} `json:"aud"`
+	Email     string      `json:"email"`
 	ExpiresAt int64       `json:"exp"`
 }
 
@@ -93,6 +107,23 @@ func DeriveProjectAudience(host string) string {
 	return "project-" + subdomain
 }
 
+func normalizeGatewayHost(host string) string {
+	h := host
+	if strings.Contains(h, ":") {
+		if splitHost, _, err := net.SplitHostPort(h); err == nil {
+			h = splitHost
+		}
+	}
+	h = strings.TrimSpace(strings.ToLower(h))
+	if h == "" || h == "localhost" || h == "127.0.0.1" || h == "example.com" ||
+		!strings.Contains(h, ".") || strings.HasSuffix(h, ".svc") ||
+		strings.HasSuffix(h, ".cluster.local") || strings.HasPrefix(h, "pn-backend") ||
+		strings.HasPrefix(h, "pn-frontend") {
+		return "pn.nacfson.cloud"
+	}
+	return h
+}
+
 // ConfirmIdentity asks the gateway over the cluster network at http://gateway.identity.svc:8080/auth
 // whether the session is confirmed.
 // When signIn is none or omitted, or when the cookie is missing/invalid or service is unreachable,
@@ -108,12 +139,13 @@ func (c *GatewayClient) ConfirmIdentity(ctx context.Context, host string, cookie
 		return nil, nil
 	}
 
+	effectiveHost := normalizeGatewayHost(host)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.gatewayURL, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("X-Forwarded-Host", host)
+	req.Header.Set("X-Forwarded-Host", effectiveHost)
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
 	}
@@ -130,12 +162,201 @@ func (c *GatewayClient) ConfirmIdentity(ctx context.Context, host string, cookie
 		return nil, nil
 	}
 
+	ident, _, err := parseConfirmedIdentityResponse(resp, effectiveHost)
+	return ident, err
+}
+
+// ConfirmSessionHandle confirms a sealed v1.<session_handle> with the internal platform gateway
+// via GET /auth and returns the confirmed identity and optional X-Refreshed-Session-Handle.
+func (c *GatewayClient) ConfirmSessionHandle(ctx context.Context, host, sessionHandle string) (*ConfirmedIdentity, string, error) {
+	if c.signInMode != SignInShared {
+		return nil, "", errors.New("gateway sign-in mode disabled")
+	}
+	sessionHandle = strings.TrimSpace(sessionHandle)
+	if !strings.HasPrefix(sessionHandle, "v1.") {
+		return nil, "", errors.New("invalid session handle prefix")
+	}
+
+	effectiveHost := normalizeGatewayHost(host)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.gatewayURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+sessionHandle)
+	req.Header.Set("X-Forwarded-Host", effectiveHost)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("gateway rejected session handle with status %d", resp.StatusCode)
+	}
+
+	ident, refreshed, err := parseConfirmedIdentityResponse(resp, effectiveHost)
+	if err != nil {
+		return nil, "", err
+	}
+	if ident == nil {
+		return nil, "", errors.New("gateway returned invalid identity claims")
+	}
+	return ident, refreshed, nil
+}
+
+// ExchangeTicket exchanges a single-use v1.<ticket> with the internal platform gateway
+// via POST /auth/exchange for a sealed v1.<session_handle>.
+func (c *GatewayClient) ExchangeTicket(ctx context.Context, host, ticket string) (*ExchangeResponse, error) {
+	if c.signInMode != SignInShared {
+		return nil, errors.New("gateway sign-in mode disabled")
+	}
+	ticket = strings.TrimSpace(ticket)
+	if ticket == "" {
+		return nil, errors.New("empty ticket")
+	}
+
+	payload, err := json.Marshal(map[string]string{"ticket": ticket})
+	if err != nil {
+		return nil, err
+	}
+
+	exchangeURL := c.gatewayURL + "/exchange"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, exchangeURL, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Host", normalizeGatewayHost(host))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("gateway ticket exchange failed with status %d", resp.StatusCode)
+	}
+
+	var exch ExchangeResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<10)).Decode(&exch); err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(exch.SessionHandle, "v1.") || exch.Subject == "" || exch.Issuer == "" {
+		return nil, errors.New("invalid exchange response from gateway")
+	}
+	if exch.ExpiresIn <= 0 {
+		exch.ExpiresIn = 28800
+	}
+	return &exch, nil
+}
+
+// GatewayLogoutError represents an upstream failure during synchronous session revocation
+// at POST /auth/logout (typically 502 Bad Gateway or 503 Service Unavailable).
+type GatewayLogoutError struct {
+	StatusCode int
+	Message    string
+	Cause      error
+}
+
+func (e *GatewayLogoutError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("gateway logout failed (%d): %s", e.StatusCode, e.Message)
+	}
+	if e.Cause != nil {
+		return fmt.Sprintf("gateway logout failed (%d): %v", e.StatusCode, e.Cause)
+	}
+	return fmt.Sprintf("gateway logout failed (%d)", e.StatusCode)
+}
+
+func (e *GatewayLogoutError) Unwrap() error {
+	return e.Cause
+}
+
+// LogoutSessionHandle revokes a sealed v1.<session_handle> at the internal platform gateway
+// via POST /auth/logout. It succeeds only when the gateway returns 200 OK with {"status":"revoked"}.
+func (c *GatewayClient) LogoutSessionHandle(ctx context.Context, sessionHandle string) error {
+	sessionHandle = strings.TrimSpace(sessionHandle)
+	if !strings.HasPrefix(sessionHandle, "v1.") {
+		return ErrInvalidToken
+	}
+
+	logoutURL := c.gatewayURL + "/logout"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, logoutURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+sessionHandle)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return &GatewayLogoutError{
+			StatusCode: http.StatusServiceUnavailable,
+			Message:    "authentication gateway unreachable",
+			Cause:      err,
+		}
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+	var payload struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(bodyBytes, &payload)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if strings.TrimSpace(payload.Status) != "revoked" {
+			return &GatewayLogoutError{
+				StatusCode: http.StatusBadGateway,
+				Message:    "gateway did not confirm session revocation",
+			}
+		}
+		return nil
+	case http.StatusBadGateway:
+		msg := strings.TrimSpace(payload.Message)
+		if msg == "" {
+			msg = "Keycloak did not delete the session"
+		}
+		return &GatewayLogoutError{
+			StatusCode: http.StatusBadGateway,
+			Message:    msg,
+		}
+	case http.StatusServiceUnavailable:
+		msg := strings.TrimSpace(payload.Message)
+		if msg == "" {
+			msg = "authentication gateway unavailable"
+		}
+		return &GatewayLogoutError{
+			StatusCode: http.StatusServiceUnavailable,
+			Message:    msg,
+		}
+	case http.StatusUnauthorized, http.StatusBadRequest:
+		return ErrInvalidToken
+	default:
+		msg := strings.TrimSpace(payload.Message)
+		if msg == "" {
+			msg = fmt.Sprintf("gateway logout failed with status %d", resp.StatusCode)
+		}
+		return &GatewayLogoutError{
+			StatusCode: http.StatusBadGateway,
+			Message:    msg,
+		}
+	}
+}
+
+func parseConfirmedIdentityResponse(resp *http.Response, host string) (*ConfirmedIdentity, string, error) {
 	authHeader := resp.Header.Get("Authorization")
-	subject := resp.Header.Get("X-User-Subject")
-	issuer := resp.Header.Get("X-User-Issuer")
+	subject := strings.TrimSpace(resp.Header.Get("X-User-Subject"))
+	issuer := strings.TrimSpace(resp.Header.Get("X-User-Issuer"))
+	emailHeader := strings.TrimSpace(resp.Header.Get("X-User-Email"))
+	audienceHeader := strings.TrimSpace(resp.Header.Get("X-Project-Audience"))
+	refreshedHandle := strings.TrimSpace(resp.Header.Get("X-Refreshed-Session-Handle"))
 
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return nil, nil
+		return nil, "", nil
 	}
 	token := strings.TrimSpace(authHeader[7:])
 
@@ -144,58 +365,63 @@ func (c *GatewayClient) ConfirmIdentity(ctx context.Context, host string, cookie
 	// Validate JWT structure, issuer, audience, and expiry
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
-		return nil, nil
+		return nil, "", nil
 	}
 	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		payloadBytes, err = base64.StdEncoding.DecodeString(parts[1])
 		if err != nil {
-			return nil, nil
+			return nil, "", nil
 		}
 	}
 
 	var claims jwtPayload
 	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	// Expiry check
 	if claims.ExpiresAt > 0 && time.Now().Unix() >= claims.ExpiresAt {
-		return nil, nil
+		return nil, "", nil
 	}
 
-	// Audience check
-	if !claims.matchesAudience(expectedAudience) {
-		return nil, nil
-	}
-
-	// Issuer check
-	if issuer != "" && claims.Issuer != "" && claims.Issuer != issuer {
-		return nil, nil
+	// Audience check: trust the Gateway verified X-Project-Audience header, or fall back to JWT aud claim
+	if audienceHeader != "" {
+		if audienceHeader != expectedAudience {
+			return nil, "", nil
+		}
+	} else if !claims.matchesAudience(expectedAudience) {
+		return nil, "", nil
 	}
 
 	// Subject check
 	if subject != "" && claims.Subject != "" && claims.Subject != subject {
-		return nil, nil
+		return nil, "", nil
 	}
 
-	sub := claims.Subject
+	sub := subject
 	if sub == "" {
-		sub = subject
+		sub = claims.Subject
 	}
-	iss := claims.Issuer
+	iss := issuer
 	if iss == "" {
-		iss = issuer
+		iss = claims.Issuer
 	}
 
 	if sub == "" {
-		return nil, errors.New("empty subject in confirmed identity")
+		return nil, "", errors.New("empty subject in confirmed identity")
+	}
+
+	email := emailHeader
+	if email == "" {
+		email = strings.TrimSpace(claims.Email)
 	}
 
 	return &ConfirmedIdentity{
 		Subject:  sub,
 		Issuer:   iss,
 		Audience: expectedAudience,
+		Email:    email,
 		Token:    token,
-	}, nil
+	}, refreshedHandle, nil
 }

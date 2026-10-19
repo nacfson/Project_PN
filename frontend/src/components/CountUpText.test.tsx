@@ -61,9 +61,7 @@ describe('CountUpText Component', () => {
     });
 
     // Flush unmount cleanups
-    await act(async () => {
-      unmount();
-    });
+    await unmount();
 
     expect(mockClearInterval).toHaveBeenCalled();
   });

@@ -54,13 +54,13 @@ describe('EditLanguagePairScreen', () => {
     await render(<EditLanguagePairScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByTestId('target-language-ja')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('target-language-ja'));
+    await fireEvent.press(screen.getByTestId('target-language-ja'));
 
     await waitFor(() =>
       expect(screen.getByText('Save').props.accessibilityState?.disabled).not.toBe(true)
     );
 
-    fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Save'));
 
     await waitFor(() => expect(mockGoBack).toHaveBeenCalled());
     expect(mockUpdateLanguagePair).toHaveBeenCalledWith('en', 'ja', 'ko');
@@ -68,16 +68,16 @@ describe('EditLanguagePairScreen', () => {
 
   it('shows already exists message when updateLanguagePair rejects with 409', async () => {
     mockUpdateLanguagePair.mockRejectedValue(new ApiError(409, 'target language already exists'));
-    render(<EditLanguagePairScreen />, { wrapper: Wrapper });
+    await render(<EditLanguagePairScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByTestId('target-language-ja')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('target-language-ja'));
+    await fireEvent.press(screen.getByTestId('target-language-ja'));
 
     await waitFor(() =>
       expect(screen.getByText('Save').props.accessibilityState?.disabled).not.toBe(true)
     );
 
-    fireEvent.press(screen.getByText('Save'));
+    await fireEvent.press(screen.getByText('Save'));
 
     await waitFor(() =>
       expect(screen.getByText('A language pair with this learning language already exists.')).toBeTruthy()

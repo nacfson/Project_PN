@@ -25,6 +25,8 @@ type Dependencies struct {
 	AuthDevBypass    bool
 	CentralAuth      *auth.CentralClient
 	Gateway          *auth.GatewayClient
+	PublicAppURL     string
+	PublicAuthOrigin string
 	AllowedOrigins   []string
 	AdminLogger      admin.Logger
 	MetricsCollector *admin.MetricsCollector
@@ -64,10 +66,13 @@ func NewRouter(deps Dependencies) http.Handler {
 	var authMW func(http.Handler) http.Handler
 	if deps.Auth != nil {
 		authMW = authMiddleware(deps.JWTVerifier, deps.Auth, deps.AuthDevBypass, deps.Gateway, deps.AdminLogger)
-		ah := &authHandler{svc: deps.Auth, logger: deps.AdminLogger}
+		ah := newAuthHandler(deps.Auth, deps.Gateway, deps.JWTVerifier, deps.PublicAppURL, deps.PublicAuthOrigin, deps.AdminLogger)
 
 		r.Route("/api/auth", func(authRouter chi.Router) {
 			authRouter.Get("/language-options", ah.languageOptions)
+			authRouter.Get("/login", ah.login)
+			authRouter.Get("/callback", ah.callback)
+			authRouter.Post("/session", ah.session)
 			authRouter.Post("/refresh", refreshSessionHandler(deps.CentralAuth, deps.AdminLogger))
 
 			authRouter.Group(func(protected chi.Router) {
@@ -78,7 +83,7 @@ func NewRouter(deps Dependencies) http.Handler {
 				protected.Get("/merge-suggestions", ah.mergeSuggestions)
 				protected.Post("/merge-requests", ah.createMergeRequest)
 				protected.Post("/merge-requests/{id}/confirm", ah.confirmMergeRequest)
-				protected.Post("/logout", centralLogout(deps.CentralAuth, deps.AdminLogger))
+				protected.Post("/logout", centralLogout(deps.CentralAuth, deps.AdminLogger, deps.Gateway))
 			})
 		})
 

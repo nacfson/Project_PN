@@ -33,7 +33,7 @@ describe('DeckCanvas', () => {
       <DeckCanvas decks={decks} selectedId={null} onSelect={onSelect} onCreate={jest.fn()} />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(screen.getByText('Daily'));
+    await fireEvent.press(screen.getByText('Daily'));
     expect(onSelect).toHaveBeenCalledWith('1');
   });
 });

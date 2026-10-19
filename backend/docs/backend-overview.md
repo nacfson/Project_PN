@@ -76,7 +76,7 @@ Requires `Authorization: Bearer <token>`.
 | `GET` | `/api/auth/merge-suggestions` | Soft hints for manual account merge (e.g. matching email domain). |
 | `POST` | `/api/auth/merge-requests` | Start a merge request to another account (target must confirm while logged in). |
 | `POST` | `/api/auth/merge-requests/{id}/confirm` | Confirm merge as the target user; unions vocabulary and deletes the source user. |
-| `POST` | `/api/auth/logout` | Revoke current bearer session. 204. |
+| `POST` | `/api/auth/logout` | Revoke current session via platform gateway; returns 200 `{"status":"revoked"}` on confirmed revocation or forwards 502/503 (legacy central-auth returns 204). |
 
 ### Learning (protected)
 

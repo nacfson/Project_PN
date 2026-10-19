@@ -110,14 +110,14 @@ describe('PracticeScreen Integration', () => {
     expect(screen.queryByText('How did this feel?')).toBeNull();
 
     // Flip Card (trigger flip to back)
-    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
 
     // Step 2: Grading State (rating bar options should now be visible immediately)
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
     expect(screen.getByText('Good')).toBeTruthy();
 
     // Click 'Good' to rate and submit
-    fireEvent.press(screen.getByText('Good'));
+    await fireEvent.press(screen.getByText('Good'));
 
     // The review attempt should be recorded
     await waitFor(() => {
@@ -156,17 +156,17 @@ describe('PracticeScreen Integration', () => {
     await render(<PracticeScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('alpha')).toBeTruthy());
-    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
-    fireEvent.press(screen.getByText('Forgot'));
+    await fireEvent.press(screen.getByText('Forgot'));
 
     await waitFor(() => expect(screen.getByText('beta')).toBeTruthy());
-    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
-    fireEvent.press(screen.getByText('Good'));
+    await fireEvent.press(screen.getByText('Good'));
 
     await waitFor(() => expect(screen.getByText('alpha')).toBeTruthy());
-    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
 
     expect(screen.getAllByText('1m').length).toBeGreaterThan(0);
@@ -214,9 +214,9 @@ describe('PracticeScreen Integration', () => {
     await render(<PracticeScreen />, { wrapper: Wrapper });
 
     await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
-    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
-    fireEvent.press(screen.getByText('Good'));
+    await fireEvent.press(screen.getByText('Good'));
 
     await waitFor(() => {
       expect(screen.getByText('Practice Complete')).toBeTruthy();
@@ -252,11 +252,11 @@ describe('PracticeScreen Integration', () => {
     await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
     expect(screen.getAllByText('Fail repeatedly!').length).toBeGreaterThan(0);
 
-    fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
     await waitFor(() => expect(screen.getByText('How did this feel?')).toBeTruthy());
     expect(screen.getByText('Change meaning')).toBeTruthy();
 
-    fireEvent.press(screen.getByText('Good'));
+    await fireEvent.press(screen.getByText('Good'));
 
     await waitFor(() => {
       expect(screen.getByText('Stuck words')).toBeTruthy();

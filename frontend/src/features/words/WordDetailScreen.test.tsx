@@ -103,7 +103,7 @@ describe('WordDetailScreen', () => {
   });
 
   it('shows Wiktionary attribution with the gloss', async () => {
-    render(<WordDetailScreen route={mockRoute(baseItem) as any} />, { wrapper: Wrapper });
+    await render(<WordDetailScreen route={mockRoute(baseItem) as any} />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('떠나다')).toBeTruthy();
     expect(screen.getByText('Gloss via Wiktionary')).toBeTruthy();
