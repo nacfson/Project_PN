@@ -252,8 +252,30 @@ func (c *GatewayClient) ExchangeTicket(ctx context.Context, host, ticket string)
 	return &exch, nil
 }
 
+// GatewayLogoutError represents an upstream failure during synchronous session revocation
+// at POST /auth/logout (typically 502 Bad Gateway or 503 Service Unavailable).
+type GatewayLogoutError struct {
+	StatusCode int
+	Message    string
+	Cause      error
+}
+
+func (e *GatewayLogoutError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("gateway logout failed (%d): %s", e.StatusCode, e.Message)
+	}
+	if e.Cause != nil {
+		return fmt.Sprintf("gateway logout failed (%d): %v", e.StatusCode, e.Cause)
+	}
+	return fmt.Sprintf("gateway logout failed (%d)", e.StatusCode)
+}
+
+func (e *GatewayLogoutError) Unwrap() error {
+	return e.Cause
+}
+
 // LogoutSessionHandle revokes a sealed v1.<session_handle> at the internal platform gateway
-// via POST /auth/logout.
+// via POST /auth/logout. It succeeds only when the gateway returns 200 OK with {"status":"revoked"}.
 func (c *GatewayClient) LogoutSessionHandle(ctx context.Context, sessionHandle string) error {
 	sessionHandle = strings.TrimSpace(sessionHandle)
 	if !strings.HasPrefix(sessionHandle, "v1.") {
@@ -269,14 +291,60 @@ func (c *GatewayClient) LogoutSessionHandle(ctx context.Context, sessionHandle s
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return &GatewayLogoutError{
+			StatusCode: http.StatusServiceUnavailable,
+			Message:    "authentication gateway unreachable",
+			Cause:      err,
+		}
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return ErrInvalidToken
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+	var payload struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
 	}
-	return nil
+	_ = json.Unmarshal(bodyBytes, &payload)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if strings.TrimSpace(payload.Status) != "revoked" {
+			return &GatewayLogoutError{
+				StatusCode: http.StatusBadGateway,
+				Message:    "gateway did not confirm session revocation",
+			}
+		}
+		return nil
+	case http.StatusBadGateway:
+		msg := strings.TrimSpace(payload.Message)
+		if msg == "" {
+			msg = "Keycloak did not delete the session"
+		}
+		return &GatewayLogoutError{
+			StatusCode: http.StatusBadGateway,
+			Message:    msg,
+		}
+	case http.StatusServiceUnavailable:
+		msg := strings.TrimSpace(payload.Message)
+		if msg == "" {
+			msg = "authentication gateway unavailable"
+		}
+		return &GatewayLogoutError{
+			StatusCode: http.StatusServiceUnavailable,
+			Message:    msg,
+		}
+	case http.StatusUnauthorized, http.StatusBadRequest:
+		return ErrInvalidToken
+	default:
+		msg := strings.TrimSpace(payload.Message)
+		if msg == "" {
+			msg = fmt.Sprintf("gateway logout failed with status %d", resp.StatusCode)
+		}
+		return &GatewayLogoutError{
+			StatusCode: http.StatusBadGateway,
+			Message:    msg,
+		}
+	}
 }
 
 func parseConfirmedIdentityResponse(resp *http.Response, host string) (*ConfirmedIdentity, string, error) {

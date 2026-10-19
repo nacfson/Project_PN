@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -260,28 +261,94 @@ func TestGatewayClient_ExchangeTicket(t *testing.T) {
 }
 
 func TestGatewayClient_LogoutSessionHandle(t *testing.T) {
-	var receivedAuth string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/auth/logout" {
-			t.Errorf("unexpected method/path: %s %s", r.Method, r.URL.Path)
+	t.Run("succeeds only on 200 OK with status revoked", func(t *testing.T) {
+		var receivedAuth string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/auth/logout" {
+				t.Errorf("unexpected method/path: %s %s", r.Method, r.URL.Path)
+			}
+			receivedAuth = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"revoked","message":"Platform session successfully terminated"}`))
+		}))
+		defer server.Close()
+
+		client := NewGatewayClient(server.URL+"/auth", SignInShared, server.Client())
+		if err := client.LogoutSessionHandle(context.Background(), "v1.handle-to-revoke"); err != nil {
+			t.Fatalf("LogoutSessionHandle failed: %v", err)
 		}
-		receivedAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"revoked"}`))
-	}))
-	defer server.Close()
+		if receivedAuth != "Bearer v1.handle-to-revoke" {
+			t.Fatalf("expected Bearer v1.handle-to-revoke, got %q", receivedAuth)
+		}
+	})
 
-	client := NewGatewayClient(server.URL+"/auth", SignInShared, server.Client())
-	if err := client.LogoutSessionHandle(context.Background(), "v1.handle-to-revoke"); err != nil {
-		t.Fatalf("LogoutSessionHandle failed: %v", err)
-	}
-	if receivedAuth != "Bearer v1.handle-to-revoke" {
-		t.Fatalf("expected Bearer v1.handle-to-revoke, got %q", receivedAuth)
-	}
+	t.Run("rejects non-v1 handle with ErrInvalidToken", func(t *testing.T) {
+		client := NewGatewayClient("http://gateway.identity.svc:8080/auth", SignInShared, nil)
+		if err := client.LogoutSessionHandle(context.Background(), "invalid-handle"); !errors.Is(err, ErrInvalidToken) {
+			t.Fatalf("expected ErrInvalidToken for non-v1 handle, got %v", err)
+		}
+	})
 
-	if err := client.LogoutSessionHandle(context.Background(), "invalid-handle"); err == nil {
-		t.Fatal("expected error for non-v1 handle")
-	}
+	t.Run("preserves 502 Bad Gateway when Keycloak refuses delete", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte(`{"error":"revocation_failed","message":"Keycloak did not delete the session"}`))
+		}))
+		defer server.Close()
+
+		client := NewGatewayClient(server.URL+"/auth", SignInShared, server.Client())
+		err := client.LogoutSessionHandle(context.Background(), "v1.handle-502")
+		var gwErr *GatewayLogoutError
+		if !errors.As(err, &gwErr) || gwErr.StatusCode != http.StatusBadGateway {
+			t.Fatalf("expected GatewayLogoutError with 502, got %v", err)
+		}
+		if gwErr.Message != "Keycloak did not delete the session" {
+			t.Fatalf("unexpected message: %q", gwErr.Message)
+		}
+	})
+
+	t.Run("preserves 503 Service Unavailable when gateway reports Keycloak unreachable", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"error":"service_unavailable","message":"Keycloak unreachable"}`))
+		}))
+		defer server.Close()
+
+		client := NewGatewayClient(server.URL+"/auth", SignInShared, server.Client())
+		err := client.LogoutSessionHandle(context.Background(), "v1.handle-503")
+		var gwErr *GatewayLogoutError
+		if !errors.As(err, &gwErr) || gwErr.StatusCode != http.StatusServiceUnavailable {
+			t.Fatalf("expected GatewayLogoutError with 503, got %v", err)
+		}
+	})
+
+	t.Run("returns 503 GatewayLogoutError when gateway is unreachable", func(t *testing.T) {
+		client := NewGatewayClient("http://127.0.0.1:54321/auth", SignInShared, &http.Client{Timeout: 50 * time.Millisecond})
+		err := client.LogoutSessionHandle(context.Background(), "v1.handle-unreachable")
+		var gwErr *GatewayLogoutError
+		if !errors.As(err, &gwErr) || gwErr.StatusCode != http.StatusServiceUnavailable {
+			t.Fatalf("expected GatewayLogoutError with 503 on transport error, got %v", err)
+		}
+	})
+
+	t.Run("treats 200 OK without status revoked as 502 Bad Gateway", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		}))
+		defer server.Close()
+
+		client := NewGatewayClient(server.URL+"/auth", SignInShared, server.Client())
+		err := client.LogoutSessionHandle(context.Background(), "v1.handle-unconfirmed")
+		var gwErr *GatewayLogoutError
+		if !errors.As(err, &gwErr) || gwErr.StatusCode != http.StatusBadGateway {
+			t.Fatalf("expected GatewayLogoutError with 502 when status != revoked, got %v", err)
+		}
+	})
 }
 
 func TestNormalizeGatewayHost_MainDomainRule(t *testing.T) {
