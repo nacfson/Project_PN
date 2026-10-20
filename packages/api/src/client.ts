@@ -86,7 +86,7 @@ function requestCredentials(): RequestCredentials | undefined {
 }
 
 function canRefreshSession(path: string, options?: RequestOptions): boolean {
-  if (usesCookieAuth() || options?.auth === false || path === '/api/auth/refresh') {
+  if (usesCookieAuth() || options?.auth === false || path === '/api/auth/refresh' || path === '/api/auth/logout') {
     return false;
   }
   return typeof getConfig().getRefreshToken === 'function';

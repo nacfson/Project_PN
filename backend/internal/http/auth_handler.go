@@ -391,6 +391,19 @@ func centralLogout(central *auth.CentralClient, logger admin.Logger, gateways ..
 					})
 					return
 				}
+				if session.method == authMethodCookie {
+					http.SetCookie(w, &http.Cookie{
+						Name:     auth.CentralSessionCookieName,
+						Value:    "",
+						Path:     "/",
+						Expires:  time.Unix(1, 0),
+						MaxAge:   -1,
+						Secure:   true,
+						HttpOnly: true,
+						SameSite: http.SameSiteLaxMode,
+					})
+					clearCentralSessionCookie(w, r)
+				}
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
@@ -415,6 +428,18 @@ func centralLogout(central *auth.CentralClient, logger admin.Logger, gateways ..
 		}
 
 		if central == nil {
+			if _, hasUser := userFromContext(r.Context()); hasUser {
+				if session.method == authMethodCookie {
+					clearCentralSessionCookie(w, r)
+				}
+				if logger != nil {
+					logger.Logf("AUTH", "logout from %s", r.RemoteAddr)
+				}
+				writeJSON(w, http.StatusOK, map[string]string{
+					"status": "revoked",
+				})
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "central auth is not configured")
 			return
 		}

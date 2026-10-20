@@ -91,6 +91,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   const [dailyGoalError, setDailyGoalError] = useState<string | undefined>();
   const [retentionError, setRetentionError] = useState<string | undefined>();
   const [streakError, setStreakError] = useState<string | undefined>();
+  const [logoutError, setLogoutError] = useState<string | undefined>();
 
   useEffect(() => {
     void (async () => {
@@ -124,13 +125,21 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
+    setLogoutError(undefined);
     try {
       await logout();
       onLogout();
+    } catch (err) {
+      const status = (err as { status?: number } | null)?.status;
+      if (status === 401) {
+        onLogout();
+        return;
+      }
+      setLogoutError(t('settings.logoutFailed'));
     } finally {
       setLoggingOut(false);
     }
-  }, [onLogout]);
+  }, [onLogout, t]);
 
   const chooseLanguage = useCallback(
     (nextLanguage: AppLanguage) => {
@@ -400,6 +409,12 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
           <SettingRow icon="information-circle-outline" label={t('settings.about')} />
         </Card>
+
+        {logoutError ? (
+          <Text variant="caption" color="danger">
+            {logoutError}
+          </Text>
+        ) : null}
 
         <Button
           label={t('settings.logout')}

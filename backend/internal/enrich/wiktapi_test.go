@@ -143,3 +143,179 @@ func TestWiktAPIEnrichSkipsExistingAnd404(t *testing.T) {
 		t.Fatalf("expected ErrNoAdditionalSenses when all glosses exist, got %v", err)
 	}
 }
+
+func TestWiktAPIEnrichFallsBackToDisplayDefinitionsWhenTranslationsMiss(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/en/word/procurement/translations":
+			_, _ = w.Write([]byte(`{
+				"word": "procurement",
+				"edition": "en",
+				"translations": [
+					{"pos": "noun", "lang_code": "en", "translations": [
+						{"lang": "French", "code": "fr", "lang_code": "fr", "sense": "the act of procuring or obtaining", "word": "approvisionnement"}
+					]}
+				]
+			}`))
+		case "/v1/ko/word/procurement/definitions":
+			_, _ = w.Write([]byte(`{
+				"word": "procurement",
+				"edition": "ko",
+				"definitions": [
+					{"pos": "unknown", "lang_code": "en", "senses": [
+						{"glosses": ["입수, 획득, 조달, 구매"]},
+						{"glosses": ["(회사의) 구매 부서, 구매 팀."]}
+					]}
+				]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewWiktAPI(srv.URL)
+	result, err := client.Enrich(context.Background(), Request{
+		Text:                   "procurement",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if err != nil {
+		t.Fatalf("Enrich: %v", err)
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("entries=%+v", result.Entries)
+	}
+	if result.Entries[0].PartOfSpeech != "noun" {
+		t.Fatalf("PartOfSpeech=%q, want noun", result.Entries[0].PartOfSpeech)
+	}
+	filtered := FilterProperSenses(nil, result.Entries[0].Senses, "ko", "procurement")
+	if len(filtered) < 4 {
+		t.Fatalf("expected at least 4 senses after FilterProperSenses, got %d (%+v)", len(filtered), filtered)
+	}
+	gotShort := map[string]bool{}
+	for _, s := range filtered {
+		gotShort[s.NativeShortDefinition] = true
+	}
+	for _, want := range []string{"입수", "획득", "조달", "구매"} {
+		if !gotShort[want] {
+			t.Fatalf("missing expected short gloss %q in %+v", want, gotShort)
+		}
+	}
+}
+
+func TestWiktAPIEnrichFallsBackToEnglishStemDefinitions(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/en/word/intertwined/translations":
+			_, _ = w.Write([]byte(`{
+				"word": "intertwined",
+				"edition": "en",
+				"translations": [
+					{"pos": "adj", "lang_code": "en", "translations": [
+						{"lang": "French", "code": "fr", "lang_code": "fr", "sense": "twined or twisted together", "word": "entrelacé"}
+					]},
+					{"pos": "verb", "lang_code": "en", "translations": []}
+				]
+			}`))
+		case "/v1/ko/word/intertwined/definitions":
+			http.NotFound(w, r)
+		case "/v1/en/word/intertwine/translations":
+			_, _ = w.Write([]byte(`{
+				"word": "intertwine",
+				"edition": "en",
+				"translations": [
+					{"pos": "verb", "lang_code": "en", "translations": [
+						{"lang": "French", "code": "fr", "lang_code": "fr", "sense": "to twine (things) together", "word": "entrelacer"}
+					]}
+				]
+			}`))
+		case "/v1/ko/word/intertwine/definitions":
+			_, _ = w.Write([]byte(`{
+				"word": "intertwine",
+				"edition": "ko",
+				"definitions": [
+					{"pos": "verb", "lang_code": "en", "senses": [
+						{"glosses": ["서로 얽히다, 짜다."]}
+					]}
+				]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewWiktAPI(srv.URL)
+	result, err := client.Enrich(context.Background(), Request{
+		Text:                   "intertwined",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if err != nil {
+		t.Fatalf("Enrich: %v", err)
+	}
+	if len(result.Entries) == 0 {
+		t.Fatalf("expected entries for intertwined, got none")
+	}
+	if result.Entries[0].Lemma != "intertwined" {
+		t.Fatalf("Lemma=%q, want intertwined", result.Entries[0].Lemma)
+	}
+	filtered := FilterProperSenses(nil, result.Entries[0].Senses, "ko", "intertwined")
+	if len(filtered) < 2 {
+		t.Fatalf("expected at least 2 senses after FilterProperSenses, got %d (%+v)", len(filtered), filtered)
+	}
+}
+
+func TestWiktAPITranslateFallsBackToDisplayDefinitions(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/en/word/implicitly/translations":
+			_, _ = w.Write([]byte(`{
+				"word": "implicitly",
+				"edition": "en",
+				"translations": [
+					{"pos": "adv", "lang_code": "en", "translations": [
+						{"lang": "French", "code": "fr", "lang_code": "fr", "sense": "in an implicit or implied manner", "word": "implicitement"}
+					]}
+				]
+			}`))
+		case "/v1/ko/word/implicitly/definitions":
+			_, _ = w.Write([]byte(`{
+				"word": "implicitly",
+				"edition": "ko",
+				"definitions": [
+					{"pos": "unknown", "lang_code": "en", "senses": [
+						{"glosses": ["묵시적으로"]}
+					]}
+				]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewWiktAPI(srv.URL)
+	res, err := client.Translate(context.Background(), TranslateRequest{
+		WordText:     "implicitly",
+		LanguageCode: "en",
+		DisplayLang:  "ko",
+		Senses: []TranslateSenseInput{
+			{SenseID: "s-1", Definition: "in an implicit or implied manner"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Translate: %v", err)
+	}
+	if len(res.Senses) != 1 || res.Senses[0].Definition != "묵시적으로" {
+		t.Fatalf("unexpected translate result: %+v", res)
+	}
+}
+

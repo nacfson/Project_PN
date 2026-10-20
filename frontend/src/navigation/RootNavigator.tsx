@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
 import { MainTabs } from './MainTabs';
+import { linkingConfig } from './linkingConfig';
 import { navigationRef } from './navigationRef';
 import { analytics } from '../analytics/analytics';
 
@@ -10,20 +11,7 @@ interface RootNavigatorProps {
 
 const linking = {
   prefixes: [Linking.createURL('/'), 'https://pn.nacfson.cloud', 'http://localhost:8081'],
-  config: {
-    screens: {
-      Settings: {
-        screens: {
-          ConnectedAccounts: 'connected-accounts',
-          SettingsRoot: '',
-        },
-      },
-      Learn: 'learn',
-      Words: 'words',
-      Add: 'add',
-      Practice: 'practice',
-    },
-  },
+  config: linkingConfig,
 };
 
 export function RootNavigator({ onLogout }: RootNavigatorProps) {

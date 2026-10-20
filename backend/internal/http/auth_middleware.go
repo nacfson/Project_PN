@@ -23,6 +23,27 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 			token := rawBearer
 			sessionCredential := rawBearer
 
+			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/auth/logout") {
+				if strings.HasPrefix(rawBearer, "v1.") {
+					ctx := withAuthSession(r.Context(), authSession{
+						method:     authMethodBearer,
+						credential: rawBearer,
+					})
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+				if rawBearer == "" {
+					if c, cookieErr := r.Cookie(auth.CentralSessionCookieName); cookieErr == nil && strings.HasPrefix(strings.TrimSpace(c.Value), "v1.") {
+						ctx := withAuthSession(r.Context(), authSession{
+							method:     authMethodCookie,
+							credential: strings.TrimSpace(c.Value),
+						})
+						next.ServeHTTP(w, r.WithContext(ctx))
+						return
+					}
+				}
+			}
+
 			var confirmedIdent *auth.ConfirmedIdentity
 			if strings.HasPrefix(rawBearer, "v1.") {
 				if gateway == nil {

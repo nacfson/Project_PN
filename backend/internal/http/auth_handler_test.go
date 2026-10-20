@@ -546,4 +546,156 @@ func TestPickupCodeExpiryEviction(t *testing.T) {
 	}
 }
 
+func TestRouterLogoutForwards502And503EvenWhenConfirmUnavailable(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
+
+	for _, tc := range []struct {
+		name           string
+		gatewayStatus  int
+		gatewayPayload string
+		wantStatus     int
+		wantError      string
+	}{
+		{
+			name:           "router forwards 502 on bearer v1 logout",
+			gatewayStatus:  http.StatusBadGateway,
+			gatewayPayload: `{"error":"revocation_failed","message":"Keycloak did not delete the session"}`,
+			wantStatus:     http.StatusBadGateway,
+			wantError:      "revocation_failed",
+		},
+		{
+			name:           "router forwards 503 on bearer v1 logout when gateway returns 503",
+			gatewayStatus:  http.StatusServiceUnavailable,
+			gatewayPayload: `{"error":"service_unavailable","message":"Keycloak unreachable"}`,
+			wantStatus:     http.StatusServiceUnavailable,
+			wantError:      "service_unavailable",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.gatewayStatus)
+				_, _ = w.Write([]byte(tc.gatewayPayload))
+			}))
+			defer mockGateway.Close()
+
+			gwClient := auth.NewGatewayClient(mockGateway.URL+"/auth", auth.SignInShared, mockGateway.Client())
+			router := NewRouter(Dependencies{
+				Auth:           setup.authSvc,
+				JWTVerifier:    setup.verifier,
+				Gateway:        gwClient,
+				AllowedOrigins: []string{"https://pn.nacfson.cloud"},
+				AdminLogger:    admin.NoopLogger{},
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			req.Header.Set("Authorization", "Bearer v1.active-session-handle")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("expected status %d from full router, got %d body=%s", tc.wantStatus, rec.Code, rec.Body.String())
+			}
+			var body map[string]string
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode error body: %v", err)
+			}
+			if body["error"] != tc.wantError {
+				t.Fatalf("expected error %q, got %+v", tc.wantError, body)
+			}
+		})
+	}
+}
+
+func TestRouterCookieLogoutSucceedsAndClearsCookieWhenAccessTokenIdleExpired(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
+
+	var logoutCalledWith string
+	mockGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/auth":
+			// Simulate Keycloak ssoSessionIdleTimeout (30m) where GET /auth refresh fails with 401
+			w.WriteHeader(http.StatusUnauthorized)
+		case r.Method == http.MethodPost && r.URL.Path == "/auth/logout":
+			logoutCalledWith = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"revoked"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockGateway.Close()
+
+	gwClient := auth.NewGatewayClient(mockGateway.URL+"/auth", auth.SignInShared, mockGateway.Client())
+	router := NewRouter(Dependencies{
+		Auth:           setup.authSvc,
+		JWTVerifier:    setup.verifier,
+		Gateway:        gwClient,
+		AllowedOrigins: []string{"https://pn.nacfson.cloud"},
+		AdminLogger:    admin.NoopLogger{},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.Host = "pn.nacfson.cloud"
+	req.Header.Set("Origin", "https://pn.nacfson.cloud")
+	req.Header.Set(csrfHeaderName, "csrf-token-123")
+	req.AddCookie(&http.Cookie{Name: auth.CentralSessionCookieName, Value: "v1.idle-expired-session-handle"})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "csrf-token-123"})
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from cookie logout even when GET /auth is 401, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if logoutCalledWith != "Bearer v1.idle-expired-session-handle" {
+		t.Fatalf("expected gateway logout called with Bearer v1.idle-expired-session-handle, got %q", logoutCalledWith)
+	}
+	var clearedSessionCookie bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == auth.CentralSessionCookieName && c.MaxAge == -1 {
+			clearedSessionCookie = true
+		}
+	}
+	if !clearedSessionCookie {
+		t.Fatalf("expected %s cookie to be cleared, got %+v", auth.CentralSessionCookieName, rec.Result().Cookies())
+	}
+}
+
+func TestRouterDevBypassAndJWTLogoutSucceedWhenCentralAuthUnconfigured(t *testing.T) {
+	setup := testAuthRouterWithJWT(t)
+	router := NewRouter(Dependencies{
+		Auth:           setup.authSvc,
+		JWTVerifier:    setup.verifier,
+		AuthDevBypass:  true,
+		AllowedOrigins: []string{"http://localhost:8081"},
+		AdminLogger:    admin.NoopLogger{},
+	})
+
+	// 1. Dev bypass token logout
+	devReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	devReq.Header.Set("Authorization", "Bearer "+auth.DevBypassToken)
+	devRec := httptest.NewRecorder()
+	router.ServeHTTP(devRec, devReq)
+	if devRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for dev-bypass logout when central==nil, got %d body=%s", devRec.Code, devRec.Body.String())
+	}
+	var devBody map[string]string
+	if err := json.NewDecoder(devRec.Body).Decode(&devBody); err != nil || devBody["status"] != "revoked" {
+		t.Fatalf("expected status=revoked for dev-bypass logout, got %+v err=%v", devBody, err)
+	}
+
+	// 2. Direct JWT bearer logout when central==nil
+	jwtToken := mintTestJWT(t, setup, "sub-jwt-logout", "jwt-logout@platform.local", "google")
+	jwtReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	jwtReq.Header.Set("Authorization", "Bearer "+jwtToken)
+	jwtRec := httptest.NewRecorder()
+	router.ServeHTTP(jwtRec, jwtReq)
+	if jwtRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for JWT logout when central==nil, got %d body=%s", jwtRec.Code, jwtRec.Body.String())
+	}
+}
+
+
 

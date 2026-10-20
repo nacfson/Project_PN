@@ -126,11 +126,9 @@ function AppContent() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        if (!isBrowserWeb()) {
-          const incomingSession = await parseSessionFromLaunchUrl();
-          if (incomingSession) {
-            await sessionStorage.setSession(incomingSession);
-          }
+        const incomingSession = await parseSessionFromLaunchUrl();
+        if (incomingSession) {
+          await sessionStorage.setSession(incomingSession);
         }
         await checkAuth();
       } catch {

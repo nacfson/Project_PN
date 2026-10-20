@@ -44,6 +44,30 @@ export async function refreshSession(refreshToken: string) {
   return session;
 }
 
+function scrubLaunchTokenFromBrowserUrl(): void {
+  if (typeof window === 'undefined' || !window.location || !window.history || typeof window.history.replaceState !== 'function') {
+    return;
+  }
+  try {
+    const url = new URL(window.location.href);
+    let mutated = false;
+    for (const key of ['token', 'refresh_token', 'expires_at', 'code']) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        mutated = true;
+      }
+    }
+    if (mutated) {
+      const search = url.searchParams.toString();
+      const cleanUrl = `${url.pathname}${search ? `?${search}` : ''}${url.hash}`;
+      const title = typeof document !== 'undefined' ? document.title : '';
+      window.history.replaceState({}, title, cleanUrl);
+    }
+  } catch {
+    // ignore URL parse errors in test/non-standard environments
+  }
+}
+
 export async function logout(): Promise<void> {
   try {
     await logoutApi();
@@ -53,10 +77,12 @@ export async function logout(): Promise<void> {
       throw err;
     }
     clearLanguageOptionsCache();
+    scrubLaunchTokenFromBrowserUrl();
     await sessionStorage.clearSession();
     throw err;
   }
   clearLanguageOptionsCache();
+  scrubLaunchTokenFromBrowserUrl();
   await sessionStorage.clearSession();
 }
 

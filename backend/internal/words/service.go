@@ -127,7 +127,13 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	if pos != nil {
 		posHint = *pos
 	}
-	result, err := s.enricher.Enrich(ctx, enrich.Request{
+	enrichCtx := ctx
+	var cancel context.CancelFunc
+	if ctx.Err() == nil {
+		enrichCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+	}
+	result, err := s.enricher.Enrich(enrichCtx, enrich.Request{
 		Text:                   normalized,
 		LanguageCode:           langCode,
 		DefinitionLanguageCode: defLangCode,
@@ -139,7 +145,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		if enrich.IsMultiWordLemma(normalized) {
 			s.logf("PHRASE_DRAFT", "creating draft phrase sense for '%s' after enrich failure", normalized)
 			draft := phraseDraftEntry(normalized, posHint, sourceContext, defLangCode)
-			options, persistErr := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, []enrich.Entry{draft}, false)
+			options, persistErr := s.persistEntries(enrichCtx, userID, langCode, defLangCode, normalized, []enrich.Entry{draft}, false)
 			if persistErr != nil {
 				return LookupResult{}, persistErr
 			}
@@ -149,7 +155,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		return LookupResult{}, err
 	}
 
-	options, err := s.persistEntries(ctx, userID, langCode, defLangCode, normalized, result.Entries, true)
+	options, err := s.persistEntries(enrichCtx, userID, langCode, defLangCode, normalized, result.Entries, true)
 	if err != nil {
 		return LookupResult{}, err
 	}
@@ -1590,8 +1596,15 @@ func loadExamples(ctx context.Context, q querier, wordSenseID, displayLang strin
 	return examples, rows.Err()
 }
 
+const lookupOuterPunctCutset = ".,;:!?\"'()[]{}“”‘’«»<>`"
+
 func normalize(text string) string {
-	return strings.ToLower(strings.Join(strings.Fields(text), " "))
+	collapsed := strings.ToLower(strings.Join(strings.Fields(text), " "))
+	parts := strings.Fields(collapsed)
+	for i, p := range parts {
+		parts[i] = strings.Trim(p, lookupOuterPunctCutset)
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
 func nullString(s string) *string {

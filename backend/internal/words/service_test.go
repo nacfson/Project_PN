@@ -592,3 +592,21 @@ func TestAddLearningItemSucceedsWhenTranslateCachesDefinition(t *testing.T) {
 		t.Fatalf("expected cached Korean definition, got %q", cached)
 	}
 }
+
+func TestNormalizeStripsOuterPunctuation(t *testing.T) {
+	cases := map[string]string{
+		"procurement,":      "procurement",
+		"  Procurement, ":   "procurement",
+		"\"Implicitly\".":   "implicitly",
+		"(intertwined);":    "intertwined",
+		"don't":             "don't",
+		"rule of thumb.":    "rule of thumb",
+		" , . ; ":           "",
+	}
+	for input, want := range cases {
+		if got := normalize(input); got != want {
+			t.Errorf("normalize(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+

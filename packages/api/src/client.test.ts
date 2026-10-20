@@ -307,4 +307,22 @@ describe('logout', () => {
       status: 502,
     });
   });
+
+  it('does not attempt token refresh when /api/auth/logout returns 401', async () => {
+    configureApi({
+      baseUrls: ['http://localhost:9999'],
+      getToken: async () => 'expired-token',
+      getRefreshToken: async () => 'refresh-token',
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => JSON.stringify({ error: 'unauthorized' }),
+    });
+
+    await expect(logout()).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
 });
