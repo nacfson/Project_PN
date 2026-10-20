@@ -56,9 +56,9 @@ export function CommandDock() {
   };
 
   const dockStyle: ViewStyle = {
-    position: 'fixed' as any,
-    right: 20,
-    bottom: 100,
+    position: 'absolute',
+    right: 12,
+    bottom: 72,
     zIndex: 100,
     backgroundColor: colors.surface,
     borderRadius: radii.full,
@@ -70,7 +70,7 @@ export function CommandDock() {
   };
 
   return (
-    <View style={dockStyle}>
+    <View testID="command-dock" style={dockStyle}>
       {(isExpanded ? DOCK_ITEMS : DOCK_ITEMS.slice(0, 1)).map((item) => (
         <Pressable
           key={item.id}

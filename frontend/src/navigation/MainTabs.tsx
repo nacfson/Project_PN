@@ -1,15 +1,13 @@
 import React, { useState, useContext, useCallback } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  useDerivedValue,
   interpolate,
   Extrapolation,
-  withTiming,
 } from 'react-native-reanimated';
 
 import { QueueBanner } from '../components/QueueBanner';
@@ -21,8 +19,12 @@ import { PracticeScreen } from '../features/practice/PracticeScreen';
 import { CommandDock } from '../features/web/CommandDock';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
-import { Icon, Text } from '../ui';
+import { Icon } from '../ui';
 import { TabBarScrollContext } from '../ui/Screen';
+import { BrowserFrame } from './browserFrame';
+import { PhoneFrame } from './phoneFrame';
+import { shellKind } from './shellKind';
+import { TabSlot } from './TabSlot';
 
 export type MainTabParamList = {
   Learn: undefined;
@@ -44,7 +46,7 @@ function TabIcon({ name, focused }: { name: React.ComponentProps<typeof Icon>['n
 }
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const scrollContext = useContext(TabBarScrollContext);
   
@@ -54,7 +56,6 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const tabBarInteractive = scrollContext?.tabBarInteractive ?? true;
 
   const tabBarHeight = 60 + insets.bottom;
-  const [containerWidth, setContainerWidth] = useState(0);
 
   // Translate tab bar down out of view based on scroll shared value
   const animatedStyle = useAnimatedStyle(() => {
@@ -72,22 +73,6 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     };
   });
 
-  const tabCount = state.routes.length;
-  const tabWidth = containerWidth / tabCount;
-
-  // Derive the horizontal position of the active pill indicator
-  const pillLeft = useDerivedValue(() => {
-    if (tabWidth === 0) return 0;
-    return withTiming(state.index * tabWidth, { duration: 250 });
-  });
-
-  const pillAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateX: pillLeft.value }],
-      width: tabWidth,
-    };
-  });
-
   return (
     <Animated.View
       pointerEvents={tabBarInteractive ? 'auto' : 'none'}
@@ -101,32 +86,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         },
         animatedStyle,
       ]}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
     >
-      {/* Sliding Pill Indicator */}
-      {containerWidth > 0 && (
-        <Animated.View
-          style={[
-            styles.pillContainer,
-            pillAnimatedStyle,
-            {
-              height: 40,
-              top: 10,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.pill,
-              {
-                backgroundColor: colors.primaryContainer,
-                borderRadius: radii.full,
-              },
-            ]}
-          />
-        </Animated.View>
-      )}
-
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label =
@@ -158,35 +118,22 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         };
 
         return (
-          <TouchableOpacity
+          <TabSlot
             key={route.key}
-            accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
-            accessibilityLabel={options.tabBarAccessibilityLabel}
-            testID={options.tabBarButtonTestID || `tab-button-${route.name.toLowerCase()}`}
+            label={typeof label === 'string' ? label : route.name}
+            focused={isFocused}
             onPress={onPress}
             onLongPress={onLongPress}
-            style={styles.tabItem}
-            activeOpacity={0.7}
-          >
-            {options.tabBarIcon &&
-              options.tabBarIcon({
+            testID={options.tabBarButtonTestID || `tab-button-${route.name.toLowerCase()}`}
+            accessibilityLabel={options.tabBarAccessibilityLabel}
+            icon={
+              options.tabBarIcon?.({
                 focused: isFocused,
                 color: isFocused ? colors.primary : colors.onSurfaceVariant,
                 size: 24,
-              })}
-            <Text
-              style={[
-                styles.tabLabel,
-                {
-                  color: isFocused ? colors.onPrimaryContainer : colors.onSurfaceVariant,
-                  marginTop: 2,
-                },
-              ]}
-            >
-              {label as string}
-            </Text>
-          </TouchableOpacity>
+              }) ?? null
+            }
+          />
         );
       })}
     </Animated.View>
@@ -196,6 +143,10 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 export function MainTabs({ onLogout }: MainTabsProps) {
   const { colors } = useTheme();
   const { t } = useAppLanguage();
+  const userAgent =
+    Platform.OS === 'web' && typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const kind = shellKind(Platform.OS, userAgent);
+  const Frame = kind === 'browser' ? BrowserFrame : PhoneFrame;
   const tabBarTranslateY = useSharedValue(0);
   const [tabBarInteractive, setTabBarInteractiveState] = useState(true);
   const setTabBarInteractive = useCallback((interactive: boolean) => {
@@ -204,6 +155,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
 
   return (
     <TabBarScrollContext.Provider value={{ tabBarTranslateY, tabBarInteractive, setTabBarInteractive }}>
+      <Frame>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <QueueBanner />
         <Tab.Navigator
@@ -256,8 +208,9 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             {() => <SettingsStack onLogout={onLogout} />}
           </Tab.Screen>
         </Tab.Navigator>
-        <CommandDock />
+        {kind === 'browser' ? <CommandDock /> : null}
       </View>
+      </Frame>
     </TabBarScrollContext.Provider>
   );
 }
@@ -282,26 +235,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     zIndex: 100,
-  },
-  tabItem: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 8,
-    zIndex: 1,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pillContainer: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 0,
-  },
-  pill: {
-    width: '75%',
-    height: '100%',
   },
 });
