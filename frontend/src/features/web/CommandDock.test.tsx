@@ -63,6 +63,15 @@ describe('CommandDock', () => {
     expect(screen.queryByTestId('dock-practice')).toBeNull();
   });
 
+  it('anchors the dock to the page, not the window', async () => {
+    await render(<CommandDock />, { wrapper: Wrapper });
+    const dock = screen.getByTestId('command-dock');
+    expect(dock.props.style.position).toBe('absolute');
+    expect(dock?.props.style.position).not.toBe('fixed');
+    expect(dock?.props.style.right).toBe(12);
+    expect(dock?.props.style.bottom).toBe(72);
+  });
+
   it('hides the dock on phone-sized web viewports', async () => {
     mockWidth = 390;
     await render(<CommandDock />, { wrapper: Wrapper });

@@ -145,7 +145,8 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   const { t } = useAppLanguage();
   const userAgent =
     Platform.OS === 'web' && typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  const Frame = shellKind(Platform.OS, userAgent) === 'browser' ? BrowserFrame : PhoneFrame;
+  const kind = shellKind(Platform.OS, userAgent);
+  const Frame = kind === 'browser' ? BrowserFrame : PhoneFrame;
   const tabBarTranslateY = useSharedValue(0);
   const [tabBarInteractive, setTabBarInteractiveState] = useState(true);
   const setTabBarInteractive = useCallback((interactive: boolean) => {
@@ -207,7 +208,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             {() => <SettingsStack onLogout={onLogout} />}
           </Tab.Screen>
         </Tab.Navigator>
-        <CommandDock />
+        {kind === 'browser' ? <CommandDock /> : null}
       </View>
       </Frame>
     </TabBarScrollContext.Provider>
