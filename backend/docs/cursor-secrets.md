@@ -13,11 +13,10 @@ Manage them through **Cursor environment secrets** (Cursor dashboard → Cloud A
 
 ## Production secrets (Oracle k3s)
 
-These env vars must be available to the `project-pn-backend` Deployment (and the `enricher` Deployment if lookup enrichment runs there):
+These env vars must be available to the `project-pn-backend` Deployment:
 
 | Variable | Purpose |
 |----------|---------|
-| `ENRICH_PRIMARY_API_KEY` | Gemini (default) or other OpenAI-compatible enricher bearer token |
 | `DATABASE_URL` | In-cluster Postgres connection string |
 | `AUTH_JWT_ISSUER` | Platform Keycloak realm issuer (default `https://auth.nacfson.cloud/realms/platform`) |
 | `AUTH_JWT_AUDIENCE` | Expected client audience (default `project-pn`) |
@@ -30,16 +29,19 @@ These env vars must be available to the `project-pn-backend` Deployment (and the
 > [!NOTE]
 > `AUTH_SESSION_INTERNAL_TOKEN` and `CENTRAL_AUTH_INTERNAL_URL` are legacy central-auth session secrets and are retired post-cutover.
 
+### AI enrichment configuration (no API keys in `Project_PN`)
 
-Optional enricher overrides (defaults apply when empty):
+`Project_PN` does **not** store or accept AI API keys. Word lookup and translation use a strict `WiktApi first => miss => LLM` pipeline:
+1. **WiktApi first** (`ORIGIN_WIKTAPI_BASE_URL`, default `https://api.wiktapi.dev`): Free, key-less dictionary lookup runs first.
+2. **Primary LLM on miss** (`ENRICH_PRIMARY_BASE_URL` + `ENRICH_PRIMARY_MODEL`): When WiktApi misses and `ENRICH_PRIMARY_BASE_URL` is set, `Project_PN` sends `POST {ENRICH_PRIMARY_BASE_URL}/chat/completions` with only the URL and model name. OpenBao in the Kubernetes cluster (`vault` namespace) manages the upstream AI API credential. When `ENRICH_PRIMARY_BASE_URL` is unset, `Project_PN` runs WiktApi-only.
 
 | Variable | Default when unset |
 |----------|-------------------|
-| `ENRICH_PRIMARY_BASE_URL` | Gemini OpenAI-compatible shim |
-| `ENRICH_PRIMARY_MODEL` | `gemini-3.1-flash-lite` |
-| `ENRICH_FALLBACK_*` | No fallback |
+| `ORIGIN_WIKTAPI_BASE_URL` | `https://api.wiktapi.dev` |
+| `ENRICH_PRIMARY_BASE_URL` | Empty (WiktApi-only when unset) |
+| `ENRICH_PRIMARY_MODEL` | `gemini-3.1-flash-lite` (when `ENRICH_PRIMARY_BASE_URL` is set) |
 
-Configure these in **Cursor environment secrets** for the production environment linked to Oracle Cloud. After updating a secret, roll out the affected Deployment so pods pick up the new value (or rely on your Cursor-managed sync if configured).
+Configure non-AI runtime secrets in **Cursor environment secrets** for the production environment linked to Oracle Cloud. After updating a secret, roll out the affected Deployment so pods pick up the new value (or rely on your Cursor-managed sync if configured).
 
 ## nacfson-auth secrets (`nacfson-auth` namespace)
 
@@ -107,14 +109,14 @@ Prefer the AWS CLI profile or SSO over long-lived `AWS_ACCESS_KEY_ID` / `AWS_SEC
 For Cursor Cloud Agents working in this repo:
 
 1. Open the environment in [Cursor Cloud Agents → Environments](https://cursor.com/dashboard/cloud-agents/environments).
-2. Add secrets (e.g. `ENRICH_PRIMARY_API_KEY`) in the environment **Secrets** section.
+2. Add secrets (e.g. `S3_BACKUP_BUCKET`, `DEPLOY_SSH_HOST`) in the environment **Secrets** section.
 3. Secrets are injected as environment variables when agents and build pods start.
 
 Local-only dev without Cursor secrets: use `backend/.env` (from `backend/.env.example`).
 
 ## Verify enrichment is configured
 
-After secrets are applied and the API restarted:
+After configuration is applied and the API restarted:
 
 ```bash
 curl -sS -X POST '${APP_PUBLIC_URL}/api/words/lookup' \
@@ -123,8 +125,7 @@ curl -sS -X POST '${APP_PUBLIC_URL}/api/words/lookup' \
   -d '{"text":"obscurewordxyz123","language_code":"en","display_language_code":"ko"}'
 ```
 
-- **503** `word enrichment is not available; set ENRICH_PRIMARY_API_KEY...` → secret missing or not mounted on the pod.
-- **503** `word enrichment provider unreachable or rejected...` → key present but invalid or provider outage.
+- **503** when WiktApi misses and `ENRICH_PRIMARY_BASE_URL` is unset (WiktApi-only mode) or the in-cluster AI service at `ENRICH_PRIMARY_BASE_URL` returns an error (details logged to backend stdout).
 - **200** with `sense_options` → enrichment working.
 
 ## Related docs

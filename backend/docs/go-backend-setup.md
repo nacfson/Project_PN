@@ -173,12 +173,8 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 | `DB_TOKEN` | same as `DB_USER` | Caller token placed in the password field (Zero-Plaintext). |
 | `MIGRATIONS_PATH` | `file://db/migrations` | golang-migrate source URL. Resolved relative to the `backend/` working directory. |
 | `ORIGIN_WIKTAPI_BASE_URL` | `https://api.wiktapi.dev` | Free gloss dictionary origin (WiktApi). **No API key.** |
-| `ENRICH_PRIMARY_BASE_URL` | empty (Gemini default only if key set) | Optional legacy OpenAI-compatible fallback base URL. (Alias: `ENRICH_BASE_URL`) |
-| `ENRICH_PRIMARY_API_KEY` | empty | Optional legacy Gemini/OpenAI key used only when WiktApi misses. (Alias: `ENRICH_API_KEY`) |
-| `ENRICH_PRIMARY_MODEL` | empty (`gemini-3.1-flash-lite` with Gemini default) | Model for optional legacy fallback. (Alias: `ENRICH_MODEL`) |
-| `ENRICH_FALLBACK_BASE_URL` | empty | Optional second legacy fallback OpenAI-compatible endpoint. |
-| `ENRICH_FALLBACK_API_KEY` | empty | Bearer token for the second legacy fallback. |
-| `ENRICH_FALLBACK_MODEL` | empty | Model name for the second legacy fallback. |
+| `ENRICH_PRIMARY_BASE_URL` | empty (WiktApi-only when unset) | In-cluster or OpenAI-compatible LLM base URL used only when WiktApi misses (`WiktApi first => miss => LLM`). **No API key in `Project_PN`** (OpenBao in the cluster manages upstream AI credentials). (Alias: `ENRICH_BASE_URL`) |
+| `ENRICH_PRIMARY_MODEL` | `gemini-3.1-flash-lite` (when `ENRICH_PRIMARY_BASE_URL` is set; empty otherwise) | Model name sent to `{ENRICH_PRIMARY_BASE_URL}/chat/completions` when WiktApi misses. (Alias: `ENRICH_MODEL`) |
 | `DEFAULT_USER_ID` | `00000000-0000-0000-0000-000000000001` | Seeded dev user id (migration `000002`); retained on `words.Service` for tests. Protected API routes derive the acting user from the bearer session, not this env var. |
 | `DEFAULT_TARGET_LANG` | `en` | Default `target_language` on register when omitted; fallback when a request omits `language_code`. |
 | `DEFAULT_DEFINITION_LANG` | `ko` | Default `native_language` on register when omitted; fallback when a request omits `definition_language_code`. |
@@ -194,18 +190,19 @@ All variables are read by `internal/config/config.go`. Defaults match `.env.exam
 
 Default origin is **WiktApi** (`internal/enrich/wiktapi.go`): on cache miss, the API calls `GET {ORIGIN_WIKTAPI_BASE_URL}/v1/en/word/{lemma}/translations`, keeps display-language glosses (e.g. Korean), and persists one sense per gloss. **No API key.** Data is Wiktionary/Kaikki (**CC BY-SA**).
 
-- WiktApi miss / 404 / outage → `ErrUnavailable` → HTTP 503 unless an optional Gemini/OpenAI fallback is configured via `ENRICH_PRIMARY_*`.
-- Optional legacy enrichers still implement `Enricher` for fallback only.
+- Pipeline is strictly `WiktApi first => miss => LLM`: when WiktApi misses or errors, and `ENRICH_PRIMARY_BASE_URL` is configured, `Project_PN` calls `POST {ENRICH_PRIMARY_BASE_URL}/chat/completions` with `ENRICH_PRIMARY_MODEL` (default `gemini-3.1-flash-lite`).
+- `Project_PN` does not store or send AI API keys; in production, OpenBao in the Kubernetes cluster (`vault` namespace) manages the upstream AI API credential. When `ENRICH_PRIMARY_BASE_URL` is unset, `Project_PN` runs WiktApi-only.
+- If the LLM endpoint fails or is not configured when WiktApi misses, the backend logs the error to stdout and fails fast with `ErrUnavailable` → HTTP 503.
 - Examples are not required on the gloss path.
 
 ### Non-English / missing glosses
 
-- `503` on lookup miss usually means WiktApi had no entry (common for some multi-word phrases) and no legacy fallback key is set.
+- `503` on lookup miss means WiktApi had no entry (common for some multi-word phrases) and either `ENRICH_PRIMARY_BASE_URL` is unset or the LLM endpoint returned an error.
 - `422 "localized translation unavailable for this word sense"` — add requires a cached display-language gloss on the chosen sense.
 
 Enrichment is in-request and synchronous. A background queue is future scope.
 
-**Client wait:** the shared API client (`packages/api`) uses a **60s** request timeout so slow WiktApi + optional Gemini fallback (often ~22s) can finish as HTTP 200 instead of aborting early as status `0` → ADD-101. Edge `proxy_read_timeout` / `proxy_send_timeout` for `pn.nacfson.cloud` should stay **≥ 60s** (see `deploy/NETWORK_SETUP.md`). Add-word / lookup may wait up to ~60s when enrichment is cold or slow; keep a loading state — do not treat that wait as a hard failure.
+**Client wait:** the shared API client (`packages/api`) uses a **60s** request timeout so slow WiktApi + optional LLM enrichment (often ~22s) can finish as HTTP 200 instead of aborting early as status `0` → ADD-101. Edge `proxy_read_timeout` / `proxy_send_timeout` for `pn.nacfson.cloud` should stay **≥ 60s** (see `deploy/NETWORK_SETUP.md`). Add-word / lookup may wait up to ~60s when enrichment is cold or slow; keep a loading state — do not treat that wait as a hard failure.
 
 ### Refresh existing meanings (retranslate-senses)
 

@@ -107,19 +107,19 @@ The backend independently validates each Bearer JWT using local JWKS caching (`A
 
 ## Production Deployment (Oracle Cloud)
 
-Production runs on **Oracle Cloud k3s** (`project-pn` namespace). Images: `ghcr.io/nacfson/project-pn-backend` and `project-pn-frontend`. Public URL: Cursor secret `DEPLOY_PUBLIC_URL`. Central auth: `https://auth.nacfson.cloud`. Runtime secrets (including `ENRICH_PRIMARY_API_KEY`) are managed through **Cursor environment secrets**. See `backend/docs/cursor-secrets.md` and `backend/docs/oracle-deploy-runbook.md`.
+Production runs on **Oracle Cloud k3s** (`project-pn` / `proj-pn` namespace). Images: `ghcr.io/nacfson/project-pn-backend` and `project-pn-frontend`. Public URL: Cursor secret `DEPLOY_PUBLIC_URL`. Runtime secrets are managed through **Cursor environment secrets** and OpenBao in the Kubernetes cluster (`Project_PN` holds no AI API keys). See `backend/docs/cursor-secrets.md` and `backend/docs/oracle-deploy-runbook.md`.
 
 ## Enrichment (gloss origin)
 
-On a global cache miss, `POST /api/words/lookup` queries the free **WiktApi** origin (`https://api.wiktapi.dev`) for English→display-language glosses (for example Korean). Each gloss becomes one `word_senses` row and is persisted in Postgres. No WiktApi API key is required. Meanings come from Wiktionary via Kaikki (**CC BY-SA** — credit in product/docs).
+On a global cache miss, `POST /api/words/lookup` uses a `WiktApi first => miss => LLM` pipeline:
 
-Optional: if `ENRICH_PRIMARY_API_KEY` is set, a Gemini/OpenAI-compatible enricher is used only when WiktApi returns no glosses.
+1. **WiktApi first**: Queries the free **WiktApi** origin (`https://api.wiktapi.dev`) for English→display-language glosses (for example Korean). Each gloss becomes one `word_senses` row and is persisted in Postgres. No WiktApi API key is required. Meanings come from Wiktionary via Kaikki (**CC BY-SA** — credit in product/docs).
+2. **Primary LLM on miss**: If `ENRICH_PRIMARY_BASE_URL` is set, `Project_PN` sends `POST {ENRICH_PRIMARY_BASE_URL}/chat/completions` with `ENRICH_PRIMARY_MODEL` (default `gemini-3.1-flash-lite`) only when WiktApi returns no glosses. `Project_PN` does not store or accept AI API keys; OpenBao in the Kubernetes cluster (`vault` namespace) manages the upstream AI API credential. When `ENRICH_PRIMARY_BASE_URL` is unset, `Project_PN` runs WiktApi-only.
 
 - `ORIGIN_WIKTAPI_BASE_URL` (default `https://api.wiktapi.dev`)
-- `ENRICH_PRIMARY_API_KEY` / `ENRICH_PRIMARY_BASE_URL` / `ENRICH_PRIMARY_MODEL` — optional legacy fallback
-- Legacy `ENRICH_BASE_URL`, `ENRICH_API_KEY`, `ENRICH_MODEL` aliases still apply to the primary fallback slot
+- `ENRICH_PRIMARY_BASE_URL` / `ENRICH_PRIMARY_MODEL` (aliases: `ENRICH_BASE_URL`, `ENRICH_MODEL`) — URL + model only LLM enrichment on WiktApi miss
 
-Examples and long dictionary essays are not part of the default gloss path. Multi-word phrases may 404 on public WiktApi until covered.
+Examples and long dictionary essays are not part of the default gloss path. Multi-word phrases that 404 on public WiktApi fall back to `ENRICH_PRIMARY_BASE_URL` when configured, or return 503 when running WiktApi-only.
 
 ## CORS
 

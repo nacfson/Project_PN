@@ -99,7 +99,7 @@ Target stack: FluxCD-managed namespace `proj-pn`, database `proj_pn` owned by `u
 1. Platform `postgres-init-job` created `proj_pn` / `user_pn`; OpenBao secret `kv/database/pn-user` seeded.
 2. `vault-db-proxy` healthy; run `tests/vault/test_db_proxy.sh` in the nacfson_pipeline repo.
 3. Backend image includes DB_* URL assembly, startup migrate, and UID 10001.
-4. Pipeline manifests set `DB_HOST`/`DB_TOKEN` and netpol egress to `vault-db-proxy` (not direct Postgres).
+4. Pipeline manifests set `DB_HOST`/`DB_TOKEN`, optional `ENRICH_PRIMARY_BASE_URL`/`ENRICH_PRIMARY_MODEL` (`WiktApi first => miss => LLM`, no AI API keys in `project-pn-secrets`), and netpol egress to `vault` namespace (`:5432` DB proxy and `:8080` in-cluster AI service) plus public HTTPS (`:443`) for WiktApi.
 
 ### Restore historical data (local dump)
 
@@ -132,7 +132,7 @@ The script restores into `proj_pn`, reassigns ownership to `user_pn`, and prints
 
 ## Secrets and repeated deploys
 
-Image rollouts do **not** remove secrets. Configure `ENRICH_PRIMARY_API_KEY` and other runtime values once in **Cursor environment secrets**; they persist across deploys until you rotate them in Cursor.
+Image rollouts do **not** remove secrets. `Project_PN` does not store or accept AI API keys in `project-pn-secrets` or Cursor secrets; instead, word enrichment runs `WiktApi first => miss => LLM` using only `ENRICH_PRIMARY_BASE_URL` and `ENRICH_PRIMARY_MODEL` (default `gemini-3.1-flash-lite`), while OpenBao in the Kubernetes cluster (`vault` namespace) manages the upstream AI API credential. Configure non-AI runtime values once in **Cursor environment secrets**; they persist across deploys until you rotate them in Cursor.
 
 Do not put secrets in this repo or in GHCR image layers.
 

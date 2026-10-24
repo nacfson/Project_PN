@@ -41,7 +41,7 @@ spec:
         - protocol: TCP
           port: 53
 
-    # 2. Vault DB Proxy (Zero-Plaintext Postgres)
+    # 2. Vault DB Proxy (5432) and in-cluster AI service (8080) in vault namespace
     - to:
         - namespaceSelector:
             matchLabels:
@@ -49,6 +49,8 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+        - protocol: TCP
+          port: 8080
 
     # 3. Keycloak JWKS in identity namespace (001-gateway-jwt-auth)
     # Allows in-cluster JWKS retrieval over cluster network
@@ -62,3 +64,15 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+
+    # 4. Public HTTPS egress for WiktApi gloss lookup
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
