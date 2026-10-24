@@ -78,7 +78,7 @@ func testAuthRouterWithJWT(t *testing.T) testRouterSetup {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

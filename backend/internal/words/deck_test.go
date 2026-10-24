@@ -48,7 +48,7 @@ func deckTestPool(t *testing.T) *pgxpool.Pool {
 func deckTestService(t *testing.T, pool *pgxpool.Pool) *Service {
 	t.Helper()
 	cfg := config.Load()
-	return New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	return New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 }
 
 func deckTestUser(t *testing.T, pool *pgxpool.Pool) (userID, token string) {

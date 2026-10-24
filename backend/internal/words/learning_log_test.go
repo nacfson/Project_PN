@@ -23,7 +23,7 @@ func learningLogTestService(t *testing.T, pool *pgxpool.Pool, logDir string) *Se
 		t.Fatalf("learning logger: %v", err)
 	}
 	t.Cleanup(func() { _ = logger.Close() })
-	return New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, logger, "", "en", "ko")
+	return New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, logger, "", "en", "ko")
 }
 
 func countLogLines(t *testing.T, logDir, substr string) int {
@@ -103,7 +103,7 @@ func TestReviewSucceedsWhenLearningLogDisabled(t *testing.T) {
 	pool := deckTestPool(t)
 	ctx := context.Background()
 	userID, _ := deckTestUser(t, pool)
-	svc := New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+	svc := New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
 
 	lemma := fmt.Sprintf("nooplog%d", time.Now().UnixNano())
 	senseID := insertDeckFixtureWord(t, pool, lemma)

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -141,17 +142,12 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		SourceContext:          sourceContext,
 	})
 	if err != nil {
+		slog.New(slog.NewTextHandler(os.Stdout, nil)).Error(
+			"enrich lookup failed",
+			"word", normalized,
+			"error", err,
+		)
 		s.logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
-		if enrich.IsMultiWordLemma(normalized) {
-			s.logf("PHRASE_DRAFT", "creating draft phrase sense for '%s' after enrich failure", normalized)
-			draft := phraseDraftEntry(normalized, posHint, sourceContext, defLangCode)
-			options, persistErr := s.persistEntries(enrichCtx, userID, langCode, defLangCode, normalized, []enrich.Entry{draft}, false)
-			if persistErr != nil {
-				return LookupResult{}, persistErr
-			}
-			rankSenseOptions(options, sourceContext)
-			return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
-		}
 		return LookupResult{}, err
 	}
 

@@ -50,7 +50,7 @@ func testUserRouter(t *testing.T) (http.Handler, string) {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	jwtFix := setupTestJWTFixture(t)
 	router := NewRouter(Dependencies{

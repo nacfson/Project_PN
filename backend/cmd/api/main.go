@@ -74,21 +74,15 @@ func main() {
 	defer pool.Close()
 	primaryEnricher := enrich.NewWiktAPI(cfg.OriginWiktAPIBaseURL)
 	var enricher enrich.Enricher = primaryEnricher
-	if cfg.EnrichPrimaryAPIKey != "" {
-		legacy := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
-		var fallback enrich.Enricher
-		if cfg.EnrichFallbackBaseURL != "" {
-			fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
-		}
-		legacyChain := enrich.NewFallback(legacy, fallback, slog.Default())
-		// Single words: WiktApi first. Multi-word phrases: LLM first (WiktApi usually misses).
-		enricher = enrich.NewPhrasePreferLLM(primaryEnricher, legacyChain, slog.Default())
+	if cfg.EnrichPrimaryBaseURL != "" {
+		llm := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryModel)
+		enricher = enrich.NewFallback(primaryEnricher, llm, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 		slog.Info("gloss origin configured",
 			"primary", "wiktapi",
-			"phrase_primary", "llm",
+			"fallback", "llm",
 			"wiktapi_url", cfg.OriginWiktAPIBaseURL,
-			"legacy_fallback_model", cfg.EnrichPrimaryModel,
-			"legacy_fallback_url", cfg.EnrichPrimaryBaseURL,
+			"llm_model", cfg.EnrichPrimaryModel,
+			"llm_url", cfg.EnrichPrimaryBaseURL,
 		)
 	} else {
 		slog.Info("gloss origin configured",

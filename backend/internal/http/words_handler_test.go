@@ -78,7 +78,7 @@ func validationRouterWithLoggerAndUser(t *testing.T, logger admin.Logger) (http.
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), logger, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", ""), logger, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	jwtFix := defaultJWTFixture(t)
 	router := NewRouter(Dependencies{
 		DB:             pool,
@@ -521,7 +521,7 @@ func TestChangeMeaningConflictReturns409(t *testing.T) {
 	}
 
 	cfg := config.Load()
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 	itemA, err := wordsSvc.AddLearningItem(ctx, user.ID, senseA, "ko", "", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -606,7 +606,7 @@ func TestWriteServiceErrorMapsNotConfigured(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "set ENRICH_PRIMARY_API_KEY") {
+	if !strings.Contains(rec.Body.String(), "set ENRICH_PRIMARY_BASE_URL") {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
 }
@@ -1305,7 +1305,7 @@ func TestCrossUserLearningResourceIsolation(t *testing.T) {
 		ForceTargetLang:        cfg.ForceTargetLang,
 		ForceUILang:            cfg.ForceUILang,
 	})
-	wordsSvc := words.New(pool, enrich.NewOpenAI("", "", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
+	wordsSvc := words.New(pool, enrich.NewOpenAI("", ""), admin.NoopLogger{}, learninglog.NoopLogger{}, cfg.DefaultUserID, cfg.DefaultTargetLang, cfg.DefaultDefinitionLang)
 
 	jwtFix := setupTestJWTFixture(t)
 	router := NewRouter(Dependencies{

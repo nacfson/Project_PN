@@ -55,13 +55,9 @@ func main() {
 	// Default origin: free WiktApi. Optional Gemini/OpenAI only as fallback.
 	primary := enrich.NewWiktAPI(cfg.OriginWiktAPIBaseURL)
 	var enricher enrich.Enricher = primary
-	if cfg.EnrichPrimaryAPIKey != "" {
-		legacy := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryAPIKey, cfg.EnrichPrimaryModel)
-		var fallback enrich.Enricher
-		if cfg.EnrichFallbackBaseURL != "" {
-			fallback = enrich.NewOpenAI(cfg.EnrichFallbackBaseURL, cfg.EnrichFallbackAPIKey, cfg.EnrichFallbackModel)
-		}
-		enricher = enrich.NewFallback(primary, enrich.NewFallback(legacy, fallback, slog.Default()), slog.Default())
+	if cfg.EnrichPrimaryBaseURL != "" {
+		llm := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryModel)
+		enricher = enrich.NewFallback(primary, llm, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	}
 	slog.Info("retranslate enricher", "primary", "wiktapi", "base", cfg.OriginWiktAPIBaseURL)
 
