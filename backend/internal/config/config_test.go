@@ -80,3 +80,43 @@ func TestLoad_CentralCookieAuthConfiguration(t *testing.T) {
 		t.Fatalf("expected internal auth token, got %q", cfg.AuthSessionInternalToken)
 	}
 }
+
+func TestLoad_EnrichDefaultEmpty(t *testing.T) {
+	t.Setenv("ENRICH_PRIMARY_BASE_URL", "")
+	t.Setenv("ENRICH_BASE_URL", "")
+	t.Setenv("ENRICH_PRIMARY_MODEL", "")
+	t.Setenv("ENRICH_MODEL", "")
+
+	cfg := Load()
+	if cfg.EnrichPrimaryBaseURL != "" || cfg.EnrichPrimaryModel != "" {
+		t.Fatalf("expected empty enrich primary config by default, got base=%q model=%q",
+			cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryModel)
+	}
+}
+
+func TestLoad_EnrichBaseURLSetsDefaultModel(t *testing.T) {
+	t.Setenv("ENRICH_PRIMARY_BASE_URL", "  http://ai-gateway.vault.svc:8080/v1/  ")
+	t.Setenv("ENRICH_BASE_URL", "")
+	t.Setenv("ENRICH_PRIMARY_MODEL", "")
+	t.Setenv("ENRICH_MODEL", "")
+
+	cfg := Load()
+	if cfg.EnrichPrimaryBaseURL != "http://ai-gateway.vault.svc:8080/v1" {
+		t.Fatalf("expected trimmed base URL, got %q", cfg.EnrichPrimaryBaseURL)
+	}
+	if cfg.EnrichPrimaryModel != "gemini-3.1-flash-lite" {
+		t.Fatalf("expected default model gemini-3.1-flash-lite, got %q", cfg.EnrichPrimaryModel)
+	}
+}
+
+func TestLoad_EnrichModelIgnoredWhenBaseURLEmpty(t *testing.T) {
+	t.Setenv("ENRICH_PRIMARY_BASE_URL", "   ")
+	t.Setenv("ENRICH_BASE_URL", "")
+	t.Setenv("ENRICH_PRIMARY_MODEL", "custom-model")
+
+	cfg := Load()
+	if cfg.EnrichPrimaryBaseURL != "" || cfg.EnrichPrimaryModel != "" {
+		t.Fatalf("expected empty config when base URL is blank, got base=%q model=%q",
+			cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryModel)
+	}
+}

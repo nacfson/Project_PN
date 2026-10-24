@@ -42,9 +42,7 @@ const (
 	// Default free gloss origin (WiktApi / Wiktionary). No API key required.
 	defaultOriginWiktAPIBaseURL = "https://api.wiktapi.dev"
 
-	// Optional legacy Gemini OpenAI-compatible shim (not the default path).
-	defaultEnrichPrimaryBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
-	defaultEnrichPrimaryModel   = "gemini-3.1-flash-lite"
+	defaultEnrichPrimaryModel = "gemini-3.1-flash-lite"
 )
 
 type Config struct {
@@ -56,12 +54,7 @@ type Config struct {
 	OriginWiktAPIBaseURL string
 
 	EnrichPrimaryBaseURL string
-	EnrichPrimaryAPIKey  string
 	EnrichPrimaryModel   string
-
-	EnrichFallbackBaseURL string
-	EnrichFallbackAPIKey  string
-	EnrichFallbackModel   string
 
 	DefaultUserID         string
 	DefaultTargetLang     string
@@ -103,12 +96,10 @@ type Config struct {
 }
 
 func Load() Config {
-	enrichPrimaryBaseURL := envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL"))
-	enrichPrimaryModel := envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL"))
-	// Only apply Gemini defaults when an API key is present (legacy optional path).
-	enrichPrimaryKey := envOrDefault("ENRICH_PRIMARY_API_KEY", os.Getenv("ENRICH_API_KEY"))
-	if enrichPrimaryKey != "" && enrichPrimaryBaseURL == "" {
-		enrichPrimaryBaseURL = defaultEnrichPrimaryBaseURL
+	enrichPrimaryBaseURL := strings.TrimRight(strings.TrimSpace(envOrDefault("ENRICH_PRIMARY_BASE_URL", os.Getenv("ENRICH_BASE_URL"))), "/")
+	var enrichPrimaryModel string
+	if enrichPrimaryBaseURL != "" {
+		enrichPrimaryModel = strings.TrimSpace(envOrDefault("ENRICH_PRIMARY_MODEL", os.Getenv("ENRICH_MODEL")))
 		if enrichPrimaryModel == "" {
 			enrichPrimaryModel = defaultEnrichPrimaryModel
 		}
@@ -130,12 +121,7 @@ func Load() Config {
 		OriginWiktAPIBaseURL: envOrDefault("ORIGIN_WIKTAPI_BASE_URL", defaultOriginWiktAPIBaseURL),
 
 		EnrichPrimaryBaseURL: enrichPrimaryBaseURL,
-		EnrichPrimaryAPIKey:  enrichPrimaryKey,
 		EnrichPrimaryModel:   enrichPrimaryModel,
-
-		EnrichFallbackBaseURL: os.Getenv("ENRICH_FALLBACK_BASE_URL"),
-		EnrichFallbackAPIKey:  os.Getenv("ENRICH_FALLBACK_API_KEY"),
-		EnrichFallbackModel:   os.Getenv("ENRICH_FALLBACK_MODEL"),
 
 		DefaultUserID:          envOrDefault("DEFAULT_USER_ID", defaultUserID),
 		DefaultTargetLang:      envOrDefault("DEFAULT_TARGET_LANG", defaultTargetLang),
