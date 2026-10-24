@@ -37,10 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	adminLogger, err := admin.NewLogger(cfg.AdminLogPath)
-	if err != nil {
-		slog.Warn("admin logger disabled", "error", err)
-	}
+	adminLogger := admin.NewLogger()
 	defer adminLogger.Close()
 	metricsCollector := admin.NewMetricsCollector()
 
@@ -56,20 +53,18 @@ func main() {
 
 	metricsCtx, stopMetrics := context.WithCancel(ctx)
 	defer stopMetrics()
-	if _, ok := adminLogger.(admin.NoopLogger); !ok {
-		go func() {
-			ticker := time.NewTicker(60 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-metricsCtx.Done():
-					return
-				case <-ticker.C:
-					metricsCollector.Flush(adminLogger)
-				}
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-metricsCtx.Done():
+				return
+			case <-ticker.C:
+				metricsCollector.Flush(adminLogger)
 			}
-		}()
-	}
+		}
+	}()
 
 	pool, err := db.Open(ctx, cfg.DatabaseURL)
 	if err != nil {

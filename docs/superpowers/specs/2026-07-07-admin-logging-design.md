@@ -1,118 +1,101 @@
 # Admin Logging Design
 
+**Amended 2026-10-24.** The file path `/var/log/project-pn/admin.log` and `ADMIN_LOG_PATH` are withdrawn. Production is k3s. An in-container file is invisible to `kubectl logs` and is lost on restart. Admin audit is one JSON line per event on stderr. Do not write that stream to a file, and do not print it on stdout.
+
 ## Overview
 
-Add a lightweight, file-only admin logging subsystem to the Project PN Go backend. The logs are plain-text, one-line events intended to be ingested by an external "main auth system" dashboard. No dashboard UI, no PostgreSQL tables, and no admin API endpoints are added to Project PN in this MVP.
+The Go backend emits admin audit events on stderr. containerd saves that stream. The platform collector reads the node capture. No dashboard UI, no PostgreSQL tables, and no admin API endpoints are added in this contract.
 
 ## Goals
 
-- Emit human-readable audit and status logs from the Go backend.
-- Keep the implementation minimal: one log file, one logger helper, a middleware, and a few call sites.
-- Do not affect existing database schema or API contracts.
-- Allow an external system to tail or parse the log file for dashboards.
+- Emit one JSON audit line per event on stderr, with `kind:"admin"`.
+- Keep handler call sites on `admin.Logger`. A write failure must not fail the HTTP request.
+- Do not close process stderr. `Close()` is a no-op.
+- Keep analytics on stdout. Admin must not share that stream.
 
 ## Non-Goals
 
-- Build a custom dashboard UI inside Project PN.
-- Store logs in PostgreSQL or any other database.
-- Provide structured JSON logs.
-- Add real-time streaming, log rotation, or long-term archival (handled externally).
-- Add configuration options beyond a single file path environment variable.
-
-## Context
-
-Project PN is a vocabulary-learning app with a Go backend and a React Native/Expo frontend. Authentication is delegated to an external Nacfson Cloud central auth service. The backend currently enforces email verification only on learning routes when `REQUIRE_EMAIL_VERIFIED=true`. Because unverified or "dumb" emails can sign in and access non-learning endpoints, operator visibility into auth events and verification failures is important.
+- An in-container log file, `logrotate`, or `ADMIN_LOG_PATH`.
+- Pointing a file logger at `/dev/stdout` or `/dev/stderr`. Closing that writer would close the process stream.
+- Mixing admin lines into the analytics stdout stream.
+- Shipping learning daily files. Those stay files and are not this stream.
+- A dashboard UI, PostgreSQL log tables, or an admin log API.
 
 ## Decision Log
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Storage | Plain-text file | Cheapest MVP option; external dashboard ingests it. |
-| Format | Human-readable one-line sentences | Explicitly requested; easy to read with `tail`/`grep`. |
-| Dashboard location | None in this repo | External "main auth system" owns the dashboard. |
-| DB impact | None | No new tables or schema changes. |
-| API impact | None | No new admin endpoints. |
-| Configuration | Single env var only | Keep scope minimal. |
+| Storage | stderr | The kubelet already rotates stdout and stderr. A container file does not survive restart. |
+| Format | One JSON object per line: `kind`, `category`, `time`, `message` | `kind:"admin"` keeps this stream distinct from `kind:"analytics"`. |
+| Stdout | Analytics only | The analytics contract excludes admin lines from that stream. |
+| Dashboard | None in this repo | Operator reads history through the platform log store. |
+| DB / API impact | None | No new tables or endpoints. |
 
 ## Architecture
 
 ```text
-+---------------+        +-------------------------+        +-------------------+
-| Project PN Go | -----> | /var/log/project-pn/    | -----> | External main     |
-| backend       | writes | admin.log (plain text)  | ingests| auth dashboard      |
-+---------------+        +-------------------------+        +-------------------+
+project prints admin JSON to stderr
+ → containerd writes /var/log/pods/proj-pn_.../<container>/0.log
+ → platform collector stores the line
+ → operator reads it by project, time, and container
 ```
 
-The backend writes events synchronously to a log file. Existing HTTP middleware and business handlers call a small `admin.Logger` helper. A background goroutine emits a `[METRICS]` summary line every 60 seconds.
+The app does not open `/var/log/pods` and does not create `/var/log/project-pn/admin.log`.
 
-## Log File
+## Line format
 
-- **Path**: configurable via `ADMIN_LOG_PATH` environment variable; default `/var/log/project-pn/admin.log`.
-- **Format**: one line per event, UTF-8 text.
-- **Rotation**: not handled by the application; use `logrotate` or systemd journal rules.
-- **Retention**: not handled by the application; use external Linux log retention.
-
-## Log Line Format
-
-```text
-<TIMESTAMP> [<CATEGORY>] <one-sentence description>
+```json
+{"kind":"admin","category":"AUTH","time":"2026-10-24T00:00:00Z","message":"..."}
 ```
 
-- `TIMESTAMP`: RFC 3339 UTC, e.g. `2026-07-07T13:16:30Z`.
-- `CATEGORY`: uppercase bracketed tag, e.g. `[AUTH]`, `[METRICS]`.
-- Description: short human-readable sentence with relevant identifiers.
+- `kind` is always `admin`.
+- `time` is RFC 3339 UTC.
+- `category` is the existing tag (`AUTH`, `METRICS`, `ERROR`, and the others below).
+- `message` is the existing one-sentence description. Do not add tokens, passwords, or secrets.
+- Emails and IPs may already be in `message`. This stream is operator-only. Do not put these lines on the analytics stdout.
 
 ## Event Categories
 
 | Category | Description | Example |
 |----------|-------------|---------|
-| `AUTH` | Confirmed authenticated identity or successful logout. | `2026-07-07T13:16:30Z [AUTH] user@example.com identity confirmed from 192.168.1.1` |
-| `AUTH_FAILURE` | Failed authentication or invalid session. | `2026-07-07T13:16:31Z [AUTH_FAILURE] login failed for unknown@example.com from 192.168.1.2: session invalid` |
-| `VERIFY_REQUIRED` | Unverified user attempted a protected route. | `2026-07-07T13:16:35Z [VERIFY_REQUIRED] user@example.com requested POST /api/learning-items but email is not verified` |
-| `ADD_WORD` | New global word created (cache miss or manual). | `2026-07-07T13:16:40Z [ADD_WORD] user 550e8400-e29b-41d4-a716-446655440000 created word 'analyze' (en, verb)` |
-| `ADD_ITEM` | User added a learning item. | `2026-07-07T13:16:45Z [ADD_ITEM] user@example.com added learning item word_sense_id=abc123` |
-| `DECK_CREATED` | User created a deck. | `2026-07-07T13:16:50Z [DECK_CREATED] user@example.com created deck 'Korean Core' (ko)` |
-| `METRICS` | Periodic server status summary. | `2026-07-07T13:17:00Z [METRICS] last 60s: 45 requests, 2 errors, avg latency 42ms, 12 active users` |
-| `ERROR` | Unexpected internal error. | `2026-07-07T13:17:05Z [ERROR] failed to connect to enrichment provider: timeout` |
-| `ENRICH_FAIL` | Enrichment request failed. | `2026-07-07T13:17:06Z [ENRICH_FAIL] enricher failed for word 'obscureterm': timeout` |
+| `AUTH` | Confirmed authenticated identity or successful logout. | `{"kind":"admin","category":"AUTH","time":"2026-07-07T13:16:30Z","message":"user@example.com identity confirmed from 192.168.1.1"}` |
+| `AUTH_FAILURE` | Failed authentication or invalid session. | `{"kind":"admin","category":"AUTH_FAILURE","time":"2026-07-07T13:16:31Z","message":"login failed for unknown@example.com from 192.168.1.2: session invalid"}` |
+| `VERIFY_REQUIRED` | Unverified user attempted a protected route. | `{"kind":"admin","category":"VERIFY_REQUIRED","time":"2026-07-07T13:16:35Z","message":"user@example.com requested POST /api/learning-items but email is not verified"}` |
+| `ADD_WORD` | New global word created (cache miss or manual). | `{"kind":"admin","category":"ADD_WORD","time":"2026-07-07T13:16:40Z","message":"user 550e8400-e29b-41d4-a716-446655440000 created word 'analyze' (en, verb)"}` |
+| `ADD_ITEM` | User added a learning item. | `{"kind":"admin","category":"ADD_ITEM","time":"2026-07-07T13:16:45Z","message":"user@example.com added learning item word_sense_id=abc123"}` |
+| `DECK_CREATED` | User created a deck. | `{"kind":"admin","category":"DECK_CREATED","time":"2026-07-07T13:16:50Z","message":"user@example.com created deck 'Korean Core' (ko)"}` |
+| `METRICS` | Periodic server status summary. | `{"kind":"admin","category":"METRICS","time":"2026-07-07T13:17:00Z","message":"last 60s: 45 requests, 2 errors, avg latency 42ms, 12 active users"}` |
+| `ERROR` | Unexpected internal error. | `{"kind":"admin","category":"ERROR","time":"2026-07-07T13:17:05Z","message":"failed to connect to enrichment provider: timeout"}` |
+| `ENRICH_FAIL` | Enrichment request failed. | `{"kind":"admin","category":"ENRICH_FAIL","time":"2026-07-07T13:17:06Z","message":"enricher failed for word 'obscureterm': timeout"}` |
 
 ## Components
 
 ### `backend/internal/admin/logger.go`
 
-- Defines `Logger` interface:
-  - `Log(category string, message string)`
-  - `Logf(category string, format string, args ...interface{})`
-  - `Close() error`
-- Implements a `FileLogger` that opens `ADMIN_LOG_PATH` for append.
-- Creates the log directory if it does not exist.
-- Writes lines with a mutex so concurrent callers are safe.
+- `Logger` is `Log`, `Logf`, and `Close`.
+- `NewLogger` writes JSON lines to stderr. It does not open a file.
+- `Close` does not close stderr.
+- A write error is logged with `slog` and does not fail the caller.
 
 ### `backend/internal/admin/middleware.go`
 
-- `HTTPLoggingMiddleware`:
-  - Records request start time.
-  - Writes `[AUTH_FAILURE]` when session validation fails in `authMiddleware`.
-  - Writes `[AUTH]` on successful `GET /api/auth/me` and `POST /api/auth/logout`.
-  - Writes an `[ERROR]` line for 5xx responses.
-  - Updates in-memory counters for the periodic `[METRICS]` line.
-- `VerificationLoggingMiddleware` (or embedded in existing `requireVerified`):
-  - Writes `[VERIFY_REQUIRED]` when an unverified user is rejected.
+- `HTTPLoggingMiddleware` records request timing, updates in-memory counters, and emits `ERROR` for handler 5xx responses.
+- It does not emit `AUTH` or `AUTH_FAILURE`. Those come from the auth call sites below.
+- `requireVerified` emits `VERIFY_REQUIRED`.
+- In-memory counters feed the periodic `METRICS` line.
 
 ### Background metrics goroutine
 
-- Started in `main` or server initialization if logger is enabled.
-- Every 60 seconds, reads in-memory counters and writes one `[METRICS]` line.
-- Resets counters after each emission.
+- Every 60 seconds, emit one `METRICS` line and reset the counters.
 
 ### Call sites
 
-| Handler / middleware | Event logged |
-|----------------------|--------------|
+| Handler / middleware | Category |
+|----------------------|----------|
 | `authMiddleware` (invalid session) | `AUTH_FAILURE` |
-| `GET /api/auth/me` (valid session) | `AUTH` (login identity confirmed) |
+| `GET /api/auth/me` (valid session) | `AUTH` |
 | `POST /api/auth/logout` (successful) | `AUTH` |
-| `requireVerified` middleware | `VERIFY_REQUIRED` |
+| `requireVerified` | `VERIFY_REQUIRED` |
 | Add-word / lookup handler (cache miss path) | `ADD_WORD` |
 | Add-learning-item handler | `ADD_ITEM` |
 | Deck handler (create) | `DECK_CREATED` |
@@ -121,38 +104,33 @@ The backend writes events synchronously to a log file. Existing HTTP middleware 
 
 ## Configuration
 
-| Environment Variable | Default | Description |
-|----------------------|---------|-------------|
-| `ADMIN_LOG_PATH` | `/var/log/project-pn/admin.log` | Absolute path to the admin log file. If empty, admin logging is disabled. |
-
-No other configuration options are exposed in the MVP.
+There is no `ADMIN_LOG_PATH`. Admin audit is always stderr. Learning daily files still use `LEARNING_LOG_DIR` and are not this stream.
 
 ## Error Handling
 
-- If the admin log file cannot be written, the original HTTP request must still succeed.
-- The write failure is written to stderr so operators can detect it.
-- If the log directory cannot be created on startup, the logger is disabled and a warning is printed; the server continues.
-- Panics in the logger must not propagate to request handlers.
+- If the stderr write fails, the original HTTP request must still succeed.
+- The write failure is reported with `slog`.
+- `Close` must not close process stderr or stdout.
+- A panic in the logger must not reach the request handler.
 
 ## Security and Privacy
 
-- Log lines include email addresses and IP addresses. Ensure the log file has restrictive permissions (`0640` or tighter).
-- Do not log sensitive data such as passwords, tokens, or personal notes.
-- The file path should be outside the web root and not served by the API.
+- `message` may contain an email or an IP. The platform store is operator-only. Do not publish this stream.
+- Do not add tokens, passwords, secrets, or personal notes.
+- Do not print these lines on the analytics stdout.
 
 ## Testing
 
-- Unit test for `FileLogger` verifying line format and concurrent safety.
-- Middleware test verifying an HTTP request produces the expected log line.
-- Handler test verifying add-word flow emits `[ADD_WORD]`.
-- Test that logger failure does not fail the request.
+- A unit test checks `kind`, `category`, `time`, and `message`, and concurrent writes.
+- `Close` does not close the test writer.
+- A logger write failure does not fail the request.
 
 ## Migration Impact
 
-None. No database migrations are added.
+No database migration. Remove `ADMIN_LOG_PATH` from environments. An existing `/var/log/project-pn/admin.log` inside a container is abandoned.
 
 ## Future Considerations
 
-- If log volume grows, the external system may prefer structured output (JSON). This can be added as an optional format later without changing handler call sites.
-- If real-time dashboarding is needed, a small `/admin/logs/stream` endpoint could be added, but that is out of MVP scope.
-- Log rotation could be moved into the application if external `logrotate` is unavailable.
+- An analytics-only sink may filter `kind == "analytics"`. This admin stream stays `kind:"admin"` on stderr.
+- Learning daily files stay files unless those events are also printed.
+- Email and IP redaction, if added, belongs in the collector, not in a second file.

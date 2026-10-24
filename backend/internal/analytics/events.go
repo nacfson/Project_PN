@@ -47,7 +47,8 @@ type Batch struct {
 	Events []Event `json:"events"`
 }
 
-// Record is exactly one JSON log line accepted by the Vector analytics filter.
+// Record is one stdout JSON line. Kind is "analytics". The collector also reads
+// other stdout and stderr lines. This producer does not filter them.
 type Record struct {
 	Kind string `json:"kind"`
 	Event

@@ -1,5 +1,7 @@
 # Learning Daily Log Implementation Plan
 
+> Optional export. Not part of the persistent log architecture. Do not re-execute. Leave `LEARNING_LOG_DIR` empty. Do not print these rows on stdout or stderr. Admin audit is stderr JSON, not a file.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Append key=value learning analytics rows to UTC daily files (`YYYYMMDD_log`) from the Go backend when users add learning items and complete reviews, for offline pipeline aggregation.
@@ -16,7 +18,7 @@
 - `LEARNING_LOG_DIR` empty → learning logs disabled (noop logger).
 - Log write failures must **not** fail HTTP or review transactions; warn with `log/slog` only.
 - Do not log emails, IPs, tokens, prompts, or user answers.
-- Separate from `admin.log`; do not change admin log format.
+- Separate from admin stderr JSON (`kind:"admin"`) and from analytics stdout. Do not print learning rows. Do not change those streams.
 - Directory mode `0750`, file mode `0640`.
 - Follow existing `words.New(...)` and handler test patterns (`fakeLogger`, `validationRouterWithLogger`).
 
@@ -307,7 +309,7 @@ cd backend && go test ./internal/learninglog -run 'TestDailyFilename|TestFileLog
 
 - [ ] **Step 3: Implement logger**
 
-Create `backend/internal/learninglog/logger.go` (mirror `admin.FileLogger`):
+Create `backend/internal/learninglog/logger.go` (daily file writer, not the admin stderr logger):
 
 ```go
 package learninglog
@@ -736,7 +738,7 @@ git commit -m "test(words): reviews succeed when learning log is disabled"
 LEARNING_LOG_DIR=
 ```
 
-- [ ] **Step 2: Add short section to go-backend-setup.md** — path pattern, row format pointer to `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`, note separate from `ADMIN_LOG_PATH`.
+- [ ] **Step 2: Add short section to go-backend-setup.md** — path pattern, row format pointer to `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`, note that this file is optional and off by default.
 
 - [ ] **Step 3: Commit**
 

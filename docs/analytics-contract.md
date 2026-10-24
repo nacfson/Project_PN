@@ -33,12 +33,8 @@ authorization headers, or cookies; nested occurrences are rejected.
 
 ## Platform collector handoff
 
-The platform infrastructure repository owns Vector deployment, sinks, storage
-credentials, retention enforcement, dashboards, alerting, and raw-event access
-controls. Its Project PN Vector DaemonSet profile must read only `project-pn`
-pod stdout records; retain records only when `kind == "analytics"`; add
-Kubernetes metadata; recursively redact/drop forbidden credential fields; use
-disk buffering when policy enables it; and route through a named
-`analytics_sink` abstraction. Platform operations select the concrete sink
-(Kafka/Flink, object storage, Loki, or an analytical database) without producer
-changes. Ordinary app, admin, and learning logs are excluded.
+Analytics stays one `kind:"analytics"` JSON line on stdout. Admin audit is a different stream: one `kind:"admin"` JSON line on stderr. Learning daily files stay files and are not container logs. Do not print admin or learning rows on the analytics stdout.
+
+The platform log-history collector reads every `proj-*` stdout and stderr line. It does not keep only `kind == "analytics"`. An analytics-only sink, if added later, may filter on that kind. The current history store does not. Ordinary slog lines on stderr are collected too. Learning files are not, unless those events are also printed.
+
+The July Vector profile that dropped non-analytics lines is not this collector. Platform operations still choose the long-term analytics sink without a producer change. Raw analytics access stays limited to named platform administrators.

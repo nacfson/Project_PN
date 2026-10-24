@@ -1,16 +1,16 @@
 package admin
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
 
-// Logger emits one-line admin audit logs.
+// Logger emits one JSON admin audit line per event.
 type Logger interface {
 	Log(category, message string)
 	Logf(category, format string, args ...interface{})
@@ -20,49 +20,64 @@ type Logger interface {
 // NoopLogger discards all log output.
 type NoopLogger struct{}
 
-func (NoopLogger) Log(string, string)                   {}
+func (NoopLogger) Log(string, string)                  {}
 func (NoopLogger) Logf(string, string, ...interface{}) {}
-func (NoopLogger) Close() error                         { return nil }
+func (NoopLogger) Close() error                        { return nil }
 
-// FileLogger writes timestamped lines to a file.
-type FileLogger struct {
+type auditLine struct {
+	Kind     string `json:"kind"`
+	Category string `json:"category"`
+	Time     string `json:"time"`
+	Message  string `json:"message"`
+}
+
+// streamLogger writes audit lines to a writer. Close does not close the writer,
+// so the process stderr stays open.
+type streamLogger struct {
 	mu sync.Mutex
-	w  io.WriteCloser
+	w  io.Writer
 }
 
-// NewLogger creates a Logger. An empty path returns a NoopLogger.
-func NewLogger(path string) (Logger, error) {
-	if path == "" {
-		return NoopLogger{}, nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
-		return NoopLogger{}, fmt.Errorf("admin log: create directory: %w", err)
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-	if err != nil {
-		return NoopLogger{}, fmt.Errorf("admin log: open file: %w", err)
-	}
-	return &FileLogger{w: f}, nil
+// NewLogger writes admin audit JSON to stderr. It does not open a file.
+func NewLogger() Logger {
+	return &streamLogger{w: os.Stderr}
 }
 
-func (l *FileLogger) Log(category, message string) {
+// NewWriterLogger writes admin audit JSON to w. A nil writer is a no-op.
+func NewWriterLogger(w io.Writer) Logger {
+	if w == nil {
+		return NoopLogger{}
+	}
+	return &streamLogger{w: w}
+}
+
+func (l *streamLogger) Log(category, message string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("admin log: panic recovered", "panic", rec, "category", category)
+		}
+	}()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	ts := time.Now().UTC().Format(time.RFC3339)
-	if _, err := fmt.Fprintf(l.w, "%s [%s] %s\n", ts, category, message); err != nil {
-		slog.Error("admin log: failed to write audit log", "error", err, "category", category)
+	rec := auditLine{
+		Kind:     "admin",
+		Category: category,
+		Time:     time.Now().UTC().Format(time.RFC3339),
+		Message:  message,
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		slog.Error("admin log: marshal", "error", err, "category", category)
+		return
+	}
+	b = append(b, '\n')
+	if _, err := l.w.Write(b); err != nil {
+		slog.Error("admin log: write", "error", err, "category", category)
 	}
 }
 
-func (l *FileLogger) Logf(category, format string, args ...interface{}) {
+func (l *streamLogger) Logf(category, format string, args ...interface{}) {
 	l.Log(category, fmt.Sprintf(format, args...))
 }
 
-func (l *FileLogger) Close() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.w == nil {
-		return nil
-	}
-	return l.w.Close()
-}
+func (l *streamLogger) Close() error { return nil }

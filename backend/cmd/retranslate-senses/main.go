@@ -49,10 +49,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	adminLogger, err := admin.NewLogger(cfg.AdminLogPath)
-	if err != nil {
-		adminLogger = admin.NoopLogger{}
-	}
+	adminLogger := admin.NewLogger()
 	defer adminLogger.Close()
 
 	// Default origin: free WiktApi. Optional Gemini/OpenAI only as fallback.

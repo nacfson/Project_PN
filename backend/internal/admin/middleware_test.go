@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -125,5 +126,30 @@ func TestHTTPLoggingMiddleware_PanickingLogger(t *testing.T) {
 	collector.Flush(logger)
 	if len(logger.logs) != 1 || !contains(logger.logs[0], "[METRICS]") {
 		t.Fatalf("expected one METRICS log, got %v", logger.logs)
+	}
+}
+
+func TestHTTPLoggingMiddleware_LoggerFailureKeepsStatus(t *testing.T) {
+	for _, writer := range []io.Writer{errWriter{}, panicWriter{}} {
+		collector := NewMetricsCollector()
+		mw := HTTPLoggingMiddleware(NewWriterLogger(writer), collector, nil)
+		handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/test", nil))
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("204 handler status changed to %d", rec.Code)
+		}
+
+		mw = HTTPLoggingMiddleware(NewWriterLogger(writer), collector, nil)
+		handler = mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/boom", nil))
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("500 handler status changed to %d", rec.Code)
+		}
 	}
 }

@@ -1,5 +1,7 @@
 # Learning Daily Log Design
 
+> Amended 2026-10-24. This file export is not required. Persistent logs are stdout and stderr. Leave `LEARNING_LOG_DIR` empty unless an operator explicitly wants a local copy. The API must not read these files.
+
 ## Overview
 
 Append learning analytics events from the Project PN backend to **instance-local daily log files** (e.g. `20260726_log`). Each file contains one **key=value row per event**. The user aggregates these files offline in their own data pipeline to analyze:
@@ -7,14 +9,14 @@ Append learning analytics events from the Project PN backend to **instance-local
 1. **Repeated failures** — words/senses that fail reviews often.
 2. **Near-identical gloss overlaps** — similar meanings added as different words (simple definition/gloss text matching in the pipeline).
 
-This slice does **not** include: Insights UI, new PostgreSQL rollup tables, stats/insights HTTP APIs, or changes to existing `admin.log` format.
+This slice does **not** include: Insights UI, new PostgreSQL rollup tables, stats/insights HTTP APIs, or changes to the admin stderr audit stream or the analytics stdout stream.
 
 ## Goals
 
 - Emit only events and fields useful for failure analysis and gloss-overlap detection.
 - Keep append-only, daily file layout suitable for local tail/grep/ETL.
 - Do not fail learning HTTP requests if log writes fail.
-- Stay separate from human-readable `admin.log` (ops/auth).
+- Stay separate from admin stderr JSON (`kind:"admin"`) and from analytics stdout. Do not print these rows.
 
 ## Non-Goals
 
@@ -28,7 +30,7 @@ This slice does **not** include: Insights UI, new PostgreSQL rollup tables, stat
 
 - Quiz history is persisted in PostgreSQL `review_attempts` (append-only).
 - Learnable unit is `user_word_senses`; global senses live in `word_senses`.
-- Existing `admin.log` (`ADMIN_LOG_PATH`) logs `ADD_WORD`, `ADD_ITEM`, auth, metrics — not per-review detail.
+- Admin audit is stderr JSON (`kind:"admin"`). This export is a separate optional directory and is not that stream.
 - User will run aggregation **locally** on daily files only; they own the pipeline.
 
 ## Decision Log
@@ -38,7 +40,7 @@ This slice does **not** include: Insights UI, new PostgreSQL rollup tables, stat
 | Storage | Daily plain-text files | User requested `YYYYMMDD_log` pattern |
 | Row format | Space-separated `key=value` | User choice; simple to parse |
 | Time bucketing | UTC calendar day in filename | Stable daily files across restarts |
-| vs admin.log | Separate directory + writer | Avoid mixing ops prose with analytics rows |
+| vs admin audit | Separate optional directory | Admin is stderr JSON. This export is off unless `LEARNING_LOG_DIR` is set. Do not print these rows. |
 | Overlap signal | `definition` + `localized_definition` on add | Simple string match in pipeline (no AI) |
 | Failure signal | `review_attempted` with rating, correctness, FSRS snapshot | Matches scheduler and leech semantics |
 
@@ -57,7 +59,7 @@ LearningLog writer (mutex, append-only)
 User local daily aggregation pipeline
 ```
 
-- **Writer:** New small package (e.g. `backend/internal/learninglog`) mirroring `admin.FileLogger` patterns: mkdir, open append, mutex, noop when dir unset.
+- **Writer:** `backend/internal/learninglog` appends under a mutex and recovers panics. Empty `LEARNING_LOG_DIR` returns a noop logger. Do not print these rows on stdout or stderr.
 - **Configuration:** `LEARNING_LOG_DIR` — absolute directory path. Empty disables learning logs (noop logger).
 - **Filename:** `{YYYYMMDD}_log` where `YYYYMMDD` is UTC date of event `ts`.
 

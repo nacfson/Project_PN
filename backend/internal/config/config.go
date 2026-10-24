@@ -45,8 +45,6 @@ const (
 	// Optional legacy Gemini OpenAI-compatible shim (not the default path).
 	defaultEnrichPrimaryBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
 	defaultEnrichPrimaryModel   = "gemini-3.1-flash-lite"
-
-	defaultAdminLogPath = "/var/log/project-pn/admin.log"
 )
 
 type Config struct {
@@ -99,8 +97,6 @@ type Config struct {
 	NotificationWorkerEnabled  bool
 	NotificationWorkerInterval time.Duration
 	ExpoAccessToken            string
-
-	AdminLogPath string
 
 	LearningLogDir   string
 	AnalyticsEnabled bool
@@ -176,8 +172,6 @@ func Load() Config {
 		NotificationWorkerEnabled:  envBool("NOTIFICATION_WORKER_ENABLED", true),
 		NotificationWorkerInterval: durationOrDefault("NOTIFICATION_WORKER_INTERVAL", 15*time.Minute),
 		ExpoAccessToken:            os.Getenv("EXPO_ACCESS_TOKEN"),
-
-		AdminLogPath: envOrDefault("ADMIN_LOG_PATH", defaultAdminLogPath),
 
 		LearningLogDir:   os.Getenv("LEARNING_LOG_DIR"),
 		AnalyticsEnabled: envBool("ANALYTICS_ENABLED", false),

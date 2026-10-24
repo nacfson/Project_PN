@@ -221,16 +221,16 @@ Flags: `-user-id`, `-email`, `-word-id`, `-limit`, `-dry-run`, `-continue-on-err
 
 ## Learning analytics logs (optional)
 
-When `LEARNING_LOG_DIR` is set to an absolute directory path, the API appends one key=value row per learning event to daily files named `YYYYMMDD_log` (UTC). Events include `learning_item_added`, `review_attempted`, `sense_changed`, `personal_meaning_set`, and `learning_item_archived` (leech suspend). This is separate from `ADMIN_LOG_PATH` admin audit logs. Leave `LEARNING_LOG_DIR` empty to disable. Row format and fields are defined in `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`.
+When `LEARNING_LOG_DIR` is set to an absolute directory path, the API appends one key=value row per learning event to daily files named `YYYYMMDD_log` (UTC). Events include `learning_item_added`, `review_attempted`, `sense_changed`, `personal_meaning_set`, and `learning_item_archived` (leech suspend). These files are not admin audit and are not container logs. Leave `LEARNING_LOG_DIR` empty to disable. Row format and fields are defined in `docs/superpowers/specs/2026-07-27-learning-daily-log-design.md`.
 
 ## Behavioral analytics (optional)
 
 `ANALYTICS_ENABLED=false` is the local/test default. When explicitly enabled,
 `POST /api/analytics/events` accepts validated batches of up to 100 versioned
 events / 256 KiB and writes one structured stdout record per event with
-`kind:"analytics"`. The platform Vector profile owns collection and routing;
-see `docs/analytics-contract.md`. This stream is separate from both admin and
-daily learning logs.
+`kind:"analytics"`. Admin audit is stderr JSON with `kind:"admin"`, not a file
+and not this stdout. See `docs/analytics-contract.md`. Learning daily files stay
+separate.
 
 ## Tests
 
