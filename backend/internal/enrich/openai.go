@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -51,23 +52,30 @@ var validPartOfSpeech = map[string]bool{
 }
 
 // OpenAIEnricher calls an OpenAI-compatible /chat/completions endpoint.
-// Production wiring uses Gemini's OpenAI shim only.
+// Production wiring routes through the cluster AI proxy with URL + model only.
 type OpenAIEnricher struct {
 	BaseURL string
-	APIKey  string
 	Model   string
 	Client  *http.Client
+	Logger  *slog.Logger
 }
 
-// NewOpenAI builds an enricher. baseURL/apiKey may be empty, in which case
+// NewOpenAI builds an enricher. baseURL/model may be empty, in which case
 // Enrich and Translate return ErrNotConfigured.
-func NewOpenAI(baseURL, apiKey, model string) *OpenAIEnricher {
+func NewOpenAI(baseURL, model string) *OpenAIEnricher {
 	return &OpenAIEnricher{
-		BaseURL: strings.TrimRight(baseURL, "/"),
-		APIKey:  apiKey,
-		Model:   model,
+		BaseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		Model:   strings.TrimSpace(model),
 		Client:  &http.Client{Timeout: 30 * time.Second},
+		Logger:  slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	}
+}
+
+func (e *OpenAIEnricher) logger() *slog.Logger {
+	if e != nil && e.Logger != nil {
+		return e.Logger
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, nil))
 }
 
 type chatRequest struct {
@@ -130,7 +138,7 @@ type translateModelOutput struct {
 }
 
 func (e *OpenAIEnricher) Enrich(ctx context.Context, req Request) (Result, error) {
-	if e.BaseURL == "" || e.APIKey == "" {
+	if e.BaseURL == "" || e.Model == "" {
 		return Result{}, ErrNotConfigured
 	}
 	if e.isEnglishDictionaryFallback() && normalizeLang(req.LanguageCode) != "en" {
@@ -150,7 +158,7 @@ func (e *OpenAIEnricher) Enrich(ctx context.Context, req Request) (Result, error
 }
 
 func (e *OpenAIEnricher) Translate(ctx context.Context, req TranslateRequest) (TranslateResult, error) {
-	if e.BaseURL == "" || e.APIKey == "" {
+	if e.BaseURL == "" || e.Model == "" {
 		return TranslateResult{}, ErrNotConfigured
 	}
 	if e.isEnglishDictionaryFallback() && normalizeLang(req.LanguageCode) != "en" {
@@ -216,10 +224,10 @@ func (e *OpenAIEnricher) complete(ctx context.Context, body []byte) (string, err
 		return "", fmt.Errorf("enrich: build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+e.APIKey)
 
 	resp, err := e.Client.Do(httpReq)
 	if err != nil {
+		e.logger().Error("enrich: llm request failed", "url", e.BaseURL+"/chat/completions", "model", e.Model, "error", err)
 		return "", fmt.Errorf("%w: call endpoint: %v", ErrUnavailable, err)
 	}
 	defer resp.Body.Close()
@@ -229,6 +237,7 @@ func (e *OpenAIEnricher) complete(ctx context.Context, body []byte) (string, err
 		return "", fmt.Errorf("%w: read response: %v", ErrUnavailable, err)
 	}
 	if resp.StatusCode != http.StatusOK {
+		e.logger().Error("enrich: llm request failed", "url", e.BaseURL+"/chat/completions", "model", e.Model, "status_code", resp.StatusCode, "body", strings.TrimSpace(string(raw)))
 		return "", fmt.Errorf("%w: endpoint status %d: %s", ErrUnavailable, resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
 

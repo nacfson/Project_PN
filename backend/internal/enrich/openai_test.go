@@ -1,7 +1,11 @@
 package enrich
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -195,7 +199,7 @@ func TestParseModelOutputCoercesMultiWordNounToPhrase(t *testing.T) {
 }
 
 func TestEnglishDictionaryFallbackRejectsNonEnglishTarget(t *testing.T) {
-	enricher := NewOpenAI("http://127.0.0.1:1", "local", englishDictionaryFallbackModel)
+	enricher := NewOpenAI("http://127.0.0.1:1", englishDictionaryFallbackModel)
 
 	_, err := enricher.Enrich(t.Context(), Request{
 		Text:                   "안녕",
@@ -211,7 +215,7 @@ func TestEnglishDictionaryFallbackRejectsNonEnglishTarget(t *testing.T) {
 }
 
 func TestEnglishDictionaryFallbackRejectsNonEnglishTranslationSource(t *testing.T) {
-	enricher := NewOpenAI("http://127.0.0.1:1", "local", englishDictionaryFallbackModel)
+	enricher := NewOpenAI("http://127.0.0.1:1", englishDictionaryFallbackModel)
 
 	_, err := enricher.Translate(t.Context(), TranslateRequest{
 		WordText:     "안녕",
@@ -227,7 +231,7 @@ func TestEnglishDictionaryFallbackRejectsNonEnglishTranslationSource(t *testing.
 }
 
 func TestRealModelDoesNotUseEnglishFallbackGuard(t *testing.T) {
-	enricher := NewOpenAI("http://127.0.0.1:1", "local", "multilingual-model")
+	enricher := NewOpenAI("http://127.0.0.1:1", "multilingual-model")
 
 	_, err := enricher.Enrich(t.Context(), Request{
 		Text:                   "안녕",
@@ -527,7 +531,7 @@ func TestParseTranslateOutputRejectsNonJSON(t *testing.T) {
 }
 
 func TestMarshalChatSetsGeminiReasoningEffort(t *testing.T) {
-	e := NewOpenAI("https://generativelanguage.googleapis.com/v1beta/openai", "key", "gemini-3.1-flash-lite")
+	e := NewOpenAI("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-3.1-flash-lite")
 	body, err := e.marshalChat("sys", "user")
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -536,7 +540,7 @@ func TestMarshalChatSetsGeminiReasoningEffort(t *testing.T) {
 		t.Fatalf("expected Gemini reasoning_effort=minimal, got %s", body)
 	}
 
-	other := NewOpenAI("https://api.groq.com/openai/v1", "key", "llama-3.1-8b-instant")
+	other := NewOpenAI("https://api.groq.com/openai/v1", "llama-3.1-8b-instant")
 	body, err = other.marshalChat("sys", "user")
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -551,5 +555,33 @@ func TestMessageContentTextAcceptsArrayParts(t *testing.T) {
 	got := messageContentText(raw)
 	if got != `{"senses":[]}` {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestOpenAIEnricher_LogsErrorToStdoutOnHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("expected no Authorization header, got %q", got)
+		}
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"error":"upstream gateway error"}`))
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	enricher := NewOpenAI(srv.URL, "gemini-3.1-flash-lite")
+	enricher.Logger = slog.New(slog.NewTextHandler(&buf, nil))
+
+	_, err := enricher.Enrich(t.Context(), Request{
+		Text:                   "run",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("expected ErrUnavailable, got %v", err)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, "status_code=502") || !strings.Contains(logged, "gemini-3.1-flash-lite") {
+		t.Fatalf("expected stdout error log with status_code=502 and model, got %q", logged)
 	}
 }
