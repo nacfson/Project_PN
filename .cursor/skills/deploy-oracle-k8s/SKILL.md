@@ -1,10 +1,10 @@
 ---
 name: deploy-oracle-k8s
 description: >-
-  Publish Project PN images to GHCR and roll out to Oracle Cloud k3s (project-pn
-  namespace). Secrets are managed via Cursor environment secrets, not repo or host
-  .env files. Use when the user asks to deploy to production, Oracle Cloud,
-  or roll out a new backend/frontend image.
+  Publish Project PN images to GHCR via GitHub Actions cloud sessions and roll out
+  to Oracle Cloud k3s (project-pn namespace). Secrets are managed via Cursor
+  environment secrets, not repo or host .env files. Use when the user asks to
+  deploy to production, Oracle Cloud, or roll out a new backend/frontend image.
 ---
 
 # Deploy Project PN to Oracle Cloud (k3s)
@@ -22,27 +22,28 @@ Production is **Oracle Cloud Ampere / k3s**, not Docker Compose on a home Ubuntu
 
 ## Do not use (removed)
 
+- Local `docker buildx` image publishing — all images are built in GitHub Actions cloud sessions
 - `scripts/deploy-remote.sh`, `deploy/compose.yaml`, `~/project-pn/deploy/.env`
 - wlUbuntu / zlUbuntu Compose paths
 - Committing API keys or `ENRICH_*` values to the repo
 
 ## Prerequisites
 
-- [ ] Changes merged or ready to publish on `main`
-- [ ] `GHCR_TOKEN` available for manual push (or rely on GitHub Actions workflow)
+- [ ] Changes merged or pushed to GitHub (`main` triggers `.github/workflows/publish-ghcr-images.yml` automatically)
+- [ ] `gh` CLI authenticated if dispatching/watching a cloud build on demand
 - [ ] SSH access to Oracle host (`opc@<oracle-host>`) for `kubectl`
-- [ ] Runtime secrets (`ENRICH_PRIMARY_API_KEY`, etc.) configured in **Cursor environment secrets**
+- [ ] Runtime secrets configured in **Cursor environment secrets**
 
-## 1. Publish images
+## 1. Publish images (GitHub Actions Cloud Session)
 
-Build and push multi-arch images manually using `scripts/push-ghcr.sh`:
+Images are built and published automatically on push to `main` via `.github/workflows/publish-ghcr-images.yml` (after `quality-gates.yml` passes), or dispatched on demand from the CLI:
 
 ```sh
-GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
-# or TARGET=frontend / TARGET=backend
+scripts/push-ghcr.sh --watch
+# or TARGET=frontend scripts/push-ghcr.sh --watch / TARGET=backend scripts/push-ghcr.sh --watch
 ```
 
-Note the image tag (git short SHA) and digests.
+Note the image tag (git short SHA) and digests from the GitHub Actions run summary.
 
 ## 2. Roll out on Oracle
 
@@ -61,8 +62,6 @@ curl -fsS ${APP_PUBLIC_URL}/healthz
 curl -fsS ${APP_PUBLIC_URL}/readyz
 ```
 
-Authenticated lookup of an unknown word should return **200** (not enrichment 503) when `ENRICH_PRIMARY_API_KEY` is set in Cursor secrets.
-
 ## Secrets
 
 - Add or rotate keys in Cursor dashboard → Cloud Agents → Environments → Secrets
@@ -71,6 +70,6 @@ Authenticated lookup of an unknown word should return **200** (not enrichment 50
 
 ## Related skills
 
-- `.cursor/skills/push-ghcr-images/SKILL.md` — build and push both images
-- `backend/docs/oracle-deploy-runbook.md` — central-auth (`auth-service`) rolls and Google OAuth sync
+- `.cursor/skills/push-ghcr-images/SKILL.md` — trigger and watch GitHub Actions cloud image builds
+- `backend/docs/oracle-deploy-runbook.md` — rollout and verification steps
 - `~/.cursor/skills/deploy-nacfson-project/SKILL.md` — ProcessManager and other nacfson.cloud services (separate repo)

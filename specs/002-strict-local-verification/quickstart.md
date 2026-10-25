@@ -52,6 +52,6 @@ Follow the documented startup in `backend/docs/go-backend-setup.md` from scratch
 | **3. Alive vs Ready** | `/healthz` vs `/readyz` | **PASS** | Verified handler separation: `/healthz` checks process alive (200), `/readyz` checks DB ping (503 on DB down). |
 | **4. Full Local Gates** | `npm run verify:full` | **PASS** | 12/12 checks pass: stack health, contract E2E, ESLint, frontend typecheck, API typecheck, Jest frontend tests, Jest API tests, serial Go backend tests (`go test -p 1 ./...`). |
 | **5. Pre-Push Hook** | `.githooks/pre-push` execution | **PASS** | Hook executes typecheck + tests in ~9.4s (< 120s limit per SC-006). Blocks on failure without skip flag. |
-| **6. CI Gates** | `.github/workflows/quality-gates.yml` | **PASS** | 5 discrete jobs (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`) gate GHCR image publishing in `publish-ghcr-images.yml` and `publish-backend.yml`. |
+| **6. CI Gates** | `.github/workflows/quality-gates.yml` | **PASS** | 5 discrete jobs (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`) gate GHCR image publishing in `publish-ghcr-images.yml`. |
 | **7. Dev Hint** | `devBackendHint` network error | **PASS** | Unit tested via `devBackendHint.test.ts`. Outputs clear message with attempted base URL and suggests `npm run verify` only when `__DEV__ === true`. |
 | **8. Fresh Checkout** | Documented setup flow | **PASS** | Ordered startup flow documented in `backend/docs/go-backend-setup.md`. Removed broken hardcoded guest seed from `start-web-dev.sh`. |

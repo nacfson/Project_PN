@@ -1,6 +1,6 @@
 name: Publish Project PN images
 
-# Validates and publishes backend + frontend images to GHCR on push to main or PR.
+# Validates and publishes backend + frontend images to GHCR on push to main, PR, or manual dispatch.
 #
 # Preflight gate:
 # 1. Statically lints module imports across all workspaces.
@@ -16,6 +16,16 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Images to build and publish (all, backend, or frontend)"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - backend
+          - frontend
 
 permissions:
   contents: read
@@ -57,7 +67,7 @@ jobs:
       - name: Build and validate frontend web bundle
         run: |
           cd frontend
-          EXPO_PUBLIC_API_BASE_URL= EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud npm run web:export
+          EXPO_PUBLIC_API_BASE_URL= npm run web:export
 
       - name: Upload frontend web bundle
         if: github.event_name != 'pull_request'
@@ -70,7 +80,9 @@ jobs:
   publish-backend:
     name: Build & Publish Backend
     needs: [preflight-checks, quality-gates]
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.event.inputs.target == '' || github.event.inputs.target == 'all' || github.event.inputs.target == 'backend')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -100,6 +112,8 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Project PN backend API
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and publish backend image
         id: build
@@ -112,6 +126,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
       - name: Summary & Print Result
         run: |
@@ -139,7 +156,9 @@ jobs:
   publish-frontend:
     name: Build & Publish Frontend
     needs: [preflight-checks, quality-gates]
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.event.inputs.target == '' || github.event.inputs.target == 'all' || github.event.inputs.target == 'frontend')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -175,6 +194,8 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Project PN frontend (Expo web / nginx)
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and publish frontend image
         id: build
@@ -186,6 +207,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
 
       - name: Summary & Print Result
         run: |

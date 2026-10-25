@@ -25,23 +25,23 @@ Internet → host nginx (TLS :443) → ingress-nginx NodePort → k3s Ingress
 
 On the Oracle path, migrations historically ran as a one-shot Job `project-pn-migrate` (`./migrate up`). New backend images also apply migrations on API startup (idempotent), which is required for the pipeline vault-db-proxy path.
 
-## Publish images (GHCR)
+## Publish images (GHCR via GitHub Actions Cloud Session)
 
-Images are built and published to GHCR manually using `scripts/push-ghcr.sh` with Docker Buildx:
+Images are built and published to GHCR in GitHub Actions cloud sessions (`.github/workflows/publish-ghcr-images.yml`), gated by `.github/workflows/quality-gates.yml`. They run automatically on push to `main` or on demand via `scripts/push-ghcr.sh`:
 
 ```bash
-# Build & push both images (multi-arch: linux/amd64, linux/arm64)
-GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+# Dispatch & watch both images in GitHub Actions (multi-arch: linux/amd64, linux/arm64)
+scripts/push-ghcr.sh --watch
 
-# Or build individual targets:
-GHCR_TOKEN=... TARGET=frontend scripts/push-ghcr.sh
-GHCR_TOKEN=... TARGET=backend scripts/push-ghcr.sh
+# Or dispatch individual targets in GitHub Actions:
+TARGET=frontend scripts/push-ghcr.sh --watch
+TARGET=backend scripts/push-ghcr.sh --watch
 ```
 
 - **Registry**: `ghcr.io/nacfson/project-pn-backend` and `ghcr.io/nacfson/project-pn-frontend`
 - **Tags**: `<git-short-sha>` and `latest`
-- **Architecture**: `scripts/push-ghcr.sh` automatically builds multi-arch (`linux/amd64,linux/arm64`) required by Oracle Cloud Ampere.
-- **Frontend bundle**: `npm run web:export` runs inside the script before packaging into Nginx image.
+- **Architecture**: GitHub Actions builds multi-arch (`linux/amd64,linux/arm64`) required by Oracle Cloud Ampere using native Go cross-compilation (`--platform=$BUILDPLATFORM`) and GHA BuildKit caching.
+- **Frontend bundle**: `EXPO_PUBLIC_API_BASE_URL= npm run web:export` runs in the `preflight-checks` job before packaging into the Nginx image.
 
 See [`.cursor/skills/push-ghcr-images/SKILL.md`](../../.cursor/skills/push-ghcr-images/SKILL.md) and [`ghcr-deploy.md`](ghcr-deploy.md).
 

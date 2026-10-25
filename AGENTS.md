@@ -133,6 +133,6 @@ This is an npm-workspaces monorepo plus a standalone Go backend module. Cloud VM
 
 - Live production: **Oracle Cloud Ampere/arm64** (`ssh opc@<oracle-host>`). TLS on host nginx → ingress-nginx → k3s `project-pn` namespace.
 - **Secrets:** Manage runtime values (`ENRICH_PRIMARY_API_KEY`, `DATABASE_URL`, auth tokens, etc.) through **Cursor environment secrets** — never commit them. See `backend/docs/cursor-secrets.md`.
-- **Images:** `ghcr.io/nacfson/project-pn-backend:<tag>` and `project-pn-frontend:<tag>` (arm64). Publish multi-arch images manually via `scripts/push-ghcr.sh` (`TARGET=all scripts/push-ghcr.sh` or `TARGET=frontend` / `TARGET=backend`).
+- **Images:** `ghcr.io/nacfson/project-pn-backend:<tag>` and `project-pn-frontend:<tag>` (arm64). Built and published in GitHub Actions cloud sessions (`.github/workflows/publish-ghcr-images.yml`) automatically on push to `main` or triggered on demand via `scripts/push-ghcr.sh --watch` (`TARGET=all|frontend|backend scripts/push-ghcr.sh --watch`), not built locally.
 - **Rollout:** Migrate Job → `kubectl set image` on backend/frontend Deployments → `rollout status`. See `backend/docs/oracle-deploy-runbook.md` and `.cursor/skills/deploy-oracle-k8s/SKILL.md`.
 - **Removed:** wlUbuntu / Docker Compose deploy path (`deploy-remote.sh`, `deploy/compose.yaml`, host `~/project-pn/deploy/.env`) — do not use or document for production.

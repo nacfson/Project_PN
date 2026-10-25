@@ -4,32 +4,34 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/push-ghcr.sh
-  TARGET=frontend scripts/push-ghcr.sh
-  TARGET=all scripts/push-ghcr.sh
+  scripts/push-ghcr.sh [--cloud] [--watch] [--ref <git-ref>]
+  TARGET=frontend scripts/push-ghcr.sh [--watch]
+  TARGET=backend scripts/push-ghcr.sh [--watch]
+  TARGET=all scripts/push-ghcr.sh [--watch]
 
-Builds multi-arch Project PN images and pushes them to GHCR.
+Dispatches a GitHub Actions cloud session (.github/workflows/publish-ghcr-images.yml)
+to build and publish multi-arch Project PN images (linux/amd64, linux/arm64) to GHCR.
+Local Docker Buildx builds are retired; all builds run in GitHub's cloud runners.
 
-Required:
-  GHCR_TOKEN   GitHub PAT with write:packages (preferred)
-  # or GH_TOKEN / GITHUB_TOKEN as fallback
+Options:
+  --cloud           Run build in GitHub Actions cloud session (default)
+  --watch           Stream the GitHub Actions workflow run until completion
+  --ref <git-ref>   Git branch or ref to build on GitHub (defaults to current branch)
+  -h, --help        Show this help message
 
 Optional environment variables:
-  TARGET=backend|frontend|all       # default: backend
-  GHCR_OWNER=nacfson
-  IMAGE_TAG=<git-short-sha>
-  PLATFORMS=linux/amd64,linux/arm64
-  GHCR_USERNAME=<github-username>   # defaults to GHCR_OWNER
-  PUSH_LATEST=1                     # also push :latest (default 1)
-  BUILDX_BUILDER=project-pn-multi   # buildx builder name
+  TARGET=all|backend|frontend       # default: all
+  GIT_REF=<git-branch-or-tag>       # defaults to current git branch
+  WATCH=1                           # same as --watch
 
-Images:
+Images published by the GitHub Actions workflow:
   backend  → ghcr.io/<owner>/project-pn-backend
   frontend → ghcr.io/<owner>/project-pn-frontend  (nginx SPA from frontend/dist)
 
-Example:
-  GHCR_TOKEN=ghp_... TARGET=frontend scripts/push-ghcr.sh
-  GHCR_TOKEN=ghp_... TARGET=all scripts/push-ghcr.sh
+Examples:
+  scripts/push-ghcr.sh --watch
+  TARGET=frontend scripts/push-ghcr.sh --watch
+  TARGET=backend scripts/push-ghcr.sh --ref main --watch
 USAGE
 }
 
@@ -42,94 +44,69 @@ die() {
   exit 1
 }
 
-push_image() {
-  local image_name="$1"
-  local dockerfile="$2"
-  local context="$3"
-  local registry_image="ghcr.io/${GHCR_OWNER}/${image_name}"
-  local sha_ref="${registry_image}:${IMAGE_TAG}"
-  local latest_ref="${registry_image}:latest"
-  local tags=(-t "$sha_ref")
+BUILD_MODE="${BUILD_MODE:-cloud}"
+WATCH="${WATCH:-0}"
+GIT_REF="${GIT_REF:-}"
 
-  if [[ "$PUSH_LATEST" == "1" ]]; then
-    tags+=(-t "$latest_ref")
-  fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --cloud)
+      BUILD_MODE="cloud"
+      shift
+      ;;
+    --local)
+      BUILD_MODE="local"
+      shift
+      ;;
+    --watch)
+      WATCH="1"
+      shift
+      ;;
+    --ref)
+      [[ $# -ge 2 ]] || die "--ref requires a branch or tag argument"
+      GIT_REF="$2"
+      shift 2
+      ;;
+    *)
+      die "unknown option: $1 (run with --help for usage)"
+      ;;
+  esac
+done
 
-  log "building and pushing ${sha_ref} for ${PLATFORMS}"
-  docker buildx build \
-    --builder "$BUILDX_BUILDER" \
-    --platform "$PLATFORMS" \
-    --label "org.opencontainers.image.source=https://github.com/nacfson/Project_PN" \
-    --annotation "index:org.opencontainers.image.source=https://github.com/nacfson/Project_PN" \
-    "${tags[@]}" \
-    -f "$dockerfile" \
-    --push \
-    "$context"
-
-  log "published ${sha_ref} (${PLATFORMS})"
-  if [[ "$PUSH_LATEST" == "1" ]]; then
-    log "published ${latest_ref} (${PLATFORMS})"
-  fi
-}
-
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  exit 0
-fi
-
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
-
-TARGET="${TARGET:-backend}"
-GHCR_OWNER="${GHCR_OWNER:-nacfson}"
-GHCR_USERNAME="${GHCR_USERNAME:-$GHCR_OWNER}"
-PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
-PUSH_LATEST="${PUSH_LATEST:-1}"
-IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
-BUILDX_BUILDER="${BUILDX_BUILDER:-project-pn-multi}"
-
+TARGET="${TARGET:-all}"
 case "$TARGET" in
   backend|frontend|all) ;;
   *) die "TARGET must be backend, frontend, or all (got: ${TARGET})" ;;
 esac
 
-TOKEN="${GHCR_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
-[[ -n "$TOKEN" ]] || die "set GHCR_TOKEN (or GH_TOKEN / GITHUB_TOKEN) with write:packages"
-command -v docker >/dev/null 2>&1 || die "missing required command: docker"
+if [[ "$BUILD_MODE" != "cloud" ]]; then
+  die "local builds are retired; all image builds run in GitHub Actions cloud sessions (publish-ghcr-images.yml)"
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
 command -v git >/dev/null 2>&1 || die "missing required command: git"
+command -v gh >/dev/null 2>&1 || die "missing required command: gh (GitHub CLI)"
 
-if ! docker info >/dev/null 2>&1; then
-  die "docker daemon is not running"
+if [[ -z "$GIT_REF" ]]; then
+  GIT_REF="$(git rev-parse --abbrev-ref HEAD)"
+  [[ "$GIT_REF" != "HEAD" ]] || die "detached HEAD; pass --ref <branch> or set GIT_REF"
 fi
 
-log "logging in to ghcr.io as ${GHCR_USERNAME}"
-echo "$TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin >/dev/null
+log "dispatching GitHub Actions cloud build workflow publish-ghcr-images.yml (ref=${GIT_REF}, target=${TARGET})"
+gh workflow run publish-ghcr-images.yml --ref "$GIT_REF" -f target="$TARGET"
 
-if ! docker buildx inspect "$BUILDX_BUILDER" >/dev/null 2>&1; then
-  log "creating buildx builder ${BUILDX_BUILDER}"
-  docker buildx create --name "$BUILDX_BUILDER" --driver docker-container --platform linux/amd64,linux/arm64 >/dev/null
+if [[ "$WATCH" == "1" ]]; then
+  sleep 2
+  run_id="$(gh run list --workflow=publish-ghcr-images.yml --branch "$GIT_REF" --limit 1 --json databaseId --jq '.[0].databaseId')"
+  [[ -n "$run_id" && "$run_id" != "null" ]] || die "could not locate newly dispatched workflow run on branch ${GIT_REF}"
+  log "watching GitHub Actions run ${run_id}..."
+  gh run watch "$run_id" --exit-status
+else
+  log "dispatched! Run 'gh run list --workflow=publish-ghcr-images.yml' or pass --watch to stream progress."
 fi
-docker buildx use "$BUILDX_BUILDER"
-docker buildx inspect --bootstrap >/dev/null
-
-if [[ "$TARGET" == "frontend" || "$TARGET" == "all" ]]; then
-  command -v npm >/dev/null 2>&1 || die "missing required command: npm (needed to build frontend/dist)"
-  # Same-origin API via Ingress/nginx proxy; auth is mediated by platform ForwardAuth.
-  EXPO_PUBLIC_API_BASE_URL="${EXPO_PUBLIC_API_BASE_URL-}"
-  log "building frontend web bundle into frontend/dist"
-  log "  EXPO_PUBLIC_API_BASE_URL=${EXPO_PUBLIC_API_BASE_URL:-(empty/same-origin)}"
-  (
-    cd frontend
-    npm install --legacy-peer-deps
-    EXPO_PUBLIC_API_BASE_URL="$EXPO_PUBLIC_API_BASE_URL" \
-      npm run web:export
-  )
-  [[ -d frontend/dist ]] || die "frontend/dist missing after web:export"
-  push_image "project-pn-frontend" "frontend/Dockerfile.web" "frontend"
-fi
-
-if [[ "$TARGET" == "backend" || "$TARGET" == "all" ]]; then
-  push_image "project-pn-backend" "backend/Dockerfile" "backend"
-fi
-
-log "done"

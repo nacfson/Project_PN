@@ -1,15 +1,19 @@
 ---
 name: push-ghcr-images
 description: >-
-  Build and push both Project PN Docker images (backend + frontend) to GHCR as
-  multi-arch (linux/amd64, linux/arm64). Use when the user asks to push GHCR
-  images, publish both images, upload frontend and backend to ghcr.io, refresh
-  ProcessManager images, or run TARGET=all for scripts/push-ghcr.sh.
+  Build and push Project PN Docker images (backend + frontend) to GHCR as
+  multi-arch (linux/amd64, linux/arm64) in GitHub Actions cloud sessions. Use
+  
+  when the user asks to push GHCR  images, publish both images, upload frontend
+  
+  and backend to ghcr.io, refresh  ProcessManager images, or run
+  
+  scripts/push-ghcr.sh.
 ---
 
-# Push Project PN Images to GHCR
+# Push Project PN Images to GHCR (GitHub Actions Cloud Session)
 
-Publishes **both** multi-arch images used by ProcessManager / public k8s:
+Publishes multi-arch images used by ProcessManager / public k8s via `.github/workflows/publish-ghcr-images.yml`:
 
 | Image | Registry |
 |-------|----------|
@@ -18,74 +22,93 @@ Publishes **both** multi-arch images used by ProcessManager / public k8s:
 
 Platforms: `linux/amd64` + `linux/arm64`.
 
+All container image builds run in **GitHub Actions cloud sessions** (`.github/workflows/publish-ghcr-images.yml`), gated by `.github/workflows/quality-gates.yml` (`spec 002`). Local `docker buildx` builds are retired.
+
 ## Prerequisites
 
-- [ ] Docker daemon is running (`sudo /etc/init.d/docker start` if needed).
-- [ ] `GHCR_TOKEN` is set (PAT with `write:packages`). Never print the token value.
-- [ ] `npm` is available (frontend web export).
-- [ ] Network can reach `ghcr.io` and container registries for base images.
+- [ ] TargetTarget commit/branchcommit/branch is pushed to GitHubpushed to GitHub (`originorigin`).
+- [ ] `gh` CLI is installed and authenticated (`gh auth status`).
+- [ ] No local Docker daemon or local `GHCR_TOKEN` PAT is neededneeded (GitHubGitHub ActionsActions authenticates to GHCR via `GITHUB_TOKEN`authenticates to GHCR via `GITHUB_TOKEN`).
 
-Check token presence only:
+## 1. Automatic on push to `main`
+
+Pushing or merging to `main` automatically triggers `.github/workflows/publish-ghcr-images.yml`, which:
+
+1. Runs `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`).
+2. Runs `preflight-checks` (`npm run lint:imports` + `EXPO_PUBLIC_API_BASE_URL= npm run web:export`).
+3. Builds and pushes `project-pn-backend:<sha>` + `:latest` (`linux/amd64,linux/arm64`, using native Go cross-compilation via `FROM --platform=$BUILDPLATFORM`).
+4. Builds and pushes `project-pn-frontend:<sha>` + `:latest` (`linux/amd64,linux/arm64`).
+
+Watch an active run on `main`:
+## 1. Automatic on push to `main`
+
+Pushing or merging to `main` automatically triggers `.github/workflows/publish-ghcr-images.yml`, which:
+
+1. Runs `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`).
+2. Runs `preflight-checks` (`npm run lint:imports` + `EXPO_PUBLIC_API_BASE_URL= npm run web:export`).
+3. Builds and pushes `project-pn-backend:<sha>` + `:latest` (`linux/amd64,linux/arm64`, using native Go cross-compilation via `FROM --platform=$BUILDPLATFORM`).
+4. Builds and pushes `project-pn-frontend:<sha>` + `:latest` (`linux/amd64,linux/arm64`).
+
+Watch an active run on `main`:
 
 ```sh
-[ -n "${GHCR_TOKEN:-}" ] && echo "GHCR_TOKEN=SET len=${#GHCR_TOKEN}" || echo "GHCR_TOKEN=UNSET"
+ghgh run list --workflow=publish-ghcrghcr-images.ymlimages.yml --limit--limit 5
+gh5
+gh runrun watchwatch --exit-status--exit-status
 ```
 
-## One-shot: push both images
+## 2. On2. On-demanddemand cloud dispatch (`scripts/push-ghcr.sh`)-ghcr.sh`)
 
-From the repo root:
+From the repo root, dispatch a GitHub Actions cloud session and stream its status:
 
 ```sh
-GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+scripts/push-ghcr.sh --watch
 ```
 
-This will:
-
-1. `npm install` + `web:export` for the frontend with:
-   - `EXPO_PUBLIC_API_BASE_URL=` (empty → same-origin API via Ingress)
-   - `EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud` (baked into the SPA)
-2. Guard that `frontend/dist` contains `auth.nacfson.cloud`
-3. `docker buildx` push `project-pn-frontend:<sha>` and `:latest`
-4. `docker buildx` push `project-pn-backend:<sha>` and `:latest`
-
-### Frontend-only or backend-only
+### Frontend-only or backend-only cloud build
+### Frontend-only or backend-only cloud build
 
 ```sh
-GHCR_TOKEN=... TARGET=frontend scripts/push-ghcr.sh
-GHCR_TOKEN=... TARGET=backend scripts/push-ghcr.sh
+TARGET=frontend scripts/push-ghcr.sh --watch
+TARGET=backend scripts/push-ghcr.sh --watch
 ```
 
-### Override auth bake URL (rare)
+### SpecifySpecify aa branch/refbranch/ref explicitlyexplicitly
 
 ```sh
-EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud \
-  GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+TARGET=all scripts/push-ghcr.sh --ref main --watch
 ```
 
 ## Verify
+
+Check the workflow run summary for the published tags and digests:
+
+```sh
+gh run view --workflow=publish-ghcr-images.yml
+```
+
+Or inspect the remote multi-arch manifest index:
 
 ```sh
 docker buildx imagetools inspect ghcr.io/nacfson/project-pn-frontend:latest
 docker buildx imagetools inspect ghcr.io/nacfson/project-pn-backend:latest
 ```
 
-Each index should list **linux/amd64** and **linux/arm64**.
+Each index listslists **linux/amd64** and **linux/arm64**.
 
 ## ProcessManager / public site
 
-After push, roll the Deployments to the new digests (or `:latest` if that tag is used):
+After the cloud build finishesthe cloud build finishes, roll the Deployments to the new tag oror digestdigest:
 
 ```text
-ghcr.io/nacfson/project-pn-frontend:latest
-ghcr.io/nacfson/project-pn-backend:latest
+ghcr.io/nacfson/project-pn-frontend:<sha><sha>
+ghcr.io/nacfson/project-pn-backend:<sha><sha>
 ```
 
 Private packages need a cluster `imagePullSecret` (PAT with `read:packages`).
 
-Sign In must open `https://auth.nacfson.cloud/login?rd=...`, not `https://pn.nacfson.cloud/login`. If Sign In is wrong, the frontend image was built without `EXPO_PUBLIC_CENTRAL_AUTH_URL` — re-run `TARGET=frontend` or `TARGET=all`.
-
 ## Do not
 
-- Do not print `GHCR_TOKEN` or paste it into logs/PRs.
-- Do not set `EXPO_PUBLIC_CENTRAL_AUTH_URL=` empty for GHCR frontend builds.
-- Do not push only the backend when the user asked to refresh the public site images — use `TARGET=all`.
+- Do not run localrun local `docker buildxdocker buildx` toto publishpublish productionproduction images;images; always use the GitHub Actions cloud workflowalways use the GitHub Actions cloud workflow.
+- Do not override `EXPO_PUBLIC_API_BASE_URL` for GHCR frontend builds (`001-gateway-jwt-auth` uses Traefik ForwardAuth with same-origin requests).
+- Do not push only the backend when the user asked to refresh bothboth public site images — use `TARGET=all` (the default).

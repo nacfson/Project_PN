@@ -144,15 +144,15 @@ npm run verify:full   # also lint, typechecks, frontend/API tests, and serial ba
 
 Production runs on **Oracle Cloud Ampere (arm64)** in k3s namespace `project-pn`. See `backend/docs/oracle-deploy-runbook.md`, `backend/docs/cursor-secrets.md`, and `.cursor/skills/deploy-oracle-k8s/SKILL.md`.
 
-Publish images:
+Images are built and published in GitHub Actions cloud sessions (`.github/workflows/publish-ghcr-images.yml`) automatically on push to `main` or triggered on demand via:
 
 ```sh
-GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+scripts/push-ghcr.sh --watch
 ```
 
 The backend image contains:
 
-- Multi-stage build with **`CGO_ENABLED=0`** static binaries (`api`, `migrate`)
+- Multi-stage build (`FROM --platform=$BUILDPLATFORM golang:1.26 AS builder`) with **`CGO_ENABLED=0`** cross-compiled static binaries (`api`, `migrate`, `retranslate-senses`)
 - Runtime: **`debian:bookworm-slim` + `ca-certificates`**
 - Migrations copied to `/app/db/migrations`
 

@@ -103,14 +103,8 @@ Do not run a second nginx binding host `:80`/`:443` via Docker Compose on the sa
 
 ## Client build URLs
 
-Native and web production builds should use a **single** API origin:
-
-```env
-EXPO_PUBLIC_API_BASE_URL=${APP_PUBLIC_URL}
-EXPO_PUBLIC_CENTRAL_AUTH_URL=https://auth.nacfson.cloud
-```
-
-Frontend GHCR image / Expo export must bake these in (see `scripts/push-ghcr.sh`).
+- **Web production (GHCR frontend image)**: Built in GitHub Actions (`.github/workflows/publish-ghcr-images.yml`) with same-origin `EXPO_PUBLIC_API_BASE_URL=` under Traefik ForwardAuth (`001-gateway-jwt-auth`).
+- **Native mobile production builds**: Use a single API origin (`EXPO_PUBLIC_API_BASE_URL=${APP_PUBLIC_URL}`).
 
 ## CORS
 

@@ -1,12 +1,14 @@
-FROM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
+ARG TARGETOS=linux
+ARG TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ENV CGO_ENABLED=0
-RUN go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
-RUN go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
-RUN go build -trimpath -ldflags="-s -w" -o /out/retranslate-senses ./cmd/retranslate-senses
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/retranslate-senses ./cmd/retranslate-senses
 
 FROM debian:bookworm-slim AS runtime
 # Link this image to the GitHub repo so Actions GITHUB_TOKEN can publish to GHCR.

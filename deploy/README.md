@@ -13,10 +13,10 @@ Production runs on **Oracle Cloud k3s**, not Docker Compose.
 
 ## Quick commands
 
-Publish images (manual):
+Publish images in GitHub Actions cloud session (automatic on push to `main`, or triggered on demand):
 
 ```sh
-GHCR_TOKEN=... TARGET=all scripts/push-ghcr.sh
+scripts/push-ghcr.sh --watch
 ```
 
 Deploy skill for agents: [`.cursor/skills/deploy-oracle-k8s/SKILL.md`](../.cursor/skills/deploy-oracle-k8s/SKILL.md)

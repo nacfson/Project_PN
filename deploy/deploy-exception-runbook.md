@@ -131,7 +131,7 @@ echo | openssl s_client -connect pn.nacfson.cloud:443 -servername pn.nacfson.clo
 sudo env KUBECONFIG=/secure/production.conf kubectl -n project-pn describe pod -l app=project-pn-backend | tail -30
 ```
 
-Publish arm64 via `scripts/push-ghcr.sh` or GitHub Actions workflow.
+Publish multi-arch (`linux/amd64,linux/arm64`) images in the GitHub Actions cloud session via `scripts/push-ghcr.sh --watch` (`.github/workflows/publish-ghcr-images.yml`).
 
 ---
 
