@@ -1,4 +1,4 @@
-import { browserScale, shellKind } from './shellKind';
+import { browserPageWidth, browserScale, shellKind } from './shellKind';
 
 it('keeps a narrow desktop window on the browser page', () => {
   expect(shellKind('web', 'Mozilla/5.0 Macintosh')).toBe('browser');
@@ -16,4 +16,11 @@ it('does not treat iPad web or a missing width as phone', () => {
   expect(browserScale(0)).toBe(1);
   expect(browserScale(300)).toBeCloseTo(300 / 420);
   expect(browserScale(900)).toBe(1);
+});
+
+it('sizes the browser page from the window width', () => {
+  expect(browserPageWidth(300)).toBe(420);
+  expect(browserPageWidth(420)).toBe(420);
+  expect(browserPageWidth(900)).toBe(900);
+  expect(browserPageWidth(2560)).toBe(1200);
 });

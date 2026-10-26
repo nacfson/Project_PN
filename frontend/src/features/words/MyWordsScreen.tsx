@@ -38,6 +38,11 @@ import { distanceFromListBottom, readScrollMetrics } from './scrollPagination';
 import type { WordsStackParamList } from '../../navigation/WordsStack';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
+import { BROWSER_PAGE_MAX_WIDTH } from '../../navigation/shellKind';
+
+// Web pages at least this wide wrap the filter chips and show cards in two columns.
+const WIDE_LAYOUT_MIN_WIDTH = 720;
+const WEB_PAGE_MAX_WIDTH = BROWSER_PAGE_MAX_WIDTH;
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
   { key: 'all', labelKey: 'words.filterAll' },
@@ -91,6 +96,11 @@ export function MyWordsScreen() {
   const navigation = useNavigation<MyWordsScreenNavigationProp>();
 
   const [q, setQ] = useState('');
+  const [headerWidth, setHeaderWidth] = useState(0);
+  const wideLayout = Platform.OS === 'web' && headerWidth >= WIDE_LAYOUT_MIN_WIDTH;
+  const handleHeaderLayout = useCallback((e: LayoutChangeEvent) => {
+    setHeaderWidth(e.nativeEvent.layout.width);
+  }, []);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
 
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -421,9 +431,9 @@ export function MyWordsScreen() {
           }}
         >
         <View style={styles.row}>
-          <View style={{ flex: 1, gap: spacing.xs }}>
+          <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Text variant="title" bold>
+              <Text variant="title" bold style={styles.shrinkText}>
                 {item.lemma}
               </Text>
               <SpeakButton language={item.language_code} size="sm" text={item.lemma} />
@@ -433,7 +443,7 @@ export function MyWordsScreen() {
                 {item.pronunciation}
               </Text>
             )}
-            <Text variant="caption" color="muted">
+            <Text variant="caption" color="muted" testID={`word-gloss-${item.id}`} style={styles.shrinkText}>
               {splitMeanings(item).simple ?? item.short_definition ?? item.definition}
             </Text>
           </View>
@@ -590,8 +600,16 @@ export function MyWordsScreen() {
   };
 
   const listHeader = useMemo(() => {
+    const filterChips = FILTERS.map((f) => (
+      <Chip
+        key={f.key}
+        label={t(f.labelKey as never)}
+        selected={filter === f.key}
+        onPress={() => setFilter(f.key)}
+      />
+    ));
     return (
-      <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
+      <View testID="words-header" style={{ gap: spacing.md, marginBottom: spacing.md }} onLayout={handleHeaderLayout}>
         {languageLoading || decksLoading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
@@ -623,20 +641,20 @@ export function MyWordsScreen() {
           loading={isSearching}
         />
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}
-        >
-          {FILTERS.map((f) => (
-            <Chip
-              key={f.key}
-              label={t(f.labelKey as never)}
-              selected={filter === f.key}
-              onPress={() => setFilter(f.key)}
-            />
-          ))}
-        </ScrollView>
+        {wideLayout ? (
+          <View testID="words-filter-row" style={[styles.filterRow, styles.filterRowWrap, { gap: spacing.sm }]}>
+            {filterChips}
+          </View>
+        ) : (
+          <ScrollView
+            testID="words-filter-row"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}
+          >
+            {filterChips}
+          </ScrollView>
+        )}
       </View>
     );
   }, [
@@ -653,6 +671,8 @@ export function MyWordsScreen() {
     spacing.md,
     spacing.sm,
     t,
+    handleHeaderLayout,
+    wideLayout,
   ]);
 
   if (!languageLoading && languageError) {
@@ -806,13 +826,19 @@ export function MyWordsScreen() {
           title={t('words.title')}
           padded
           refreshControl={refreshControl}
+          style={styles.webPage}
           contentContainerStyle={listContentStyle}
         >
           {listHeader}
-          {filteredItems.length === 0
-            ? listEmpty()
-            : filteredItems.map((item) => (
-                <View key={item.id}>
+          {filteredItems.length === 0 ? (
+            listEmpty()
+          ) : (
+            <View testID="words-grid" style={wideLayout ? [styles.grid, { marginHorizontal: -spacing.sm / 2 }] : undefined}>
+              {filteredItems.map((item) => (
+                <View
+                  key={item.id}
+                  style={wideLayout ? [styles.gridCell, { paddingHorizontal: spacing.sm / 2 }] : undefined}
+                >
                   {renderItem({
                     item,
                     index: 0,
@@ -824,6 +850,8 @@ export function MyWordsScreen() {
                   })}
                 </View>
               ))}
+            </View>
+          )}
           {filteredItems.length > 0 ? listFooter() : null}
         </Screen>
         {overlays}
@@ -867,6 +895,23 @@ const styles = StyleSheet.create({
   filterRow: {
     paddingHorizontal: 4,
     paddingVertical: 4,
+  },
+  filterRowWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  webPage: {
+    maxWidth: WEB_PAGE_MAX_WIDTH,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  gridCell: {
+    width: '50%',
+  },
+  shrinkText: {
+    flexShrink: 1,
   },
   list: {
     paddingTop: 8,

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Keep the browser site a centered 420px page whose bar matches the page, and keep the phone on its own screen so the two cannot resize each other.
+**Goal:** Keep the browser site a centered page (420px minimum, 1200px maximum since issue #71) whose bar matches the page, and keep the phone on its own screen so the two cannot resize each other.
 
 **Architecture:** `shellKind` picks `browser` or `phone` from platform and user agent, never from window width. Each kind has its own frame file. `MainTabs` renders the chosen frame around the existing tab navigator, so the absolute tab bar is positioned against the frame, not the window. A shared `TabSlot` holds the label inside the button. Only the browser frame scales when the window is under 420px.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Browser page width is 420. Phone frame width is not 420.
+- Browser page width is `browserPageWidth(viewportWidth)`: 420 under 420, otherwise `min(viewportWidth, 1200)`. Phone frame does not use it. (Issue #71 replaced the fixed 420.)
 - `shellKind` must not take a viewport width. Narrow desktop web stays `browser`.
 - Phone UA test: `/iPhone|iPod|Android/.test(ua) && /Mobile/.test(ua)` plus native `ios` and `android`. iPad web and Tauri stay `browser`.
 - `browserScale(viewportWidth)` returns `1` when `viewportWidth < 1` or `viewportWidth >= 420`, otherwise `viewportWidth / 420`.
