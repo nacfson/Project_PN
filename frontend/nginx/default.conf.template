@@ -19,7 +19,15 @@ server {
         proxy_send_timeout 60s;
     }
 
+    # Bundles have content-hashed names, so they never change once published.
+    location ^~ /_expo/static/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # index.html (and SPA fallbacks to it) must be revalidated so new deploys show up.
     location / {
+        add_header Cache-Control "no-cache";
         try_files $uri $uri/ /index.html;
     }
 }
