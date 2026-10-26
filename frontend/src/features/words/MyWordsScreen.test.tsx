@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MyWordsScreen } from './MyWordsScreen';
@@ -455,5 +455,76 @@ describe('MyWordsScreen', () => {
 
     await waitFor(() => expect(removeItemsLocally).toHaveBeenCalledWith(['uws-remove']));
     await waitFor(() => expect(mockedArchiveLearningItem).toHaveBeenCalledWith('uws-remove'));
+  });
+
+  describe('web page width', () => {
+    const longGlossItem: LearningItemListItem = {
+      id: 'uws-wide',
+      word_sense_id: 'ws-wide',
+      word_id: 'w-wide',
+      language_code: 'en',
+      lemma: 'serendipity',
+      pronunciation: null,
+      part_of_speech: 'noun',
+      definition: 'the occurrence of events by chance in a happy or beneficial way',
+      short_definition: 'the occurrence of events by chance in a happy or beneficial way',
+      localized_definition: '뜻밖의 행운; 우연히 좋은 일을 발견하게 되는 능력이나 그런 일',
+      localized_short_definition: '뜻밖의 행운; 우연히 좋은 일을 발견하게 되는 능력이나 그런 일',
+      cefr_level: 'C1',
+      meaning_order: 1,
+      learning_stage: 'learning',
+      due_at: '2026-06-28T00:00:00Z',
+      added_at: '2026-06-20T00:00:00Z',
+      deck_id: null,
+      deck_name: null,
+      last_reviewed_at: null,
+      examples: [],
+    };
+
+    async function renderWebAt(width: number) {
+      Object.defineProperty(Platform, 'OS', { get: () => 'web', configurable: true });
+      mockedUseLearningItems.mockReturnValue({
+        items: [longGlossItem],
+        nextCursor: null,
+        hasMore: false,
+        status: 'ready',
+        isSearching: false,
+        isLoadingMore: false,
+        isRefreshing: false,
+        error: null,
+        loadMore: jest.fn(),
+        maybeLoadMoreFromScroll: jest.fn(),
+        refresh: jest.fn(),
+        removeItemsLocally: jest.fn(),
+      });
+      await render(<MyWordsScreen />, { wrapper: Wrapper });
+      await waitFor(() => expect(screen.getByText('serendipity')).toBeTruthy());
+      await fireEvent(screen.getByTestId('words-header'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width, height: 200 } },
+      });
+    }
+
+    it('lets the gloss wrap instead of clipping it to one line', async () => {
+      await renderWebAt(400);
+      const gloss = screen.getByTestId('word-gloss-uws-wide');
+      expect(gloss.props.numberOfLines).toBeUndefined();
+      expect(StyleSheet.flatten(gloss.props.style)).toEqual(expect.objectContaining({ flexShrink: 1 }));
+    });
+
+    it('keeps one column and a scrolling filter row on a narrow page', async () => {
+      await renderWebAt(400);
+      expect(screen.getByTestId('words-filter-row').props.horizontal).toBe(true);
+      expect(StyleSheet.flatten(screen.getByTestId('words-grid').props.style) ?? {}).not.toHaveProperty('flexWrap');
+    });
+
+    it('wraps the filters and shows two columns on a wide page', async () => {
+      await renderWebAt(900);
+      const filterRow = screen.getByTestId('words-filter-row');
+      expect(filterRow.props.horizontal).toBeUndefined();
+      expect(StyleSheet.flatten(filterRow.props.style)).toEqual(expect.objectContaining({ flexWrap: 'wrap' }));
+      expect(StyleSheet.flatten(screen.getByTestId('words-grid').props.style)).toEqual(
+        expect.objectContaining({ flexDirection: 'row', flexWrap: 'wrap' }),
+      );
+    });
   });
 });

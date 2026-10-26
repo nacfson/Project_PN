@@ -10,8 +10,8 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
   default: () => ({ width: mockWidth, height: 800, scale: 2, fontScale: 1 }),
 }));
 
-it('centers a 420 page inside a full-width shell', async () => {
-  mockWidth = 1200;
+it('keeps the page at 420 when the window is exactly 420', async () => {
+  mockWidth = 420;
   expect(BROWSER_PAGE_WIDTH).toBe(420);
   await render(<BrowserFrame><Text>Learn</Text></BrowserFrame>);
   expect(screen.getByTestId('browser-shell').props.style).toEqual(
@@ -33,4 +33,23 @@ it('scales the page when the window is narrower than 420', async () => {
   expect(screen.getByTestId('browser-frame').props.style).toEqual(
     expect.objectContaining({ transform: [{ scale: 300 / 420 }] }),
   );
+});
+
+it('grows the page with a wide window up to 1200', async () => {
+  mockWidth = 900;
+  await render(<BrowserFrame><Text>Learn</Text></BrowserFrame>);
+  expect(screen.getByTestId('browser-frame').props.style).toEqual(
+    expect.objectContaining({ width: 900, transform: [{ scale: 1 }] }),
+  );
+  mockWidth = 1920;
+  await render(<BrowserFrame><Text>Learn</Text></BrowserFrame>);
+  expect(screen.getByTestId('browser-frame').props.style).toEqual(
+    expect.objectContaining({ width: 1200 }),
+  );
+});
+
+it('does not give the phone frame the browser page width', async () => {
+  mockWidth = 900;
+  await render(<PhoneFrame><Text>Learn</Text></PhoneFrame>);
+  expect(screen.getByTestId('phone-frame').props.style.width).toBe('100%');
 });
