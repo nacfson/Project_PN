@@ -1,10 +1,10 @@
-# Project PN Network Setup (Oracle Cloud)
+# Project PN Network Setup (Kubernetes / nacfson_pipeline)
 
-Production traffic for Project PN and central auth on `*.nacfson.cloud`.
+Production traffic for Project PN on `*.nacfson.cloud`.
+
+Project PN runs on the **nacfson_pipeline** k3s platform (single Oracle Cloud ARM64 node). Clients reach it over the **public internet** through Cloudflare and Traefik. There is no Tailscale, VPN, or home-LAN path to production, so do not document or depend on one.
 
 ## Production path
-
-### Platform path (nacfson_pipeline, target)
 
 ```text
 Client → Cloudflare DNS / proxy (optional orange-cloud)
@@ -13,7 +13,21 @@ Client → Cloudflare DNS / proxy (optional orange-cloud)
       → pn-frontend:80 (SPA)  |  pn-backend:8080 (PathPrefix /api)   (namespace proj-pn)
 ```
 
+Auth: `auth.nacfson.cloud` → Go auth gateway + Keycloak (namespace `identity`), exposed through the platform's public auth allowlist. Project PN validates Keycloak access tokens via Traefik ForwardAuth (`001-gateway-jwt-auth`).
+
 See [TLS (platform-owned, spec 008)](#tls-platform-owned-spec-008).
+
+### In-cluster boundary (NetworkPolicy)
+
+Defined in [`deploy/projects/pn/boundary/network-policy.yaml`](projects/pn/boundary/network-policy.yaml) for `pn-backend`:
+
+| Direction | Allowed |
+|-----------|---------|
+| Ingress `:8080` | namespace `platform` (Traefik) and `pn-frontend` pods only |
+| Egress DNS `:53` | `kube-system` |
+| Egress `:5432` / `:8080` | namespace `vault` (vault-db-proxy, in-cluster AI service) |
+| Egress `:8080` | Keycloak in namespace `identity` (JWKS) |
+| Egress `:443` | public internet only (WiktApi), RFC1918 ranges excluded |
 
 ### Legacy path (Oracle host nginx, rollback only)
 
@@ -25,7 +39,7 @@ Client → Cloudflare DNS / proxy (optional orange-cloud)
       → project-pn-frontend / project-pn-backend (namespace project-pn)
 ```
 
-Central auth: `auth.nacfson.cloud` → `auth-service` (central-auth) in namespace `nacfson-auth`.
+Retired central auth (`auth-service` in namespace `nacfson-auth`) belonged to this path.
 
 ## Proxy timeouts (word lookup / add)
 
@@ -35,18 +49,20 @@ Pin **≥ 60s** on every hop that proxies `/api`:
 
 | Hop | Setting | Value |
 |-----|---------|-------|
-| Host nginx (`/etc/nginx/conf.d/pn.nacfson.cloud.conf`) | `proxy_read_timeout` / `proxy_send_timeout` | `60s` |
-| ingress-nginx (`project-pn` Ingress) | `nginx.ingress.kubernetes.io/proxy-read-timeout` / `proxy-send-timeout` | `"60"` |
 | Frontend nginx ConfigMap (`project-pn-nginx`, `location /api/`) | `proxy_read_timeout` / `proxy_send_timeout` | `60s` |
+| Legacy only: host nginx (`/etc/nginx/conf.d/pn.nacfson.cloud.conf`) | `proxy_read_timeout` / `proxy_send_timeout` | `60s` |
+| Legacy only: ingress-nginx (`project-pn` Ingress) | `nginx.ingress.kubernetes.io/proxy-read-timeout` / `proxy-send-timeout` | `"60"` |
 
-Manifests live in ProcessManager `k8s/project-pn/`. After changing the ConfigMap, restart `project-pn-frontend` so pods remount nginx.conf.
+Traefik timeouts are platform-owned. If lookups abort before 60s on the platform path, raise it with the platform rather than adding an app-side workaround.
+
+Manifests live in ProcessManager `k8s/project-pn/` (legacy) and the nacfson_pipeline `deploy/projects/pn/` tree (platform). After changing the ConfigMap, restart the frontend Deployment so pods remount nginx.conf.
 
 ## Public endpoints
 
 | Service | URL |
 |---------|-----|
 | Project PN web + API | ${APP_PUBLIC_URL} |
-| Central auth | `https://auth.nacfson.cloud` |
+| Auth (Keycloak gateway) | `https://auth.nacfson.cloud` |
 | Health | `${APP_PUBLIC_URL}/healthz`, `/readyz` |
 
 ## Cloudflare DNS records
@@ -110,9 +126,11 @@ Do not run a second nginx binding host `:80`/`:443` via Docker Compose on the sa
 
 Backend `ALLOWED_ORIGINS` must include ${APP_PUBLIC_URL} and dev origins (`http://localhost:8081`, Tauri WebView origins). Configure via Cursor secrets / k3s Deployment env — not a Compose `.env` on the host.
 
-## Intranet / split DNS (optional)
+## Private network access
 
-If you need the same hostname on home Wi‑Fi without hairpin NAT, use split DNS so $APP_PUBLIC_URL resolves to the Oracle public IP (or a VPN endpoint). Do not add secondary LAN API URLs to production mobile builds.
+None. Production is public-internet only: clients use `${APP_PUBLIC_URL}` over HTTPS from any network, including home Wi‑Fi. Tailscale, VPN endpoints, and LAN or split-DNS API URLs are not part of the production design, so do not add secondary API URLs to production mobile builds.
+
+For local development use `http://localhost:8080` (API) and `http://localhost:8081` (Expo web).
 
 ## Deploy
 
@@ -122,4 +140,4 @@ Secrets: [`backend/docs/cursor-secrets.md`](../backend/docs/cursor-secrets.md) (
 
 ## Removed legacy
 
-Documentation for wlUbuntu (`192.168.219.120`), Compose `:53412`, router port-forwards to a home LAN host, and `~/project-pn/deploy/.env` was removed. Production is Oracle k3s only.
+Documentation for wlUbuntu (`192.168.219.120`), Compose `:53412`, router port-forwards to a home LAN host, Tailscale/VPN access, and `~/project-pn/deploy/.env` was removed. Production is Kubernetes (k3s) only.
