@@ -8,6 +8,7 @@ import {
   setLearningItemPersonalNote,
 } from '../../api/words';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
+import { PAGE_WIDTH_FRAME } from '../../navigation/shellKind';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Input, Text } from '../../ui';
 import type { LearningItemListItem, SenseOption } from '../../types';
@@ -202,6 +203,7 @@ export function ChangeMeaningSheet({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={[styles.backdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <View
+          testID="bottom-sheet"
           style={[
             styles.sheet,
             {
@@ -373,7 +375,7 @@ export function ChangeMeaningSheet({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { maxHeight: '85%', paddingHorizontal: 20, paddingTop: 8 },
+  sheet: { ...PAGE_WIDTH_FRAME, maxHeight: '85%', paddingHorizontal: 20, paddingTop: 8 },
   dragHandle: { alignItems: 'center', paddingVertical: 8 },
   dragIndicator: { width: 40, height: 4, borderRadius: 2 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -29,6 +29,7 @@ Core backend principle:
 - **Legacy central-auth (retired) or 기타 nacfson.cloud K8s 이미지 배포 시**: `backend/docs/oracle-deploy-runbook.md`, `~/.cursor/skills/deploy-nacfson-project/SKILL.md`
 - **iOS를 Xcode로 Release/device 빌드하거나, localhost:8080 bake-in / EXPO_PUBLIC_API_BASE_URL 문제를 다룰 시**: `.cursor/skills/build-ios-xcode/SKILL.md`
 - **Frontend UI component, form validation, loading state, practice UX, or translation string 추가/수정 시**: `frontend/docs/frontend-ux-patterns.md`
+- **Bottom sheet, modal, overlay, or page-width layout 추가/수정 시**: `DESIGN.md`
 - **Deploy 실패, nginx 오류, CORS 오류, enrichment 503, TLS, 또는 Oracle/k3s backend 예외 발생 시**: `deploy/deploy-exception-runbook.md`
 - **Network / HTTPS 경로 확인 시**: `deploy/NETWORK_SETUP.md`
 
