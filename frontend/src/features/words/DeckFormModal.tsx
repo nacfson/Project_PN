@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../../i18n';
+import { PAGE_WIDTH_FRAME } from '../../navigation/shellKind';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Icon, Input, Text } from '../../ui';
 import type { Deck } from '../../types';
@@ -75,6 +76,7 @@ export function DeckFormModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={[styles.backdrop, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
         <View
+          testID="bottom-sheet"
           style={[
             styles.sheet,
             {
@@ -174,6 +176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
+    ...PAGE_WIDTH_FRAME,
     paddingHorizontal: 20,
     paddingTop: 8,
   },

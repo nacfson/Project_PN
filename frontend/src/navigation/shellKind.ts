@@ -6,6 +6,13 @@ const PHONE_MOBILE = /Mobile/;
 export const BROWSER_PAGE_MIN_WIDTH = 420;
 export const BROWSER_PAGE_MAX_WIDTH = 1200;
 
+// Modal portals to document.body on web and escapes BrowserFrame, so overlays apply the cap themselves.
+export const PAGE_WIDTH_FRAME = {
+  width: '100%',
+  maxWidth: BROWSER_PAGE_MAX_WIDTH,
+  alignSelf: 'center',
+} as const;
+
 export function shellKind(platform: string, userAgent: string): ShellKind {
   if (platform === 'ios' || platform === 'android') return 'phone';
   if (platform === 'web' && PHONE_DEVICE.test(userAgent) && PHONE_MOBILE.test(userAgent)) {

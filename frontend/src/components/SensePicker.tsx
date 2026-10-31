@@ -3,6 +3,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
 import type { TranslationKey } from '../i18n';
+import { PAGE_WIDTH_FRAME } from '../navigation/shellKind';
 import { useTheme } from '../theme/ThemeProvider';
 import { Badge, Button, Card, Icon, Input, Text } from '../ui';
 import type { PartOfSpeech, SenseOption } from '../types';
@@ -143,6 +144,7 @@ export function SensePicker({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={[styles.backdrop, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
         <View
+          testID="bottom-sheet"
           style={[
             styles.sheet,
             {
@@ -311,6 +313,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
+    ...PAGE_WIDTH_FRAME,
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 24,
