@@ -34,7 +34,7 @@ All container image builds run in **GitHub Actions cloud sessions** (`.github/wo
 
 Pushing or merging to `main` automatically triggers `.github/workflows/publish-ghcr-images.yml`, which:
 
-1. Runs `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`).
+1. Runs `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `web-export`, `add-tab-invariant`, `backend-tests`, `contract-e2e`).
 2. Runs `preflight-checks` (`npm run lint:imports` + `EXPO_PUBLIC_API_BASE_URL= npm run web:export`).
 3. Builds and pushes `project-pn-backend:<sha>` + `:latest` (`linux/amd64,linux/arm64`, using native Go cross-compilation via `FROM --platform=$BUILDPLATFORM`).
 4. Builds and pushes `project-pn-frontend:<sha>` + `:latest` (`linux/amd64,linux/arm64`).
@@ -44,7 +44,7 @@ Watch an active run on `main`:
 
 Pushing or merging to `main` automatically triggers `.github/workflows/publish-ghcr-images.yml`, which:
 
-1. Runs `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `add-tab-invariant`, `backend-tests`, `contract-e2e`).
+1. Runs `.github/workflows/quality-gates.yml` (`static`, `frontend-tests`, `web-export`, `add-tab-invariant`, `backend-tests`, `contract-e2e`).
 2. Runs `preflight-checks` (`npm run lint:imports` + `EXPO_PUBLIC_API_BASE_URL= npm run web:export`).
 3. Builds and pushes `project-pn-backend:<sha>` + `:latest` (`linux/amd64,linux/arm64`, using native Go cross-compilation via `FROM --platform=$BUILDPLATFORM`).
 4. Builds and pushes `project-pn-frontend:<sha>` + `:latest` (`linux/amd64,linux/arm64`).

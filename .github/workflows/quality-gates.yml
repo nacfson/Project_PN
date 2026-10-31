@@ -61,6 +61,21 @@ jobs:
       - name: Shared API package tests
         run: npm test -w packages/api
 
+  web-export:
+    name: web-export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - name: Build and validate frontend web bundle
+        working-directory: frontend
+        run: EXPO_PUBLIC_API_BASE_URL= npm run web:export
+
   add-tab-invariant:
     name: add-tab-invariant
     runs-on: ubuntu-latest

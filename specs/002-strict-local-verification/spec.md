@@ -129,4 +129,4 @@ When the web client cannot reach its backend in local development, the developer
 - Database-backed checks require a local database to be available and are expected to run in the pipeline with a provisioned database.
 - The fix covers development-time connectivity feedback and setup guidance; it does not change production deployment, authentication behavior, or the backend schema.
 - The development sign-in shortcut used for local verification is acceptable for local checks only and is never used against production.
-- Force-pushing to the main line is already blocked by the repository owner's configuration. Requiring the quality gates to pass before merge is a separate setting and is in scope for this feature (FR-005).
+- Force-pushing to the main line is not currently blocked, because the `main_PR` ruleset is disabled. Requiring the quality gates to pass before merge is a separate setting and is in scope for this feature (FR-005), which stays unmet until that setting is enabled.
