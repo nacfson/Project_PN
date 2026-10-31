@@ -2,7 +2,7 @@
 
 **Workflow**: `.github/workflows/quality-gates.yml`, triggered on `pull_request` to `main` and `workflow_dispatch`, and called by `publish-ghcr-images.yml` on `push` to `main`.
 
-**Jobs (all required status checks on `main`)**
+**Jobs (not yet required status checks; see Repository setting)**
 
 | Job | Runs |
 |-----|------|
@@ -17,4 +17,4 @@
 
 **Rules**: no `continue-on-error`, no manual override input, no conditional skip of a gate. Backend tests MUST be serial (`-p 1`).
 
-**Repository setting**: the `main_PR` ruleset requires all jobs above as status checks on `main`, and also requires pull requests and blocks force-push and deletion.
+**Repository setting (not enforced)**: `main` has no active protection, because the `main_PR` ruleset is disabled and classic branch protection is off. A failing gate stops image publishing but does not block merge, so FR-005 is not met yet. To enforce it, enable `main_PR` and add all jobs above as required status checks. That ruleset also requires pull requests and blocks force-push and deletion on `main`, with no bypass actors.
