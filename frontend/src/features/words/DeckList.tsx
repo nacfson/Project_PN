@@ -1,9 +1,9 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppLanguage } from '../../i18n';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Icon, Text } from '../../ui';
+import { radii, spacing, useTheme } from '../../theme';
 import type { Deck } from '../../types';
+import { Icon, Text } from '../../ui';
 
 export interface DeckListProps {
   decks: Deck[];
@@ -32,22 +32,30 @@ function DeckChip({
   onEdit?: () => void;
   variant?: 'default' | 'create';
 }) {
-  const { colors, radii, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
 
   const isCreate = variant === 'create';
-  const backgroundColor = isCreate ? 'transparent' : selected ? colors.secondaryContainer : 'transparent';
-  const borderColor = isCreate ? colors.outline : selected ? 'transparent' : colors.outline;
+  const backgroundColor = isCreate
+    ? colors.surface
+    : selected
+      ? colors.infoSurface
+      : colors.surface;
+  const borderColor = isCreate
+    ? colors.controlBorder
+    : selected
+      ? colors.accent
+      : colors.controlBorder;
   const iconColor = isCreate
-    ? colors.primary
+    ? colors.accent
     : selected
-      ? colors.onSecondaryContainer
-      : colors.onSurfaceVariant;
+      ? colors.accent
+      : colors.textSecondary;
   const textColor = isCreate
-    ? 'primary'
+    ? colors.accent
     : selected
-      ? 'onSecondaryContainer'
-      : 'muted';
+      ? colors.accent
+      : colors.textSecondary;
 
   return (
     <View
@@ -56,7 +64,7 @@ function DeckChip({
         {
           backgroundColor,
           borderColor,
-          borderRadius: radii.sm,
+          borderRadius: radii.md,
         },
       ]}
     >
@@ -66,16 +74,16 @@ function DeckChip({
           styles.chipPressable,
           {
             paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
+            paddingVertical: spacing.xs,
             opacity: pressed ? 0.8 : 1,
           },
         ]}
         accessibilityRole="button"
         accessibilityState={{ selected }}
       >
-        <Icon name={icon} size="sm" color={iconColor} />
+        <Icon name={icon} size={14} color={iconColor} />
         <Text
-          variant="label"
+          variant="bodySmall"
           color={textColor}
           style={{ fontWeight: selected ? '600' : '500' }}
         >
@@ -90,7 +98,7 @@ function DeckChip({
           accessibilityLabel={t('words.renameDeck')}
           style={styles.editButton}
         >
-          <Icon name="ellipsis-vertical" size="sm" color={iconColor} />
+          <Icon name="ellipsis-vertical" size={14} color={iconColor} />
         </Pressable>
       )}
     </View>
@@ -98,7 +106,6 @@ function DeckChip({
 }
 
 export function DeckList({ decks, selectedId, onSelect, onCreate, onEdit }: DeckListProps) {
-  const { spacing } = useTheme();
   const { t } = useAppLanguage();
 
   return (

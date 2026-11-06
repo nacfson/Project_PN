@@ -1,14 +1,27 @@
 import React, { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { WordDetailScreen } from './WordDetailScreen';
+import { archiveLearningItem } from '../../api/learningItems';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import type { LearningItemListItem } from '../../types';
+import { WordDetailScreen } from './WordDetailScreen';
 
 jest.mock('../../api/decks', () => ({
   listDecks: jest.fn().mockResolvedValue([]),
   moveItemsToDeck: jest.fn(),
+}));
+
+jest.mock('../../api/learningItems', () => ({
+  archiveLearningItem: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../../api/storage', () => ({
+  appLanguageStorage: {
+    getLanguage: jest.fn().mockResolvedValue(null),
+    setLanguage: jest.fn().mockResolvedValue(undefined),
+  },
+  clearLegacyThemePreferences: jest.fn().mockResolvedValue(undefined),
 }));
 
 function Wrapper({ children }: { children: ReactNode }) {
@@ -59,11 +72,21 @@ const mockRoute = (item: LearningItemListItem) =>
     params: { item },
     key: 'WordDetail-test',
     name: 'WordDetail',
-  } as const);
+  }) as const;
 
 describe('WordDetailScreen', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
   it('renders the lemma and chosen gloss only', async () => {
-    await render(<WordDetailScreen route={mockRoute(baseItem) as any} />, { wrapper: Wrapper });
+    await render(<WordDetailScreen route={mockRoute(baseItem) as any} navigation={{} as any} />, {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('떠나다')).toBeTruthy();
@@ -84,7 +107,10 @@ describe('WordDetailScreen', () => {
       examples: [],
     };
 
-    await render(<WordDetailScreen route={mockRoute(minimalItem) as any} />, { wrapper: Wrapper });
+    await render(
+      <WordDetailScreen route={mockRoute(minimalItem) as any} navigation={{} as any} />,
+      { wrapper: Wrapper },
+    );
 
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('떠나다, 버리다')).toBeTruthy();
@@ -96,16 +122,47 @@ describe('WordDetailScreen', () => {
       examples: null,
     } as unknown as LearningItemListItem;
 
-    await render(<WordDetailScreen route={mockRoute(nullExamplesItem) as any} />, { wrapper: Wrapper });
+    await render(
+      <WordDetailScreen route={mockRoute(nullExamplesItem) as any} navigation={{} as any} />,
+      { wrapper: Wrapper },
+    );
 
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('떠나다')).toBeTruthy();
   });
 
   it('shows Wiktionary attribution with the gloss', async () => {
-    await render(<WordDetailScreen route={mockRoute(baseItem) as any} />, { wrapper: Wrapper });
+    await render(<WordDetailScreen route={mockRoute(baseItem) as any} navigation={{} as any} />, {
+      wrapper: Wrapper,
+    });
     await waitFor(() => expect(screen.getByText('abandon')).toBeTruthy());
     expect(screen.getByText('떠나다')).toBeTruthy();
     expect(screen.getByText('Gloss via Wiktionary')).toBeTruthy();
+  });
+
+  it('guards remove with ConfirmDialog: Cancel does not archive and Remove archives once', async () => {
+    const goBack = jest.fn();
+    await render(
+      <WordDetailScreen route={mockRoute(baseItem) as any} navigation={{ goBack } as any} />,
+      { wrapper: Wrapper },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('word-detail-remove')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('word-detail-remove'));
+    expect(screen.getByTestId('confirm-dialog')).toBeTruthy();
+    expect(screen.getByText('Remove this word?')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('confirm-dialog-cancel'));
+    expect(screen.queryByTestId('confirm-dialog')).toBeNull();
+    expect(archiveLearningItem).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByTestId('word-detail-remove'));
+    await fireEvent.press(screen.getByTestId('confirm-dialog-confirm'));
+    await waitFor(() => {
+      expect(archiveLearningItem).toHaveBeenCalledTimes(1);
+      expect(archiveLearningItem).toHaveBeenCalledWith('uws-1');
+      expect(goBack).toHaveBeenCalledTimes(1);
+    });
   });
 });

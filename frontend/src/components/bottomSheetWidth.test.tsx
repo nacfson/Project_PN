@@ -4,27 +4,20 @@ import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { lookupWord } from '../api/words';
 import { ChangeMeaningSheet } from '../features/words/ChangeMeaningSheet';
+import { DeckFilterMenu } from '../features/words/DeckFilterMenu';
 import { DeckFormModal } from '../features/words/DeckFormModal';
 import { MoveToDeckModal } from '../features/words/MoveToDeckModal';
 import { AppLanguageProvider } from '../i18n';
 import { BROWSER_PAGE_MAX_WIDTH } from '../navigation/shellKind';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import type { LearningItemListItem } from '../types';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SensePicker } from './SensePicker';
 
 jest.mock('../api/words', () => ({
   lookupWord: jest.fn(),
   changeLearningItemSense: jest.fn(),
   setLearningItemPersonalNote: jest.fn(),
-}));
-
-jest.mock('@expo-google-fonts/inter', () => ({
-  useFonts: () => [true],
-  Inter_400Regular: 'Inter_400Regular',
-  Inter_500Medium: 'Inter_500Medium',
-  Inter_600SemiBold: 'Inter_600SemiBold',
-  Inter_700Bold: 'Inter_700Bold',
-  Inter_800ExtraBold: 'Inter_800ExtraBold',
 }));
 
 const item = {
@@ -35,7 +28,7 @@ const item = {
   examples: [],
 } as unknown as LearningItemListItem;
 
-const sheets: [string, React.ReactElement][] = [
+const sheets: [string, React.ReactElement, string?][] = [
   [
     'SensePicker',
     <SensePicker
@@ -55,10 +48,37 @@ const sheets: [string, React.ReactElement][] = [
   ],
   ['DeckFormModal', <DeckFormModal key="deck" visible mode="create" onClose={jest.fn()} onSubmit={jest.fn()} />],
   ['MoveToDeckModal', <MoveToDeckModal key="move" visible decks={[]} onClose={jest.fn()} onSelect={jest.fn()} />],
+  [
+    'DeckFilterMenu',
+    <DeckFilterMenu
+      key="deck-filter"
+      defaultOpen
+      decks={[]}
+      selectedDeckId={null}
+      onSelectDeck={jest.fn()}
+      onNewDeck={jest.fn()}
+      onManageDecks={jest.fn()}
+    />,
+  ],
+  [
+    'ConfirmDialog',
+    <ConfirmDialog
+      key="confirm"
+      visible
+      title="Remove this word?"
+      body="This can't be undone."
+      confirmLabel="Remove"
+      cancelLabel="Cancel"
+      tone="danger"
+      onConfirm={jest.fn()}
+      onCancel={jest.fn()}
+    />,
+    'confirm-dialog',
+  ],
 ];
 
 // DESIGN.md: overlays stay within the main UI's width.
-describe.each(sheets)('%s', (_name, sheet) => {
+describe.each(sheets)('%s', (_name, sheet, testId = 'bottom-sheet') => {
   beforeEach(() => {
     (lookupWord as jest.Mock).mockResolvedValue({ sense_options: [] });
   });
@@ -84,7 +104,7 @@ describe.each(sheets)('%s', (_name, sheet) => {
       </SafeAreaProvider>,
     );
 
-    expect(StyleSheet.flatten(screen.getByTestId('bottom-sheet').props.style)).toEqual(
+    expect(StyleSheet.flatten(screen.getByTestId(testId).props.style)).toEqual(
       expect.objectContaining({ width: '100%', maxWidth: BROWSER_PAGE_MAX_WIDTH, alignSelf: 'center' }),
     );
   });

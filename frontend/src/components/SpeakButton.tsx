@@ -1,7 +1,8 @@
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { useAppLanguage } from '../i18n';
+import { shellKind, shellLayout } from '../navigation/shellKind';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon } from '../ui';
 
@@ -14,6 +15,10 @@ interface SpeakButtonProps {
 export function SpeakButton({ text, language, size = 'md' }: SpeakButtonProps) {
   const { colors } = useTheme();
   const { t } = useAppLanguage();
+  const { width } = useWindowDimensions();
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isPhone = shellLayout(shellKind(Platform.OS, ua), width) === 'bottom';
+  const dimension = isPhone ? 44 : size === 'sm' ? 32 : 36;
 
   const handlePress = () => {
     if (Platform.OS !== 'web') {
@@ -29,20 +34,31 @@ export function SpeakButton({ text, language, size = 'md' }: SpeakButtonProps) {
 
   return (
     <Pressable
-      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-      accessibilityLabel={t('common.listen')}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      accessibilityLabel={t('practice.playPronunciation')}
       accessibilityRole="button"
       onPress={handlePress}
-      style={({ pressed }) => [styles.button, { opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          width: dimension,
+          height: dimension,
+          borderRadius: dimension / 2,
+          borderColor: pressed ? colors.text : colors.controlBorder,
+          backgroundColor: colors.surface,
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
     >
-      <Icon name="volume-high" color={colors.primary} size={size === 'sm' ? 'sm' : 'md'} />
+      <Icon name="volume-medium-outline" color={colors.text} size="sm" />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 999,
-    padding: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -29,9 +29,9 @@ export function SettingsStack({ onLogout }: SettingsStackProps) {
 
   const screenOptions: NativeStackNavigationOptions = {
     headerShown: true,
-    headerStyle: { backgroundColor: colors.surfaceContainer },
-    headerTintColor: colors.primary,
-    headerTitleStyle: { color: colors.onSurface },
+    headerStyle: { backgroundColor: colors.surface },
+    headerTintColor: colors.accent,
+    headerTitleStyle: { color: colors.text },
   };
 
   return (

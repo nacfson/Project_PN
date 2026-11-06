@@ -16,14 +16,13 @@ const DOCK_ITEMS = [
   { id: 'add', icon: 'add', labelKey: 'commandDock.addWord' as const, testID: 'dock-add', action: 'navigateAdd' as const },
   { id: 'practice', icon: 'school', labelKey: 'commandDock.review' as const, testID: 'dock-practice', action: 'navigatePractice' as const },
   { id: 'search', icon: 'search', labelKey: 'commandDock.search' as const, testID: 'dock-search', action: 'navigateWords' as const },
-  { id: 'theme', icon: 'contrast', labelKey: 'commandDock.theme' as const, testID: 'dock-theme', action: 'toggleTheme' as const },
 ];
 
 /** Hide the desktop floating dock on phone-sized web viewports. */
 const MOBILE_WEB_MAX_WIDTH = 720;
 
 export function CommandDock() {
-  const { colors, spacing, radii, mode, setMode } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { pendingCount } = useAddQueue();
   const reducedMotion = useReducedMotion();
@@ -49,9 +48,6 @@ export function CommandDock() {
       case 'navigateWords':
         navigation.navigate('Words');
         break;
-      case 'toggleTheme':
-        setMode(mode === 'dark' ? 'light' : 'dark');
-        break;
     }
   };
 
@@ -63,10 +59,9 @@ export function CommandDock() {
     backgroundColor: colors.surface,
     borderRadius: radii.full,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.hairline,
     padding: spacing.sm,
     gap: spacing.sm,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
   };
 
   return (
@@ -83,7 +78,7 @@ export function CommandDock() {
             padding: spacing.md,
             borderRadius: radii.full,
             backgroundColor: (state as { hovered?: boolean }).hovered
-              ? colors.primaryContainer
+              ? colors.fill
               : 'transparent',
           })}
           onHoverIn={() => { if (!reducedMotion) setExpanded(true); }}
@@ -91,7 +86,7 @@ export function CommandDock() {
           accessibilityRole="button"
           accessibilityLabel={t(item.labelKey)}
         >
-          <Icon name={item.icon as never} size="md" color={colors.primary} />
+          <Icon name={item.icon as never} size="md" color={colors.accent} />
           {isExpanded ? (
             <Text variant="label" color="primary">
               {t(item.labelKey)}

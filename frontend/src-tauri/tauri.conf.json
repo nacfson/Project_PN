@@ -14,6 +14,7 @@
       {
         "label": "main",
         "title": "Project PN",
+        "theme": "Light",
         "width": 1000,
         "height": 720,
         "minWidth": 420,

@@ -3,7 +3,10 @@
   "version": "1.0.2",
   "main": "index.ts",
   "dependencies": {
-    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/geist": "^0.4.2",
+    "@expo-google-fonts/geist-mono": "^0.4.3",
+    "@expo-google-fonts/ibm-plex-sans-kr": "^0.4.1",
+    "@expo-google-fonts/newsreader": "^0.4.1",
     "@expo/vector-icons": "^15.1.1",
     "@project-pn/api": "*",
     "@react-navigation/bottom-tabs": "^7.18.0",
@@ -25,10 +28,10 @@
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
     "react-native-reanimated": "4.3.1",
-    "react-native-worklets": "0.8.3",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
-    "react-native-web": "^0.21.2"
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "0.8.3"
   },
   "devDependencies": {
     "@react-native/jest-preset": "^0.85.0",

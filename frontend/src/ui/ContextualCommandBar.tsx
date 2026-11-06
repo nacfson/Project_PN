@@ -1,6 +1,7 @@
+import React from 'react';
 import { Pressable, View } from 'react-native';
 import { useAppLanguage } from '../i18n';
-import { useTheme } from '../theme/ThemeProvider';
+import { radii, spacing, useTheme } from '../theme';
 import { Icon, Text } from './';
 
 interface CommandAction {
@@ -17,8 +18,12 @@ interface ContextualCommandBarProps {
   onClear: () => void;
 }
 
-export function ContextualCommandBar({ selectedCount, actions, onClear }: ContextualCommandBarProps) {
-  const { colors, spacing, radii, shadows } = useTheme();
+export function ContextualCommandBar({
+  selectedCount,
+  actions,
+  onClear,
+}: ContextualCommandBarProps) {
+  const { colors, shadows } = useTheme();
   const { t } = useAppLanguage();
 
   if (selectedCount === 0) return null;
@@ -32,7 +37,7 @@ export function ContextualCommandBar({ selectedCount, actions, onClear }: Contex
         bottom: spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.inverseSurface,
+        backgroundColor: colors.primary,
         borderRadius: radii.full,
         padding: spacing.sm,
         paddingHorizontal: spacing.lg,
@@ -59,7 +64,7 @@ export function ContextualCommandBar({ selectedCount, actions, onClear }: Contex
             })}
             accessibilityRole="button"
           >
-            <Icon name={action.icon as never} size="sm" color={colors.inverseOnSurface} />
+            <Icon name={action.icon as never} size="sm" color={colors.onPrimary} />
             <Text variant="caption" color="inverse">
               {action.label}
             </Text>
@@ -71,7 +76,7 @@ export function ContextualCommandBar({ selectedCount, actions, onClear }: Contex
           style={{ padding: spacing.sm }}
           accessibilityRole="button"
         >
-          <Icon name="close" size="sm" color={colors.inverseOnSurface} />
+          <Icon name="close" size="sm" color={colors.onPrimary} />
         </Pressable>
       </View>
     </View>

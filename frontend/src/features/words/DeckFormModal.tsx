@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../../i18n';
 import { PAGE_WIDTH_FRAME } from '../../navigation/shellKind';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Icon, Input, Text } from '../../ui';
+import { radii, spacing, useTheme } from '../../theme';
 import type { Deck } from '../../types';
+import { Button, Icon, Input, Text } from '../../ui';
 
 export interface DeckFormModalProps {
   visible: boolean;
@@ -28,7 +28,7 @@ export function DeckFormModal({
   isLoading,
   error: apiError,
 }: DeckFormModalProps) {
-  const { colors, radii, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
 
@@ -74,36 +74,37 @@ export function DeckFormModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={[styles.backdrop, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+      <View style={[styles.backdrop, { backgroundColor: colors.scrim }]}>
         <View
           testID="bottom-sheet"
           style={[
             styles.sheet,
             {
-              backgroundColor: colors.surfaceContainerLow,
-              borderTopLeftRadius: radii.xxl,
-              borderTopRightRadius: radii.xxl,
+              backgroundColor: colors.surface,
+              borderTopLeftRadius: radii.xl,
+              borderTopRightRadius: radii.xl,
+              borderColor: colors.hairline,
               paddingBottom: Math.max(24, insets.bottom),
             },
           ]}
         >
           <View style={styles.dragHandle}>
-            <View style={[styles.dragIndicator, { backgroundColor: colors.outlineVariant }]} />
+            <View style={[styles.dragIndicator, { backgroundColor: colors.controlBorder }]} />
           </View>
 
-          <View style={[styles.header, { marginBottom: spacing.md }]}>
-            <Text variant="title">{title}</Text>
+          <View style={styles.header}>
+            <Text variant="sectionTitle">{title}</Text>
             <Pressable
               onPress={onClose}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={t('common.close')}
             >
-              <Icon name="close" size="lg" />
+              <Icon name="close" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
 
-          <View style={{ gap: spacing.md }}>
+          <View style={styles.formBody}>
             <Input
               value={name}
               onChangeText={(text) => {
@@ -118,30 +119,33 @@ export function DeckFormModal({
             />
 
             {apiError ? (
-              <Text style={{ color: colors.error }}>{apiError}</Text>
+              <Text variant="bodySmall" color={colors.danger}>
+                {apiError}
+              </Text>
             ) : null}
 
             <Button
               label={title}
+              variant="primary"
               onPress={handleSubmit}
               disabled={!canSubmit}
               loading={isLoading}
             />
 
             {mode === 'rename' && onDelete && deck && !deck.is_default && (
-              <View style={{ gap: spacing.sm }}>
+              <View style={styles.deleteSection}>
                 {confirmingDelete ? (
-                  <View style={{ gap: spacing.sm }}>
-                    <Text variant="body" bold>
+                  <View style={styles.deleteSection}>
+                    <Text variant="body" style={styles.deleteTitle}>
                       {t('words.deckDeleteConfirmTitle', { deck: deck.name })}
                     </Text>
-                    <View style={[styles.confirmRow, { gap: spacing.sm }]}>
-                      <Text variant="caption" color="muted" style={{ flex: 1 }}>
+                    <View style={styles.confirmRow}>
+                      <Text variant="caption" color={colors.textSecondary} style={{ flex: 1 }}>
                         {t('words.deckDeleteConfirmMessage')}
                       </Text>
                       <Button
                         label={t('common.cancel')}
-                        variant="outline"
+                        variant="secondary"
                         onPress={() => setConfirmingDelete(false)}
                         disabled={isLoading}
                       />
@@ -156,7 +160,7 @@ export function DeckFormModal({
                 ) : (
                   <Button
                     label={t('words.deleteDeck')}
-                    variant="outline"
+                    variant="secondary"
                     iconLeft="trash"
                     onPress={handleDeletePress}
                   />
@@ -177,12 +181,13 @@ const styles = StyleSheet.create({
   },
   sheet: {
     ...PAGE_WIDTH_FRAME,
-    paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
   },
   dragHandle: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.xs,
   },
   dragIndicator: {
     width: 32,
@@ -193,9 +198,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  formBody: {
+    gap: spacing.md,
+  },
+  deleteSection: {
+    gap: spacing.sm,
+  },
+  deleteTitle: {
+    fontWeight: '600',
   },
   confirmRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
 });

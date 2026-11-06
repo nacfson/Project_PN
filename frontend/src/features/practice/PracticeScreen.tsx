@@ -1,14 +1,14 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   TextInput,
-  View,
-  Animated,
   useWindowDimensions,
+  View,
   type LayoutChangeEvent,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -19,10 +19,23 @@ import type { RouteProp } from '@react-navigation/native';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { AnimatedProgressBar, Badge, Button, Card, EmptyState, ErrorState, Icon, LoadingState, RatingBar, Screen, Text } from '../../ui';
+import {
+  AnimatedProgressBar,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Icon,
+  LoadingState,
+  PageColumn,
+  RatingBar,
+  Screen,
+  Text,
+  useShellChrome,
+} from '../../ui';
 import type { Rating } from '../../ui';
-import { TabBarScrollContext } from '../../ui/Screen';
-import { isTauri } from '../../utils/platform';
+import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
 import {
   getDueLearningItems,
   listLearningItems,
@@ -38,10 +51,11 @@ import { ChangeMeaningSheet } from '../words/ChangeMeaningSheet';
 import {
   applyDueItemUpdatesToList,
   insertRetryCard,
+  isPassingScore,
   optimisticDueItemAfterAgain,
   overridesFromBatchUpdates,
-  practiceCardProgress,
   resolveDueItem,
+  sessionProgress,
   shufflePracticeQueue,
 } from './practiceItemState';
 import { analytics } from '../../analytics/analytics';
@@ -162,16 +176,14 @@ export function decideCardMode(item: DueItem): CardMode {
 }
 
 export function PracticeScreen() {
-  const { colors, spacing, radii, shadows, motion, reduced } = useTheme();
+  const { colors, spacing, radii } = useTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
-  const scrollContext = useContext(TabBarScrollContext);
-  const tabBarHeight = 60 + insets.bottom;
+  const { setChromeHidden } = useShellChrome();
   const cardStartedAtRef = useRef(Date.now());
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProp<MainTabParamList, 'Practice'>>();
   const scopedDeckId = route.params?.deckId?.trim() || undefined;
-  // Practice is private decks only (user-added words). Optional deckId narrows to one deck.
   const scopedOrigin = 'private' as const;
 
   const [status, setStatus] = useState<SessionStatus>('idle');
@@ -181,11 +193,10 @@ export function PracticeScreen() {
   const [queue, setQueue] = useState<DueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [practiceState, setPracticeState] = useState<'prompt' | 'reveal' | 'grading'>('prompt');
+  const [, setPracticeState] = useState<'prompt' | 'reveal' | 'grading'>('prompt');
   const [userAnswer, setUserAnswer] = useState('');
   const [responseTimeMs, setResponseTimeMs] = useState<number | null>(null);
   const [ratingScore, setRatingScore] = useState(2.0);
-  const [showFeedback, setShowFeedback] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
@@ -213,9 +224,16 @@ export function PracticeScreen() {
   const [measuredGradingBarHeight, setMeasuredGradingBarHeight] = useState(0);
   const [measuredAnswerBarHeight, setMeasuredAnswerBarHeight] = useState(0);
 
-  // Hide tab bar while typing/grading chrome is up so mobile web does not cover controls.
-  const hideTabBarForPracticeChrome =
-    status === 'active' && ((cardMode === 'typing' && !isFlipped) || isFlipped);
+  // Focus mode: hide shell chrome while a session is active, and restore it on status change or unmount.
+  useEffect(() => {
+    setChromeHidden(status === 'active');
+  }, [status, setChromeHidden]);
+
+  useEffect(() => {
+    return () => {
+      setChromeHidden(false);
+    };
+  }, [setChromeHidden]);
 
   const toggleFlip = () => {
     if (cardMode === 'typing' && !isFlipped) {
@@ -223,7 +241,13 @@ export function PracticeScreen() {
     }
     setIsFlipped(true);
     const item = queue[currentIndex];
-    if (item) analytics.track('card_revealed', { learning_item_id: item.user_word_sense_id, lemma: item.lemma, mode: cardMode });
+    if (item) {
+      analytics.track('card_revealed', {
+        learning_item_id: item.user_word_sense_id,
+        lemma: item.lemma,
+        mode: cardMode,
+      });
+    }
     setPracticeState('grading');
   };
 
@@ -258,68 +282,6 @@ export function PracticeScreen() {
       }),
     ]).start();
   }, [currentIndex, status, slideAnim, opacityAnim]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || status !== 'active') return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
-
-      if (!isFlipped) {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          if (cardMode === 'flashcard') {
-            toggleFlip();
-          } else {
-            if (userAnswer.trim().length > 0) {
-              revealAnswer(false);
-            } else {
-              revealAnswer(true);
-            }
-          }
-        }
-      } else {
-        if (e.key === '1') {
-          e.preventDefault();
-          selectGrade('again');
-        } else if (e.key === '2') {
-          e.preventDefault();
-          selectGrade('hard');
-        } else if (e.key === '3') {
-          e.preventDefault();
-          selectGrade('good');
-        } else if (e.key === '4') {
-          e.preventDefault();
-          selectGrade('easy');
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [status, isFlipped, cardMode, userAnswer]);
-
-  // Keep the absolute tab bar tucked away while practice bottom chrome is visible.
-  useEffect(() => {
-    if (!scrollContext) return;
-    if (hideTabBarForPracticeChrome) {
-      scrollContext.tabBarTranslateY.value = 100;
-      scrollContext.setTabBarInteractive(false);
-    } else {
-      scrollContext.tabBarTranslateY.value = 0;
-      scrollContext.setTabBarInteractive(true);
-    }
-    return () => {
-      if (scrollContext) {
-        scrollContext.tabBarTranslateY.value = 0;
-        scrollContext.setTabBarInteractive(true);
-      }
-    };
-  }, [hideTabBarForPracticeChrome, scrollContext]);
 
   const resetCardInteraction = useCallback(() => {
     cardStartedAtRef.current = Date.now();
@@ -469,7 +431,7 @@ export function PracticeScreen() {
       if (currentStatus !== 'active' && currentStatus !== 'submitting') {
         loadDueItems();
       }
-    }, [loadDueItems])
+    }, [loadDueItems]),
   );
 
   const startRepeatSession = () => {
@@ -524,11 +486,18 @@ export function PracticeScreen() {
 
     const toFlush = pendingRef.current;
     pendingRef.current = [];
-    const traceId = analytics.track('command_invoked', { command: 'review_submit', attempt_count: toFlush.length });
+    const traceId = analytics.track('command_invoked', {
+      command: 'review_submit',
+      attempt_count: toFlush.length,
+    });
 
     try {
       const res = await recordBatchReviewAttempts(toFlush, traceId);
-      analytics.track('review_succeeded', { attempt_count: toFlush.length, xp_earned: res.xp_earned }, traceId);
+      analytics.track(
+        'review_succeeded',
+        { attempt_count: toFlush.length, xp_earned: res.xp_earned },
+        traceId,
+      );
       setXpEarned((prev) => prev + res.xp_earned);
       if (res.updated_items?.length) {
         applyDueItemUpdates(res.updated_items);
@@ -542,12 +511,8 @@ export function PracticeScreen() {
               typeof (err as { status?: unknown }).status === 'number'
             ? (err as ApiError)
             : null;
-      // Network failures (status 0) and explicitly retryable server errors are requeued.
-      // Permanent failures (archived/suspended REV-409, validation 4xx) must not loop forever.
       const retryable =
-        apiErr == null
-          ? true
-          : apiErr.status === 0 || apiErr.retryable === true;
+        apiErr == null ? true : apiErr.status === 0 || apiErr.retryable === true;
 
       analytics.track(
         'review_failed',
@@ -567,7 +532,9 @@ export function PracticeScreen() {
         const unavailableIds = new Set(toFlush.map((attempt) => attempt.user_word_sense_id));
         const preserveBefore = currentIndexRef.current;
         setQueue((prev) =>
-          prev.filter((item, idx) => idx < preserveBefore || !unavailableIds.has(item.user_word_sense_id)),
+          prev.filter(
+            (item, idx) => idx < preserveBefore || !unavailableIds.has(item.user_word_sense_id),
+          ),
         );
         setFailedMap((prev) => {
           const next = { ...prev };
@@ -619,7 +586,14 @@ export function PracticeScreen() {
   const selectGrade = (rating: Rating) => {
     const score = ratingScores[rating];
     const item = queue[currentIndex];
-    if (item) analytics.track('card_rated', { learning_item_id: item.user_word_sense_id, lemma: item.lemma, rating, score });
+    if (item) {
+      analytics.track('card_rated', {
+        learning_item_id: item.user_word_sense_id,
+        lemma: item.lemma,
+        rating,
+        score,
+      });
+    }
     setRatingScore(score);
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -663,13 +637,14 @@ export function PracticeScreen() {
       responseTimeValue = responseTimeMs ?? Date.now() - cardStartedAtRef.current;
     }
 
+    const passed = isPassingScore(finalScore);
     const attempt: ReviewAttemptParams = {
       user_word_sense_id: currentItem.user_word_sense_id,
       activity_type: activityType,
       prompt,
       user_answer: userAnswerValue,
       correct_answer: currentItem.normalized_text,
-      is_correct: finalScore >= 0.75,
+      is_correct: passed,
       rating_score: finalScore,
       response_time_ms: responseTimeValue,
       confidence_rating: null,
@@ -677,12 +652,11 @@ export function PracticeScreen() {
 
     setAttempts((prev) => [...prev, attempt]);
     pendingRef.current.push(attempt);
-    // Advance the index ref before flush so non-retryable prune keeps graded slots.
     const nextIndex = currentIndex + 1;
     currentIndexRef.current = nextIndex;
     flushPending();
 
-    const shouldRetry = finalScore < 0.75;
+    const shouldRetry = !isPassingScore(finalScore);
 
     let gradedItem = currentItem;
     if (shouldRetry) {
@@ -737,6 +711,19 @@ export function PracticeScreen() {
       });
   };
 
+  const handleEndSession = () => {
+    if (sessionMode === 'repeat') {
+      finishRepeatSession();
+      return;
+    }
+    setChromeHidden(false);
+    if (pendingRef.current.length > 0 || flushingRef.current) {
+      waitForPendingFlushes().catch(() => {});
+    }
+    setStatus('idle');
+    navigation.navigate('Learn');
+  };
+
   const revealAnswer = (forgot = false) => {
     if (isFlipped) {
       return;
@@ -753,10 +740,43 @@ export function PracticeScreen() {
     setPracticeState('grading');
   };
 
+  useKeyboardShortcut(
+    [' ', 'Spacebar', 'Enter', '1', '2', '3', '4'],
+    (e) => {
+      if (!isFlipped) {
+        if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+          e.preventDefault();
+          if (cardMode === 'flashcard') {
+            toggleFlip();
+          } else if (userAnswer.trim().length > 0) {
+            revealAnswer(false);
+          } else {
+            revealAnswer(true);
+          }
+        }
+      } else if (e.key === '1') {
+        e.preventDefault();
+        selectGrade('again');
+      } else if (e.key === '2') {
+        e.preventDefault();
+        selectGrade('hard');
+      } else if (e.key === '3') {
+        e.preventDefault();
+        selectGrade('good');
+      } else if (e.key === '4') {
+        e.preventDefault();
+        selectGrade('easy');
+      }
+    },
+    { enabled: status === 'active' },
+  );
+
   if (status === 'loading_due' || status === 'loading_repeat') {
     return (
       <Screen padded>
-        <LoadingState message={t('practice.preparing')} />
+        <PageColumn>
+          <LoadingState message={t('practice.preparing')} />
+        </PageColumn>
       </Screen>
     );
   }
@@ -764,7 +784,9 @@ export function PracticeScreen() {
   if (status === 'submitting') {
     return (
       <Screen padded>
-        <LoadingState message={t('practice.syncing')} />
+        <PageColumn>
+          <LoadingState message={t('practice.syncing')} />
+        </PageColumn>
       </Screen>
     );
   }
@@ -774,39 +796,44 @@ export function PracticeScreen() {
     return (
       <Screen padded>
         <Confetti active={true} />
-        <View style={[styles.center, { gap: spacing.lg }]}>
-          <View style={[styles.successIconCircle, { backgroundColor: colors.primaryContainer }]}>
-            <Icon name="checkmark-circle" size="xl" color={colors.primary} />
+        <PageColumn style={[styles.center, { gap: spacing.lg }]}>
+          <View style={[styles.successIconCircle, { backgroundColor: colors.infoSurface }]}>
+            <Icon name="checkmark-circle" size="xl" color={colors.accent} />
           </View>
-          <Text variant="heading" color="primary" style={{ textAlign: 'center' }}>
+          <Text variant="heading" style={{ textAlign: 'center' }}>
             {t('practice.complete')}
           </Text>
-          <Card glass={true} style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
+          <Card style={{ width: '100%', alignItems: 'center', gap: spacing.sm }}>
             <Text variant="title" bold>
               {t('practice.xpEarned')}
             </Text>
             <Badge
-              variant="primary"
+              variant="accent"
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
               }}
             >
-              <Text variant="caption" bold style={{ color: colors.onPrimaryContainer }}>+</Text>
+              <Text variant="caption" bold style={{ color: colors.accent }}>
+                +
+              </Text>
               <CountUpText
                 target={xpEarned}
                 variant="caption"
                 bold
-                style={{ color: colors.onPrimaryContainer }}
+                style={{ color: colors.accent }}
               />
-              <Text variant="caption" bold style={{ color: colors.onPrimaryContainer }}> XP</Text>
+              <Text variant="caption" bold style={{ color: colors.accent }}>
+                {' '}
+                XP
+              </Text>
             </Badge>
             <Text color="muted" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
               {t('practice.progressSaved')}
             </Text>
           </Card>
           {stuckList.length > 0 ? (
-            <Card glass={true} style={{ width: '100%', gap: spacing.sm }}>
+            <Card style={{ width: '100%', gap: spacing.sm }}>
               <Text variant="title" bold>
                 {t('practice.stuckWords')}
               </Text>
@@ -824,7 +851,9 @@ export function PracticeScreen() {
                     flexWrap: 'wrap',
                   }}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+                  <View
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}
+                  >
                     <Text variant="body" bold>
                       {stuck.lemma}
                     </Text>
@@ -833,12 +862,12 @@ export function PracticeScreen() {
                   <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
                     <Button
                       label={t('practice.changeMeaning')}
-                      variant="outline"
+                      variant="secondary"
                       onPress={() => openChangeMeaning(stuck, false)}
                     />
                     <Button
                       label={t('practice.writeMyMeaning')}
-                      variant="tonal"
+                      variant="quiet"
                       onPress={() => openChangeMeaning(stuck, true)}
                     />
                   </View>
@@ -855,7 +884,7 @@ export function PracticeScreen() {
               navigation.navigate('Learn');
             }}
           />
-        </View>
+        </PageColumn>
         {changeMeaningItem ? (
           <ChangeMeaningSheet
             visible
@@ -872,7 +901,7 @@ export function PracticeScreen() {
   if (status === 'error') {
     return (
       <Screen padded>
-        <View style={[styles.center, { gap: spacing.lg }]}>
+        <PageColumn style={[styles.center, { gap: spacing.lg }]}>
           <ErrorState
             title={t('practice.submissionFailed')}
             message={errorMsg || t('practice.saveError')}
@@ -893,14 +922,14 @@ export function PracticeScreen() {
           />
           <Button
             label={t('practice.discardProgress')}
-            variant="ghost"
+            variant="quiet"
             style={{ width: '100%' }}
             onPress={() => {
               setStatus('idle');
               navigation.navigate('Learn');
             }}
           />
-        </View>
+        </PageColumn>
       </Screen>
     );
   }
@@ -908,7 +937,7 @@ export function PracticeScreen() {
   if (status === 'idle') {
     return (
       <Screen padded>
-        <View style={[styles.center, { gap: spacing.lg }]}>
+        <PageColumn style={[styles.center, { gap: spacing.lg }]}>
           <EmptyState
             icon="layers-outline"
             title={t('home.allCaughtUp')}
@@ -930,12 +959,12 @@ export function PracticeScreen() {
 
           <Button
             label={t('practice.studyAgain')}
-            variant="outline"
+            variant="secondary"
             iconLeft="play"
             style={{ width: '100%' }}
             onPress={startRepeatSession}
           />
-        </View>
+        </PageColumn>
       </Screen>
     );
   }
@@ -944,7 +973,9 @@ export function PracticeScreen() {
   if (!rawCurrentItem) {
     return (
       <Screen padded>
-        <LoadingState message={t('practice.syncing')} />
+        <PageColumn>
+          <LoadingState message={t('practice.syncing')} />
+        </PageColumn>
       </Screen>
     );
   }
@@ -956,44 +987,39 @@ export function PracticeScreen() {
   const example = examplesList.length > 0 ? examplesList[activeExIndex] : null;
   const isPreviouslyFailed = failedMap[currentItem.user_word_sense_id] ?? false;
   const trimmedAnswer = userAnswer.trim();
-  const { current: displayCurrent, total: displayTotal } = practiceCardProgress(
-    attempts.map((att) => att.user_word_sense_id),
-    currentItem.user_word_sense_id,
-    dueItems.length,
-  );
 
-  const dueItemIDs = new Set(dueItems.map((item) => item.user_word_sense_id));
-  const dueItemsReviewedCount =
-    sessionMode === 'repeat'
-      ? new Set(attempts.filter((att) => dueItemIDs.has(att.user_word_sense_id)).map((att) => att.user_word_sense_id)).size
-      : attempts.filter((att) => dueItemIDs.has(att.user_word_sense_id)).length;
-  const progressPercent =
-    dueItems.length > 0
-      ? Math.min(100, Math.floor((dueItemsReviewedCount / dueItems.length) * 100))
-      : 0;
+  const {
+    current: displayCurrent,
+    total: displayTotal,
+    percent: progressPercent,
+  } = sessionProgress({
+    attempts,
+    dueIds: dueItems.map((item) => item.user_word_sense_id),
+  });
 
-  const blankedSentence = example ? getBlankedSentence(example.sentence, currentItem.normalized_text) : '';
+  const blankedSentence = example
+    ? getBlankedSentence(example.sentence, currentItem.normalized_text)
+    : '';
 
   const showAnswerBar = cardMode === 'typing' && !isFlipped;
   const showGradingBar = isFlipped;
-  // Screen always reserves tab-bar height under the flex child. While the tab bar
-  // is translated away, pull the sticky chrome into that spacer so it sits flush.
-  const bottomBarOffset = hideTabBarForPracticeChrome ? -(tabBarHeight + 16) : 0;
-  const gradingBarFallback = (sessionMode === 'repeat' ? 220 : 168) + insets.bottom - Math.min(bottomBarOffset, 0);
-  const answerBarFallback = 144 + insets.bottom - Math.min(bottomBarOffset, 0);
-  const answerBarHeight = measuredAnswerBarHeight > 0 ? measuredAnswerBarHeight : answerBarFallback;
-  const gradingBarHeight = measuredGradingBarHeight > 0 ? measuredGradingBarHeight : gradingBarFallback;
+  const gradingBarFallback = (sessionMode === 'repeat' ? 200 : 150) + insets.bottom;
+  const answerBarFallback = 144 + insets.bottom;
+  const answerBarHeight =
+    measuredAnswerBarHeight > 0 ? measuredAnswerBarHeight : answerBarFallback;
+  const gradingBarHeight =
+    measuredGradingBarHeight > 0 ? measuredGradingBarHeight : gradingBarFallback;
 
   const progressHeaderApprox = 72;
   const swipeGuideApprox = 28;
   const cardMaxHeight = Math.max(
     240,
-    windowHeight
-      - insets.top
-      - progressHeaderApprox
-      - (showGradingBar ? gradingBarHeight : showAnswerBar ? answerBarHeight : 0)
-      - (showGradingBar ? swipeGuideApprox : 0)
-      - spacing.md * 2
+    windowHeight -
+      insets.top -
+      progressHeaderApprox -
+      (showGradingBar ? gradingBarHeight : showAnswerBar ? answerBarHeight : 0) -
+      (showGradingBar ? swipeGuideApprox : 0) -
+      spacing.md * 2,
   );
 
   const handleGradingBarLayout = (event: LayoutChangeEvent) => {
@@ -1012,14 +1038,12 @@ export function PracticeScreen() {
 
   const answerBar = showAnswerBar ? (
     <Card
-      glass={true}
       onLayout={handleAnswerBarLayout}
       style={[
         styles.bottomBar,
         {
-          borderTopColor: colors.outlineVariant,
+          borderTopColor: colors.hairline,
           paddingBottom: spacing.lg + insets.bottom,
-          bottom: bottomBarOffset,
         },
       ]}
     >
@@ -1031,7 +1055,7 @@ export function PracticeScreen() {
         value={userAnswer}
         onChangeText={setUserAnswer}
         placeholder={t('practice.answerPlaceholder')}
-        placeholderTextColor={colors.onSurfaceVariant}
+        placeholderTextColor={colors.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus
@@ -1045,9 +1069,10 @@ export function PracticeScreen() {
         style={[
           styles.answerInput,
           {
-            borderColor: colors.primary,
-            backgroundColor: colors.surfaceContainerHighest,
-            color: colors.onSurface,
+            borderColor: colors.controlBorder,
+            backgroundColor: colors.surface,
+            color: colors.text,
+            borderRadius: radii.sm,
           },
         ]}
       />
@@ -1060,7 +1085,7 @@ export function PracticeScreen() {
         />
         <Button
           label={t('practice.dontKnow')}
-          variant="outline"
+          variant="secondary"
           style={styles.revealButton}
           onPress={() => revealAnswer(true)}
         />
@@ -1068,38 +1093,30 @@ export function PracticeScreen() {
     </Card>
   ) : null;
 
-  const gradingBar = showGradingBar ? (
-    <Card
-      glass={true}
+  const gradingSection = showGradingBar ? (
+    <View
       onLayout={handleGradingBarLayout}
       style={[
-        styles.bottomBar,
-        styles.gradingBar,
+        styles.gradingSection,
         {
-          borderTopColor: colors.outlineVariant,
-          paddingBottom: spacing.md + insets.bottom,
-          bottom: bottomBarOffset,
-          gap: spacing.md,
+          paddingBottom: insets.bottom,
+          gap: spacing.sm,
         },
-        Platform.OS === 'web' ? ({ isolation: 'isolate' } as object) : null,
       ]}
     >
-      <Text variant="caption" color="muted" style={{ textAlign: 'center' }} bold>
+      <Text variant="caption" color="muted" style={styles.srOnly}>
         {t('practice.rateRecall')}
       </Text>
-      <RatingBar
-        intervals={currentItem.preview_intervals}
-        onSelect={selectGrade}
-      />
+      <RatingBar intervals={currentItem.preview_intervals} onSelect={selectGrade} />
       {sessionMode === 'repeat' && (
         <Button
           label={t('practice.finishRepeat')}
-          variant="outline"
+          variant="secondary"
           style={{ width: '100%' }}
           onPress={finishRepeatSession}
         />
       )}
-    </Card>
+    </View>
   ) : null;
 
   return (
@@ -1107,85 +1124,107 @@ export function PracticeScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : 0}
       >
         <ScrollView
           ref={scrollViewRef}
           contentContainerStyle={[
             styles.scroll,
             showAnswerBar && { paddingBottom: answerBarHeight + spacing.md },
-            showGradingBar && { paddingBottom: gradingBarHeight + spacing.md },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
         >
-          <View style={[styles.progressHeader, { gap: spacing.sm }]}>
-            <View style={styles.progressTextRow}>
-              <Text variant="caption" color="muted">
-                {t('practice.cardProgress', { current: displayCurrent, total: displayTotal })}
-              </Text>
-              <View style={styles.saveIndicator}>
-                {isSaving && (
-                  <>
-                    <ActivityIndicator size="small" color={colors.onSurfaceVariant} />
-                    <Text variant="caption" color="muted">
-                      {t('practice.syncing')}
-                    </Text>
-                  </>
-                )}
-                {!isSaving && saveError && (
-                  <>
-                    <Icon name="warning-outline" size="sm" color={colors.error} />
-                    <Text variant="caption" color="danger">
-                      {t('practice.saveError')}
-                    </Text>
-                  </>
-                )}
+          <PageColumn style={{ gap: spacing.lg }}>
+            <View style={[styles.progressHeader, { gap: 14 }]}>
+              <View style={styles.progressTextRow}>
+                <Button
+                  label={t('practice.endSession')}
+                  variant="quiet"
+                  iconLeft="close"
+                  testID="practice-end-session"
+                  onPress={handleEndSession}
+                />
+                <View style={styles.saveIndicator}>
+                  {isSaving && (
+                    <>
+                      <ActivityIndicator size="small" color={colors.textMuted} />
+                      <Text variant="caption" color="muted">
+                        {t('practice.syncing')}
+                      </Text>
+                    </>
+                  )}
+                  {!isSaving && saveError && (
+                    <>
+                      <Icon name="warning-outline" size="sm" color={colors.danger} />
+                      <Text variant="caption" color="danger">
+                        {t('practice.saveError')}
+                      </Text>
+                    </>
+                  )}
+                </View>
+                <View style={styles.headerRight}>
+                  {sessionMode === 'repeat' && (
+                    <Badge label={t('practice.repeatMode')} variant="accent" />
+                  )}
+                  <Text
+                    variant="caption"
+                    color="muted"
+                    tabular
+                    testID="practice-position-counter"
+                  >
+                    {t('practice.position', { current: displayCurrent, total: displayTotal })}
+                  </Text>
+                </View>
               </View>
-              {sessionMode === 'repeat' && <Badge label={t('practice.repeatMode')} variant="primary" />}
-              {cardMode === 'flashcard' && <Badge label={t('practice.flashcardMode')} variant="info" />}
-              {isPreviouslyFailed && <Badge label={t('practice.retrying')} variant="danger" />}
+              <AnimatedProgressBar percent={progressPercent} height={3} />
             </View>
-            <AnimatedProgressBar percent={progressPercent} height={6} />
-          </View>
 
-          <Animated.View style={{ transform: [{ translateX: slideAnim }], opacity: opacityAnim, width: '100%', position: 'relative' }}>
-            <Flashcard
-              key={currentItem.user_word_sense_id}
-              item={currentItem}
-              example={example}
-              blankedSentence={blankedSentence}
-              isFlipped={isFlipped}
-              cardMode={cardMode}
-              userAnswer={userAnswer}
-              isPreviouslyFailed={isPreviouslyFailed}
-              onFlip={toggleFlip}
-              onRate={selectGrade}
-              maxHeight={cardMaxHeight}
-            />
-          </Animated.View>
+            <Animated.View
+              style={{
+                transform: [{ translateX: slideAnim }],
+                opacity: opacityAnim,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              <Flashcard
+                key={currentItem.user_word_sense_id}
+                item={currentItem}
+                example={example}
+                blankedSentence={blankedSentence}
+                isFlipped={isFlipped}
+                cardMode={cardMode}
+                userAnswer={userAnswer}
+                isPreviouslyFailed={isPreviouslyFailed}
+                onFlip={toggleFlip}
+                onRate={selectGrade}
+                maxHeight={cardMaxHeight}
+              />
+            </Animated.View>
 
-          {currentItem.is_leech && isFlipped ? (
-            <Button
-              label={t('practice.changeMeaning')}
-              variant="ghost"
-              style={{ width: '100%', marginTop: spacing.sm }}
-              onPress={() => openChangeMeaning(currentItem, false)}
-            />
-          ) : null}
+            {currentItem.is_leech && isFlipped ? (
+              <Button
+                label={t('practice.changeMeaning')}
+                variant="quiet"
+                style={{ alignSelf: 'center' }}
+                onPress={() => openChangeMeaning(currentItem, false)}
+              />
+            ) : null}
 
-          {sessionMode === 'repeat' && !isFlipped && (
-            <Button
-              label={t('practice.finishRepeat')}
-              variant="ghost"
-              style={{ width: '100%', marginTop: spacing.md }}
-              onPress={finishRepeatSession}
-            />
-          )}
+            {gradingSection}
+
+            {sessionMode === 'repeat' && !isFlipped && (
+              <Button
+                label={t('practice.finishRepeat')}
+                variant="quiet"
+                style={{ alignSelf: 'center', marginTop: spacing.sm }}
+                onPress={finishRepeatSession}
+              />
+            )}
+          </PageColumn>
         </ScrollView>
 
         {answerBar}
-        {gradingBar}
       </KeyboardAvoidingView>
       {changeMeaningItem ? (
         <ChangeMeaningSheet
@@ -1203,8 +1242,8 @@ export function PracticeScreen() {
 const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: 10,
+    justifyContent: 'flex-start',
+    paddingVertical: 16,
   },
   center: {
     flex: 1,
@@ -1220,22 +1259,17 @@ const styles = StyleSheet.create({
   },
   progressHeader: {
     width: '100%',
-    marginBottom: 20,
   },
   progressTextRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
-  progressBarContainer: {
-    width: '100%',
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   flex: {
     flex: 1,
@@ -1253,18 +1287,17 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     elevation: 24,
   },
-  gradingBar: {
-    // Keep rate controls above mobile browser chrome / transformed card layers.
+  gradingSection: {
+    width: '100%',
   },
   answerInput: {
     width: '100%',
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   revealActions: {
     flexDirection: 'row',
@@ -1279,5 +1312,11 @@ const styles = StyleSheet.create({
     gap: 6,
     marginRight: 'auto',
     marginLeft: 8,
+  },
+  srOnly: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 });

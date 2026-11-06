@@ -22,10 +22,10 @@ export function WordChip({ word, status, onPress, onRemove }: WordChipProps) {
   const { colors, radii, spacing } = useTheme();
 
   const palette = {
-    idle: { bg: colors.surfaceContainerLow, border: colors.outlineVariant, text: colors.onSurface },
-    pending: { bg: colors.warningSurface, border: colors.warningBorder, text: colors.warning },
-    added: { bg: colors.successSurface, border: colors.successBorder, text: colors.success },
-    error: { bg: colors.errorContainer, border: colors.dangerBorder, text: colors.error },
+    idle: { bg: colors.surface, border: colors.hairline, text: colors.text },
+    pending: { bg: colors.warningSurface, border: colors.warning, text: colors.warning },
+    added: { bg: colors.successSurface, border: colors.success, text: colors.success },
+    error: { bg: colors.dangerSurface, border: colors.danger, text: colors.danger },
   };
 
   const { bg, border, text } = palette[status];

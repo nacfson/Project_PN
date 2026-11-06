@@ -32,7 +32,7 @@ describe('CaptureSection', () => {
     await render(<CaptureSection selectedDeckId="deck-123" targetLanguage="en" />, { wrapper: Wrapper });
 
     expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy();
-    expect(screen.getByText('From a passage')).toBeTruthy();
+    expect(screen.getAllByText('From a passage').length).toBeGreaterThan(0);
 
     expect(screen.queryByText('Tap words to select')).toBeNull();
     expect(screen.queryByText('Part of speech (optional)')).toBeNull();

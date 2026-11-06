@@ -1,6 +1,7 @@
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
 import { useAppLanguage } from '../i18n';
+import { spacing, useTheme } from '../theme';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { Text } from './Text';
@@ -12,20 +13,20 @@ interface ErrorStateProps {
 }
 
 export function ErrorState({ title, message, onRetry }: ErrorStateProps) {
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const resolvedTitle = title ?? t('common.somethingWrong');
 
   return (
     <View style={[styles.container, { gap: spacing.md }]}>
-      <View style={[styles.iconCircle, { backgroundColor: colors.errorContainer }]}>
-        <Icon name="alert-circle" size="xl" color={colors.error} />
+      <View style={[styles.iconCircle, { backgroundColor: colors.dangerSurface }]}>
+        <Icon name="alert-circle" size="xl" color={colors.danger} />
       </View>
-      <Text variant="title" style={{ textAlign: 'center' }}>
+      <Text variant="sectionTitle" style={{ textAlign: 'center' }}>
         {resolvedTitle}
       </Text>
       {message ? (
-        <Text variant="body" color="muted" style={{ textAlign: 'center' }}>
+        <Text variant="body" color={colors.textSecondary} style={{ textAlign: 'center' }}>
           {message}
         </Text>
       ) : null}

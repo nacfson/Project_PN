@@ -1,12 +1,14 @@
 import type { DueItem } from '../../types';
 import {
+  PASSING_SCORE_THRESHOLD,
   applyDueItemUpdatesToList,
   insertRetryCard,
+  isPassingScore,
   learningPreviewFromSteps,
   mergeDueItemUpdate,
   optimisticDueItemAfterAgain,
-  practiceCardProgress,
   resolveDueItem,
+  sessionProgress,
   shufflePracticeQueue,
 } from './practiceItemState';
 
@@ -162,10 +164,143 @@ describe('practice queue order', () => {
     ]);
     expect(mixed[mixed.length - 1]?.user_word_sense_id).not.toBe('retry-a');
   });
+});
 
-  it('reports unique-card progress instead of origin slot numbers on retry', () => {
-    expect(practiceCardProgress([], 'a', 10)).toEqual({ current: 1, total: 10 });
-    expect(practiceCardProgress(['a', 'b'], 'c', 10)).toEqual({ current: 3, total: 10 });
-    expect(practiceCardProgress(['a', 'b', 'a'], 'a', 10)).toEqual({ current: 2, total: 10 });
+describe('isPassingScore & sessionProgress (contract vectors 1–11)', () => {
+  const DUE_16 = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'];
+  const C = (id: string) => ({ user_word_sense_id: id, is_correct: true });
+  const F = (id: string) => ({ user_word_sense_id: id, is_correct: false });
+
+  it('evaluates isPassingScore at threshold 0.75 (0 -> false; 1, 2, 3 -> true)', () => {
+    expect(PASSING_SCORE_THRESHOLD).toBe(0.75);
+    expect(isPassingScore(0)).toBe(false);
+    expect(isPassingScore(1)).toBe(true);
+    expect(isPassingScore(2)).toBe(true);
+    expect(isPassingScore(3)).toBe(true);
+  });
+
+  it('Vector 1: Session start', () => {
+    expect(sessionProgress({ dueIds: DUE_16, attempts: [] })).toEqual({
+      completed: 0,
+      current: 1,
+      total: 16,
+      percent: 0,
+    });
+  });
+
+  it('Vector 2: Three correct first try', () => {
+    expect(sessionProgress({ dueIds: DUE_16, attempts: [C('a'), C('b'), C('c')] })).toEqual({
+      completed: 3,
+      current: 4,
+      total: 16,
+      percent: 18,
+    });
+  });
+
+  it('Vector 3: Forgot does not advance', () => {
+    expect(
+      sessionProgress({ dueIds: DUE_16, attempts: [C('a'), C('b'), C('c'), F('d')] }),
+    ).toEqual({
+      completed: 3,
+      current: 4,
+      total: 16,
+      percent: 18,
+    });
+  });
+
+  it('Vector 4: Fail then correct counts once', () => {
+    expect(
+      sessionProgress({
+        dueIds: DUE_16,
+        attempts: [C('a'), C('b'), C('c'), F('d'), C('e'), C('d')],
+      }),
+    ).toEqual({
+      completed: 5,
+      current: 6,
+      total: 16,
+      percent: 31,
+    });
+  });
+
+  it('Vector 5: Repeated fails', () => {
+    expect(sessionProgress({ dueIds: DUE_16, attempts: [F('a'), F('a'), F('a')] })).toEqual({
+      completed: 0,
+      current: 1,
+      total: 16,
+      percent: 0,
+    });
+  });
+
+  it('Vector 6: Correct twice counts once (repeat mode)', () => {
+    expect(sessionProgress({ dueIds: DUE_16, attempts: [C('a'), C('a')] })).toEqual({
+      completed: 1,
+      current: 2,
+      total: 16,
+      percent: 6,
+    });
+  });
+
+  it('Vector 7: Attempts outside dueIds ignored', () => {
+    expect(
+      sessionProgress({ dueIds: ['a', 'b', 'c'], attempts: [C('a'), C('z')] }),
+    ).toEqual({
+      completed: 1,
+      current: 2,
+      total: 3,
+      percent: 33,
+    });
+  });
+
+  it('Vector 8 (SC-012): All correct reaches 100 with 4 failed cards retried', () => {
+    const failedIds = new Set(['d', 'h', 'k', 'n']);
+    const attempts: Array<{ user_word_sense_id: string; is_correct: boolean }> = [];
+    let expectedCompleted = 0;
+
+    for (const id of DUE_16) {
+      if (failedIds.has(id)) {
+        attempts.push(F(id));
+        const afterFail = sessionProgress({ dueIds: DUE_16, attempts });
+        expect(afterFail.completed).toBe(expectedCompleted);
+      }
+      attempts.push(C(id));
+      expectedCompleted += 1;
+      const afterCorrect = sessionProgress({ dueIds: DUE_16, attempts });
+      expect(afterCorrect.completed).toBe(expectedCompleted);
+    }
+
+    expect(sessionProgress({ dueIds: DUE_16, attempts })).toEqual({
+      completed: 16,
+      current: 16,
+      total: 16,
+      percent: 100,
+    });
+  });
+
+  it('Vector 9: Not 100 while a failure is pending', () => {
+    const attempts = [...DUE_16.slice(0, 15).map(C), F('p')];
+    expect(sessionProgress({ dueIds: DUE_16, attempts })).toEqual({
+      completed: 15,
+      current: 16,
+      total: 16,
+      percent: 93,
+    });
+  });
+
+  it('Vector 10: Empty session', () => {
+    expect(sessionProgress({ dueIds: [], attempts: [] })).toEqual({
+      completed: 0,
+      current: 1,
+      total: 1,
+      percent: 0,
+    });
+  });
+
+  it('Vector 11: Duplicate dueIds', () => {
+    expect(sessionProgress({ dueIds: ['a', 'a', 'b'], attempts: [C('a')] })).toEqual({
+      completed: 1,
+      current: 2,
+      total: 2,
+      percent: 50,
+    });
   });
 });

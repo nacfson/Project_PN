@@ -5,11 +5,12 @@ import { render, screen, act } from '@testing-library/react-native';
 jest.mock('../theme/ThemeProvider', () => ({
   useTheme: () => ({
     colors: {
-      onSurface: '#1c1b1f',
-      onSurfaceVariant: '#49454f',
+      text: '#17181B',
+      textSecondary: '#4A4C53',
+      textMuted: '#5E6068',
     },
     typography: {
-      fontFamily: 'Inter-Regular',
+      fontFamily: 'Geist-Regular',
       sizes: {
         xs: 11,
         sm: 13,

@@ -13,7 +13,7 @@ export function Icon({ name, size = 'md', color }: IconProps) {
   const { colors, iconSizes } = useTheme();
 
   const resolvedSize = typeof size === 'number' ? size : iconSizes[size];
-  const resolvedColor = color ?? colors.onSurfaceVariant;
+  const resolvedColor = color ?? colors.textSecondary;
 
   return <Ionicons name={name} size={resolvedSize} color={resolvedColor} />;
 }

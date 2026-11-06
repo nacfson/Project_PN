@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -6,43 +6,62 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  TextInput,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
   type ListRenderItem,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { useFocusEffect, useNavigation, type CompositeNavigationProp, type NavigatorScreenParams } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type CompositeNavigationProp,
+  type NavigatorScreenParams,
+  type RouteProp,
+} from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useTheme } from '../../theme/ThemeProvider';
-import { useAppLanguage, type TranslationKey } from '../../i18n';
-import type { Deck, LearningItemListItem } from '../../types';
 import Animated from 'react-native-reanimated';
-import { Badge, Button, Chip, EmptyState, ErrorState, Icon, Input, LoadingState, Screen, Text } from '../../ui';
-import { SpeakButton } from '../../components/SpeakButton';
-import { useLearningItems } from './useLearningItems';
-import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
-import { createDeck, deleteDeck, listDecks, moveItemsToDeck, renameDeck } from '../../api/decks';
+import { createDeck, listDecks, moveItemsToDeck } from '../../api/decks';
 import { archiveLearningItem, archiveLearningItems } from '../../api/learningItems';
-import { getPosBadgeVariant } from '../../utils/text';
-import { splitMeanings } from '../../utils/meanings';
-import { DeckCanvas } from './DeckCanvas';
-import { DeckFormModal } from './DeckFormModal';
-import { MoveToDeckModal } from './MoveToDeckModal';
-import { adjustDeckCountsForMove, adjustDeckCountsForRemovedItems } from './deckCounts';
-import { InspectorPanel } from '../web/InspectorPanel';
-import { ContextualCommandBar } from '../../ui/ContextualCommandBar';
-import { CinematicCard } from '../../ui/CinematicCard';
-import { distanceFromListBottom, readScrollMetrics } from './scrollPagination';
-import type { WordsStackParamList } from '../../navigation/WordsStack';
+import { SpeakButton } from '../../components/SpeakButton';
+import { useActiveTargetLanguage } from '../../hooks/useActiveTargetLanguage';
+import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
+import { useAppLanguage, type TranslationKey } from '../../i18n';
 import type { MainTabParamList } from '../../navigation/MainTabs';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
-import { BROWSER_PAGE_MAX_WIDTH } from '../../navigation/shellKind';
+import type { WordsStackParamList } from '../../navigation/WordsStack';
+import { radii, spacing, stageColor, useTheme } from '../../theme';
+import type { Deck, LearningItemListItem } from '../../types';
+import {
+  Badge,
+  Button,
+  Chip,
+  ConfirmDialog,
+  ContextualCommandBar,
+  EmptyState,
+  ErrorState,
+  HoverReveal,
+  Icon,
+  Input,
+  Kbd,
+  LoadingState,
+  PageColumn,
+  Screen,
+  Text,
+} from '../../ui';
+import { splitMeanings } from '../../utils/meanings';
+import { adjustDeckCountsForMove, adjustDeckCountsForRemovedItems } from './deckCounts';
+import { DeckFilterMenu } from './DeckFilterMenu';
+import { DeckFormModal } from './DeckFormModal';
+import { MoveToDeckModal } from './MoveToDeckModal';
+import { distanceFromListBottom, readScrollMetrics } from './scrollPagination';
+import { useLearningItems } from './useLearningItems';
 
-// Web pages at least this wide wrap the filter chips and show cards in two columns.
 const WIDE_LAYOUT_MIN_WIDTH = 720;
-const WEB_PAGE_MAX_WIDTH = BROWSER_PAGE_MAX_WIDTH;
 
 const FILTERS: Array<{ key: 'all' | LearningItemListItem['learning_stage']; labelKey: string }> = [
   { key: 'all', labelKey: 'words.filterAll' },
@@ -63,58 +82,70 @@ type MyWordsScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MyWordsScreenTabParamList>
 >;
 
-function formatRelativeTime(iso: string, locale: string): string {
-  const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  if (Number.isNaN(diffMs) || diffMs < 0) {
-    return locale === 'ko' ? '방금 전' : 'just now';
-  }
-
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  const isKo = locale === 'ko';
-
-  if (diffSecs < 60) {
-    return isKo ? '방금 전' : 'just now';
-  }
-  if (diffMins < 60) {
-    return isKo ? `${diffMins}분 전` : `${diffMins}m ago`;
-  }
-  if (diffHours < 24) {
-    return isKo ? `${diffHours}시간 전` : `${diffHours}h ago`;
-  }
-  return isKo ? `${diffDays}일 전` : `${diffDays}d ago`;
+export interface MyWordsScreenProps {
+  route?: { params?: { deckId?: string } };
 }
 
-export function MyWordsScreen() {
-  const { colors, spacing } = useTheme();
+function formatDueLabel(dueAt: string | null | undefined, todayLabel: string, locale: string): string {
+  if (!dueAt) return '—';
+  const date = new Date(dueAt);
+  if (Number.isNaN(date.getTime())) return '—';
+  const now = new Date();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  if (date.getTime() <= endOfToday.getTime()) {
+    return todayLabel;
+  }
+  try {
+    return new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+    }).format(date);
+  } catch {
+    return dueAt.slice(0, 10);
+  }
+}
+
+export function MyWordsScreen(props: MyWordsScreenProps = {}) {
+  const { colors } = useTheme();
   const { t, language } = useAppLanguage();
   const navigation = useNavigation<MyWordsScreenNavigationProp>();
+  const { width: windowWidth } = useWindowDimensions();
 
+  let navRouteDeckId: string | undefined;
+  try {
+    const navRoute = useRoute<RouteProp<WordsStackParamList, 'WordsRoot'>>();
+    navRouteDeckId = navRoute?.params?.deckId;
+  } catch {
+    navRouteDeckId = undefined;
+  }
+  const routeDeckId = props.route?.params?.deckId ?? navRouteDeckId;
+
+  const searchInputRef = useRef<TextInput>(null);
   const [q, setQ] = useState('');
   const [headerWidth, setHeaderWidth] = useState(0);
-  const wideLayout = Platform.OS === 'web' && headerWidth >= WIDE_LAYOUT_MIN_WIDTH;
+  const effectiveWidth = headerWidth > 0 ? headerWidth : windowWidth;
+  const wideLayout = effectiveWidth >= WIDE_LAYOUT_MIN_WIDTH;
+
   const handleHeaderLayout = useCallback((e: LayoutChangeEvent) => {
     setHeaderWidth(e.nativeEvent.layout.width);
   }, []);
+
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['key']>('all');
 
   const [decks, setDecks] = useState<Deck[]>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [decksError, setDecksError] = useState<string | null>(null);
-  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(routeDeckId ?? null);
 
-  const [formMode, setFormMode] = useState<'create' | 'rename' | null>(null);
-  const [formDeck, setFormDeck] = useState<Deck | undefined>(undefined);
+  useEffect(() => {
+    if (routeDeckId !== undefined) {
+      setSelectedDeckId(routeDeckId);
+    }
+  }, [routeDeckId]);
+
+  const [formMode, setFormMode] = useState<'create' | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
-
-  const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
-  const [inspectorDeck, setInspectorDeck] = useState<Deck | null>(null);
 
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [moveItemIds, setMoveItemIds] = useState<string[]>([]);
@@ -122,13 +153,26 @@ export function MyWordsScreen() {
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [removeLoading, setRemoveLoading] = useState(false);
+  const [pendingRemoveIds, setPendingRemoveIds] = useState<string[] | null>(null);
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const viewportHeightRef = useRef(0);
   const contentHeightRef = useRef(0);
 
-  const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } =
-    useActiveTargetLanguage();
+  useKeyboardShortcut(
+    '/',
+    () => {
+      searchInputRef.current?.focus();
+    },
+    { enabled: Platform.OS === 'web' },
+  );
+
+  const {
+    targetLanguage,
+    loading: languageLoading,
+    error: languageError,
+    refresh: refreshLanguage,
+  } = useActiveTargetLanguage();
 
   const deckFilter = selectedDeckId ?? undefined;
   const {
@@ -155,7 +199,12 @@ export function MyWordsScreen() {
       try {
         const loaded = await listDecks(targetLanguage, 'private');
         setDecks(loaded);
-        setSelectedDeckId((prev) => (loaded.some((d) => d.id === prev) ? prev : null));
+        setSelectedDeckId((prev) => {
+          if (routeDeckId && loaded.some((d) => d.id === routeDeckId)) {
+            return routeDeckId;
+          }
+          return loaded.some((d) => d.id === prev) ? prev : null;
+        });
       } catch (err) {
         setDecksError(err instanceof Error ? err.message : t('words.deckLoadFailed'));
       } finally {
@@ -164,7 +213,7 @@ export function MyWordsScreen() {
         }
       }
     },
-    [targetLanguage, t],
+    [targetLanguage, t, routeDeckId],
   );
 
   useEffect(() => {
@@ -198,76 +247,15 @@ export function MyWordsScreen() {
     [targetLanguage, t, loadDecks, refresh],
   );
 
-  const handleRename = useCallback(
-    async (name: string) => {
-      if (!formDeck) return;
-      setFormLoading(true);
-      setOperationError(null);
-      try {
-        await renameDeck(formDeck.id, name);
-        setFormMode(null);
-        await loadDecks();
-      } catch (err) {
-        setOperationError(err instanceof Error ? err.message : t('words.deckRenameFailed'));
-      } finally {
-        setFormLoading(false);
-      }
-    },
-    [formDeck, t, loadDecks],
-  );
-
-  const handleDelete = useCallback(
-    async () => {
-      if (!formDeck) return;
-      setFormLoading(true);
-      setOperationError(null);
-      try {
-        await deleteDeck(formDeck.id);
-        setSelectedDeckId(null);
-        setFormMode(null);
-        await loadDecks();
-        await refresh();
-      } catch (err) {
-        setOperationError(err instanceof Error ? err.message : t('words.deckDeleteFailed'));
-      } finally {
-        setFormLoading(false);
-      }
-    },
-    [formDeck, t, loadDecks, refresh],
-  );
-
   const handleCloseModal = useCallback(() => {
     setFormMode(null);
     setOperationError(null);
   }, []);
 
   const openCreate = useCallback(() => {
-    setFormDeck(undefined);
     setFormMode('create');
     setOperationError(null);
   }, []);
-
-  const openEdit = useCallback((deck: Deck) => {
-    setFormDeck(deck);
-    setFormMode('rename');
-    setOperationError(null);
-  }, []);
-
-  const toggleDeckSelection = useCallback((deckId: string) => {
-    setSelectedDeckIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(deckId)) next.delete(deckId);
-      else next.add(deckId);
-      return next;
-    });
-  }, []);
-
-  const clearDeckSelection = () => setSelectedDeckIds(new Set());
-
-  const handleSetDefault = async () => {
-    // Future backend endpoint; for now no-op with console warning.
-    console.warn('Set default deck not yet implemented');
-  };
 
   const openMoveModal = useCallback((itemIds: string[], excludeDeckId?: string | null) => {
     setMoveItemIds(itemIds);
@@ -344,6 +332,23 @@ export function MyWordsScreen() {
     [items, t, removeItemsLocally, loadDecks, refresh],
   );
 
+  const requestRemoveItems = useCallback((itemIds: string[]) => {
+    if (itemIds.length === 0) return;
+    setPendingRemoveIds(itemIds);
+  }, []);
+
+  const confirmRemoveItems = useCallback(() => {
+    const ids = pendingRemoveIds;
+    setPendingRemoveIds(null);
+    if (ids && ids.length > 0) {
+      void handleRemoveItems(ids);
+    }
+  }, [pendingRemoveIds, handleRemoveItems]);
+
+  const cancelRemoveItems = useCallback(() => {
+    setPendingRemoveIds(null);
+  }, []);
+
   const toggleItemSelection = useCallback((itemId: string) => {
     setSelectedItemIds((prev) => {
       const next = new Set(prev);
@@ -355,7 +360,7 @@ export function MyWordsScreen() {
 
   const clearItemSelection = useCallback(() => setSelectedItemIds(new Set()), []);
 
-  const handleCardPress = useCallback(
+  const handleRowPress = useCallback(
     (item: LearningItemListItem) => {
       if (selectedItemIds.size > 0) {
         toggleItemSelection(item.id);
@@ -366,40 +371,38 @@ export function MyWordsScreen() {
     [navigation, selectedItemIds.size, toggleItemSelection],
   );
 
-  const handleCardLongPress = useCallback(
-    (item: LearningItemListItem) => {
-      setSelectedItemIds((prev) => {
-        const next = new Set(prev);
-        next.add(item.id);
-        return next;
-      });
-    },
-    [],
-  );
-
-  const handleBatchRename = () => {
-    const first = decks.find((d) => selectedDeckIds.has(d.id));
-    if (first) {
-      setFormDeck(first);
-      setFormMode('rename');
-    }
-  };
-
-  const handleBatchDelete = async () => {
-    const toDelete = decks.filter((d) => selectedDeckIds.has(d.id) && !d.is_default);
-    for (const deck of toDelete) {
-      try {
-        await deleteDeck(deck.id);
-      } catch (err) {
-        console.error('Batch delete failed for', deck.id, err);
-      }
-    }
-    setSelectedDeckIds(new Set());
-    await loadDecks();
-    await refresh();
-  };
+  const handleRowLongPress = useCallback((item: LearningItemListItem) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      next.add(item.id);
+      return next;
+    });
+  }, []);
 
   const hasSearch = q.trim().length > 0;
+
+  const stageCounts = useMemo(() => {
+    const counts: Record<(typeof FILTERS)[number]['key'], number> = {
+      all: items.length,
+      new: 0,
+      learning: 0,
+      recognized: 0,
+      recalled: 0,
+      usable: 0,
+      mastered: 0,
+    };
+    for (const item of items) {
+      if (counts[item.learning_stage] !== undefined) {
+        counts[item.learning_stage] += 1;
+      }
+    }
+    return counts;
+  }, [items]);
+
+  const totalWordsCount = useMemo(() => {
+    const deckSum = decks.reduce((sum, d) => sum + (d.item_count ?? 0), 0);
+    return Math.max(items.length, deckSum);
+  }, [items.length, decks]);
 
   const filteredItems = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -416,78 +419,146 @@ export function MyWordsScreen() {
     });
   }, [items, filter, q]);
 
-  const renderItem: ListRenderItem<LearningItemListItem> = useCallback(
-    ({ item }) => {
+  const renderWordRow = useCallback(
+    (item: LearningItemListItem, index: number) => {
       const selected = selectedItemIds.has(item.id);
+      const gloss = splitMeanings(item).simple ?? item.short_definition ?? item.definition;
+      const stageSwatchColor = stageColor(item.learning_stage);
+      const stageLabel = t(`home.stage.${item.learning_stage}` as TranslationKey);
+      const dueLabel = formatDueLabel(item.due_at, t('words.dueToday'), language);
+
       return (
-        <CinematicCard
-          glass={true}
-          onPress={() => handleCardPress(item)}
-          onLongPress={() => handleCardLongPress(item)}
-          style={{
-            marginBottom: spacing.md,
-            backgroundColor: selected ? colors.primaryContainer : undefined,
-            borderColor: selected ? colors.primary : undefined,
+        <Pressable
+          key={item.id}
+          testID={`word-row-${item.id}`}
+          accessibilityRole="button"
+          onPress={() => handleRowPress(item)}
+          onLongPress={() => handleRowLongPress(item)}
+          style={(state) => {
+            const hovered = Boolean((state as { hovered?: boolean }).hovered);
+            return [
+              styles.tableRow,
+              {
+                minHeight: 56,
+                backgroundColor: selected
+                  ? colors.infoSurface
+                  : state.pressed
+                    ? colors.infoSurface
+                    : hovered
+                      ? colors.fill
+                      : colors.surfaceBase,
+                borderLeftWidth: 2,
+                borderRightWidth: 2,
+                borderBottomWidth: 1,
+                borderColor: colors.hairline,
+              },
+              index === 0 && !wideLayout && {
+                borderTopWidth: 2,
+                borderTopLeftRadius: radii.lg,
+                borderTopRightRadius: radii.lg,
+              },
+            ];
           }}
         >
-        <View style={styles.row}>
-          <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Text variant="title" bold style={styles.shrinkText}>
-                {item.lemma}
-              </Text>
-              <SpeakButton language={item.language_code} size="sm" text={item.lemma} />
-            </View>
-            {item.pronunciation && (
-              <Text variant="caption" color="muted">
+          <View style={styles.colWord}>
+            <Text variant="listLemma" style={styles.shrinkText}>
+              {item.lemma}
+            </Text>
+            {item.pronunciation ? (
+              <Text variant="ipa" color={colors.textMuted}>
                 {item.pronunciation}
               </Text>
-            )}
-            <Text variant="caption" color="muted" testID={`word-gloss-${item.id}`} style={styles.shrinkText}>
-              {splitMeanings(item).simple ?? item.short_definition ?? item.definition}
+            ) : null}
+          </View>
+
+          {wideLayout ? (
+            <View style={styles.colMeaning}>
+              <Text
+                variant="body"
+                color={colors.textSecondary}
+                testID={`word-gloss-${item.id}`}
+                style={styles.shrinkText}
+              >
+                {gloss}
+              </Text>
+            </View>
+          ) : null}
+
+          {wideLayout ? (
+            <View style={styles.colType}>
+              <Text variant="caption" color={colors.textSecondary} testID={`word-type-${item.id}`}>
+                {t(`pos.${item.part_of_speech}` as TranslationKey)}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.colStage} testID={`word-stage-${item.id}`}>
+            <View style={[styles.stageDot, { backgroundColor: stageSwatchColor }]} />
+            <Text variant="caption" color={colors.text}>
+              {stageLabel}
             </Text>
+            {item.is_leech ? <Badge label={t('words.stuckBadge')} variant="danger" /> : null}
           </View>
-          <View style={[styles.cardActions, { gap: spacing.sm }]}>
-            <Pressable
-              onPress={() => openMoveModal([item.id], item.deck_id ?? null)}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('words.moveToDeck')}
-            >
-              <Icon name="folder-open-outline" size="md" color={colors.primary} />
-            </Pressable>
-            <Pressable
-              onPress={() => void handleRemoveItems([item.id])}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('words.removeFromDeck')}
-              disabled={removeLoading}
-            >
-              <Icon name="trash-outline" size="md" color={colors.error} />
-            </Pressable>
-            <Icon name="chevron-forward" size="md" />
-          </View>
-        </View>
-        <View style={[styles.badgeRow, { marginTop: spacing.sm, gap: spacing.sm, flexWrap: 'wrap' }]}>
-          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
-          <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
-          {item.is_leech ? <Badge label={t('words.stuckBadge')} variant="danger" /> : null}
-          {item.deck_name ? (
-            <Badge label={`📁 ${item.deck_name}`} variant="default" />
+
+          {wideLayout ? (
+            <View style={styles.colDue}>
+              <Text
+                variant="caption"
+                tabular
+                color={dueLabel === t('words.dueToday') ? colors.accent : colors.textSecondary}
+                testID={`word-due-${item.id}`}
+              >
+                {dueLabel}
+              </Text>
+            </View>
           ) : null}
-          {item.last_reviewed_at ? (
-            <Badge
-              label={t('words.lastReviewed', {
-                time: formatRelativeTime(item.last_reviewed_at, language),
-              })}
-              variant="info"
-            />
-          ) : null}
-        </View>
-      </CinematicCard>
+
+          <HoverReveal>
+            <View style={styles.rowActions}>
+              <SpeakButton language={item.language_code} size="sm" text={item.lemma} />
+              <Pressable
+                testID={`word-move-${item.id}`}
+                onPress={() => openMoveModal([item.id], item.deck_id ?? null)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('words.moveToDeck')}
+                style={styles.actionIconBtn}
+              >
+                <Icon name="folder-open-outline" size={16} color={colors.textSecondary} />
+              </Pressable>
+              <Pressable
+                testID={`word-remove-${item.id}`}
+                onPress={() => requestRemoveItems([item.id])}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('words.removeFromDeck')}
+                disabled={removeLoading}
+                style={styles.actionIconBtn}
+              >
+                <Icon name="trash-outline" size={16} color={colors.danger} />
+              </Pressable>
+            </View>
+          </HoverReveal>
+        </Pressable>
       );
     },
-    [spacing.sm, spacing.md, spacing.xs, t, language, colors, handleCardPress, handleCardLongPress, handleRemoveItems, openMoveModal, removeLoading, selectedItemIds],
+    [
+      selectedItemIds,
+      t,
+      language,
+      colors,
+      wideLayout,
+      handleRowPress,
+      handleRowLongPress,
+      openMoveModal,
+      requestRemoveItems,
+      removeLoading,
+    ],
+  );
+
+  const renderItem: ListRenderItem<LearningItemListItem> = useCallback(
+    ({ item, index }) => renderWordRow(item, index),
+    [renderWordRow],
   );
 
   const listEmpty = () => {
@@ -533,7 +604,8 @@ export function MyWordsScreen() {
     }
   }, []);
 
-  const webViewportFallback = Platform.OS === 'web' && typeof window !== 'undefined' ? window.innerHeight : 0;
+  const webViewportFallback =
+    Platform.OS === 'web' && typeof window !== 'undefined' ? window.innerHeight : 0;
 
   const tryLoadMoreFromMetrics = useCallback(
     (nativeEvent: NativeScrollEvent | null | undefined, offsetYOverride?: number) => {
@@ -551,7 +623,11 @@ export function MyWordsScreen() {
         viewportHeightRef.current = nativeEvent.layoutMeasurement.height;
       }
       const offsetY = offsetYOverride ?? metrics.offsetY;
-      const distanceFromBottom = distanceFromListBottom(metrics.contentHeight, metrics.viewportHeight, offsetY);
+      const distanceFromBottom = distanceFromListBottom(
+        metrics.contentHeight,
+        metrics.viewportHeight,
+        offsetY,
+      );
       if (distanceFromBottom != null) {
         maybeLoadMoreFromScroll(distanceFromBottom);
       }
@@ -574,75 +650,87 @@ export function MyWordsScreen() {
     [tryLoadMoreFromMetrics],
   );
 
-  const listFooter = () => {
-    if (isLoadingMore) {
-      return (
+  const listFooter = () => (
+    <View style={styles.footerWrap}>
+      {filteredItems.length > 0 ? (
+        <Text variant="caption" color={colors.textMuted} style={styles.rowHint}>
+          {t('words.rowHint')}
+        </Text>
+      ) : null}
+      {isLoadingMore ? (
         <View style={styles.footer}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.accent} />
         </View>
-      );
-    }
-
-    if (!hasMore) {
-      return null;
-    }
-
-    return (
-      <View style={styles.footer}>
-        <Button
-          label={t('words.loadMore')}
-          variant="tonal"
-          onPress={() => void loadMore()}
-          disabled={isLoadingMore}
-        />
-      </View>
-    );
-  };
+      ) : hasMore ? (
+        <View style={styles.footer}>
+          <Button
+            label={t('words.loadMore')}
+            variant="secondary"
+            onPress={() => void loadMore()}
+            disabled={isLoadingMore}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
 
   const listHeader = useMemo(() => {
     const filterChips = FILTERS.map((f) => (
       <Chip
         key={f.key}
+        testID={`stage-tab-${f.key}`}
         label={t(f.labelKey as never)}
+        count={stageCounts[f.key]}
         selected={filter === f.key}
         onPress={() => setFilter(f.key)}
       />
     ));
+
     return (
-      <View testID="words-header" style={{ gap: spacing.md, marginBottom: spacing.md }} onLayout={handleHeaderLayout}>
-        {languageLoading || decksLoading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : (
-          <DeckCanvas
-            decks={decks}
-            selectedId={selectedDeckId}
-            onSelect={(id) => {
-              if (Platform.OS === 'web') {
-                toggleDeckSelection(id);
-              }
-              setSelectedDeckId(id);
-            }}
-            onCreate={openCreate}
-            onEdit={(deck) => {
-              setSelectedDeckId(deck.id);
-              openEdit(deck);
-            }}
-            onInspect={(deck) => setInspectorDeck(deck)}
-          />
-        )}
+      <View testID="words-header" style={styles.headerBlock} onLayout={handleHeaderLayout}>
+        <View style={[styles.topBar, { borderBottomColor: colors.hairline }]}>
+          <View style={styles.titleStack}>
+            <Text variant="pageTitle">{t('words.title')}</Text>
+            <Text variant="bodySmall" color={colors.textSecondary} testID="words-summary">
+              {t('words.summary', { words: totalWordsCount, decks: decks.length })}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <DeckFilterMenu
+              decks={decks}
+              selectedDeckId={selectedDeckId}
+              totalWordsCount={totalWordsCount}
+              onSelectDeck={(id) => setSelectedDeckId(id)}
+              onNewDeck={openCreate}
+              onManageDecks={() => navigation.navigate('Decks')}
+            />
+            <Button
+              testID="words-new-deck"
+              label={t('words.newDeck')}
+              variant="primary"
+              size="md"
+              iconLeft="add"
+              onPress={openCreate}
+            />
+          </View>
+        </View>
 
         <Input
+          ref={searchInputRef}
+          testID="words-search-input"
           value={q}
           onChangeText={setQ}
           placeholder={t('words.searchPlaceholder')}
           autoCapitalize="none"
           autoCorrect={false}
+          leading={<Icon name="search" size={16} color={colors.textMuted} />}
+          trailing={!q ? <Kbd>/</Kbd> : undefined}
           onClear={() => setQ('')}
           loading={isSearching}
         />
 
         {wideLayout ? (
-          <View testID="words-filter-row" style={[styles.filterRow, styles.filterRowWrap, { gap: spacing.sm }]}>
+          <View testID="words-filter-row" style={[styles.filterRow, styles.filterRowWrap]}>
             {filterChips}
           </View>
         ) : (
@@ -650,37 +738,74 @@ export function MyWordsScreen() {
             testID="words-filter-row"
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.filterRow, { gap: spacing.sm }]}
+            contentContainerStyle={styles.filterRow}
           >
             {filterChips}
           </ScrollView>
         )}
+
+        {wideLayout && filteredItems.length > 0 ? (
+          <View
+            testID="words-table-header"
+            style={[
+              styles.tableHeader,
+              {
+                backgroundColor: colors.surfaceHighlight,
+                borderColor: colors.hairline,
+                borderTopWidth: 2,
+                borderLeftWidth: 2,
+                borderRightWidth: 2,
+                borderBottomWidth: 2,
+                borderTopLeftRadius: radii.lg,
+                borderTopRightRadius: radii.lg,
+              },
+            ]}
+          >
+            <View style={styles.colWord}>
+              <Text variant="groupLabel">{t('words.colWord')}</Text>
+            </View>
+            <View style={styles.colMeaning}>
+              <Text variant="groupLabel">{t('words.colMeaning')}</Text>
+            </View>
+            <View style={styles.colType}>
+              <Text variant="groupLabel">{t('words.colType')}</Text>
+            </View>
+            <View style={styles.colStage}>
+              <Text variant="groupLabel">{t('words.colStage')}</Text>
+            </View>
+            <View style={styles.colDue}>
+              <Text variant="groupLabel">{t('words.colDue')}</Text>
+            </View>
+            <View style={styles.rowActionsSpacer} />
+          </View>
+        ) : null}
       </View>
     );
   }, [
-    languageLoading,
-    decksLoading,
+    t,
+    stageCounts,
+    filter,
+    handleHeaderLayout,
+    colors.hairline,
+    colors.textSecondary,
+    colors.textMuted,
+    totalWordsCount,
     decks,
     selectedDeckId,
     openCreate,
-    openEdit,
+    navigation,
     q,
-    status,
-    filter,
-    colors.primary,
-    spacing.md,
-    spacing.sm,
-    t,
-    handleHeaderLayout,
+    isSearching,
     wideLayout,
+    filteredItems.length,
   ]);
 
   if (!languageLoading && languageError) {
     return (
       <Screen title={t('words.title')} padded>
-        <View style={{ gap: spacing.md, flex: 1 }}>
+        <PageColumn>
           <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
-        </View>
+        </PageColumn>
       </Screen>
     );
   }
@@ -688,7 +813,7 @@ export function MyWordsScreen() {
   if (!languageLoading && !targetLanguage) {
     return (
       <Screen title={t('words.title')} padded>
-        <View style={{ gap: spacing.md, flex: 1 }}>
+        <PageColumn>
           <EmptyState
             icon="language-outline"
             title={t('words.noLanguagePairTitle')}
@@ -696,7 +821,7 @@ export function MyWordsScreen() {
             actionLabel={t('words.noLanguagePairAction')}
             onAction={() => navigation.navigate('Settings', { screen: 'LanguagePairs' })}
           />
-        </View>
+        </PageColumn>
       </Screen>
     );
   }
@@ -705,66 +830,31 @@ export function MyWordsScreen() {
     <RefreshControl
       refreshing={isRefreshing}
       onRefresh={() => void refresh()}
-      tintColor={colors.primary}
-      colors={[colors.primary]}
+      tintColor={colors.accent}
+      colors={[colors.accent]}
     />
   );
 
   const listContentStyle = [
     styles.list,
-    { paddingBottom: spacing.lg },
     filteredItems.length === 0 && styles.listEmpty,
   ];
+
+  const confirmDialogTitle =
+    pendingRemoveIds && pendingRemoveIds.length > 1
+      ? t('words.removeConfirmTitleMany', { count: pendingRemoveIds.length })
+      : t('words.removeConfirmTitle');
 
   const overlays = (
     <>
       <DeckFormModal
         visible={formMode !== null}
-        mode={formMode ?? 'create'}
-        deck={formDeck}
+        mode="create"
         onClose={handleCloseModal}
-        onSubmit={formMode === 'create' ? handleCreate : handleRename}
-        onDelete={formMode === 'rename' && formDeck && !formDeck.is_default ? handleDelete : undefined}
+        onSubmit={handleCreate}
         isLoading={formLoading}
         error={operationError ?? undefined}
       />
-
-      <InspectorPanel
-        visible={inspectorDeck !== null}
-        onClose={() => setInspectorDeck(null)}
-        title={inspectorDeck?.name}
-      >
-        <View style={{ gap: spacing.md }}>
-          <Text variant="caption" color="muted">
-            {t('add.deckCardCount', { count: inspectorDeck?.item_count ?? 0 })}
-          </Text>
-          <Button
-            label={t('words.renameDeck')}
-            variant="tonal"
-            onPress={() => {
-              if (inspectorDeck) openEdit(inspectorDeck);
-              setInspectorDeck(null);
-            }}
-          />
-          {inspectorDeck && !inspectorDeck.is_default && (
-            <Button
-              label={t('words.deleteDeck')}
-              variant="outline"
-              onPress={async () => {
-                try {
-                  await deleteDeck(inspectorDeck.id);
-                  setSelectedDeckId(null);
-                  await loadDecks();
-                  await refresh();
-                } catch (err) {
-                  console.error(err);
-                }
-                setInspectorDeck(null);
-              }}
-            />
-          )}
-        </View>
-      </InspectorPanel>
 
       <MoveToDeckModal
         visible={moveModalOpen}
@@ -776,45 +866,35 @@ export function MyWordsScreen() {
         error={moveError}
       />
 
+      <ConfirmDialog
+        visible={pendingRemoveIds !== null && pendingRemoveIds.length > 0}
+        title={confirmDialogTitle}
+        body={t('words.removeConfirmBody')}
+        confirmLabel={t('words.removeConfirmAction')}
+        cancelLabel={t('common.cancel')}
+        tone="danger"
+        onConfirm={confirmRemoveItems}
+        onCancel={cancelRemoveItems}
+      />
+
       <ContextualCommandBar
-        selectedCount={selectedItemIds.size > 0 ? selectedItemIds.size : selectedDeckIds.size}
-        onClear={selectedItemIds.size > 0 ? clearItemSelection : clearDeckSelection}
-        actions={
-          selectedItemIds.size > 0
-            ? [
-                {
-                  id: 'move',
-                  label: t('words.moveToDeck'),
-                  icon: 'folder-open-outline',
-                  onPress: () => openMoveModal(Array.from(selectedItemIds), selectedDeckId),
-                },
-                {
-                  id: 'remove',
-                  label: t('words.removeFromDeck'),
-                  icon: 'trash-outline',
-                  onPress: () => void handleRemoveItems(Array.from(selectedItemIds)),
-                  disabled: removeLoading,
-                },
-              ]
-            : [
-                {
-                  id: 'rename',
-                  label: t('words.renameDeck'),
-                  icon: 'create-outline',
-                  onPress: handleBatchRename,
-                  disabled: selectedDeckIds.size !== 1,
-                },
-                {
-                  id: 'delete',
-                  label: t('words.deleteDeck'),
-                  icon: 'trash-outline',
-                  onPress: handleBatchDelete,
-                  disabled: Array.from(selectedDeckIds).some(
-                    (id) => decks.find((d) => d.id === id)?.is_default,
-                  ),
-                },
-              ]
-        }
+        selectedCount={selectedItemIds.size}
+        onClear={clearItemSelection}
+        actions={[
+          {
+            id: 'move',
+            label: t('words.moveToDeck'),
+            icon: 'folder-open-outline',
+            onPress: () => openMoveModal(Array.from(selectedItemIds), selectedDeckId),
+          },
+          {
+            id: 'remove',
+            label: t('words.removeFromDeck'),
+            icon: 'trash-outline',
+            onPress: () => requestRemoveItems(Array.from(selectedItemIds)),
+            disabled: removeLoading,
+          },
+        ]}
       />
     </>
   );
@@ -823,36 +903,30 @@ export function MyWordsScreen() {
     return (
       <>
         <Screen
-          title={t('words.title')}
           padded
           refreshControl={refreshControl}
-          style={styles.webPage}
           contentContainerStyle={listContentStyle}
         >
-          {listHeader}
-          {filteredItems.length === 0 ? (
-            listEmpty()
-          ) : (
-            <View testID="words-grid" style={wideLayout ? [styles.grid, { marginHorizontal: -spacing.sm / 2 }] : undefined}>
-              {filteredItems.map((item) => (
-                <View
-                  key={item.id}
-                  style={wideLayout ? [styles.gridCell, { paddingHorizontal: spacing.sm / 2 }] : undefined}
-                >
-                  {renderItem({
-                    item,
-                    index: 0,
-                    separators: {
-                      highlight: () => undefined,
-                      unhighlight: () => undefined,
-                      updateProps: () => undefined,
-                    },
-                  })}
-                </View>
-              ))}
-            </View>
-          )}
-          {filteredItems.length > 0 ? listFooter() : null}
+          <PageColumn>
+            {listHeader}
+            {filteredItems.length === 0 ? (
+              listEmpty()
+            ) : (
+              <View
+                testID="words-table"
+                style={[
+                  styles.tableSurface,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.hairline,
+                  },
+                ]}
+              >
+                {filteredItems.map((item, idx) => renderWordRow(item, idx))}
+              </View>
+            )}
+            {listFooter()}
+          </PageColumn>
         </Screen>
         {overlays}
       </>
@@ -862,7 +936,6 @@ export function MyWordsScreen() {
   return (
     <>
       <Screen
-        title={t('words.title')}
         padded
         as={Animated.FlatList}
         data={filteredItems}
@@ -891,50 +964,118 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  header: {},
+  headerBlock: {
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+  },
+  titleStack: {
+    gap: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   filterRow: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingVertical: 2,
+    gap: spacing.xs,
   },
   filterRowWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  webPage: {
-    maxWidth: WEB_PAGE_MAX_WIDTH,
-  },
-  grid: {
+  tableHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    gap: spacing.md,
   },
-  gridCell: {
-    width: '50%',
+  tableSurface: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.md,
+    minHeight: 56,
+  },
+  colWord: {
+    flex: 1.4,
+    minWidth: 120,
+    gap: 2,
+  },
+  colMeaning: {
+    flex: 2,
+    minWidth: 140,
+  },
+  colType: {
+    width: 84,
+  },
+  colStage: {
+    width: 110,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stageDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  colDue: {
+    width: 80,
+    alignItems: 'flex-end',
+  },
+  rowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rowActionsSpacer: {
+    width: 96,
+  },
+  actionIconBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.sm,
   },
   shrinkText: {
     flexShrink: 1,
   },
   list: {
-    paddingTop: 8,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
   },
   listEmpty: {
     flexGrow: 1,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
+  footerWrap: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
-  cardActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  rowHint: {
+    paddingHorizontal: spacing.xs,
   },
   footer: {
-    paddingVertical: 16,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
 });

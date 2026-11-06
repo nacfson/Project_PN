@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { PosSelector } from '../../components/PosSelector';
 import { SensePicker } from '../../components/SensePicker';
 import { useSenseFlow } from '../../hooks/useSenseFlow';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Input, Text } from '../../ui';
+import { Button, Icon, Input, Kbd, Text } from '../../ui';
 import type { PosFilter } from '../../types';
 
 interface ManualAddSectionProps {
@@ -18,7 +18,7 @@ function isMultiWord(text: string): boolean {
 }
 
 export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSectionProps) {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, radii, shadows } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [context, setContext] = useState('');
@@ -27,6 +27,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
   const [posTouched, setPosTouched] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const [contextExpanded, setContextExpanded] = useState(false);
 
   const {
     pickerVisible,
@@ -100,87 +101,124 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
   const busy = lookingUp || confirming;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surfaceContainerLow, borderRadius: 16, padding: spacing.lg }]}>
-      <Text variant="title" style={{ marginBottom: spacing.sm }}>
-        {t('add.addWordOrPhrase')}
-      </Text>
-      <Text variant="caption" color="muted" style={{ marginBottom: spacing.md }}>
-        {t('add.phraseHint')}
-      </Text>
+    <View style={styles.section}>
+      <View
+        style={[
+          styles.surfaceCard,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.hairline,
+            borderRadius: radii.card,
+          },
+          shadows.playful,
+        ]}
+      >
+        <View style={[styles.topAccentBar, { backgroundColor: colors.brandPrimary }]} />
+        <View style={styles.cardBody}>
+          <View style={styles.heroRow}>
+            <View style={styles.inputFlex} testID="manual-add-input-wrapper">
+              <Input
+                variant="display"
+                value={word}
+                onChangeText={handleChangeText}
+                onBlur={handleBlur}
+                error={!!validationError}
+                helperText={validationError || undefined}
+                placeholder={t('add.inputPlaceholder')}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={findSense}
+                returnKeyType="search"
+                onClear={() => {
+                  setWord('');
+                  setValidationError(null);
+                  setTouched(false);
+                }}
+              />
+            </View>
+            <Button
+              label={t('add.findMeanings')}
+              variant="primary"
+              size="hero"
+              hint={<Kbd color={colors.onPrimary}>Enter</Kbd>}
+              onPress={findSense}
+              disabled={word.trim().length === 0 || busy}
+              loading={lookingUp}
+              testID="find-meanings-button"
+            />
+          </View>
 
-      <View style={{ marginBottom: spacing.md }} testID="manual-add-input-wrapper">
-        <Input
-          value={word}
-          onChangeText={handleChangeText}
-          onBlur={handleBlur}
-          error={!!validationError}
-          helperText={validationError || undefined}
-          placeholder={t('add.phrasePlaceholder')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          onSubmitEditing={findSense}
-          returnKeyType="search"
-          onClear={() => {
-            setWord('');
-            setValidationError(null);
-            setTouched(false);
-          }}
-        />
+          <View style={[styles.disclosureBlock, { borderTopColor: colors.divider }]}>
+            <Pressable
+              onPress={() => setContextExpanded((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: contextExpanded }}
+              testID="add-context-disclosure"
+              style={styles.disclosureTrigger}
+            >
+              <Icon
+                name={contextExpanded ? 'chevron-down' : 'chevron-forward'}
+                size="sm"
+                color={colors.text}
+              />
+              <Text variant="bodySmall" style={{ fontWeight: '500' }}>
+                {t('add.addContext')}
+              </Text>
+              <Text variant="bodySmall" color="muted">
+                {t('add.addContextHint')}
+              </Text>
+            </Pressable>
+
+            {contextExpanded ? (
+              <View style={[styles.contextGrid, { paddingTop: spacing.md, gap: 14 }]}>
+                <View style={styles.fullWidthField}>
+                  <Text variant="caption" style={styles.fieldLabel}>
+                    {t('add.whereSaw')}
+                  </Text>
+                  <Input
+                    value={context}
+                    onChangeText={setContext}
+                    placeholder={t('add.whereSawPlaceholder')}
+                    onClear={() => setContext('')}
+                  />
+                </View>
+
+                <View style={styles.halfField}>
+                  <Text variant="caption" style={styles.fieldLabel}>
+                    {t('add.ownWording')}
+                  </Text>
+                  <Input
+                    value={personalNote}
+                    onChangeText={setPersonalNote}
+                    placeholder={t('add.ownWordingPlaceholder')}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onClear={() => setPersonalNote('')}
+                  />
+                </View>
+
+                <View style={styles.halfField}>
+                  <Text variant="caption" style={styles.fieldLabel}>
+                    {t('add.partOfSpeech')}
+                  </Text>
+                  <PosSelector
+                    value={pos}
+                    onChange={(next) => {
+                      setPosTouched(true);
+                      setPos(next);
+                    }}
+                  />
+                  {!posTouched && isMultiWord(word) ? (
+                    <Text variant="caption" color="muted">
+                      {t('add.phrasePosHint')}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </View>
       </View>
-
-      <View style={{ marginBottom: spacing.md }}>
-        <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-          {t('add.contextLabel')}
-        </Text>
-        <Input
-          value={context}
-          onChangeText={setContext}
-          placeholder={t('add.contextPlaceholder')}
-          multiline
-          numberOfLines={3}
-          style={{ minHeight: 72 }}
-          onClear={() => setContext('')}
-        />
-      </View>
-
-      <View style={{ marginBottom: spacing.md }}>
-        <Text variant="label" color="muted" style={{ marginBottom: spacing.xs }}>
-          {t('add.myWordingLabel')}
-        </Text>
-        <Input
-          value={personalNote}
-          onChangeText={setPersonalNote}
-          placeholder={t('add.myWordingPlaceholder')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          onClear={() => setPersonalNote('')}
-        />
-      </View>
-
-      <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
-        <Text variant="label" color="muted">
-          {t('add.partOfSpeechOptional')}
-        </Text>
-        <PosSelector
-          value={pos}
-          onChange={(next) => {
-            setPosTouched(true);
-            setPos(next);
-          }}
-        />
-        {!posTouched && isMultiWord(word) ? (
-          <Text variant="caption" color="muted">
-            {t('add.phrasePosHint')}
-          </Text>
-        ) : null}
-      </View>
-
-      <Button
-        label={t('add.findMySense')}
-        onPress={findSense}
-        disabled={word.trim().length === 0 || busy}
-        loading={lookingUp}
-      />
 
       <SensePicker
         visible={pickerVisible}
@@ -193,7 +231,12 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         sourceContext={context}
         onSourceContextChange={setContext}
         onConfirm={(wordSenseId) => {
-          void confirm(wordSenseId, selectedDeckId, context.trim() || undefined, personalNote.trim() || undefined);
+          void confirm(
+            wordSenseId,
+            selectedDeckId,
+            context.trim() || undefined,
+            personalNote.trim() || undefined,
+          );
         }}
         onForceExisting={forceExisting}
         onForceWithPos={forceWithPos}
@@ -204,7 +247,59 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: 16,
+  section: {
+    gap: 16,
+  },
+  surfaceCard: {
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  topAccentBar: {
+    height: 6,
+    width: '100%',
+  },
+  cardBody: {
+    padding: 24,
+    gap: 16,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  inputFlex: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 320,
+  },
+  disclosureBlock: {
+    borderTopWidth: 1,
+    paddingTop: 12,
+    gap: 4,
+  },
+  disclosureTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    minHeight: 32,
+  },
+  contextGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  fullWidthField: {
+    width: '100%',
+    gap: 6,
+  },
+  halfField: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 220,
+    gap: 6,
+  },
+  fieldLabel: {
+    fontWeight: '500',
   },
 });

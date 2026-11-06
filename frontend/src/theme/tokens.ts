@@ -1,217 +1,106 @@
-export type ThemeMode = 'light' | 'dark';
+const semanticPalette = {
+  // KidLearn Design System Palette
+  brandPrimary: '#EF4444',
+  brandPrimaryDark: '#DC2626',
+  brandSecondary: '#3B82F6',
+  brandSecondaryDark: '#2563EB',
+  brandTertiary: '#FACC15',
+  surfaceBase: '#FFFFFF',
+  surfaceHighlight: '#FEF3C7',
+  surfaceHighlightBorder: '#F59E0B',
 
-const md3Light = {
-  primary: '#4F6AFF',
-  onPrimary: '#ffffff',
-  primaryContainer: '#E8EDFF',
-  onPrimaryContainer: '#21005d',
-
-  secondary: '#5B6B8A',
-  onSecondary: '#ffffff',
-  secondaryContainer: '#e8def8',
-  onSecondaryContainer: '#1d192b',
-
-  tertiary: '#E87C4F',
-  onTertiary: '#ffffff',
-  tertiaryContainer: '#FFEBE2',
-  onTertiaryContainer: '#31111d',
-
-  error: '#b3261e',
-  onError: '#ffffff',
-  errorContainer: '#f9dedc',
-  onErrorContainer: '#410e0b',
-
-  background: '#F5F7FC',
-  onBackground: '#1c1b1f',
-
-  surface: '#FFFFFF',
-  onSurface: '#1c1b1f',
-  surfaceVariant: '#e7e0ec',
-  onSurfaceVariant: '#49454f',
-
-  surfaceContainerLowest: '#ffffff',
-  surfaceContainerLow: '#f7f2fa',
-  surfaceContainer: '#f3edf7',
-  surfaceContainerHigh: '#ece6f0',
-  surfaceContainerHighest: '#e6e0e9',
-
-  outline: '#79747e',
-  outlineVariant: '#C8CDD8',
-
-  inverseSurface: '#322f35',
-  inverseOnSurface: '#f5eff7',
-  inversePrimary: '#d0bcff',
-
-  accent: '#00B4A0',
-  accent2: '#008080',
-
-  surfaceGlass: 'rgba(255, 255, 255, 0.72)',
-  borderGlass: 'rgba(255, 255, 255, 0.5)',
+  canvas: '#FFFFFF',
+  surface: '#F9FAFB',
+  text: '#1F2937',
+  textSecondary: '#374151',
+  textMuted: '#4B5563',
+  hairline: '#E5E7EB',
+  divider: '#E5E7EB',
+  controlBorder: '#9CA3AF',
+  controlBorderHover: '#6B7280',
+  controlBorderStrong: '#6B7280',
+  fill: '#F3F4F6',
+  fillAlt: '#E5E7EB',
+  fillSubtle: '#FEF3C7',
+  primary: '#DC2626',
+  primaryHover: '#B91C1C',
+  onPrimary: '#FFFFFF',
+  accent: '#2563EB',
+  accentHover: '#1D4ED8',
+  danger: '#DC2626',
+  dangerSurface: '#FEF2F2',
+  success: '#15803D',
+  successBright: '#22C55E',
+  successSurface: '#DCFCE7',
+  warning: '#B45309',
+  warningBright: '#F59E0B',
+  warningSurface: '#FEF3C7',
+  infoSurface: '#DBEAFE',
+  focusRing: '#2563EB',
+  scrim: 'rgba(31, 41, 55, 0.4)',
 } as const;
 
-const md3Dark = {
-  primary: '#7B93FF',
-  onPrimary: '#381e72',
-  primaryContainer: '#1E2A5E',
-  onPrimaryContainer: '#eaddff',
+export const colors = semanticPalette;
 
-  secondary: '#A8B8D8',
-  onSecondary: '#332d41',
-  secondaryContainer: '#4a4458',
-  onSecondaryContainer: '#e8def8',
+export type Colors = typeof colors;
 
-  tertiary: '#FFB088',
-  onTertiary: '#492532',
-  tertiaryContainer: '#3E2419',
-  onTertiaryContainer: '#ffd8e4',
-
-  error: '#f2b8b5',
-  onError: '#601410',
-  errorContainer: '#8c1d18',
-  onErrorContainer: '#f9dedc',
-
-  background: '#0A0E1A',
-  onBackground: '#e6e1e5',
-
-  surface: '#141827',
-  onSurface: '#e6e1e5',
-  surfaceVariant: '#49454f',
-  onSurfaceVariant: '#cab6cc',
-
-  surfaceContainerLowest: '#0f0d13',
-  surfaceContainerLow: '#1d1b20',
-  surfaceContainer: '#211f26',
-  surfaceContainerHigh: '#272229',
-  surfaceContainerHighest: '#322f35',
-
-  outline: '#938f99',
-  outlineVariant: '#2A3048',
-
-  inverseSurface: '#e6e0e9',
-  inverseOnSurface: '#322f35',
-  inversePrimary: '#6750a4',
-
-  accent: '#4EDDC8',
-  accent2: '#4ecdc4',
-
-  surfaceGlass: 'rgba(255, 255, 255, 0.05)',
-  borderGlass: 'rgba(255, 255, 255, 0.08)',
+export const stage = {
+  new: '#F59E0B',
+  learning: '#60A5FA',
+  recognized: '#3B82F6',
+  recalled: '#8B5CF6',
+  usable: '#22C55E',
+  mastered: '#FACC15',
 } as const;
 
-export interface MD3Colors {
-  primary: string;
-  onPrimary: string;
-  primaryContainer: string;
-  onPrimaryContainer: string;
-  secondary: string;
-  onSecondary: string;
-  secondaryContainer: string;
-  onSecondaryContainer: string;
-  tertiary: string;
-  onTertiary: string;
-  tertiaryContainer: string;
-  onTertiaryContainer: string;
-  error: string;
-  onError: string;
-  errorContainer: string;
-  onErrorContainer: string;
-  background: string;
-  onBackground: string;
-  surface: string;
-  onSurface: string;
-  surfaceVariant: string;
-  onSurfaceVariant: string;
-  surfaceContainerLowest: string;
-  surfaceContainerLow: string;
-  surfaceContainer: string;
-  surfaceContainerHigh: string;
-  surfaceContainerHighest: string;
-  outline: string;
-  outlineVariant: string;
-  inverseSurface: string;
-  inverseOnSurface: string;
-  inversePrimary: string;
-  accent: string;
-  accent2: string;
-  surfaceGlass: string;
-  borderGlass: string;
+export type StageKey = keyof typeof stage;
+
+export function stageColor(key: string): string {
+  if (key in stage) {
+    return stage[key as StageKey];
+  }
+  return stage.new;
 }
-
-function semanticColors(mode: ThemeMode): MD3Colors {
-  return mode === 'dark' ? md3Dark : md3Light;
-}
-
-function legacyColors(mode: ThemeMode) {
-  const md3 = semanticColors(mode);
-  return {
-    // Brand (legacy aliases for existing code)
-    primary: md3.primary,
-    primaryPressed: md3.primaryContainer,
-    onPrimary: md3.onPrimary,
-
-    secondary: md3.secondary,
-    secondaryPressed: md3.secondaryContainer,
-    onSecondary: md3.onSecondary,
-
-    // Semantic
-    success: '#16a34a',
-    successSurface: mode === 'dark' ? '#1b3b25' : '#dcfce7',
-    successBorder: mode === 'dark' ? '#81c995' : '#86efac',
-
-    warning: '#d97706',
-    warningSurface: mode === 'dark' ? '#3d2a15' : '#fef3c7',
-    warningBorder: mode === 'dark' ? '#fcd34d' : '#fcd34d',
-
-    danger: md3.error,
-    dangerSurface: md3.errorContainer,
-    dangerBorder: mode === 'dark' ? '#f28b82' : '#fca5a5',
-
-    info: '#0891b2',
-    infoSurface: mode === 'dark' ? '#0f2f38' : '#cffafe',
-    infoBorder: mode === 'dark' ? '#67e8f9' : '#67e8f9',
-
-    // Surfaces
-    surface: md3.surface,
-    surfaceRaised: md3.surfaceContainerHigh,
-    surfaceAlt: md3.surfaceContainerLow,
-
-    // Text
-    text: md3.onSurface,
-    textMuted: md3.onSurfaceVariant,
-    textInverse: md3.inverseOnSurface,
-
-    // Borders
-    border: md3.outlineVariant,
-    borderStrong: md3.outline,
-  } as const;
-}
-
-export function colorsFor(mode: ThemeMode) {
-  return {
-    ...semanticColors(mode),
-    ...legacyColors(mode),
-  } as const;
-}
-
-export type Colors = ReturnType<typeof colorsFor>;
 
 export const spacing = {
-  xs: 4,
+  xs: 8,
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
-  xxxl: 32,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 40,
+  xxxl: 48,
 } as const;
 
 export const radii = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  kbd: 8,
+  sm: 12,
+  md: 20,
+  lg: 20,
+  xl: 24,
+  card: 20,
   xxl: 28,
   full: 9999,
+} as const;
+
+export const controlHeight = {
+  tab: 40,
+  nav: 48,
+  button: 48,
+  buttonLg: 56,
+  heroSm: 52,
+  hero: 56,
+} as const;
+
+export const layout = {
+  sidebarWidth: 232,
+  sidebarMinPageWidth: 720,
+  contentMaxWidth: 760,
+  pagePadding: {
+    wide: { top: 48, x: 32, bottom: 80 },
+    phone: { top: 24, x: 20, bottom: 32 },
+  },
+  tabBarItemMinHeight: 56,
 } as const;
 
 export const shadows = {
@@ -222,97 +111,101 @@ export const shadows = {
     shadowRadius: 0,
     elevation: 0,
   },
+  segment: {
+    shadowColor: '#D1D5DB',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+  playful: {
+    shadowColor: '#D1D5DB',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
   sm: {
-    shadowColor: 'rgba(79, 106, 255, 0.04)',
+    shadowColor: 'rgba(0, 0, 0, 0.08)',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   md: {
-    shadowColor: 'rgba(79, 106, 255, 0.06)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: 'rgba(0, 0, 0, 0.12)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   lg: {
-    shadowColor: 'rgba(79, 106, 255, 0.1)',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowColor: 'rgba(0, 0, 0, 0.16)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    elevation: 8,
   },
 } as const;
 
 export const iconSizes = {
-  sm: 16,
-  md: 20,
-  lg: 24,
+  sm: 18,
+  md: 22,
+  lg: 26,
   xl: 32,
 } as const;
 
 export const typography = {
-  fontFamily: 'Inter-Regular',
+  fontFamily: 'Nunito',
   sizes: {
-    xs: 11,
-    sm: 13,
-    md: 15,
-    lg: 17,
-    xl: 21,
+    xs: 12,
+    sm: 14,
+    md: 16,
+    lg: 18,
+    xl: 22,
     xxl: 28,
-    xxxl: 34,
+    xxxl: 36,
+  },
+  tokens: {
+    heroTitle: { fontSize: 48, lineHeight: 58, fontWeight: '700' as const, letterSpacing: -0.4 },
+    heroTitlePhone: { fontSize: 36, lineHeight: 45, fontWeight: '700' as const, letterSpacing: -0.3 },
+    pageTitle: { fontSize: 36, lineHeight: 45, fontWeight: '700' as const, letterSpacing: -0.3 },
+    sectionTitle: { fontSize: 22, lineHeight: 30, fontWeight: '600' as const },
+    groupLabel: { fontSize: 14, lineHeight: 21, fontWeight: '600' as const },
+    body: { fontSize: 16, lineHeight: 26, fontWeight: '400' as const },
+    bodySmall: { fontSize: 15, lineHeight: 24, fontWeight: '600' as const },
+    caption: { fontSize: 14, lineHeight: 21, fontWeight: '600' as const },
+    micro: { fontSize: 13, lineHeight: 18, fontWeight: '700' as const },
+    stat: { fontSize: 28, lineHeight: 36, fontWeight: '700' as const },
+    statPhone: { fontSize: 24, lineHeight: 31, fontWeight: '700' as const },
+    cardLemma: { fontSize: 48, lineHeight: 58, fontWeight: '700' as const },
+    cardLemmaPhone: { fontSize: 38, lineHeight: 46, fontWeight: '700' as const },
+    listLemma: { fontSize: 22, lineHeight: 30, fontWeight: '600' as const },
+    inputDisplay: { fontSize: 22, lineHeight: 30, fontWeight: '600' as const },
+    meaning: { fontSize: 28, lineHeight: 36, fontWeight: '600' as const },
+    meaningPhone: { fontSize: 24, lineHeight: 32, fontWeight: '600' as const },
+    ipa: { fontSize: 14, lineHeight: 21, fontWeight: '400' as const },
+    kbd: { fontSize: 12, lineHeight: 16, fontWeight: '700' as const },
   },
   weights: {
     regular: '400' as const,
-    medium: '500' as const,
+    medium: '600' as const,
     semibold: '600' as const,
     bold: '700' as const,
     extrabold: '800' as const,
   },
 } as const;
 
-export function themeFor(mode: ThemeMode) {
-  return {
-    mode,
-    colors: colorsFor(mode),
-    spacing,
-    radii,
-    shadows,
-    iconSizes,
-    typography,
-  } as const;
-}
+export const theme = {
+  colors,
+  stage,
+  spacing,
+  radii,
+  controlHeight,
+  layout,
+  shadows,
+  iconSizes,
+  typography,
+} as const;
 
-export type Theme = ReturnType<typeof themeFor>;
-
-export const visualVariations = {
-  bentoIndigo: {
-    background: '#07070a',
-    surface: 'rgba(14, 14, 23, 0.7)',
-    border: 'rgba(255, 255, 255, 0.05)',
-    primaryGlow: 'rgba(139, 92, 246, 0.15)',
-    accentPink: '#ec4899',
-    accentPinkGlow: 'rgba(236, 72, 153, 0.25)',
-    glassBlur: 24,
-  },
-  bentoSunset: {
-    background: '#0f0a0a',
-    surface: 'rgba(25, 18, 18, 0.7)',
-    border: 'rgba(245, 158, 11, 0.08)',
-    primaryGlow: 'rgba(245, 158, 11, 0.2)',
-    accentOrange: '#f97316',
-    accentOrangeGlow: 'rgba(249, 115, 22, 0.3)',
-    glassBlur: 24,
-  },
-  bentoLight: {
-    background: '#f4f5f7',
-    surface: 'rgba(255, 255, 255, 0.72)',
-    border: 'rgba(0, 0, 0, 0.04)',
-    primaryGlow: 'rgba(59, 130, 246, 0.1)',
-    accentPink: '#db2777',
-    accentPinkGlow: 'rgba(219, 39, 119, 0.15)',
-    glassBlur: 24,
-  }
-};
-
+export type Theme = typeof theme;

@@ -25,7 +25,7 @@ export function DeckSelector({ decks, selectedId, onSelect, loading }: DeckSelec
       style={[
         styles.container,
         {
-          backgroundColor: colors.surfaceContainerHighest,
+          backgroundColor: colors.fill,
           borderRadius: radii.md,
           padding: spacing.md,
         },
@@ -36,14 +36,14 @@ export function DeckSelector({ decks, selectedId, onSelect, loading }: DeckSelec
           {t('add.targetDeck')}
         </Text>
         {loading ? (
-          <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: spacing.xs }} />
+          <ActivityIndicator size="small" color={colors.accent} style={{ marginTop: spacing.xs }} />
         ) : (
           <Text variant="body" bold style={{ marginTop: spacing.xs }}>
             {selected?.name ?? t('add.noDeck')}
           </Text>
         )}
       </View>
-      <Icon name="chevron-forward" size="md" color={colors.onSurfaceVariant} />
+      <Icon name="chevron-forward" size="md" color={colors.textSecondary} />
     </Pressable>
   );
 }

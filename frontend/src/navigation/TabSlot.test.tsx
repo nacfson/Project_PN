@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react-native';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { TabSlot } from './TabSlot';
 
-it('keeps a long label inside the button', async () => {
+it('keeps a long label inside the button and enforces minimum height', async () => {
   await render(
     <TabSlot
       label="SettingsSettingsSettings"
@@ -18,6 +18,10 @@ it('keeps a long label inside the button', async () => {
   expect(label.props.numberOfLines).toBe(1);
   expect(label.props.ellipsizeMode).toBe('tail');
   expect(screen.getByTestId('tab-settings').props.style).toEqual(
-    expect.objectContaining({ overflow: 'hidden', maxWidth: '100%' }),
+    expect.objectContaining({
+      overflow: 'hidden',
+      maxWidth: '100%',
+      minHeight: 56,
+    }),
   );
 });

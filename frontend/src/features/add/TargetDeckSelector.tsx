@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Icon, Input, Text } from '../../ui';
+import { Input, Text } from '../../ui';
 import type { Deck } from '../../api/decks';
 
 interface TargetDeckSelectorProps {
@@ -42,46 +42,61 @@ export function TargetDeckSelector({
   return (
     <View style={styles.container}>
       {error && (
-        <View style={[styles.errorBox, { backgroundColor: colors.errorContainer, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md }]}>
-          <Text variant="body" color="danger">{error}</Text>
+        <View
+          style={[
+            styles.errorBox,
+            {
+              backgroundColor: colors.dangerSurface,
+              borderRadius: radii.md,
+              padding: spacing.md,
+              marginBottom: spacing.sm,
+            },
+          ]}
+        >
+          <Text variant="body" color="danger">
+            {error}
+          </Text>
           {onRetry && (
             <Pressable onPress={onRetry}>
-              <Text variant="caption" color="primary">{t('add.deckLoadRetry')}</Text>
+              <Text variant="caption" color="accent">
+                {t('add.deckLoadRetry')}
+              </Text>
             </Pressable>
           )}
         </View>
       )}
 
-      <Text variant="label" color="muted" style={{ marginBottom: spacing.sm }}>
-        {t('add.targetDeck')}
-      </Text>
-      <Pressable
-        onPress={() => canInteract && setIsOpen((v) => !v)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: isOpen, disabled: !canInteract }}
-        style={[
-          styles.selector,
-          {
-            backgroundColor: colors.surface,
-            borderRadius: radii.md,
-            borderColor: colors.outlineVariant,
-            opacity: disabled ? 0.5 : 1,
-          },
-        ]}
-        testID="target-deck-selector-trigger"
-      >
-        <Text variant="body">{selected?.name ?? t('add.noDeck')}</Text>
-        {loading ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size="sm" color={colors.onSurfaceVariant} />
-        )}
-      </Pressable>
+      <View style={styles.inlineRow}>
+        <Text variant="bodySmall" color="muted">
+          {t('add.addingTo')}{' '}
+        </Text>
+        <Pressable
+          onPress={() => canInteract && setIsOpen((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isOpen, disabled: !canInteract }}
+          style={[styles.inlineTrigger, { opacity: disabled ? 0.5 : 1 }]}
+          testID="target-deck-selector-trigger"
+        >
+          <Text variant="bodySmall" style={[styles.deckLinkText, { color: colors.text }]}>
+            {selected?.name ?? t('add.noDeck')}
+          </Text>
+          {loading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+        </Pressable>
+      </View>
 
       {isOpen && (
         <>
           <Pressable style={styles.overlay} onPress={() => setIsOpen(false)} />
-          <View style={[styles.dropdown, { backgroundColor: colors.surface, borderRadius: radii.md, borderColor: colors.outlineVariant }]}>
+          <View
+            style={[
+              styles.dropdown,
+              {
+                backgroundColor: colors.surface,
+                borderRadius: radii.md,
+                borderColor: colors.controlBorder,
+              },
+            ]}
+          >
             <View style={{ padding: spacing.sm }}>
               <Input
                 value={query}
@@ -101,10 +116,20 @@ export function TargetDeckSelector({
                       setIsOpen(false);
                       setQuery('');
                     }}
-                    style={[styles.item, { backgroundColor: isSelected ? colors.primaryContainer : colors.surface, borderBottomColor: colors.outlineVariant }]}
+                    style={[
+                      styles.item,
+                      {
+                        backgroundColor: isSelected ? colors.fill : colors.surface,
+                        borderBottomColor: colors.hairline,
+                      },
+                    ]}
                   >
-                    <Text variant="body" color={isSelected ? 'primary' : 'default'}>{deck.name}</Text>
-                    <Text variant="caption" color="muted">{t('add.deckCardCount', { count: deck.item_count })}</Text>
+                    <Text variant="body" style={{ fontWeight: isSelected ? '600' : '400' }}>
+                      {deck.name}
+                    </Text>
+                    <Text variant="caption" color="muted">
+                      {t('add.deckCardCount', { count: deck.item_count })}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -120,14 +145,20 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
   },
-  selector: {
+  inlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    zIndex: 2,
+    flexWrap: 'wrap',
+  },
+  inlineTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 2,
+  },
+  deckLinkText: {
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   dropdown: {
     position: 'relative',
@@ -135,6 +166,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     zIndex: 10,
+    minWidth: 240,
   },
   overlay: {
     ...StyleSheet.absoluteFill,

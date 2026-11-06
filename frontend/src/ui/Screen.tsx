@@ -1,7 +1,9 @@
 import React, { createContext, useContext } from 'react';
 import {
+  Platform,
   StyleSheet,
   View,
+  useWindowDimensions,
   type FlatListProps,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -21,6 +23,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
+import { shellKind, shellLayout } from '../navigation/shellKind';
 import { Text } from './Text';
 
 export interface ScreenProps
@@ -34,17 +37,63 @@ export interface ScreenProps
   ListHeaderComponent?: React.ReactNode | React.ComponentType<any>;
 }
 
-// Context to share scroll state with parent navigator for hiding the tab bar
-export const TabBarScrollContext = createContext<{
+export interface ShellChromeContextValue {
   tabBarTranslateY: SharedValue<number>;
-  /** When false, the absolute tab bar ignores taps (e.g. while practice chrome is up). */
   tabBarInteractive: boolean;
   setTabBarInteractive: (interactive: boolean) => void;
-} | null>(null);
+  chromeHidden?: boolean;
+  setChromeHidden?: (hidden: boolean) => void;
+}
+
+// Context to share scroll state and chrome visibility with parent navigator
+export const TabBarScrollContext = createContext<ShellChromeContextValue | null>(null);
+export const ShellChromeContext = TabBarScrollContext;
+
+export function useShellChrome() {
+  const ctx = useContext(TabBarScrollContext);
+  return {
+    chromeHidden: ctx?.chromeHidden ?? false,
+    setChromeHidden: ctx?.setChromeHidden ?? (() => {}),
+  };
+}
+
+export function PageColumn({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { layout } = useTheme();
+  const { width } = useWindowDimensions();
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const currentShell = shellKind(Platform.OS, ua);
+  const currentLayout = shellLayout(currentShell, width);
+  const isWide = currentLayout === 'sidebar';
+
+  const pad = isWide ? layout.pagePadding.wide : layout.pagePadding.phone;
+
+  return (
+    <View
+      style={[
+        styles.pageColumn,
+        {
+          maxWidth: layout.contentMaxWidth,
+          paddingTop: pad.top,
+          paddingHorizontal: pad.x,
+          paddingBottom: pad.bottom,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
 
 export const Screen = React.forwardRef<any, ScreenProps>(
   ({ padded, style, contentContainerStyle, children, title, onScroll, as, ...rest }, ref) => {
-    const { colors, spacing } = useTheme();
+    const { colors, spacing, layout } = useTheme();
     const insets = useSafeAreaInsets();
     const scrollContext = useContext(TabBarScrollContext);
     const scrollY = useSharedValue(0);
@@ -124,19 +173,15 @@ export const Screen = React.forwardRef<any, ScreenProps>(
       };
     });
 
-    // Default scrollEnabled to true if title is present (to support collapsible headers),
-    // otherwise default to false if not specified (to avoid conflicts with nested ScrollViews).
     const scrollEnabled = rest.scrollEnabled ?? (title ? true : false);
-
     const ScrollComponent = as || Animated.ScrollView;
 
-    // Dynamically build scroll props as any to satisfy compiler for ScrollView/FlatList differences
     const scrollProps: any = {
       ref,
       onScroll: scrollHandler,
       scrollEventThrottle: 16,
       scrollEnabled,
-      style: [styles.inner, style],
+      style: [styles.inner, { maxWidth: layout.contentMaxWidth }, style],
       contentContainerStyle: [
         padded && { paddingHorizontal: spacing.xl },
         title ? styles.innerWithTitle : undefined,
@@ -157,7 +202,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
               largeHeaderAnimatedStyle,
             ]}
           >
-            <Text variant="headline" style={{ color: colors.onBackground }}>
+            <Text variant="pageTitle" style={{ color: colors.text }}>
               {title}
             </Text>
           </Animated.View>
@@ -173,20 +218,21 @@ export const Screen = React.forwardRef<any, ScreenProps>(
     return (
       <SafeAreaView
         edges={['top', 'right', 'left']}
-        style={[styles.safe, { backgroundColor: colors.background }]}
+        style={[styles.safe, { backgroundColor: colors.canvas }]}
       >
         {title && (
           <Animated.View
             style={[
               styles.smallHeader,
               {
-                backgroundColor: colors.background,
-                borderBottomColor: colors.outlineVariant,
+                maxWidth: layout.contentMaxWidth,
+                backgroundColor: colors.canvas,
+                borderBottomColor: colors.hairline,
               },
               smallHeaderAnimatedStyle,
             ]}
           >
-            <Text variant="title" style={{ color: colors.onBackground }}>
+            <Text variant="sectionTitle" style={{ color: colors.text }}>
               {title}
             </Text>
           </Animated.View>
@@ -200,7 +246,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
                 largeHeaderAnimatedStyle,
               ]}
             >
-              <Text variant="headline" style={{ color: colors.onBackground }}>
+              <Text variant="pageTitle" style={{ color: colors.text }}>
                 {title}
               </Text>
             </Animated.View>
@@ -221,7 +267,6 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     minHeight: 0,
-    maxWidth: 720,
     width: '100%',
     alignSelf: 'center',
   },
@@ -231,7 +276,6 @@ const styles = StyleSheet.create({
   smallHeader: {
     height: 56,
     width: '100%',
-    maxWidth: 720,
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
@@ -243,5 +287,9 @@ const styles = StyleSheet.create({
   largeHeader: {
     paddingVertical: 20,
     justifyContent: 'center',
+  },
+  pageColumn: {
+    width: '100%',
+    alignSelf: 'center',
   },
 });

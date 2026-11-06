@@ -1,4 +1,51 @@
-import type { BatchReviewItemUpdate, DueItem, IntervalPreview, ReviewSettings } from '../../types';
+import type {
+  BatchReviewItemUpdate,
+  DueItem,
+  IntervalPreview,
+  ReviewAttemptParams,
+  ReviewSettings,
+} from '../../types';
+
+export const PASSING_SCORE_THRESHOLD = 0.75;
+
+/** Single source of truth for "correct" (FR-015c). */
+export function isPassingScore(score: number): boolean {
+  return score >= PASSING_SCORE_THRESHOLD;
+}
+
+export interface SessionProgressInput {
+  /** Attempts recorded this session, in order. Existing ReviewAttemptParams shape. */
+  attempts: ReadonlyArray<Pick<ReviewAttemptParams, 'user_word_sense_id' | 'is_correct'>>;
+  /** user_word_sense_id of every due item loaded at session start. Fixed for the session. */
+  dueIds: ReadonlyArray<string>;
+}
+
+export interface SessionProgress {
+  completed: number; // distinct dueIds with ≥1 attempt where is_correct === true
+  total: number; // max(distinct dueIds count, 1)
+  current: number; // min(completed + 1, total)
+  percent: number; // floor(completed / total * 100), 0–100
+}
+
+export function sessionProgress(input: SessionProgressInput): SessionProgress {
+  const distinctDueIds = new Set(input.dueIds);
+  const total = Math.max(distinctDueIds.size, 1);
+  const completedIds = new Set<string>();
+  for (const att of input.attempts) {
+    if (att.is_correct && distinctDueIds.has(att.user_word_sense_id)) {
+      completedIds.add(att.user_word_sense_id);
+    }
+  }
+  const completed = completedIds.size;
+  const current = Math.min(completed + 1, total);
+  const percent = Math.floor((completed / total) * 100);
+  return {
+    completed,
+    total,
+    current,
+    percent,
+  };
+}
 
 export function formatStepMinutes(minutes: number): string {
   if (minutes < 60) {
@@ -137,21 +184,6 @@ export function insertRetryCard<T>(
     }
   }
   return [...head, ...mixed];
-}
-
-/** Unique-card progress so retries do not reuse origin/add slot numbers. */
-export function practiceCardProgress(
-  attemptIds: readonly string[],
-  currentId: string,
-  total: number,
-): { current: number; total: number } {
-  const unique = new Set(attemptIds);
-  const current = unique.has(currentId) ? unique.size : unique.size + 1;
-  const safeTotal = Math.max(total, 1);
-  return {
-    current: Math.min(Math.max(current, 1), safeTotal),
-    total: safeTotal,
-  };
 }
 
 function fisherYates<T>(items: readonly T[], random: () => number): T[] {

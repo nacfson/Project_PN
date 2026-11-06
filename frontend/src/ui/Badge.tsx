@@ -2,27 +2,42 @@ import { StyleSheet, View, type ViewProps } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Text } from './Text';
 
-type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
+export type BadgeVariant =
+  | 'neutral'
+  | 'accent'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  // Legacy aliases kept for compatibility
+  | 'default'
+  | 'primary'
+  | 'info';
 
-interface BadgeProps extends ViewProps {
+export interface BadgeProps extends ViewProps {
   label?: string;
   variant?: BadgeVariant;
   children?: React.ReactNode;
 }
 
-export function Badge({ label, variant = 'default', children, style, ...rest }: BadgeProps) {
+export function Badge({ label, variant = 'neutral', children, style, ...rest }: BadgeProps) {
   const { colors, spacing, radii } = useTheme();
 
+  const normalized =
+    variant === 'default'
+      ? 'neutral'
+      : variant === 'primary' || variant === 'info'
+        ? 'accent'
+        : variant;
+
   const palette = {
-    default: { bg: colors.surfaceContainerHighest, text: colors.onSurface },
-    primary: { bg: colors.primaryContainer, text: colors.onPrimaryContainer },
+    neutral: { bg: colors.fill, text: colors.textSecondary },
+    accent: { bg: colors.infoSurface, text: colors.accent },
     success: { bg: colors.successSurface, text: colors.success },
     warning: { bg: colors.warningSurface, text: colors.warning },
-    danger: { bg: colors.errorContainer, text: colors.error },
-    info: { bg: colors.infoSurface, text: colors.info },
+    danger: { bg: colors.dangerSurface, text: colors.danger },
   };
 
-  const { bg, text } = palette[variant];
+  const { bg, text } = palette[normalized];
 
   return (
     <View
@@ -30,9 +45,9 @@ export function Badge({ label, variant = 'default', children, style, ...rest }: 
         styles.base,
         {
           backgroundColor: bg,
-          borderRadius: radii.full,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.xs,
+          borderRadius: radii.kbd,
+          paddingHorizontal: spacing.sm,
+          paddingVertical: 2,
         },
         style,
       ]}
@@ -41,7 +56,7 @@ export function Badge({ label, variant = 'default', children, style, ...rest }: 
       {children ? (
         children
       ) : (
-        <Text variant="caption" style={{ color: text, fontWeight: '600' }}>
+        <Text variant="micro" style={{ color: text, fontWeight: '500' }}>
           {label}
         </Text>
       )}

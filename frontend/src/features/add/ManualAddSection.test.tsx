@@ -5,6 +5,14 @@ import { ThemeProvider } from '../../theme/ThemeProvider';
 import { ManualAddSection } from './ManualAddSection';
 import { addLearningItem, lookupWord } from '../../api/words';
 
+jest.mock('../../api/storage', () => ({
+  appLanguageStorage: {
+    getLanguage: jest.fn().mockResolvedValue('en'),
+    setLanguage: jest.fn().mockResolvedValue(undefined),
+  },
+  clearLegacyThemePreferences: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../../api/words', () => ({
   addLearningItem: jest.fn().mockResolvedValue({ id: 'item-1', word_sense_id: 'sense-1' }),
   lookupWord: jest.fn().mockResolvedValue({
@@ -28,15 +36,6 @@ jest.mock('../../api/words', () => ({
       },
     ],
   }),
-}));
-
-jest.mock('@expo-google-fonts/inter', () => ({
-  useFonts: () => [true],
-  Inter_400Regular: 'Inter_400Regular',
-  Inter_500Medium: 'Inter_500Medium',
-  Inter_600SemiBold: 'Inter_600SemiBold',
-  Inter_700Bold: 'Inter_700Bold',
-  Inter_800ExtraBold: 'Inter_800ExtraBold',
 }));
 
 jest.mock('../../components/SensePicker', () => {
@@ -84,28 +83,37 @@ describe('ManualAddSection', () => {
     (addLearningItem as jest.Mock).mockClear();
   });
 
-  it('disables find when input is empty', async () => {
+  it('disables Find meanings when input is empty and keeps Add context collapsed by default', async () => {
     await renderSection();
-    expect(screen.getByText('Find my sense')).toBeDisabled();
+    expect(screen.getByTestId('find-meanings-button')).toBeDisabled();
+    expect(screen.getByTestId('manual-add-input-wrapper')).toBeTruthy();
+    expect(screen.queryByText('Where you saw it')).toBeNull();
+    expect(screen.queryByText('Your own wording')).toBeNull();
   });
 
-  it('wraps the word input for layout', async () => {
+  it('expands Add context to show Where you saw it, Your own wording, and Part of speech', async () => {
     await renderSection();
-    expect(screen.getByTestId('manual-add-input-wrapper')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('add-context-disclosure'));
+
+    expect(screen.getByText('Where you saw it')).toBeTruthy();
+    expect(screen.getByText('Your own wording')).toBeTruthy();
+    expect(screen.getByText('Part of speech')).toBeTruthy();
   });
 
   it('looks up with sourceContext and confirms selected sense', async () => {
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
+    const wordInput = screen.getByPlaceholderText('A word or phrase, e.g. look up');
     await fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 
-    const contextInput = screen.getByPlaceholderText(/Optional sentence/);
+    await fireEvent.press(screen.getByTestId('add-context-disclosure'));
+    const contextInput = screen.getByPlaceholderText('The sentence it came from');
     await fireEvent.changeText(contextInput, 'Charge the battery overnight.');
     await waitFor(() => expect(contextInput.props.value).toBe('Charge the battery overnight.'));
 
-    await fireEvent.press(screen.getByText('Find my sense'));
+    await fireEvent.press(screen.getByTestId('find-meanings-button'));
 
     await waitFor(() => {
       expect(lookupWord).toHaveBeenCalledWith(
@@ -133,18 +141,19 @@ describe('ManualAddSection', () => {
     });
   });
 
-  it('passes personalNote when my wording is filled', async () => {
+  it('passes personalNote when Your own wording is filled', async () => {
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
+    const wordInput = screen.getByPlaceholderText('A word or phrase, e.g. look up');
     await fireEvent.changeText(wordInput, 'charge');
     await waitFor(() => expect(wordInput.props.value).toBe('charge'));
 
-    const noteInput = screen.getByPlaceholderText(/Optional gloss/);
+    await fireEvent.press(screen.getByTestId('add-context-disclosure'));
+    const noteInput = screen.getByPlaceholderText('Shown on your cards only');
     await fireEvent.changeText(noteInput, '충전하다');
     await waitFor(() => expect(noteInput.props.value).toBe('충전하다'));
 
-    await fireEvent.press(screen.getByText('Find my sense'));
+    await fireEvent.press(screen.getByTestId('find-meanings-button'));
     await waitFor(() => {
       expect(screen.getByText('to store energy')).toBeTruthy();
     });
@@ -186,12 +195,14 @@ describe('ManualAddSection', () => {
 
     await renderSection();
 
-    const wordInput = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
+    const wordInput = screen.getByPlaceholderText('A word or phrase, e.g. look up');
     await fireEvent.changeText(wordInput, 'look up');
     await waitFor(() => expect(wordInput.props.value).toBe('look up'));
+
+    await fireEvent.press(screen.getByTestId('add-context-disclosure'));
     await waitFor(() => expect(screen.getByText('phrase')).toBeTruthy());
 
-    await fireEvent.press(screen.getByText('Find my sense'));
+    await fireEvent(wordInput, 'submitEditing');
 
     await waitFor(() => {
       expect(lookupWord).toHaveBeenCalledWith(
@@ -207,7 +218,7 @@ describe('ManualAddSection', () => {
   it('validates fields on blur', async () => {
     await renderSection();
 
-    const input = screen.getByPlaceholderText('Type a word or phrase (e.g. look up)');
+    const input = screen.getByPlaceholderText('A word or phrase, e.g. look up');
     await fireEvent.changeText(input, 'hello123');
     await waitFor(() => {
       expect(input.props.value).toBe('hello123');

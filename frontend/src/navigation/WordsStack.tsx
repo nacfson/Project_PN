@@ -1,4 +1,5 @@
 import { createNativeStackNavigator, type NativeStackNavigationOptions } from '@react-navigation/native-stack';
+import { DecksScreen } from '../features/words/DecksScreen';
 import { MyWordsScreen } from '../features/words/MyWordsScreen';
 import { WordDetailScreen } from '../features/words/WordDetailScreen';
 import { useAppLanguage } from '../i18n';
@@ -6,8 +7,9 @@ import { useTheme } from '../theme/ThemeProvider';
 import type { LearningItemListItem } from '../types';
 
 export type WordsStackParamList = {
-  WordsRoot: undefined;
+  WordsRoot: { deckId?: string } | undefined;
   WordDetail: { item: LearningItemListItem };
+  Decks: undefined;
 };
 
 const Stack = createNativeStackNavigator<WordsStackParamList>();
@@ -18,10 +20,10 @@ export function WordsStack() {
 
   const screenOptions: NativeStackNavigationOptions = {
     headerShown: true,
-    headerStyle: { backgroundColor: colors.surfaceContainer },
-    headerTintColor: colors.primary,
-    headerTitleStyle: { color: colors.onSurface },
-    contentStyle: { flex: 1, backgroundColor: colors.background },
+    headerStyle: { backgroundColor: colors.surface },
+    headerTintColor: colors.accent,
+    headerTitleStyle: { color: colors.text },
+    contentStyle: { flex: 1, backgroundColor: colors.canvas },
   };
 
   return (
@@ -35,6 +37,11 @@ export function WordsStack() {
         name="WordDetail"
         component={WordDetailScreen}
         options={{ title: t('words.detailTitle') }}
+      />
+      <Stack.Screen
+        name="Decks"
+        component={DecksScreen}
+        options={{ title: t('words.decksTitle') }}
       />
     </Stack.Navigator>
   );

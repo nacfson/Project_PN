@@ -1,8 +1,9 @@
+import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useAppLanguage } from '../../i18n';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Text } from '../../ui';
+import { radii, spacing, useTheme } from '../../theme';
 import type { ImportAction, ImportPreviewItem, SenseOption } from '../../types';
+import { Text } from '../../ui';
 
 interface ImportConflictPickerProps {
   item: ImportPreviewItem;
@@ -10,8 +11,12 @@ interface ImportConflictPickerProps {
   onSelect: (action: ImportAction) => void;
 }
 
-export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportConflictPickerProps) {
-  const { colors, spacing, radii } = useTheme();
+export function ImportConflictPicker({
+  item,
+  selectedAction,
+  onSelect,
+}: ImportConflictPickerProps) {
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
 
   return (
@@ -19,8 +24,10 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
       style={[
         styles.container,
         {
-          backgroundColor: colors.surfaceContainerLow,
-          borderRadius: radii.xxl,
+          backgroundColor: colors.surface,
+          borderColor: colors.hairline,
+          borderWidth: 1,
+          borderRadius: radii.lg,
           padding: spacing.md,
           gap: spacing.md,
         },
@@ -30,14 +37,14 @@ export function ImportConflictPicker({ item, selectedAction, onSelect }: ImportC
         <Text variant="body" bold>
           {item.front}
         </Text>
-        <Text variant="caption" color="muted">
+        <Text variant="caption" color={colors.textSecondary}>
           {item.back}
         </Text>
       </View>
 
       {item.matched_senses.length > 0 && (
         <View style={{ gap: spacing.xs }}>
-          <Text variant="caption" color="muted">
+          <Text variant="caption" color={colors.textSecondary}>
             {t('import.existingMeanings')}
           </Text>
           {item.matched_senses.map((sense: SenseOption) => (
@@ -92,7 +99,7 @@ interface ActionButtonProps {
 }
 
 function ActionButton({ label, action, selectedAction, onSelect }: ActionButtonProps) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors } = useTheme();
   const selected = selectedAction === action;
 
   return (
@@ -102,15 +109,15 @@ function ActionButton({ label, action, selectedAction, onSelect }: ActionButtonP
         styles.action,
         {
           borderRadius: radii.sm,
-          paddingVertical: spacing.sm,
+          paddingVertical: spacing.xs,
           paddingHorizontal: spacing.md,
-          backgroundColor: selected ? colors.secondaryContainer : 'transparent',
-          borderColor: selected ? 'transparent' : colors.outline,
+          backgroundColor: selected ? colors.infoSurface : colors.surface,
+          borderColor: selected ? colors.accent : colors.controlBorder,
           borderWidth: 1,
         },
       ]}
     >
-      <Text variant="caption" color={selected ? 'onSecondaryContainer' : 'muted'}>
+      <Text variant="caption" color={selected ? colors.accent : colors.textSecondary}>
         {label}
       </Text>
     </Pressable>

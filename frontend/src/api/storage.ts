@@ -42,89 +42,32 @@ function createSecureAppLanguageStorage(): AppLanguageStorage {
 export const appLanguageStorage: AppLanguageStorage =
   Platform.OS === 'web' ? createWebAppLanguageStorage() : createSecureAppLanguageStorage();
 
-const THEME_MODE_KEY = 'project_pn_theme_mode';
+const LEGACY_THEME_KEYS = ['project_pn_theme_mode', 'project_pn_theme_variation'] as const;
 
-export interface ThemeModeStorage {
-  getMode(): Promise<'light' | 'dark' | null>;
-  setMode(mode: 'light' | 'dark'): Promise<void>;
-}
-
-function createWebThemeModeStorage(): ThemeModeStorage {
-  return {
-    async getMode() {
-      if (typeof localStorage === 'undefined') {
-        return null;
-      }
-      const value = localStorage.getItem(THEME_MODE_KEY);
-      return value === 'light' || value === 'dark' ? value : null;
-    },
-    async setMode(mode) {
+export async function clearLegacyThemePreferences(): Promise<void> {
+  if (Platform.OS === 'web') {
+    try {
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(THEME_MODE_KEY, mode);
+        for (const key of LEGACY_THEME_KEYS) {
+          localStorage.removeItem(key);
+        }
       }
-    },
-  };
-}
+    } catch {
+      // Ignore storage errors
+    }
+    return;
+  }
 
-function createSecureThemeModeStorage(): ThemeModeStorage {
-  return {
-    async getMode() {
+  await Promise.all(
+    LEGACY_THEME_KEYS.map(async (key) => {
       try {
-        const value = await SecureStore.getItemAsync(THEME_MODE_KEY);
-        return value === 'light' || value === 'dark' ? value : null;
+        await SecureStore.deleteItemAsync(key);
       } catch {
-        return null;
+        // Ignore storage errors
       }
-    },
-    async setMode(mode) {
-      await SecureStore.setItemAsync(THEME_MODE_KEY, mode);
-    },
-  };
+    }),
+  );
 }
-
-export const themeModeStorage: ThemeModeStorage =
-  Platform.OS === 'web' ? createWebThemeModeStorage() : createSecureThemeModeStorage();
-
-const THEME_VARIATION_KEY = 'project_pn_theme_variation';
-
-export interface ThemeVariationStorage {
-  getVariation(): Promise<string | null>;
-  setVariation(variation: string): Promise<void>;
-}
-
-function createWebThemeVariationStorage(): ThemeVariationStorage {
-  return {
-    async getVariation() {
-      if (typeof localStorage === 'undefined') {
-        return null;
-      }
-      return localStorage.getItem(THEME_VARIATION_KEY);
-    },
-    async setVariation(variation) {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(THEME_VARIATION_KEY, variation);
-      }
-    },
-  };
-}
-
-function createSecureThemeVariationStorage(): ThemeVariationStorage {
-  return {
-    async getVariation() {
-      try {
-        return await SecureStore.getItemAsync(THEME_VARIATION_KEY);
-      } catch {
-        return null;
-      }
-    },
-    async setVariation(variation) {
-      await SecureStore.setItemAsync(THEME_VARIATION_KEY, variation);
-    },
-  };
-}
-
-export const themeVariationStorage: ThemeVariationStorage =
-  Platform.OS === 'web' ? createWebThemeVariationStorage() : createSecureThemeVariationStorage();
 
 const ONBOARDING_KEY = 'project_pn_onboarding_completed';
 

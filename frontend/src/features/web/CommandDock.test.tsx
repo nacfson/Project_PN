@@ -99,13 +99,10 @@ describe('CommandDock', () => {
     expect(mockNavigate).toHaveBeenCalledWith('Words');
   });
 
-  it('toggles theme on Theme button press', async () => {
+  it('does not render a theme toggle action', async () => {
     await render(<CommandDock />, { wrapper: Wrapper });
     await fireEvent(screen.getByTestId('dock-add'), 'hoverIn');
-    await fireEvent.press(screen.getByTestId('dock-theme'));
-    // ThemeProvider defaults to light mode, so toggling is a local state change;
-    // no navigation call is made
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('dock-theme')).toBeNull();
   });
 
   it('shows pending count badge when pendingCount > 0', async () => {

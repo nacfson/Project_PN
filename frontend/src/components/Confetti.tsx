@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, useWindowDimensions, StyleSheet, View } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { stage, useTheme } from '../theme';
 
 interface ConfettiProps {
   active: boolean;
@@ -30,12 +30,14 @@ export function Confetti({ active }: ConfettiProps) {
 
   if (particlesRef.current.length === 0) {
     const particleColors = [
-      colors.primary,
       colors.accent,
-      colors.accent2,
-      '#FBBF24', // yellow
-      '#22C55E', // green
-      '#F97316', // orange
+      colors.success,
+      colors.warning,
+      stage.learning,
+      stage.recognized,
+      stage.recalled,
+      stage.usable,
+      stage.mastered,
     ];
 
     const count = 45;
@@ -47,8 +49,8 @@ export function Confetti({ active }: ConfettiProps) {
       temp.push({
         id: i,
         startX: Math.random() * screenWidth,
-        driftX: (Math.random() * 2 - 1) * 120, // drift up to 120px left or right
-        duration: 2500 + Math.random() * 1000, // 2.5s - 3.5s
+        driftX: (Math.random() * 2 - 1) * 120,
+        duration: 2500 + Math.random() * 1000,
         rotationDirection: Math.random() > 0.5 ? 1 : -1,
         scale: 0.5 + Math.random() * 0.7,
         color: particleColors[Math.floor(Math.random() * particleColors.length)],
@@ -66,10 +68,8 @@ export function Confetti({ active }: ConfettiProps) {
     if (reduced) return;
 
     if (active) {
-      // Reset values to 0
       particlesRef.current.forEach((p) => p.progress.setValue(0));
 
-      // Start all animations in parallel
       const animations = particlesRef.current.map((p) =>
         Animated.timing(p.progress, {
           toValue: 1,
@@ -80,7 +80,6 @@ export function Confetti({ active }: ConfettiProps) {
       animationRef.current = Animated.parallel(animations);
       animationRef.current.start();
     } else {
-      // Reset to 0 when not active
       particlesRef.current.forEach((p) => p.progress.setValue(0));
     }
 
@@ -96,7 +95,6 @@ export function Confetti({ active }: ConfettiProps) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="confetti-container">
       {particlesRef.current.map((p) => {
-        // Interpolate transformations
         const translateY = p.progress.interpolate({
           inputRange: [0, 1],
           outputRange: [-50, screenHeight + 50],

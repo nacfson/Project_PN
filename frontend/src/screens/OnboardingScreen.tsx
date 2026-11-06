@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppLanguage } from '../i18n';
-import { useTheme } from '../theme/ThemeProvider';
+import { spacing, useTheme } from '../theme';
 import { Button, Icon, Text } from '../ui';
 
 interface OnboardingScreenProps {
@@ -10,11 +10,15 @@ interface OnboardingScreenProps {
 }
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const [step, setStep] = useState(0);
 
-  const slides: Array<{ icon: React.ComponentProps<typeof Icon>['name']; title: string; description: string }> = [
+  const slides: Array<{
+    icon: React.ComponentProps<typeof Icon>['name'];
+    title: string;
+    description: string;
+  }> = [
     {
       icon: 'book-outline',
       title: t('onboarding.slide1.title'),
@@ -35,16 +39,16 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const isLast = step === slides.length - 1;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.canvas }]}>
       <View style={styles.content}>
         <View style={styles.slide}>
-          <View style={[styles.iconCircle, { backgroundColor: colors.primaryContainer }]}>
-            <Icon name={slides[step].icon} size="xl" color={colors.primary} />
+          <View style={[styles.iconCircle, { backgroundColor: colors.infoSurface }]}>
+            <Icon name={slides[step].icon} size="xl" color={colors.accent} />
           </View>
-          <Text variant="headline" style={[styles.title, { color: colors.onSurface }]}>
+          <Text variant="pageTitle" style={[styles.title, { color: colors.text }]}>
             {slides[step].title}
           </Text>
-          <Text variant="body" color="muted" style={styles.description}>
+          <Text variant="body" color={colors.textSecondary} style={styles.description}>
             {slides[step].description}
           </Text>
         </View>
@@ -57,7 +61,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 style={[
                   styles.dot,
                   {
-                    backgroundColor: index === step ? colors.primary : colors.outlineVariant,
+                    backgroundColor: index === step ? colors.accent : colors.controlBorder,
                     width: index === step ? 24 : 8,
                   },
                 ]}
@@ -79,7 +83,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
           {!isLast && (
             <Pressable onPress={onComplete} style={styles.skip}>
-              <Text variant="caption" color="muted">
+              <Text variant="caption" color={colors.textSecondary}>
                 {t('onboarding.skip')}
               </Text>
             </Pressable>

@@ -1,5 +1,6 @@
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { spacing, useTheme } from '../theme';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { Text } from './Text';
@@ -15,18 +16,18 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ icon, title, message, actionLabel, onAction }: EmptyStateProps) {
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <View style={[styles.container, { gap: spacing.md }]}>
-      <View style={[styles.iconCircle, { backgroundColor: colors.primaryContainer }]}>
-        <Icon name={icon} size="xl" color={colors.primary} />
+      <View style={[styles.iconCircle, { backgroundColor: colors.infoSurface }]}>
+        <Icon name={icon} size="xl" color={colors.accent} />
       </View>
-      <Text variant="title" style={{ textAlign: 'center' }}>
+      <Text variant="sectionTitle" style={{ textAlign: 'center' }}>
         {title}
       </Text>
       {message ? (
-        <Text variant="body" color="muted" style={{ textAlign: 'center' }}>
+        <Text variant="body" color={colors.textSecondary} style={{ textAlign: 'center' }}>
           {message}
         </Text>
       ) : null}

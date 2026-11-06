@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,87 +6,46 @@ import { logout, me } from '../../api/auth';
 import { getReviewSettings, patchReviewSettings } from '../../api/reviewSettings';
 import { getStreakSettings, patchStreakSettings } from '../../api/streakSettings';
 import { type AppLanguage, useAppLanguage } from '../../i18n';
-import type { MeResponse } from '../../types/auth';
-import type { ReviewSettings, StreakSettings } from '../../types';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Card, Icon, Input, LoadingState, Screen, Switch, Text, HoverReveal } from '../../ui';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
+import { radii, spacing, useTheme } from '../../theme';
+import type { ReviewSettings, StreakSettings } from '../../types';
+import type { MeResponse } from '../../types/auth';
+import {
+  Button,
+  LoadingState,
+  PageColumn,
+  Screen,
+  SegmentedControl,
+  SettingsGroup,
+  SettingsRow,
+  Switch,
+  Text,
+} from '../../ui';
+import { goalOptions } from './dailyGoal';
 
 interface ProfileScreenProps {
   onLogout: () => void;
 }
 
-function SettingRow({
-  icon,
-  label,
-  value,
-  onPress,
-  danger,
-  trailing,
-}: {
-  icon: React.ComponentProps<typeof Icon>['name'];
-  label: string;
-  value?: string;
-  onPress?: () => void;
-  danger?: boolean;
-  trailing?: React.ReactNode;
-}) {
-  const { colors, spacing } = useTheme();
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      style={[
-        styles.row,
-        {
-          paddingVertical: spacing.md,
-          opacity: onPress ? 0.85 : 1,
-          backgroundColor: hovered ? colors.surfaceContainer : 'transparent',
-          borderRadius: 12,
-        },
-      ]}
-    >
-      <View style={[styles.iconCircle, { backgroundColor: danger ? colors.errorContainer : colors.primaryContainer }]}>
-        <Icon name={icon} size="md" color={danger ? colors.error : colors.primary} />
-      </View>
-      <View style={styles.rowContent}>
-        <Text variant="body" style={{ color: danger ? colors.error : colors.onSurface }}>
-          {label}
-        </Text>
-        {value ? (
-          <Text variant="caption" color="muted">
-            {value}
-          </Text>
-        ) : null}
-      </View>
-      {trailing || (onPress && (
-        <HoverReveal>
-          <Icon name="chevron-forward" size="sm" />
-        </HoverReveal>
-      ))}
-    </Pressable>
-  );
-}
+const RETENTION_MIN = 70;
+const RETENTION_MAX = 97;
 
 export function ProfileScreen({ onLogout }: ProfileScreenProps) {
-  const { colors, spacing, mode, toggleMode } = useTheme();
+  const { colors } = useTheme();
   const { language, setLanguage, t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
+
   const [user, setUser] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+
   const [reviewSettings, setReviewSettings] = useState<ReviewSettings | null>(null);
   const [streakSettings, setStreakSettings] = useState<StreakSettings | null>(null);
-  const [dailyGoalInput, setDailyGoalInput] = useState('200');
-  const [retentionInput, setRetentionInput] = useState('0.90');
-  const [settingsLoading, setSettingsLoading] = useState(true);
-  const [savingDailyGoal, setSavingDailyGoal] = useState(false);
-  const [savingRetention, setSavingRetention] = useState(false);
+
+  const [savedGoalXp, setSavedGoalXp] = useState<number>(200);
+  const [selectedGoalXp, setSelectedGoalXp] = useState<number>(200);
+  const [retentionPercent, setRetentionPercent] = useState<number>(90);
+
   const [savingStreak, setSavingStreak] = useState(false);
   const [dailyGoalError, setDailyGoalError] = useState<string | undefined>();
   const [retentionError, setRetentionError] = useState<string | undefined>();
@@ -112,13 +71,12 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
         const [review, streak] = await Promise.all([getReviewSettings(), getStreakSettings()]);
         setReviewSettings(review);
         setStreakSettings(streak);
-        setDailyGoalInput(String(review.daily_goal_xp));
-        setRetentionInput(review.desired_retention.toFixed(2));
+        setSavedGoalXp(review.daily_goal_xp);
+        setSelectedGoalXp(review.daily_goal_xp);
+        setRetentionPercent(Math.round(review.desired_retention * 100));
       } catch {
         setReviewSettings(null);
         setStreakSettings(null);
-      } finally {
-        setSettingsLoading(false);
       }
     })();
   }, []);
@@ -141,81 +99,94 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
     }
   }, [onLogout, t]);
 
-  const chooseLanguage = useCallback(
-    (nextLanguage: AppLanguage) => {
-      void setLanguage(nextLanguage);
-      setShowLanguageSelector(false);
+  const handleSelectDailyGoal = useCallback(
+    async (valueStr: string) => {
+      const nextGoal = Number.parseInt(valueStr, 10);
+      if (!Number.isFinite(nextGoal) || nextGoal === selectedGoalXp) return;
+
+      const prevGoal = selectedGoalXp;
+      setSelectedGoalXp(nextGoal);
+      setDailyGoalError(undefined);
+
+      try {
+        const updated = await patchReviewSettings({ daily_goal_xp: nextGoal });
+        const committed = updated?.daily_goal_xp ?? nextGoal;
+        setReviewSettings((prev) => (prev ? { ...prev, ...updated, daily_goal_xp: committed } : updated));
+        setSavedGoalXp(committed);
+        setSelectedGoalXp(committed);
+      } catch {
+        setSelectedGoalXp(prevGoal);
+        setDailyGoalError(t('settings.dailyGoalSaveFailed'));
+      }
     },
-    [setLanguage],
+    [selectedGoalXp, t],
   );
 
-  const saveDailyGoal = useCallback(async () => {
-    const parsed = Number.parseInt(dailyGoalInput, 10);
-    if (!Number.isFinite(parsed) || parsed < 10) {
-      setDailyGoalError(t('settings.dailyGoalHelp'));
-      return;
-    }
-    setSavingDailyGoal(true);
-    setDailyGoalError(undefined);
-    try {
-      const updated = await patchReviewSettings({ daily_goal_xp: parsed });
-      setReviewSettings(updated);
-      setDailyGoalInput(String(updated.daily_goal_xp));
-    } catch {
-      setDailyGoalError(t('settings.dailyGoalSaveFailed'));
-    } finally {
-      setSavingDailyGoal(false);
-    }
-  }, [dailyGoalInput, t]);
+  const commitRetentionPercent = useCallback(
+    async (nextPercent: number) => {
+      const clamped = Math.max(RETENTION_MIN, Math.min(RETENTION_MAX, Math.round(nextPercent)));
+      const prevPercent = retentionPercent;
+      setRetentionPercent(clamped);
+      setRetentionError(undefined);
 
-  const saveRetention = useCallback(async () => {
-    const parsed = Number.parseFloat(retentionInput);
-    if (!Number.isFinite(parsed) || parsed < 0.7 || parsed > 0.99) {
-      setRetentionError(t('settings.desiredRetentionHelp'));
-      return;
-    }
-    setSavingRetention(true);
-    setRetentionError(undefined);
-    try {
-      const updated = await patchReviewSettings({ desired_retention: parsed });
-      setReviewSettings(updated);
-      setRetentionInput(updated.desired_retention.toFixed(2));
-    } catch {
-      setRetentionError(t('settings.desiredRetentionSaveFailed'));
-    } finally {
-      setSavingRetention(false);
-    }
-  }, [retentionInput, t]);
+      const decimal = Number((clamped / 100).toFixed(2));
+      try {
+        const updated = await patchReviewSettings({ desired_retention: decimal });
+        const committedDecimal = updated?.desired_retention ?? decimal;
+        setReviewSettings((prev) =>
+          prev ? { ...prev, ...updated, desired_retention: committedDecimal } : updated,
+        );
+        setRetentionPercent(Math.round(committedDecimal * 100));
+      } catch {
+        setRetentionPercent(prevPercent);
+        setRetentionError(t('settings.desiredRetentionSaveFailed'));
+      }
+    },
+    [retentionPercent, t],
+  );
 
-  const enableVacationMode = useCallback(async () => {
-    setSavingStreak(true);
-    setStreakError(undefined);
-    try {
-      const until = new Date();
-      until.setUTCDate(until.getUTCDate() + 7);
-      const updated = await patchStreakSettings({
-        vacation_mode_until: until.toISOString().slice(0, 10),
-      });
-      setStreakSettings(updated);
-    } catch {
-      setStreakError(t('settings.vacationModeSaveFailed'));
-    } finally {
-      setSavingStreak(false);
-    }
-  }, [t]);
+  const handleToggleVacation = useCallback(
+    async (nextActive: boolean) => {
+      setSavingStreak(true);
+      setStreakError(undefined);
+      const prevStreak = streakSettings;
+      setStreakSettings((prev) =>
+        prev ? { ...prev, vacation_mode_active: nextActive } : prev,
+      );
 
-  const disableVacationMode = useCallback(async () => {
-    setSavingStreak(true);
-    setStreakError(undefined);
-    try {
-      const updated = await patchStreakSettings({ vacation_mode_until: '' });
-      setStreakSettings(updated);
-    } catch {
-      setStreakError(t('settings.vacationModeSaveFailed'));
-    } finally {
-      setSavingStreak(false);
-    }
-  }, [t]);
+      try {
+        if (nextActive) {
+          const until = new Date();
+          until.setUTCDate(until.getUTCDate() + 7);
+          const updated = await patchStreakSettings({
+            vacation_mode_until: until.toISOString().slice(0, 10),
+          });
+          setStreakSettings(
+            updated ?? {
+              ...(prevStreak ?? { streak_freeze_tokens: 0 }),
+              vacation_mode_active: true,
+              vacation_mode_until: until.toISOString().slice(0, 10),
+            },
+          );
+        } else {
+          const updated = await patchStreakSettings({ vacation_mode_until: '' });
+          setStreakSettings(
+            updated ?? {
+              ...(prevStreak ?? { streak_freeze_tokens: 0 }),
+              vacation_mode_active: false,
+              vacation_mode_until: null,
+            },
+          );
+        }
+      } catch {
+        setStreakSettings(prevStreak);
+        setStreakError(t('settings.vacationModeSaveFailed'));
+      } finally {
+        setSavingStreak(false);
+      }
+    },
+    [streakSettings, t],
+  );
 
   const useStreakFreeze = useCallback(async () => {
     if (!streakSettings || streakSettings.streak_freeze_tokens <= 0) {
@@ -226,13 +197,33 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
     setStreakError(undefined);
     try {
       const updated = await patchStreakSettings({ use_streak_freeze: true });
-      setStreakSettings(updated);
+      if (updated) {
+        setStreakSettings(updated);
+      }
     } catch {
       setStreakError(t('settings.streakFreezeSaveFailed'));
     } finally {
       setSavingStreak(false);
     }
   }, [streakSettings, t]);
+
+  const dailyGoalSegments = useMemo(
+    () =>
+      goalOptions(savedGoalXp).map((opt) => ({
+        value: String(opt.value),
+        label: String(opt.value),
+        testID: `daily-goal-option-${opt.value}`,
+      })),
+    [savedGoalXp],
+  );
+
+  const languageSegments = useMemo(
+    () => [
+      { value: 'en' as AppLanguage, label: t('language.en'), testID: 'app-language-en' },
+      { value: 'ko' as AppLanguage, label: t('language.ko'), testID: 'app-language-ko' },
+    ],
+    [t],
+  );
 
   if (loading) {
     return (
@@ -242,222 +233,283 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
     );
   }
 
-  return (
-    <Screen title={t('settings.title')} padded>
-      <View style={[styles.content, { paddingVertical: spacing.lg, gap: spacing.lg }]}>
+  const activePairLabel = `${languageLabel(user?.target_language)}${
+    user?.target_language ? ' → ' : ''
+  }${languageLabel(user?.native_language)}`;
 
-        <Card glass={true}>
-          <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
-            <Text variant="label" color="muted">
-              {t('settings.account')}
-            </Text>
-          </View>
-          <SettingRow icon="person-outline" label={t('settings.email')} value={user?.email ?? t('common.unknown')} />
-          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-          <SettingRow
-            icon="link-outline"
-            label={t('settings.connectedAccounts')}
+  const vacationSubtitle =
+    streakSettings?.vacation_mode_active && streakSettings.vacation_mode_until
+      ? t('settings.vacationModeActive', { date: streakSettings.vacation_mode_until })
+      : t('settings.vacationSubtitle');
+
+  const freezeTokens = streakSettings?.streak_freeze_tokens ?? 0;
+  const retentionRatio =
+    (retentionPercent - RETENTION_MIN) / (RETENTION_MAX - RETENTION_MIN);
+
+  return (
+    <Screen padded>
+      <PageColumn style={styles.page}>
+        <View style={[styles.header, { borderBottomColor: colors.hairline }]}>
+          <Text variant="pageTitle">{t('settings.title')}</Text>
+          <Text variant="bodySmall" color={colors.textSecondary}>
+            {t('settings.autosaveNote')}
+          </Text>
+        </View>
+
+        {/* 1. Account */}
+        <SettingsGroup title={t('settings.groupAccount')}>
+          <SettingsRow
+            testID="settings-row-email"
+            title={t('settings.email')}
+            trailing={
+              <Text variant="bodySmall" color={colors.textSecondary}>
+                {user?.email ?? t('common.unknown')}
+              </Text>
+            }
+          />
+          <SettingsRow
+            testID="settings-row-connected-accounts"
+            title={t('settings.connectedAccounts')}
             onPress={() => navigation.navigate('ConnectedAccounts')}
           />
           {user?.merge_suggestion ? (
-            <>
-              <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-              <SettingRow
-                icon="people-outline"
-                label={t('auth.mergeSuggestion', { domain: user.merge_suggestion.domain })}
-                onPress={() =>
-                  navigation.navigate('AccountMerge', {
-                    sourceUserId: user.merge_suggestion!.source_user_id,
-                    sourceEmail: user.merge_suggestion!.source_email,
-                    targetEmail: user.email,
-                  })
-                }
-              />
-            </>
+            <SettingsRow
+              testID="settings-row-account-merge"
+              title={t('auth.mergeSuggestion', { domain: user.merge_suggestion.domain })}
+              onPress={() =>
+                navigation.navigate('AccountMerge', {
+                  sourceUserId: user.merge_suggestion!.source_user_id,
+                  sourceEmail: user.merge_suggestion!.source_email,
+                  targetEmail: user.email,
+                })
+              }
+            />
           ) : null}
-          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-          <SettingRow
-            icon="language-outline"
-            label={t('settings.languagePairs')}
-            value={`${languageLabel(user?.target_language)}${user?.target_language ? ' → ' : ''}${languageLabel(user?.native_language)}`}
+          <SettingsRow
+            testID="settings-row-language-pairs"
+            title={t('settings.languagePairs')}
+            subtitle={t('settings.languagePairsDescription')}
+            trailing={
+              <Text variant="bodySmall" color={colors.textSecondary}>
+                {activePairLabel}
+              </Text>
+            }
             onPress={() => navigation.navigate('LanguagePairs')}
           />
-        </Card>
+        </SettingsGroup>
 
-        <Card glass={true}>
-          <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
-            <Text variant="label" color="muted">
-              {t('settings.review')}
-            </Text>
-          </View>
-          {settingsLoading ? (
-            <Text color="muted">{t('app.loading')}</Text>
-          ) : (
-            <View style={{ gap: spacing.md }}>
-              <Text variant="label">{t('settings.dailyGoal')}</Text>
-              <Input
-                value={dailyGoalInput}
-                onChangeText={setDailyGoalInput}
-                keyboardType="number-pad"
-                helperText={dailyGoalError ?? t('settings.dailyGoalHelp')}
-                error={Boolean(dailyGoalError)}
-                onBlur={() => setDailyGoalError(undefined)}
+        {/* 2. Review */}
+        <SettingsGroup title={t('settings.groupReview')}>
+          <SettingsRow
+            testID="settings-row-daily-goal"
+            title={t('settings.dailyGoal')}
+            subtitle={dailyGoalError ?? t('settings.dailyGoalSubtitle')}
+            trailing={
+              <SegmentedControl
+                tone="alt"
+                role="radiogroup"
+                options={dailyGoalSegments}
+                value={String(selectedGoalXp)}
+                onChange={(val) => void handleSelectDailyGoal(val)}
               />
-              <Button
-                label={t('settings.save')}
-                variant="tonal"
-                loading={savingDailyGoal}
-                onPress={() => void saveDailyGoal()}
-              />
-
-              <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-
-              <Text variant="label">{t('settings.desiredRetention')}</Text>
-              <Input
-                value={retentionInput}
-                onChangeText={setRetentionInput}
-                keyboardType="decimal-pad"
-                helperText={retentionError ?? t('settings.desiredRetentionHelp')}
-                error={Boolean(retentionError)}
-                onBlur={() => setRetentionError(undefined)}
-              />
-              <Button
-                label={t('settings.save')}
-                variant="tonal"
-                loading={savingRetention}
-                onPress={() => void saveRetention()}
-              />
-
-              <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-
-              <Text variant="label">{t('settings.streak')}</Text>
-              <Text variant="caption" color="muted">
-                {streakSettings?.vacation_mode_active && streakSettings.vacation_mode_until
-                  ? t('settings.vacationModeActive', { date: streakSettings.vacation_mode_until })
-                  : t('settings.vacationModeOff')}
-              </Text>
-              <View style={{ gap: spacing.sm }}>
-                {streakSettings?.vacation_mode_active ? (
-                  <Button
-                    label={t('settings.vacationModeDisable')}
-                    variant="tonal"
-                    loading={savingStreak}
-                    onPress={() => void disableVacationMode()}
-                  />
-                ) : (
-                  <Button
-                    label={t('settings.vacationModeEnable')}
-                    variant="tonal"
-                    loading={savingStreak}
-                    onPress={() => void enableVacationMode()}
-                  />
-                )}
-                <Button
-                  label={t('settings.streakFreeze')}
-                  variant="tonal"
-                  loading={savingStreak}
-                  disabled={!streakSettings || streakSettings.streak_freeze_tokens <= 0}
-                  onPress={() => void useStreakFreeze()}
-                />
-              </View>
-              {streakError ? (
-                <Text variant="caption" color="danger">
-                  {streakError}
-                </Text>
-              ) : null}
-              <Text variant="caption" color="muted">
-                {t('settings.streakFreezeHelp')}
-              </Text>
-            </View>
-          )}
-        </Card>
-
-        <Card glass={true}>
-          <View style={{ gap: spacing.xs, marginBottom: spacing.sm }}>
-            <Text variant="label" color="muted">
-              {t('settings.app')}
-            </Text>
-          </View>
-          <SettingRow
-            icon={mode === 'dark' ? 'moon-outline' : 'sunny-outline'}
-            label={t('settings.darkTheme')}
-            trailing={<Switch value={mode === 'dark'} onValueChange={() => toggleMode()} />}
+            }
           />
-          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-          <SettingRow
-            icon="language-outline"
-            label={t('settings.appLanguage')}
-            value={language === 'ko' ? t('language.ko') : t('language.en')}
-            onPress={() => setShowLanguageSelector((visible) => !visible)}
-          />
-          {showLanguageSelector ? (
-            <View style={[styles.languageOptions, { gap: spacing.sm }]}>
-              <Button
-                label={t('language.en')}
-                variant={language === 'en' ? 'primary' : 'tonal'}
-                onPress={() => chooseLanguage('en')}
-              />
-              <Button
-                label={t('language.ko')}
-                variant={language === 'ko' ? 'primary' : 'tonal'}
-                onPress={() => chooseLanguage('ko')}
-              />
+          {dailyGoalError ? (
+            <View style={styles.inlineErrorWrap}>
+              <Text variant="caption" color={colors.danger} testID="daily-goal-error">
+                {dailyGoalError}
+              </Text>
             </View>
           ) : null}
-          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-          <SettingRow icon="help-circle-outline" label={t('settings.help')} />
-          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-          <SettingRow icon="information-circle-outline" label={t('settings.about')} />
-        </Card>
+
+          <SettingsRow
+            testID="settings-row-retention"
+            title={t('settings.desiredRetention')}
+            subtitle={retentionError ?? t('settings.retentionSubtitle')}
+            trailing={
+              <View style={styles.sliderControls}>
+                <Pressable
+                  testID="retention-decrease"
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease retention"
+                  onPress={() => void commitRetentionPercent(retentionPercent - 1)}
+                  style={[styles.stepBtn, { borderColor: colors.controlBorder }]}
+                >
+                  <Text variant="bodySmall">-</Text>
+                </Pressable>
+                <View
+                  testID="retention-slider"
+                  accessibilityRole="adjustable"
+                  accessibilityValue={{
+                    min: RETENTION_MIN,
+                    max: RETENTION_MAX,
+                    now: retentionPercent,
+                  }}
+                  // Allow tests or custom events to invoke onValueChange directly
+                  {...({
+                    onValueChange: (val: number) => void commitRetentionPercent(val),
+                  } as Record<string, unknown>)}
+                  style={[styles.sliderTrack, { backgroundColor: colors.fill }]}
+                >
+                  <View
+                    style={[
+                      styles.sliderFill,
+                      {
+                        width: `${Math.max(0, Math.min(100, retentionRatio * 100))}%`,
+                        backgroundColor: colors.accent,
+                      },
+                    ]}
+                  />
+                </View>
+                <Pressable
+                  testID="retention-increase"
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase retention"
+                  onPress={() => void commitRetentionPercent(retentionPercent + 1)}
+                  style={[styles.stepBtn, { borderColor: colors.controlBorder }]}
+                >
+                  <Text variant="bodySmall">+</Text>
+                </Pressable>
+                <Text
+                  variant="bodySmall"
+                  tabular
+                  testID="retention-value"
+                  style={styles.retentionLabel}
+                >
+                  {`${retentionPercent}%`}
+                </Text>
+              </View>
+            }
+          />
+        </SettingsGroup>
+
+        {/* 3. Streak */}
+        <SettingsGroup title={t('settings.groupStreak')}>
+          <SettingsRow
+            testID="settings-row-vacation"
+            title={t('settings.vacationMode')}
+            subtitle={vacationSubtitle}
+            trailing={
+              <Switch
+                testID="vacation-switch"
+                value={Boolean(streakSettings?.vacation_mode_active)}
+                disabled={savingStreak}
+                onValueChange={(next) => void handleToggleVacation(next)}
+              />
+            }
+          />
+          <SettingsRow
+            testID="settings-row-freeze"
+            title={t('settings.streakFreeze')}
+            subtitle={t('settings.freezeSubtitle', { count: freezeTokens })}
+            trailing={
+              <Button
+                testID="use-freeze-button"
+                label={t('settings.useFreeze')}
+                variant="secondary"
+                size="sm"
+                loading={savingStreak}
+                disabled={freezeTokens <= 0 || savingStreak}
+                onPress={() => void useStreakFreeze()}
+              />
+            }
+          />
+          {streakError ? (
+            <View style={styles.inlineErrorWrap}>
+              <Text variant="caption" color={colors.danger}>
+                {streakError}
+              </Text>
+            </View>
+          ) : null}
+        </SettingsGroup>
+
+        {/* 4. Appearance (App language only — no Theme row) */}
+        <SettingsGroup title={t('settings.groupAppearance')}>
+          <SettingsRow
+            testID="settings-row-app-language"
+            title={t('settings.appLanguage')}
+            trailing={
+              <SegmentedControl
+                tone="alt"
+                role="radiogroup"
+                options={languageSegments}
+                value={language}
+                onChange={(nextLang) => void setLanguage(nextLang)}
+              />
+            }
+          />
+        </SettingsGroup>
+
+        {/* 5. Help / About / Log out */}
+        <SettingsGroup>
+          <SettingsRow
+            testID="settings-row-help"
+            title={t('settings.help')}
+          />
+          <SettingsRow
+            testID="settings-row-about"
+            title={t('settings.about')}
+          />
+          <SettingsRow
+            testID="settings-row-logout"
+            title={t('settings.logOut')}
+            tone="danger"
+            disabled={loggingOut}
+            onPress={() => void handleLogout()}
+          />
+        </SettingsGroup>
 
         {logoutError ? (
-          <Text variant="caption" color="danger">
+          <Text variant="caption" color={colors.danger}>
             {logoutError}
           </Text>
         ) : null}
-
-        <Button
-          label={t('settings.logout')}
-          variant="danger"
-          loading={loggingOut}
-          onPress={() => void handleLogout()}
-          style={{ marginTop: spacing.md }}
-        />
-      </View>
+      </PageColumn>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
+  page: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.xl,
   },
-  row: {
+  header: {
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    gap: 4,
+  },
+  inlineErrorWrap: {
+    paddingHorizontal: 18,
+    paddingBottom: spacing.sm,
+  },
+  sliderControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.xs,
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  stepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: radii.sm,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+  sliderTrack: {
+    width: 96,
+    height: 6,
+    borderRadius: radii.full,
+    overflow: 'hidden',
   },
-  divider: {
-    height: 1,
-    marginLeft: 48,
-    marginVertical: 4,
+  sliderFill: {
+    height: '100%',
+    borderRadius: radii.full,
   },
-  languageOptions: {
-    marginLeft: 48,
-    marginVertical: 8,
+  retentionLabel: {
+    minWidth: 38,
+    textAlign: 'right',
+    fontWeight: '600',
   },
 });

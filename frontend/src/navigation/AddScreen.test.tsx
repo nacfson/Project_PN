@@ -77,12 +77,15 @@ describe('AddScreen', () => {
       expect(screen.getByText('All Words')).toBeTruthy();
     });
 
+    expect(screen.getByText('Add a word')).toBeTruthy();
+    expect(screen.getByText(/Adding to/)).toBeTruthy();
+
     // Segmented tab switchers should be present (Manual first)
-    expect(screen.getByText('Manual Add')).toBeTruthy();
+    expect(screen.getByText('Word or phrase')).toBeTruthy();
     expect(screen.getAllByText('From a passage').length).toBeGreaterThan(0);
 
     // Defaults to Manual Add flow — CI gate: must fail if default flips to passage
-    expect(screen.getByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeTruthy();
+    expect(screen.getByPlaceholderText('A word or phrase, e.g. look up')).toBeTruthy();
     expect(screen.getByTestId('manual-add-input-wrapper')).toBeTruthy();
     // Passage capture section should not be visible
     expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
@@ -102,14 +105,14 @@ describe('AddScreen', () => {
     // Passage capture flow should be visible
     await waitFor(() => expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy());
     // Manual add section should not be visible
-    expect(screen.queryByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeNull();
+    expect(screen.queryByPlaceholderText('A word or phrase, e.g. look up')).toBeNull();
 
     // Click back to Manual Add tab
     const manualTab = screen.getByTestId('tab-manual');
     await fireEvent.press(manualTab);
 
     // Manual add section should be visible again
-    await waitFor(() => expect(screen.getByPlaceholderText('Type a word or phrase (e.g. look up)')).toBeTruthy());
+    await waitFor(() => expect(screen.getByPlaceholderText('A word or phrase, e.g. look up')).toBeTruthy());
     expect(screen.queryByPlaceholderText('Paste or type text here...')).toBeNull();
   });
 

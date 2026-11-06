@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Project PN — Settings</title>
+<script src="a8af9860-8633-4cfb-9a64-ccf7e9ddd82b"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+</style>
+<style>
+body{margin:0}
+a{color:#2846C4;text-decoration:none}a:hover{color:#1C3399}
+.nav{display:flex;align-items:center;height:36px;padding:0 12px;border-radius:8px;color:#5E6068;font-size:14px;font-weight:500}
+.nav:hover{background:#ECECE8;color:#17181B}
+.nav.on{color:#17181B;background:#ECECE8}
+.group{background:#FFFFFF;border:1px solid #E4E4DF;border-radius:14px;overflow:hidden}
+.item{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;padding:16px 20px;min-height:44px;border-bottom:1px solid #EEEEEA;color:#17181B}
+.item:last-child{border-bottom:0}
+a.item:hover{background:#FAFAF8;color:#17181B}
+.t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.t b{font-size:15px;font-weight:500}
+.t small{font-size:13px;color:#5E6068}
+.v{display:flex;align-items:center;gap:8px;font-size:14px;color:#5E6068}
+.seg{height:32px;padding:0 12px;border-radius:7px;border:0;background:transparent;font-family:inherit;font-size:13px;font-weight:500;color:#4A4C53;cursor:pointer}
+.seg.on{background:#FFFFFF;color:#17181B;box-shadow:0 1px 2px rgba(23,24,27,.08),0 0 0 1px #E4E4DF}
+.segs{display:flex;gap:2px;padding:3px;border-radius:10px;background:#F0F0EC}
+.sw{position:relative;width:44px;height:26px;border-radius:13px;border:0;background:#D9D9D3;cursor:pointer;padding:0}
+.sw.on{background:#17181B}
+.sw span{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:10px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on span{left:21px}
+.small{height:36px;padding:0 14px;border-radius:9px;border:1px solid #D9D9D3;background:#FFFFFF;font-family:inherit;font-size:14px;font-weight:500;color:#17181B;cursor:pointer}
+.small:hover{border-color:#17181B}
+h2{margin:0 0 10px 4px;font-size:13px;font-weight:500;color:#5E6068}
+input[type=range]{accent-color:#17181B;width:200px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F6F6F3; color: #17181B; font-family: 'Geist', 'IBM Plex Sans KR', system-ui, sans-serif; -webkit-font-smoothing: antialiased">
+  <nav aria-label="Main" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; padding: 24px 16px; border-right: 1px solid #E4E4DF; display: flex; flex-direction: column; gap: 28px">
+    <a href="Main.dc.html" style="padding: 0 12px; color: #17181B; font-family: 'Newsreader', Georgia, serif; font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1">PN</a>
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <a class="nav" href="Main.dc.html">Today</a>
+      <a class="nav" href="Words.dc.html">Words</a>
+      <a class="nav" href="Add.dc.html">Add</a>
+      <a class="nav" href="Practice.dc.html">Practice</a>
+      <a class="nav on" href="Settings.dc.html" aria-current="page">Settings</a>
+    </div>
+    <div style="margin-top: auto; padding: 0 12px; font-size: 13px; color: #5E6068">English → Korean</div>
+  </nav>
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 56px 32px 80px">
+    <div style="max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
+      <header style="display: flex; flex-direction: column; gap: 8px">
+        <h1 style="margin: 0; font-size: 32px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">Settings</h1>
+        <p style="margin: 0; font-size: 14px; color: #5E6068">Changes save as you make them.</p>
+      </header>
+      <section>
+        <h2>Account</h2>
+        <div class="group">
+          <div class="item"><span class="t"><b>Email</b></span><span class="v">dev@project-pn.local</span></div>
+          <a class="item" href="#"><span class="t"><b>Connected accounts</b></span><span class="v">Google<svg aria-hidden="true" width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span></a>
+          <a class="item" href="#"><span class="t"><b>Language pairs</b></span><span class="v">English → Korean<svg aria-hidden="true" width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span></a>
+        </div>
+      </section>
+      <section>
+        <h2>Review</h2>
+        <div class="group">
+          <div class="item">
+            <span class="t"><b>Daily goal</b><small>10 XP per review</small></span>
+            <div class="segs" role="radiogroup" aria-label="Daily goal">
+              <sc-for list="{{goals}}" as="g" hint-placeholder-count="4">
+                <button class="{{g.cls}}" type="button" role="radio" aria-checked="{{g.sel}}" sc-camel-on-click="{{g.pick}}">{{g.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div class="item">
+            <label class="t" for="ret"><b>Desired retention</b><small>Higher means more frequent reviews</small></label>
+            <span class="v"><input id="ret" type="range" min="70" max="97" value="{{retention}}" sc-camel-on-input="{{setRetention}}"><span style="min-width: 40px; text-align: right; color: #17181B; font-variant-numeric: tabular-nums">{{retention}}%</span></span>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h2>Streak</h2>
+        <div class="group">
+          <div class="item">
+            <span class="t"><b>Vacation mode</b><small>Pause your streak for up to 7 days</small></span>
+            <button class="{{vacationCls}}" type="button" role="switch" aria-checked="{{vacationSel}}" aria-label="Vacation mode" sc-camel-on-click="{{toggleVacation}}"><span></span></button>
+          </div>
+          <div class="item">
+            <span class="t"><b>Streak freeze</b><small>1 available · covers one missed day</small></span>
+            <button class="small" type="button">Use freeze</button>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h2>Appearance</h2>
+        <div class="group">
+          <div class="item">
+            <span class="t"><b>Theme</b></span>
+            <div class="segs" role="radiogroup" aria-label="Theme">
+              <sc-for list="{{themes}}" as="th" hint-placeholder-count="3">
+                <button class="{{th.cls}}" type="button" role="radio" aria-checked="{{th.sel}}" sc-camel-on-click="{{th.pick}}">{{th.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div class="item">
+            <label class="t" for="lang"><b>App language</b></label>
+            <sc-raw-select id="lang" class="small" style="padding-right: 8px"><option>English</option><option>한국어</option></sc-raw-select>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div class="group">
+          <a class="item" href="#"><span class="t"><b>Help and feedback</b></span><span class="v"><svg aria-hidden="true" width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span></a>
+          <a class="item" href="#"><span class="t"><b>About Project PN</b></span><span class="v">v1.0.2</span></a>
+          <button class="item" type="button" style="width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer"><span class="t"><b style="color: #B42318">Log out</b></span></button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1100}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { goal: 200, retention: 90, vacation: false, theme: 'System' };
+  }
+  renderVals() {
+    const s = this.state;
+    return {
+      goals: [100, 200, 300, 500].map((g) => ({ label: String(g), sel: s.goal === g ? 'true' : 'false', cls: s.goal === g ? 'seg on' : 'seg', pick: () => this.setState({ goal: g }) })),
+      themes: ['System', 'Light', 'Dark'].map((t) => ({ label: t, sel: s.theme === t ? 'true' : 'false', cls: s.theme === t ? 'seg on' : 'seg', pick: () => this.setState({ theme: t }) })),
+      retention: s.retention,
+      setRetention: (e) => this.setState({ retention: Number(e.target.value) }),
+      vacationCls: s.vacation ? 'sw on' : 'sw',
+      vacationSel: s.vacation ? 'true' : 'false',
+      toggleVacation: () => this.setState({ vacation: !s.vacation })
+    };
+  }
+}
+</script>
+</body></html>

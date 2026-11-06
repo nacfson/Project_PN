@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { analytics } from '../analytics/analytics';
+import { sessionStorage } from '../api/sessionStorage';
 import { API_BASE_URL } from '../config';
 import { useAppLanguage } from '../i18n';
-import { useTheme } from '../theme/ThemeProvider';
+import { spacing, useTheme } from '../theme';
 import { Button, Card, Icon, Text } from '../ui';
-import { sessionStorage } from '../api/sessionStorage';
 import { extractSessionFromUrl } from '../utils/authLaunch';
 import { isBrowserWeb } from '../utils/platform';
-import { analytics } from '../analytics/analytics';
 
 interface CentralAuthScreenProps {
   onTokenReceived?: () => void;
@@ -16,7 +16,7 @@ interface CentralAuthScreenProps {
 }
 
 export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralAuthScreenProps) {
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const [busy, setBusy] = useState(false);
 
@@ -43,7 +43,11 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
         }
       }
     } catch (err) {
-      analytics.track('auth_failed', { provider: 'platform', error_code: 'AUTH-101', retryable: true }, traceId);
+      analytics.track(
+        'auth_failed',
+        { provider: 'platform', error_code: 'AUTH-101', retryable: true },
+        traceId,
+      );
       console.error('Failed to open login page', err);
     } finally {
       setBusy(false);
@@ -51,20 +55,25 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.canvas }]}>
       <Card elevated style={styles.card}>
         <View style={styles.header}>
-          <Icon name="lock-closed" size="lg" color={colors.primary} />
-          <Text variant="heading" style={{ marginTop: spacing.sm }}>
+          <Icon name="lock-closed" size="lg" color={colors.accent} />
+          <Text variant="pageTitle" style={{ marginTop: spacing.sm }}>
             {t('auth.centralTitle')}
           </Text>
-          <Text color="muted" style={{ textAlign: 'center' }}>
+          <Text color={colors.textSecondary} style={{ textAlign: 'center' }}>
             {t('auth.centralTagline')}
           </Text>
         </View>
 
         {connectionError && (
-          <View style={[styles.errorBanner, { backgroundColor: colors.dangerSurface, borderColor: colors.dangerBorder }]}>
+          <View
+            style={[
+              styles.errorBanner,
+              { backgroundColor: colors.dangerSurface, borderColor: colors.danger },
+            ]}
+          >
             <Icon name="alert-circle-outline" size="md" color={colors.danger} />
             <View style={styles.errorContent}>
               <Text style={[styles.errorTitle, { color: colors.danger }]}>
@@ -79,7 +88,11 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
           </View>
         )}
 
-        <Text variant="body" color="muted" style={[styles.desc, { marginVertical: spacing.md }]}>
+        <Text
+          variant="body"
+          color={colors.textSecondary}
+          style={[styles.desc, { marginVertical: spacing.md }]}
+        >
           {t('auth.centralDescription')}
         </Text>
         <Button

@@ -1,80 +1,80 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { Pressable, StyleSheet, View, type PressableProps } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Icon } from './Icon';
 import { Text } from './Text';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-interface ChipProps extends Omit<PressableProps, 'children'> {
+export interface ChipProps extends Omit<PressableProps, 'children'> {
   label: string;
   selected?: boolean;
+  count?: number;
   icon?: React.ComponentProps<typeof Icon>['name'];
 }
 
-export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
-  const { colors, radii, spacing, motion, reduced } = useTheme();
-  const { tension, friction } = motion.spring.bouncy;
-  const scaleAnim = useRef(new Animated.Value(1.0)).current;
-  const isFirstRender = useRef(true);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    if (reduced) {
-      scaleAnim.setValue(1.0);
-      return;
-    }
-
-    scaleAnim.setValue(1.0);
-    const anim = Animated.sequence([
-      Animated.spring(scaleAnim, {
-        toValue: 1.05,
-        tension,
-        friction,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1.0,
-        tension,
-        friction,
-        useNativeDriver: true,
-      }),
-    ]);
-    anim.start();
-    return () => anim.stop();
-  }, [selected, reduced, scaleAnim, tension, friction]);
+export function Chip({ label, selected = false, count, icon, ...rest }: ChipProps) {
+  const { colors, radii, spacing } = useTheme();
 
   return (
-    <AnimatedPressable
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: selected ? colors.secondaryContainer : 'transparent',
-          borderColor: selected ? 'transparent' : colors.outline,
-          borderRadius: radii.sm,
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
-          opacity: pressed ? 0.8 : 1,
-          transform: [{ scale: scaleAnim as any }],
-        },
-      ]}
+    <Pressable
+      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+      style={(state) => {
+        const hovered = Boolean((state as { hovered?: boolean }).hovered);
+        return [
+          styles.base,
+          {
+            height: 36,
+            backgroundColor: selected
+              ? colors.brandSecondary
+              : hovered || state.pressed
+                ? colors.fillAlt
+                : colors.fill,
+            borderColor: selected
+              ? colors.brandSecondary
+              : hovered || state.pressed
+                ? colors.controlBorder
+                : colors.hairline,
+            borderWidth: 1,
+            borderRadius: radii.full,
+            paddingHorizontal: spacing.md,
+          },
+        ];
+      }}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       {...rest}
     >
-      {icon && <Icon name={icon} size="sm" color={selected ? colors.onSecondaryContainer : colors.onSurfaceVariant} />}
+      {icon && (
+        <Icon
+          name={icon}
+          size="sm"
+          color={selected ? colors.onPrimary : colors.text}
+        />
+      )}
       <Text
-        variant="label"
-        color={selected ? 'onSecondaryContainer' : 'muted'}
-        style={{ fontWeight: selected ? '600' : '500' }}
+        variant="caption"
+        style={{
+          color: selected ? colors.onPrimary : colors.text,
+          fontWeight: '600',
+        }}
       >
         {label}
       </Text>
-    </AnimatedPressable>
+      {typeof count === 'number' ? (
+        <View style={styles.countWrap}>
+          <Text
+            variant="caption"
+            tabular
+            style={{
+              color: selected ? colors.onPrimary : colors.textSecondary,
+              opacity: 0.85,
+              fontSize: 12,
+              fontWeight: '700',
+            }}
+          >
+            {count}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -84,7 +84,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    borderWidth: 1,
     alignSelf: 'flex-start',
+  },
+  countWrap: {
+    marginLeft: 2,
   },
 });

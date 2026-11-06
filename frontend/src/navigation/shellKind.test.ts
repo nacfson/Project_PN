@@ -1,4 +1,4 @@
-import { browserPageWidth, browserScale, shellKind } from './shellKind';
+import { browserPageWidth, browserScale, shellKind, shellLayout } from './shellKind';
 
 it('keeps a narrow desktop window on the browser page', () => {
   expect(shellKind('web', 'Mozilla/5.0 Macintosh')).toBe('browser');
@@ -23,4 +23,12 @@ it('sizes the browser page from the window width', () => {
   expect(browserPageWidth(420)).toBe(420);
   expect(browserPageWidth(900)).toBe(900);
   expect(browserPageWidth(2560)).toBe(1200);
+});
+
+it('selects bottom vs sidebar layout from shellKind and browserPageWidth', () => {
+  expect(shellLayout('phone', 1440)).toBe('bottom');
+  expect(shellLayout('phone', 390)).toBe('bottom');
+  expect(shellLayout('browser', 719)).toBe('bottom');
+  expect(shellLayout('browser', 720)).toBe('sidebar');
+  expect(shellLayout('browser', 1440)).toBe('sidebar');
 });

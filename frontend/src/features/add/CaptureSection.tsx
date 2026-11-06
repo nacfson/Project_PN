@@ -146,15 +146,15 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
                   styles.phraseToggle,
                   {
                     borderRadius: radii.full,
-                    borderColor: phraseMode ? 'transparent' : colors.outline,
-                    backgroundColor: phraseMode ? colors.secondaryContainer : 'transparent',
+                    borderColor: phraseMode ? colors.primary : colors.controlBorder,
+                    backgroundColor: phraseMode ? colors.primary : colors.surface,
                   },
                 ]}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: phraseMode }}
                 testID="phrase-mode-toggle"
               >
-                <Text variant="caption" color={phraseMode ? 'onSecondaryContainer' : 'muted'}>
+                <Text variant="caption" color={phraseMode ? 'inverse' : 'muted'}>
                   {t('add.phraseMode')}
                 </Text>
               </Pressable>

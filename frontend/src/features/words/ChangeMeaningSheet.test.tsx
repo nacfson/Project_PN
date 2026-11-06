@@ -13,15 +13,6 @@ jest.mock('../../api/words', () => ({
   setLearningItemPersonalNote: jest.fn(),
 }));
 
-jest.mock('@expo-google-fonts/inter', () => ({
-  useFonts: () => [true],
-  Inter_400Regular: 'Inter_400Regular',
-  Inter_500Medium: 'Inter_500Medium',
-  Inter_600SemiBold: 'Inter_600SemiBold',
-  Inter_700Bold: 'Inter_700Bold',
-  Inter_800ExtraBold: 'Inter_800ExtraBold',
-}));
-
 const item: LearningItemListItem = {
   id: 'uws-1',
   word_sense_id: 'ws-1',

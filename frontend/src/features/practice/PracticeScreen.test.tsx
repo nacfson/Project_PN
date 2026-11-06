@@ -1,12 +1,22 @@
 import React, { ReactNode } from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PracticeScreen } from './PracticeScreen';
 import { AppLanguageProvider } from '../../i18n';
 import { ThemeProvider } from '../../theme/ThemeProvider';
+import { ShellChromeContext } from '../../ui';
 import * as learningItemsApi from '../../api/learningItems';
 import { ApiError } from '../../api/client';
 import type { DueItem } from '../../types';
+
+jest.mock('../../api/storage', () => ({
+  appLanguageStorage: {
+    getLanguage: jest.fn().mockResolvedValue('en'),
+    setLanguage: jest.fn().mockResolvedValue(undefined),
+  },
+  clearLegacyThemePreferences: jest.fn().mockResolvedValue(undefined),
+}));
 
 jest.mock('../../api/learningItems', () => ({
   getDueLearningItems: jest.fn(),
@@ -265,5 +275,169 @@ describe('PracticeScreen Integration', () => {
     expect(screen.getByText('Practice Complete')).toBeTruthy();
 
     randomSpy.mockRestore();
+  });
+
+  it('keeps counter and progress bar unchanged on Forgot and advances by 1 on a later correct answer', async () => {
+    const itemA: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-a',
+      lemma: 'alpha',
+      normalized_text: 'alpha',
+    };
+    const itemB: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-b',
+      lemma: 'beta',
+      normalized_text: 'beta',
+    };
+    const itemC: DueItem = {
+      ...mockItem,
+      user_word_sense_id: 'uws-c',
+      lemma: 'gamma',
+      normalized_text: 'gamma',
+    };
+
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([itemA, itemB, itemC]);
+    const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(screen.getByText('1 of 3')).toBeTruthy());
+
+    // Rate Forgot on first card -> counter stays 1 of 3
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('Forgot'));
+    await waitFor(() => expect(screen.getByText('1 of 3')).toBeTruthy());
+    expect(recordAttemptsMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ is_correct: false, rating_score: 0 })],
+      expect.any(String),
+    );
+
+    // Rate Good on second card -> counter advances to 2 of 3
+    await fireEvent.press(screen.getByText('TAP TO REVEAL ANSWER'));
+    await fireEvent.press(screen.getByText('Good'));
+    await waitFor(() => expect(screen.getByText('2 of 3')).toBeTruthy());
+    expect(recordAttemptsMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ is_correct: true, rating_score: 2 })],
+      expect.any(String),
+    );
+
+    randomSpy.mockRestore();
+  });
+
+  it('calls setChromeHidden(true) while active and false after End session or unmount', async () => {
+    const setChromeHidden = jest.fn();
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockResolvedValue([mockItem]);
+
+    function ChromeWrapper({ children }: { children: ReactNode }) {
+      return (
+        <Wrapper>
+          <ShellChromeContext.Provider
+            value={{
+              tabBarTranslateY: { value: 0 } as any,
+              tabBarInteractive: true,
+              setTabBarInteractive: jest.fn(),
+              chromeHidden: false,
+              setChromeHidden,
+            }}
+          >
+            {children}
+          </ShellChromeContext.Provider>
+        </Wrapper>
+      );
+    }
+
+    const { unmount } = await render(<PracticeScreen />, { wrapper: ChromeWrapper });
+
+    await waitFor(() => expect(screen.getByText('discipline')).toBeTruthy());
+    expect(setChromeHidden).toHaveBeenCalledWith(true);
+
+    await fireEvent.press(screen.getByTestId('practice-end-session'));
+    expect(setChromeHidden).toHaveBeenLastCalledWith(false);
+
+    await unmount();
+    expect(setChromeHidden).toHaveBeenLastCalledWith(false);
+  });
+
+  it('supports Space to reveal and 1–4 to rate on web with unchanged attempt payloads', async () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { get: () => 'web', configurable: true });
+
+    let keyListeners: Array<(e: KeyboardEvent) => void> = [];
+    const win = ((globalThis as unknown as { window?: Record<string, unknown> }).window ??
+      ((globalThis as unknown as { window: Record<string, unknown> }).window = {}));
+    win.addEventListener = jest.fn((event: string, cb: (e: KeyboardEvent) => void) => {
+      if (event === 'keydown') keyListeners.push(cb);
+    });
+    win.removeEventListener = jest.fn((event: string, cb: (e: KeyboardEvent) => void) => {
+      if (event === 'keydown') keyListeners = keyListeners.filter((l) => l !== cb);
+    });
+
+    const cards: DueItem[] = ['a', 'b', 'c', 'd'].map((id) => ({
+      ...mockItem,
+      user_word_sense_id: `uws-${id}`,
+      word_id: `w-${id}`,
+      lemma: `word-${id}`,
+      normalized_text: `word-${id}`,
+    }));
+    (learningItemsApi.getDueLearningItems as jest.Mock).mockResolvedValue(cards);
+    const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
+
+    await render(<PracticeScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText('1 of 4')).toBeTruthy());
+
+    const pressKey = async (key: string) => {
+      await act(async () => {
+        for (const l of [...keyListeners]) {
+          l({
+            key,
+            target: { tagName: 'DIV' },
+            metaKey: false,
+            ctrlKey: false,
+            altKey: false,
+            preventDefault: jest.fn(),
+          } as unknown as KeyboardEvent);
+        }
+      });
+    };
+
+    // Card 1: Space -> '1' (Forgot: score 0, is_correct false)
+    await pressKey(' ');
+    await pressKey('1');
+    expect(recordAttemptsMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ is_correct: false, rating_score: 0 })],
+      expect.any(String),
+    );
+
+    // Card 2: Space -> '2' (Hard: score 1, is_correct true)
+    await pressKey(' ');
+    await pressKey('2');
+    expect(recordAttemptsMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ is_correct: true, rating_score: 1 })],
+      expect.any(String),
+    );
+
+    // Card 3: Space -> '3' (Good: score 2, is_correct true)
+    await pressKey(' ');
+    await pressKey('3');
+    expect(recordAttemptsMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ is_correct: true, rating_score: 2 })],
+      expect.any(String),
+    );
+
+    // Card 4: Space -> '4' (Easy: score 3, is_correct true)
+    await pressKey(' ');
+    await pressKey('4');
+    expect(recordAttemptsMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ is_correct: true, rating_score: 3 })],
+      expect.any(String),
+    );
+
+    if (originalDescriptor) {
+      Object.defineProperty(Platform, 'OS', originalDescriptor);
+    }
   });
 });

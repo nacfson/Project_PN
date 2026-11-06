@@ -28,15 +28,31 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 ## Destructive actions
 
-- For local destructive actions like clearing a passage, prefer an **undo** pattern over a blocking confirmation dialog.
-- Store the previous value in a ref, show an undo control for ~3 seconds, and auto-dismiss it.
+- **Local/transient destructive actions** (such as clearing a passage in `CaptureSection`): prefer an **undo** pattern over a blocking confirmation dialog. Store the previous value in a ref, show an undo control for ~3 seconds, and auto-dismiss it.
+- **Permanent server-backed word removal** (`archiveLearningItem` / `archiveLearningItems` in `MyWordsScreen` single-row remove, bulk remove, and `WordDetailScreen` remove): always guard with the cross-platform `ConfirmDialog` (`frontend/src/ui/ConfirmDialog.tsx`, `tone="danger"`, title `words.removeConfirmTitle` / "Remove this word?", body `words.removeConfirmBody` / "This can't be undone."). Never use `Alert.alert` or `window.confirm` directly, as `Alert.alert` is a no-op on React Native Web.
 
 ## Add tab
 
-- The Add tab (`AddScreen`) defaults to **Manual Add** (`activeTab === 'manual'`). Manual is the first segment in the switcher; From a passage is secondary.
-- On first paint with a deck selected, the Manual Add input must be visible without an extra tap.
+- The Add tab (`AddScreen`) defaults to **Manual Add** (`activeTab === 'manual'`, labeled **"Word or phrase"** / `add.tabWordOrPhrase`). Manual is the first segment in the switcher; **"From a passage"** (`add.tabPassage`) is second.
+- On first paint with a deck selected, the Manual Add input (`testID="manual-add-input-wrapper"`) must be visible without an extra tap.
 - Do not flip the default to passage or remove Manual Add without an explicit product decision. `AddScreen.test.tsx` is the CI gate for this invariant.
-- Ownership cluster: `frontend/src/navigation/AddScreen.tsx`, `AddScreen.test.tsx`, `frontend/src/features/add/ManualAddSection.tsx`, `CaptureSection.tsx` (related: `SensePicker.tsx`, `useSenseFlow.ts`). See `AGENTS.md` Add-tab UI ownership.
+- Ownership cluster: `frontend/src/navigation/AddScreen.tsx`, `AddScreen.test.tsx`, `frontend/src/features/add/ManualAddSection.tsx`, `CaptureSection.tsx` (related: `SensePicker.tsx`, `useSenseFlow.ts`). See `GEMINI.md` Add-tab UI ownership.
+- **Gloss-only `SensePicker`**: `SensePicker` renders a single compact localized gloss (`displayGloss`) and optional part-of-speech tag per sense row, plus the "Closest to your sentence" badge when `similarity >= 0.08`. It never renders English dictionary definitions or example sentences on sense option rows.
+
+## Keyboard shortcuts (web / desktop)
+
+| Screen | Shortcut | Action |
+|--------|----------|--------|
+| `PracticeScreen` (Review) | `Space` | Reveal answer on flashcard |
+| `PracticeScreen` (Review) | `1` / `2` / `3` / `4` | Rate revealed card (`Forgot` / `Hard` / `Good` / `Easy`) |
+| `PracticeScreen` (Review) | `Esc` | End review session and return to Today |
+| `ManualAddSection` (Add) | `Enter` | Look up typed word or phrase |
+| `MyWordsScreen` (Words) | `/` | Focus the search input (when no text input is currently focused) |
+
+## Theme & appearance
+
+- The app uses a **single light-only theme** (`frontend/src/theme/tokens.ts` and `ThemeProvider.tsx`). Dark mode (`md3Dark`) and visual theme variations (`bento*`) are retired and guarded against regression by `frontend/src/theme/lightOnlyGuard.test.ts`.
+- All UI components must consume semantic color tokens from `useTheme().colors` rather than hardcoded hex or `rgba()` literals.
 
 ## Practice UX
 
@@ -52,13 +68,14 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 - The answer input should auto-focus at the start of each **typing** card. Flashcard cards do not auto-focus because they require a tap.
 - Grading controls use four large answer buttons that mirror Anki (Again/Hard/Good/Easy). Each button displays the predicted next-review interval.
 - After reveal, users can also **swipe the card horizontally to rate** (← Again, → Good). Hard and Easy are chosen with the button bar (and keyboard 1–4 on web/desktop). Keep the button bar as the accessible primary fallback.
-- On mobile web, pin the typing answer bar and the grading/submit bar to the bottom of the viewport and **hide the tab bar** while they are visible. Disable tab-bar pointer events while it is hidden so it cannot steal taps from grade controls. Do not leave rate/submit controls in normal document flow under the absolute tab bar — phone Chrome will cover them.
-- Flashcard height is **capped** to the space above the sticky grade chrome. Long glosses scroll **inside** the card instead of stretching the layout and covering the RatingBar.
+- **Focus mode**: Navigation chrome (both the left sidebar on wide browsers and the bottom bar on phones/narrow browsers) is hidden via `useShellChrome().setChromeHidden(true)` while a review session is active (`status === 'active'`), and restored on session end or unmount.
+- Flashcard height is **capped** to the space above the grade controls. Long glosses scroll **inside** the card instead of stretching the layout and covering the RatingBar.
 - Grade controls must work on both touch and pointer devices:
-  - Scale buttons for desktop/web/Tauri.
-  - Keyboard shortcuts 1/2/3/4 for web/desktop.
+  - Scale buttons for desktop/web/Tauri (`Good` uses primary fill).
+  - Keyboard shortcuts `Space` (reveal) and `1`/`2`/`3`/`4` (rate) via `useKeyboardShortcut` on web/desktop.
 - Repeat review mode loads every non-archived learning item and includes example sentences so cloze prompts work the same as normal due reviews.
-- Session queues are shuffled (while still separating sibling senses of the same word). Failed cards are mixed into upcoming cards instead of being appended in the original add/passage order, so retries test meaning rather than memorized sequence. Progress counts unique cards, not origin slot numbers.
+- Session queues are shuffled (while still separating sibling senses of the same word). Failed cards are mixed into upcoming cards instead of being appended in the original add/passage order, so retries test meaning rather than memorized sequence.
+- **Correct-only session progress (`sessionProgress()` in `practiceItemState.ts`)**: Session progress counts distinct due cards answered correctly (`isPassingScore(score)`, i.e. Hard, Good, or Easy with `score >= 0.75`) and never advances on Forgot (`score = 0`). Both the `{current} of {total}` position counter and the 3 px progress bar share `sessionProgress()`.
 - Failed cards stay recoverable after exit or refresh: `GET /api/reviews/due` returns unfinished Learning/Relearning items, and the practice UI marks `learning_stage === 'learning'` cards with the Retrying badge.
 - **Leech (Fail repeatedly)** is separate from Retrying: when `is_leech` is true (`lapse_count >= leech_threshold`), show the danger badge and keep the card in the quiz (default `leech_action = tag`). Do not remove it from the queue on tag.
 - Offer **Change meaning** as a secondary control under the revealed leech card (and on session-end **Stuck words**). It opens `ChangeMeaningSheet` without blocking the RatingBar.

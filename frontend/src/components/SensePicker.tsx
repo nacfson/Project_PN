@@ -5,11 +5,10 @@ import { useAppLanguage } from '../i18n';
 import type { TranslationKey } from '../i18n';
 import { PAGE_WIDTH_FRAME } from '../navigation/shellKind';
 import { useTheme } from '../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, Input, Text } from '../ui';
+import { Badge, Button, Icon, Input, SelectableCard, Text } from '../ui';
 import type { PartOfSpeech, SenseOption } from '../types';
 import { bestMatch, isClosestToContext } from '../utils/senses';
-import { renderFormattedSentence } from '../utils/text';
-import { SenseMeaning } from './SenseMeaning';
+import { displayGloss } from '../utils/meanings';
 
 const CONCRETE_POS: PartOfSpeech[] = [
   'noun',
@@ -73,6 +72,8 @@ export function SensePicker({
   const isConfirming = confirming ?? false;
   const busy = isLookingUp || isConfirming;
 
+  const top = useMemo(() => bestMatch(options), [options]);
+
   useEffect(() => {
     if (suggestPosPrompt) {
       setPosPrompt(true);
@@ -86,8 +87,12 @@ export function SensePicker({
       setNeedContext(false);
       setDraftContext('');
       setConfirmTarget(null);
+      return;
     }
-  }, [visible]);
+    if (options.length > 0 && (!selectedId || !options.some((o) => o.word_sense_id === selectedId))) {
+      setSelectedId((top ?? options[0])?.word_sense_id ?? null);
+    }
+  }, [visible, options, top, selectedId]);
 
   useEffect(() => {
     if (!isConfirming) {
@@ -95,7 +100,6 @@ export function SensePicker({
     }
   }, [isConfirming]);
 
-  const top = useMemo(() => bestMatch(options), [options]);
   const selected = options.find((o) => o.word_sense_id === selectedId) ?? null;
   const resolvedContext = (draftContext || sourceContext).trim();
   const showPosPrompt = posPrompt || suggestPosPrompt;
@@ -108,9 +112,10 @@ export function SensePicker({
   };
 
   const handleAddSelected = () => {
-    if (selectedId && !busy) {
+    const targetId = selectedId ?? top?.word_sense_id ?? options[0]?.word_sense_id;
+    if (targetId && !busy) {
       setConfirmTarget('selected');
-      onConfirm(selectedId);
+      onConfirm(targetId);
     }
   };
 
@@ -123,8 +128,9 @@ export function SensePicker({
 
   const proceedForce = (context: string) => {
     onSourceContextChange?.(context);
-    if (selected) {
-      onForceExisting(selected.word_id, context);
+    const targetOption = selected ?? options[0] ?? null;
+    if (targetOption) {
+      onForceExisting(targetOption.word_id, context);
       setNeedContext(false);
       return;
     }
@@ -142,25 +148,31 @@ export function SensePicker({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={[styles.backdrop, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+      <View style={[styles.backdrop, { backgroundColor: colors.scrim }]}>
         <View
           testID="bottom-sheet"
           style={[
             styles.sheet,
             {
-              backgroundColor: colors.surfaceContainerLow,
-              borderTopLeftRadius: radii.xxl,
-              borderTopRightRadius: radii.xxl,
+              backgroundColor: colors.surface,
+              borderTopLeftRadius: radii.lg,
+              borderTopRightRadius: radii.lg,
+              borderColor: colors.hairline,
               paddingBottom: Math.max(24, insets.bottom),
             },
           ]}
         >
           <View style={styles.dragHandle}>
-            <View style={[styles.dragIndicator, { backgroundColor: colors.outlineVariant }]} />
+            <View style={[styles.dragIndicator, { backgroundColor: colors.controlBorder }]} />
           </View>
 
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
-            <Text variant="title">{t('sense.chooseMeaning', { query })}</Text>
+            <View style={styles.headerTitleRow}>
+              <Text variant="sectionTitle">{t('add.whichMeaning')}</Text>
+              <Text variant="caption" color="muted">
+                {t('add.foundCount', { count: options.length })}
+              </Text>
+            </View>
             <Pressable
               onPress={handleClose}
               hitSlop={8}
@@ -173,75 +185,88 @@ export function SensePicker({
           </View>
 
           {errorMessage && (
-            <View style={[styles.errorRow, { backgroundColor: colors.errorContainer, marginBottom: spacing.sm }]}>
-              <Icon name="alert-circle" size="sm" color={colors.error} />
+            <View
+              style={[
+                styles.errorRow,
+                { backgroundColor: colors.dangerSurface, marginBottom: spacing.sm },
+              ]}
+            >
+              <Icon name="alert-circle" size="sm" color={colors.danger} />
               <Text variant="body" color="danger">
                 {errorMessage}
               </Text>
             </View>
           )}
 
-          <ScrollView style={styles.list} contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}>
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={{ gap: 10, paddingVertical: spacing.sm }}
+          >
             {options.length === 0 && !isLookingUp && (
-              <Text color="muted" style={{ fontStyle: 'italic' }}>
-                {t('sense.noneFound')}
-              </Text>
+              <Text color="muted">{t('sense.noneFound')}</Text>
             )}
 
-            {options.map((option) => {
-              const active = option.word_sense_id === selectedId;
-              const closest = isClosestToContext(option, options);
-              return (
-                <Pressable
-                  key={option.word_sense_id}
-                  onPress={() => {
-                    if (!busy) {
-                      setSelectedId(option.word_sense_id);
-                    }
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Card
-                    variant="outlined"
-                    style={{
-                      borderColor: active ? colors.primary : colors.outlineVariant,
-                      backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
-                      marginBottom: 0,
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel={`Meanings of ${query}`}
+              style={{ gap: 10 }}
+            >
+              {options.map((option) => {
+                const active = option.word_sense_id === selectedId;
+                const closest = isClosestToContext(option, options);
+                const gloss = displayGloss(option) || option.localized_definition || option.definition;
+                const posLabel = t(`pos.${option.part_of_speech}` as TranslationKey);
+                const metaLabel = option.cefr_level
+                  ? `${posLabel} · ${option.cefr_level}`
+                  : posLabel;
+
+                return (
+                  <SelectableCard
+                    key={option.word_sense_id}
+                    selected={active}
+                    onSelect={() => {
+                      if (!busy) {
+                        setSelectedId(option.word_sense_id);
+                      }
                     }}
                   >
-                    <View style={[styles.optionHead, { gap: spacing.sm }]}>
-                      <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
-                      {option.cefr_level && <Badge label={option.cefr_level} variant="info" />}
-                      {closest && <Badge label={t('sense.closestToContext')} variant="success" />}
+                    <View style={styles.optionBody}>
+                      <View style={styles.optionTopRow}>
+                        <Text style={styles.glossText}>{gloss}</Text>
+                        <Text variant="caption" color="muted">
+                          {metaLabel}
+                        </Text>
+                        {closest ? (
+                          <Badge label={t('sense.closestToContext')} variant="accent" />
+                        ) : null}
+                      </View>
                     </View>
-                    <SenseMeaning option={option} />
-                    {(option.examples ?? []).length > 0 && (
-                      <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
-                        &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, query)}&rdquo;
-                      </Text>
-                    )}
-                  </Card>
-                </Pressable>
-              );
-            })}
+                  </SelectableCard>
+                );
+              })}
+            </View>
 
             {isLookingUp && (
               <View style={[styles.generating, { gap: spacing.sm }]}>
-                <ActivityIndicator color={colors.primary} />
+                <ActivityIndicator color={colors.accent} />
                 <Text color="muted">{t('sense.generating')}</Text>
               </View>
             )}
 
             {needContext && (
-              <View style={[styles.posPrompt, { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.sm }]}>
+              <View
+                style={[
+                  styles.posPrompt,
+                  { borderTopColor: colors.hairline, paddingTop: spacing.md, gap: spacing.sm },
+                ]}
+              >
                 <Text variant="label" color="muted">
                   {t('sense.needContext')}
                 </Text>
                 <Input
                   value={draftContext}
                   onChangeText={setDraftContext}
-                  placeholder={t('add.contextPlaceholder')}
+                  placeholder={t('add.whereSawPlaceholder')}
                   multiline
                   numberOfLines={3}
                   style={{ minHeight: 72 }}
@@ -260,7 +285,12 @@ export function SensePicker({
             )}
 
             {showPosPrompt && !selected && (
-              <View style={[styles.posPrompt, { borderTopColor: colors.outlineVariant, paddingTop: spacing.md, gap: spacing.md }]}>
+              <View
+                style={[
+                  styles.posPrompt,
+                  { borderTopColor: colors.hairline, paddingTop: spacing.md, gap: spacing.md },
+                ]}
+              >
                 <Text variant="label" color="muted">
                   {t('sense.pickPartOfSpeech')}
                 </Text>
@@ -269,7 +299,7 @@ export function SensePicker({
                     <Button
                       key={pos}
                       label={t(`pos.${pos}`)}
-                      variant="tonal"
+                      variant="secondary"
                       onPress={() => {
                         onForceWithPos(pos, resolvedContext || undefined);
                         setPosPrompt(false);
@@ -284,22 +314,32 @@ export function SensePicker({
           </ScrollView>
 
           <View style={[styles.actions, { marginTop: spacing.md, gap: spacing.md }]}>
-            <Button label={t('sense.noneMatch')} variant="ghost" onPress={handleNoneMatch} disabled={busy} />
             <Button
-              label={t('sense.addBest')}
-              variant="tonal"
-              onPress={handleAddBestMatch}
-              disabled={!top || busy}
-              loading={isConfirming && confirmTarget === 'best'}
-              testID="sense-add-best"
+              label={t('add.noneSearchAgain')}
+              variant="link"
+              onPress={handleNoneMatch}
+              disabled={busy}
             />
-            <Button
-              label={t('sense.add')}
-              onPress={handleAddSelected}
-              disabled={!selectedId || busy}
-              loading={isConfirming && confirmTarget === 'selected'}
-              testID="sense-add"
-            />
+            <View style={styles.rightActions}>
+              {top ? (
+                <Button
+                  label={t('sense.addBest')}
+                  variant="secondary"
+                  onPress={handleAddBestMatch}
+                  disabled={!top || busy}
+                  loading={isConfirming && confirmTarget === 'best'}
+                  testID="sense-add-best"
+                />
+              ) : null}
+              <Button
+                label={t('add.addToDeck')}
+                variant="primary"
+                onPress={handleAddSelected}
+                disabled={(!selectedId && options.length === 0) || busy}
+                loading={isConfirming && confirmTarget === 'selected'}
+                testID="sense-add"
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -318,6 +358,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 24,
     maxHeight: '85%',
+    borderTopWidth: 1,
   },
   dragHandle: {
     alignItems: 'center',
@@ -332,6 +373,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 12,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   errorRow: {
     flexDirection: 'row',
@@ -344,10 +393,18 @@ const styles = StyleSheet.create({
   list: {
     flexGrow: 0,
   },
-  optionHead: {
+  optionBody: {
+    gap: 6,
+  },
+  optionTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 10,
+  },
+  glossText: {
+    fontSize: 17,
+    fontWeight: '500',
   },
   generating: {
     flexDirection: 'row',
@@ -368,7 +425,12 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });

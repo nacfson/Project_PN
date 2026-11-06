@@ -134,7 +134,7 @@ export function TappablePassage({
       {tokens.map((token) => {
         if (token.word === null || token.wordIndex === null) {
           return (
-            <Text key={token.key} style={[styles.separator, { color: colors.onSurface }]}>
+            <Text key={token.key} style={[styles.separator, { color: colors.text }]}>
               {token.raw}
             </Text>
           );
@@ -150,9 +150,9 @@ export function TappablePassage({
               styles.wordChip,
               {
                 borderRadius: radii.sm,
-                backgroundColor: isSelected || isAnchor ? colors.primaryContainer : 'transparent',
+                backgroundColor: isSelected || isAnchor ? colors.infoSurface : 'transparent',
                 borderBottomWidth: isAnchor && !isSelected ? 2 : 0,
-                borderBottomColor: colors.primary,
+                borderBottomColor: colors.accent,
               },
             ]}
             accessibilityRole="button"
@@ -162,7 +162,7 @@ export function TappablePassage({
             <Text
               style={[
                 styles.word,
-                { color: isSelected || isAnchor ? colors.onPrimaryContainer : colors.onSurface },
+                { color: isSelected || isAnchor ? colors.accent : colors.text },
                 (isSelected || isAnchor) && { fontWeight: '600' },
               ]}
             >

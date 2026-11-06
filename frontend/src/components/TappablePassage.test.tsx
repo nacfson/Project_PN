@@ -4,15 +4,6 @@ import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { TappablePassage, type PassageSpan } from './TappablePassage';
 
-jest.mock('@expo-google-fonts/inter', () => ({
-  useFonts: () => [true],
-  Inter_400Regular: 'Inter_400Regular',
-  Inter_500Medium: 'Inter_500Medium',
-  Inter_600SemiBold: 'Inter_600SemiBold',
-  Inter_700Bold: 'Inter_700Bold',
-  Inter_800ExtraBold: 'Inter_800ExtraBold',
-}));
-
 function renderPassage(props: {
   phraseMode?: boolean;
   phraseAnchor?: number | null;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
@@ -7,15 +7,15 @@ import {
   lookupWord,
   setLearningItemPersonalNote,
 } from '../../api/words';
+import { SenseMeaning } from '../../components/SenseMeaning';
 import { useAppLanguage, type TranslationKey } from '../../i18n';
 import { PAGE_WIDTH_FRAME } from '../../navigation/shellKind';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Badge, Button, Card, Icon, Input, Text } from '../../ui';
+import { radii, spacing, useTheme } from '../../theme';
 import type { LearningItemListItem, SenseOption } from '../../types';
-import { renderFormattedSentence } from '../../utils/text';
-import { isClosestToContext } from '../../utils/senses';
-import { SenseMeaning } from '../../components/SenseMeaning';
+import { Badge, Button, Card, Icon, Input, Text } from '../../ui';
 import { displayGloss } from '../../utils/meanings';
+import { isClosestToContext } from '../../utils/senses';
+import { renderFormattedSentence } from '../../utils/text';
 
 interface ChangeMeaningSheetProps {
   visible: boolean;
@@ -35,7 +35,7 @@ export function ChangeMeaningSheet({
   onBusyChange,
   preferPersonalNote = false,
 }: ChangeMeaningSheetProps) {
-  const { colors, radii, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const [options, setOptions] = useState<SenseOption[]>([]);
@@ -121,7 +121,6 @@ export function ChangeMeaningSheet({
     onBusyChange?.(true);
     setError(null);
     try {
-      // Always send personal_note on change-meaning so sense swap clears when empty.
       const notePayload = noteTrimmed;
       const updated = await changeLearningItemSense(item.id, selectedId, undefined, notePayload);
       const selected = options.find((o) => o.word_sense_id === selectedId);
@@ -201,44 +200,49 @@ export function ChangeMeaningSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={[styles.backdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+      <View style={[styles.backdrop, { backgroundColor: colors.scrim }]}>
         <View
           testID="bottom-sheet"
           style={[
             styles.sheet,
             {
-              backgroundColor: colors.surfaceContainerLow,
-              borderTopLeftRadius: radii.xxl,
-              borderTopRightRadius: radii.xxl,
+              backgroundColor: colors.surface,
+              borderColor: colors.hairline,
+              borderTopWidth: 1,
+              borderTopLeftRadius: radii.xl,
+              borderTopRightRadius: radii.xl,
               paddingBottom: Math.max(24, insets.bottom),
             },
           ]}
         >
           <View style={styles.dragHandle}>
-            <View style={[styles.dragIndicator, { backgroundColor: colors.outlineVariant }]} />
+            <View style={[styles.dragIndicator, { backgroundColor: colors.controlBorder }]} />
           </View>
           <View style={[styles.header, { marginBottom: spacing.sm }]}>
-            <Text variant="title">{t('words.changeMeaningTitle')}</Text>
+            <Text variant="sectionTitle">{t('words.changeMeaningTitle')}</Text>
             <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button">
               <Icon name="close" size="lg" />
             </Pressable>
           </View>
-          <Text variant="caption" color="muted" style={{ marginBottom: spacing.sm }}>
+          <Text variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
             {item.lemma}
             {currentGloss ? ` · ${currentGloss}` : ''}
           </Text>
 
           {error && (
-            <Text variant="body" color="danger" style={{ marginBottom: spacing.sm }}>
+            <Text variant="body" color={colors.danger} style={{ marginBottom: spacing.sm }}>
               {error}
             </Text>
           )}
 
-          <ScrollView style={styles.list} contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}>
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}
+          >
             {loading && (
               <View style={[styles.loading, { gap: spacing.sm }]}>
-                <ActivityIndicator color={colors.primary} />
-                <Text color="muted">{t('sense.generating')}</Text>
+                <ActivityIndicator color={colors.accent} />
+                <Text color={colors.textSecondary}>{t('sense.generating')}</Text>
               </View>
             )}
             {!loading &&
@@ -255,19 +259,28 @@ export function ChangeMeaningSheet({
                     <Card
                       variant="outlined"
                       style={{
-                        borderColor: active ? colors.primary : colors.outlineVariant,
-                        backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
+                        borderColor: active ? colors.accent : colors.hairline,
+                        backgroundColor: active ? colors.infoSurface : colors.surface,
                         marginBottom: 0,
                       }}
                     >
                       <View style={[styles.optionHead, { gap: spacing.sm }]}>
-                        <Badge label={t(`pos.${option.part_of_speech}` as TranslationKey)} variant="primary" />
+                        <Badge
+                          label={t(`pos.${option.part_of_speech}` as TranslationKey)}
+                          variant="accent"
+                        />
                         {closest && <Badge label={t('sense.closestToContext')} variant="success" />}
                       </View>
                       <SenseMeaning option={option} />
                       {(option.examples ?? []).length > 0 && (
-                        <Text variant="caption" color="muted" style={{ marginTop: spacing.xs, fontStyle: 'italic' }}>
-                          &ldquo;{renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}&rdquo;
+                        <Text
+                          variant="caption"
+                          color={colors.textSecondary}
+                          style={{ marginTop: spacing.xs, fontStyle: 'italic' }}
+                        >
+                          &ldquo;
+                          {renderFormattedSentence((option.examples ?? [])[0].sentence, item.lemma)}
+                          &rdquo;
                         </Text>
                       )}
                     </Card>
@@ -276,7 +289,7 @@ export function ChangeMeaningSheet({
               })}
 
             <View style={{ gap: spacing.sm }}>
-              <Text variant="label" color="muted">
+              <Text variant="groupLabel" color={colors.textSecondary}>
                 {t('add.contextLabel')}
               </Text>
               <Input
@@ -290,7 +303,7 @@ export function ChangeMeaningSheet({
               />
               <Button
                 label={t('sense.findMore')}
-                variant="tonal"
+                variant="secondary"
                 onPress={() => {
                   void handleFindMore();
                 }}
@@ -306,16 +319,14 @@ export function ChangeMeaningSheet({
                   accessibilityRole="button"
                   hitSlop={8}
                 >
-                  <Text variant="body" color="primary" bold>
+                  <Text variant="body" color={colors.accent} bold>
                     {t('words.personalMeaningTitle')}
                   </Text>
                 </Pressable>
               ) : (
                 <>
-                  <Text variant="title" bold>
-                    {t('words.personalMeaningTitle')}
-                  </Text>
-                  <Text variant="caption" color="muted">
+                  <Text variant="sectionTitle">{t('words.personalMeaningTitle')}</Text>
+                  <Text variant="caption" color={colors.textSecondary}>
                     {t('words.personalMeaningHelp')}
                   </Text>
                   <Input
@@ -346,7 +357,7 @@ export function ChangeMeaningSheet({
                   {item.personal_note?.trim() ? (
                     <Button
                       label={t('words.personalMeaningClear')}
-                      variant="ghost"
+                      variant="quiet"
                       onPress={() => {
                         void handleClearPersonal();
                       }}

@@ -20,7 +20,7 @@ export function TabSlot({
   icon: ReactNode;
   accessibilityLabel?: string;
 }) {
-  const { colors, radii } = useTheme();
+  const { colors, layout } = useTheme();
   return (
     <Pressable
       testID={testID}
@@ -33,23 +33,23 @@ export function TabSlot({
         overflow: 'hidden',
         maxWidth: '100%',
         flex: 1,
+        minHeight: layout.tabBarItemMinHeight,
         alignItems: 'center',
         justifyContent: 'center',
-        marginHorizontal: 4,
-        marginVertical: 6,
         paddingHorizontal: 4,
-        borderRadius: radii.full,
-        backgroundColor: focused ? colors.primaryContainer : 'transparent',
+        paddingVertical: 6,
+        gap: 3,
       }}
     >
       {icon}
       <Text
         numberOfLines={1}
         ellipsizeMode="tail"
-        variant="caption"
+        variant="micro"
         style={{
           maxWidth: '100%',
-          color: focused ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+          color: focused ? colors.text : colors.textMuted,
+          fontWeight: '500',
         }}
       >
         {label}

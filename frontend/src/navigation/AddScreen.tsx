@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { listDecks } from '../api/decks';
@@ -10,7 +10,7 @@ import { useActiveTargetLanguage } from '../hooks/useActiveTargetLanguage';
 import { useAddQueue } from '../hooks/useAddQueue';
 import { useAppLanguage } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
-import { Text } from '../ui';
+import { PageColumn, SegmentedControl, Text } from '../ui';
 import { DEFAULT_LANGUAGE_CODE } from '../config';
 
 const LAST_REFRESH_THRESHOLD_MS = 30_000;
@@ -18,7 +18,12 @@ const LAST_REFRESH_THRESHOLD_MS = 30_000;
 export function AddScreen() {
   const { colors, spacing } = useTheme();
   const { t } = useAppLanguage();
-  const { targetLanguage, loading: languageLoading, error: languageError, refresh: refreshLanguage } = useActiveTargetLanguage();
+  const {
+    targetLanguage,
+    loading: languageLoading,
+    error: languageError,
+    refresh: refreshLanguage,
+  } = useActiveTargetLanguage();
   const [decks, setDecks] = useState<Awaited<ReturnType<typeof listDecks>>>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [decksError, setDecksError] = useState<string | null>(null);
@@ -75,62 +80,59 @@ export function AddScreen() {
   const hasPendingJobs = pendingCount > 0;
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.container, { backgroundColor: colors.canvas }]}
+    >
       <ScrollView
-        stickyHeaderIndices={[0]}
-        contentContainerStyle={[styles.content, { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl * 2 }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingHorizontal: spacing.lg, paddingVertical: spacing.xl, paddingBottom: spacing.xl * 2 },
+        ]}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.header, { paddingTop: spacing.lg, paddingBottom: spacing.lg, backgroundColor: colors.background }]}>
-          <Text variant="heading" style={{ marginBottom: spacing.md }}>
-            {t('add.title')}
-          </Text>
-          <TargetDeckSelector
-            decks={decks}
-            selectedId={selectedDeckId}
-            onSelect={setSelectedDeckId}
-            loading={decksLoading || languageLoading}
-            error={languageError ?? decksError}
-            onRetry={handleRetry}
-            disabled={hasPendingJobs}
-          />
-          {selectedDeckId && (
-            <View style={[styles.tabContainer, { backgroundColor: colors.surfaceContainerLow, marginTop: spacing.md }]}>
-              <Pressable
-                testID="tab-manual"
-                onPress={() => setActiveTab('manual')}
-                style={[
-                  styles.tabButton,
-                  activeTab === 'manual' && { backgroundColor: colors.surface },
-                ]}
-              >
-                <Text bold={activeTab === 'manual'} color={activeTab === 'manual' ? 'primary' : 'muted'}>
-                  {t('add.manual')}
-                </Text>
-              </Pressable>
-              <Pressable
-                testID="tab-passage"
-                onPress={() => setActiveTab('passage')}
-                style={[
-                  styles.tabButton,
-                  activeTab === 'passage' && { backgroundColor: colors.surface },
-                ]}
-              >
-                <Text bold={activeTab === 'passage'} color={activeTab === 'passage' ? 'primary' : 'muted'}>
-                  {t('add.fromPassage')}
-                </Text>
-              </Pressable>
+        <PageColumn style={{ gap: 28 }}>
+          <View style={styles.header}>
+            <View style={styles.headerTextCol}>
+              <Text variant="pageTitle">{t('add.title')}</Text>
+              <TargetDeckSelector
+                decks={decks}
+                selectedId={selectedDeckId}
+                onSelect={setSelectedDeckId}
+                loading={decksLoading || languageLoading}
+                error={languageError ?? decksError}
+                onRetry={handleRetry}
+                disabled={hasPendingJobs}
+              />
             </View>
-          )}
-        </View>
+            {selectedDeckId ? (
+              <SegmentedControl
+                role="tablist"
+                value={activeTab}
+                onChange={setActiveTab}
+                options={[
+                  { value: 'manual', label: t('add.manual'), testID: 'tab-manual' },
+                  { value: 'passage', label: t('add.fromPassage'), testID: 'tab-passage' },
+                ]}
+              />
+            ) : null}
+          </View>
 
-        <View style={{ gap: spacing.lg }}>
-          {selectedDeckId && activeTab === 'passage' && (
-            <CaptureSection selectedDeckId={selectedDeckId} targetLanguage={targetLanguage || DEFAULT_LANGUAGE_CODE} />
-          )}
-          {selectedDeckId && activeTab === 'manual' && (
-            <ManualAddSection selectedDeckId={selectedDeckId} targetLanguage={targetLanguage || DEFAULT_LANGUAGE_CODE} />
-          )}
-        </View>
+          <View style={{ gap: spacing.lg }}>
+            {selectedDeckId && activeTab === 'passage' && (
+              <CaptureSection
+                selectedDeckId={selectedDeckId}
+                targetLanguage={targetLanguage || DEFAULT_LANGUAGE_CODE}
+              />
+            )}
+            {selectedDeckId && activeTab === 'manual' && (
+              <ManualAddSection
+                selectedDeckId={selectedDeckId}
+                targetLanguage={targetLanguage || DEFAULT_LANGUAGE_CODE}
+              />
+            )}
+          </View>
+        </PageColumn>
       </ScrollView>
     </SafeAreaView>
   );
@@ -144,17 +146,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    zIndex: 1,
-  },
-  tabContainer: {
     flexDirection: 'row',
-    borderRadius: 8,
-    padding: 4,
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 16,
+    zIndex: 10,
   },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 6,
+  headerTextCol: {
+    gap: 8,
   },
 });

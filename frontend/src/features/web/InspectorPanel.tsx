@@ -1,8 +1,8 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import React, { ReactNode, useEffect, useRef } from 'react';
 import { Animated, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
+import { spacing, useTheme } from '../../theme';
 import { Icon } from '../../ui';
 
 interface InspectorPanelProps {
@@ -13,7 +13,7 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ visible, onClose, children, title }: InspectorPanelProps) {
-  const { colors, spacing, shadows } = useTheme();
+  const { colors, shadows } = useTheme();
   const reduced = useReducedMotion();
   const { t } = useAppLanguage();
   const translateX = useRef(new Animated.Value(300)).current;
@@ -55,15 +55,11 @@ export function InspectorPanel({ visible, onClose, children, title }: InspectorP
             right: 0,
             top: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.25)',
+            backgroundColor: colors.scrim,
             opacity,
           }}
         >
-          <Pressable
-            testID="inspector-backdrop"
-            onPress={onClose}
-            style={{ flex: 1 }}
-          />
+          <Pressable testID="inspector-backdrop" onPress={onClose} style={{ flex: 1 }} />
         </Animated.View>
         <Animated.View
           style={{
@@ -72,7 +68,7 @@ export function InspectorPanel({ visible, onClose, children, title }: InspectorP
             height: '100%',
             backgroundColor: colors.surface,
             borderLeftWidth: 1,
-            borderLeftColor: colors.outlineVariant,
+            borderLeftColor: colors.hairline,
             padding: spacing.lg,
             paddingTop: spacing.xxl,
             ...shadows.lg,
@@ -94,7 +90,7 @@ export function InspectorPanel({ visible, onClose, children, title }: InspectorP
           </Pressable>
           {title ? (
             <View style={{ marginBottom: spacing.lg }}>
-              <Text style={{ fontSize: 20, fontWeight: '700', color: colors.onSurface }}>{title}</Text>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{title}</Text>
             </View>
           ) : null}
           {children}

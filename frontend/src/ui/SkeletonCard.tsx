@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { useTheme } from '../theme/ThemeProvider';
+import { radii, spacing, useTheme } from '../theme';
 
 interface SkeletonCardProps {
   lines?: number;
 }
 
 export function SkeletonCard({ lines = 3 }: SkeletonCardProps) {
-  const { colors, radii, spacing } = useTheme();
+  const { colors } = useTheme();
   const reduced = useReducedMotion();
   const shimmer = useRef(new Animated.Value(-1)).current;
 
@@ -19,7 +19,7 @@ export function SkeletonCard({ lines = 3 }: SkeletonCardProps) {
         toValue: 1,
         duration: 1200,
         useNativeDriver: true,
-      })
+      }),
     );
     animation.start();
     return () => {
@@ -36,8 +36,10 @@ export function SkeletonCard({ lines = 3 }: SkeletonCardProps) {
     <View
       style={{
         padding: spacing.lg,
-        backgroundColor: colors.surfaceContainerLow,
-        borderRadius: radii.xxl,
+        backgroundColor: colors.surface,
+        borderColor: colors.hairline,
+        borderWidth: 1,
+        borderRadius: radii.xl,
         gap: spacing.sm,
         overflow: 'hidden',
       }}
@@ -49,7 +51,7 @@ export function SkeletonCard({ lines = 3 }: SkeletonCardProps) {
           style={{
             height: 12,
             borderRadius: radii.sm,
-            backgroundColor: colors.surfaceContainerHighest,
+            backgroundColor: colors.fill,
             width: index === lines - 1 ? '60%' : '100%',
             overflow: 'hidden',
           }}
@@ -59,7 +61,8 @@ export function SkeletonCard({ lines = 3 }: SkeletonCardProps) {
               style={{
                 width: '40%',
                 height: '100%',
-                backgroundColor: 'rgba(255,255,255,0.35)',
+                backgroundColor: colors.surface,
+                opacity: 0.5,
                 transform: [{ translateX }],
               }}
             />

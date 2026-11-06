@@ -6,13 +6,12 @@ import { ThemeProvider } from '../theme/ThemeProvider';
 import type { SenseOption } from '../types';
 import { SensePicker } from './SensePicker';
 
-jest.mock('@expo-google-fonts/inter', () => ({
-  useFonts: () => [true],
-  Inter_400Regular: 'Inter_400Regular',
-  Inter_500Medium: 'Inter_500Medium',
-  Inter_600SemiBold: 'Inter_600SemiBold',
-  Inter_700Bold: 'Inter_700Bold',
-  Inter_800ExtraBold: 'Inter_800ExtraBold',
+jest.mock('../api/storage', () => ({
+  appLanguageStorage: {
+    getLanguage: jest.fn().mockResolvedValue('en'),
+    setLanguage: jest.fn().mockResolvedValue(undefined),
+  },
+  clearLegacyThemePreferences: jest.fn().mockResolvedValue(undefined),
 }));
 
 const options: SenseOption[] = [
@@ -25,14 +24,14 @@ const options: SenseOption[] = [
     part_of_speech: 'verb',
     pronunciation: null,
     display_language_code: 'ko',
-    definition: 'to accuse',
+    definition: 'to accuse formally in a court',
     short_definition: null,
     localized_definition: '기소하다',
     localized_short_definition: '기소하다',
-    cefr_level: null,
+    cefr_level: 'B2',
     meaning_order: 1,
     similarity: 0.05,
-    examples: [],
+    examples: [{ sentence: 'They charged him with fraud.', difficulty: null, localized_translation: null }],
   },
   {
     word_id: 'w1',
@@ -43,14 +42,14 @@ const options: SenseOption[] = [
     part_of_speech: 'verb',
     pronunciation: null,
     display_language_code: 'ko',
-    definition: 'to store energy',
+    definition: 'to store electrical energy',
     short_definition: null,
     localized_definition: '충전하다',
     localized_short_definition: '충전하다',
-    cefr_level: null,
+    cefr_level: 'A2',
     meaning_order: 2,
     similarity: 0.4,
-    examples: [],
+    examples: [{ sentence: 'Charge the battery overnight.', difficulty: null, localized_translation: null }],
   },
 ];
 
@@ -74,7 +73,37 @@ describe('SensePicker', () => {
     await cleanup();
   });
 
-  it('badges the closest context sense and adds that best match', async () => {
+  it('renders simple gloss, POS · CEFR metadata, found count, and no example sentence or English definition', async () => {
+    await render(
+      wrap(
+        <SensePicker
+          visible
+          query="charge"
+          options={options}
+          generating={false}
+          onConfirm={jest.fn()}
+          onForceExisting={jest.fn()}
+          onForceWithPos={jest.fn()}
+          onClose={jest.fn()}
+        />,
+      ),
+    );
+
+    expect(screen.getByText('Which meaning did you mean?')).toBeTruthy();
+    expect(screen.getByText('2 found')).toBeTruthy();
+    expect(screen.getByText('기소하다')).toBeTruthy();
+    expect(screen.getByText('충전하다')).toBeTruthy();
+    expect(screen.getByText('verb · B2')).toBeTruthy();
+    expect(screen.getByText('verb · A2')).toBeTruthy();
+
+    // No English definition or example sentences rendered
+    expect(screen.queryByText('to accuse formally in a court')).toBeNull();
+    expect(screen.queryByText('to store electrical energy')).toBeNull();
+    expect(screen.queryByText(/They charged him with fraud/)).toBeNull();
+    expect(screen.queryByText(/Charge the battery overnight/)).toBeNull();
+  });
+
+  it('badges the closest context sense and adds via Add best match or Add to deck', async () => {
     const onConfirm = jest.fn();
     await render(
       wrap(
@@ -92,7 +121,7 @@ describe('SensePicker', () => {
       ),
     );
     expect(screen.getByText('Closest to your sentence')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Add best match'));
+    await fireEvent.press(screen.getByText('Add to deck'));
     expect(onConfirm).toHaveBeenCalledWith('battery');
   });
 
@@ -113,7 +142,7 @@ describe('SensePicker', () => {
         />,
       ),
     );
-    await fireEvent.press(screen.getByText('None of these match'));
+    await fireEvent.press(screen.getByText('None of these — search again'));
     await waitFor(() => {
       expect(screen.getByText(/Add a sentence that shows the meaning/)).toBeTruthy();
     });
@@ -139,7 +168,7 @@ describe('SensePicker', () => {
       ),
     );
     await fireEvent.press(screen.getByText('충전하다'));
-    await fireEvent.press(screen.getByText('None of these match'));
+    await fireEvent.press(screen.getByText('None of these — search again'));
     await waitFor(() => {
       expect(onForceExisting).toHaveBeenCalledWith('w1', 'Charge the battery overnight.');
     });

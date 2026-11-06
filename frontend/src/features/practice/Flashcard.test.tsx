@@ -178,6 +178,7 @@ describe('Flashcard', () => {
     expect(wrapper.props.style).toEqual(
       expect.arrayContaining([expect.objectContaining({ height: 280 })])
     );
+    expect(screen.getByTestId('flashcard-back-scroll')).toBeTruthy();
   });
 
   it('does not crash when part_of_speech is unknown (Anki import fallback)', async () => {

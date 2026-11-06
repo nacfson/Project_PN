@@ -25,7 +25,7 @@ function LoadingScreen() {
   const { colors } = useTheme();
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]}>
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
@@ -49,7 +49,7 @@ function AppContent() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
 
   const authStateRef = useRef<AuthState>('loading');
   useEffect(() => {
@@ -175,7 +175,7 @@ function AppContent() {
   if (!onboardingCompleted) {
     return (
       <>
-        <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style="dark" />
         <OnboardingScreen onComplete={completeOnboarding} />
       </>
     );
@@ -183,13 +183,13 @@ function AppContent() {
 
   return (
     <>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style="dark" />
       {authState === 'authenticated' ? (
         <AuthenticatedApp onLogout={() => setAuthState('unauthenticated')} />
       ) : (
         <SafeAreaView
           edges={['top', 'right', 'bottom', 'left']}
-          style={[styles.safe, { backgroundColor: colors.background }]}
+          style={[styles.safe, { backgroundColor: colors.canvas }]}
         >
           <CentralAuthScreen 
             onTokenReceived={checkAuth} 

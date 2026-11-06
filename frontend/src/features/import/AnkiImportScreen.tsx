@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,12 +7,12 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAnkiImport } from './useAnkiImport';
-import { ImportConflictPicker } from './ImportConflictPicker';
 import { useAppLanguage } from '../../i18n';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Text } from '../../ui';
+import { radii, spacing, useTheme } from '../../theme';
 import type { ImportError, ImportPreviewItem } from '../../types';
+import { Button, Text } from '../../ui';
+import { ImportConflictPicker } from './ImportConflictPicker';
+import { useAnkiImport } from './useAnkiImport';
 
 interface AnkiImportScreenProps {
   languageCode?: string;
@@ -23,7 +23,7 @@ export function AnkiImportScreen({
   languageCode = 'en',
   definitionLanguageCode = 'ko',
 }: AnkiImportScreenProps) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const [showHelp, setShowHelp] = useState(false);
@@ -46,7 +46,7 @@ export function AnkiImportScreen({
   const hasConflicts = preview?.items.some((item: ImportPreviewItem) => item.status === 'conflict');
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.canvas }]}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -54,12 +54,10 @@ export function AnkiImportScreen({
         ]}
       >
         <View style={{ gap: spacing.md }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text variant="title" bold>
-              {t('import.title')}
-            </Text>
+          <View style={styles.headerRow}>
+            <Text variant="sectionTitle">{t('import.title')}</Text>
             <Pressable onPress={() => setShowHelp((v) => !v)} hitSlop={8}>
-              <Text variant="caption" color="primary">
+              <Text variant="caption" color={colors.accent}>
                 {showHelp ? t('common.close') : t('import.help')}
               </Text>
             </Pressable>
@@ -70,13 +68,13 @@ export function AnkiImportScreen({
               style={[
                 styles.helpBox,
                 {
-                  backgroundColor: colors.surfaceContainerLow,
+                  backgroundColor: colors.fill,
                   borderRadius: radii.md,
                   padding: spacing.md,
                 },
               ]}
             >
-              <Text variant="caption" color="muted">
+              <Text variant="caption" color={colors.textSecondary}>
                 {t('import.helpText')}
               </Text>
             </View>
@@ -84,7 +82,7 @@ export function AnkiImportScreen({
 
           {!preview && !result && (
             <View style={{ gap: spacing.md }}>
-              <Text variant="body" color="muted">
+              <Text variant="body" color={colors.textSecondary}>
                 {t('import.pasteInstructions')}
               </Text>
 
@@ -92,8 +90,8 @@ export function AnkiImportScreen({
                 style={[
                   styles.textAreaWrapper,
                   {
-                    backgroundColor: colors.surfaceContainerHighest,
-                    borderColor: colors.outlineVariant,
+                    backgroundColor: colors.surface,
+                    borderColor: colors.controlBorder,
                     borderRadius: radii.md,
                   },
                 ]}
@@ -102,7 +100,7 @@ export function AnkiImportScreen({
                   value={csvText}
                   onChangeText={setCsvText}
                   placeholder={t('import.csvPlaceholder')}
-                  placeholderTextColor={colors.onSurfaceVariant}
+                  placeholderTextColor={colors.textMuted}
                   multiline
                   numberOfLines={10}
                   textAlignVertical="top"
@@ -110,7 +108,7 @@ export function AnkiImportScreen({
                     styles.textArea,
                     {
                       padding: spacing.md,
-                      color: colors.onSurface,
+                      color: colors.text,
                       fontSize: 14,
                     },
                   ]}
@@ -133,13 +131,13 @@ export function AnkiImportScreen({
               style={[
                 styles.errorBox,
                 {
-                  backgroundColor: colors.errorContainer,
+                  backgroundColor: colors.dangerSurface,
                   borderRadius: radii.md,
                   padding: spacing.md,
                 },
               ]}
             >
-              <Text variant="body" color="danger">
+              <Text variant="body" color={colors.danger}>
                 {error}
               </Text>
             </View>
@@ -147,19 +145,19 @@ export function AnkiImportScreen({
 
           {preview && (
             <View style={{ gap: spacing.md }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={styles.headerRow}>
                 <Text variant="body" bold>
                   {t('import.reviewTitle', { count: preview.cards.length })}
                 </Text>
                 <Pressable onPress={reset} hitSlop={8}>
-                  <Text variant="caption" color="primary">
+                  <Text variant="caption" color={colors.accent}>
                     {t('import.startOver')}
                   </Text>
                 </Pressable>
               </View>
 
               {hasConflicts && (
-                <Text variant="caption" color="muted">
+                <Text variant="caption" color={colors.textSecondary}>
                   {t('import.conflictHint')}
                 </Text>
               )}
@@ -189,16 +187,16 @@ export function AnkiImportScreen({
               style={[
                 styles.resultBox,
                 {
-                  backgroundColor: colors.surfaceContainerLow,
-                  borderRadius: radii.md,
+                  backgroundColor: colors.surface,
+                  borderColor: colors.hairline,
+                  borderWidth: 1,
+                  borderRadius: radii.lg,
                   padding: spacing.lg,
                   gap: spacing.md,
                 },
               ]}
             >
-              <Text variant="title" bold>
-                {t('import.complete')}
-              </Text>
+              <Text variant="sectionTitle">{t('import.complete')}</Text>
               <Text variant="body">
                 {t('import.summary', {
                   imported: result.imported,
@@ -209,13 +207,13 @@ export function AnkiImportScreen({
               {result.errors.length > 0 && (
                 <View style={{ gap: spacing.xs }}>
                   {result.errors.slice(0, 5).map((err: ImportError) => (
-                    <Text key={err.index} variant="caption" color="danger">
+                    <Text key={err.index} variant="caption" color={colors.danger}>
                       {err.front}: {err.error}
                     </Text>
                   ))}
                 </View>
               )}
-              <Button label={t('import.importMore')} onPress={reset} variant="tonal" />
+              <Button label={t('import.importMore')} onPress={reset} variant="secondary" />
             </View>
           )}
         </View>
@@ -230,6 +228,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   textAreaWrapper: {
     borderWidth: 1,

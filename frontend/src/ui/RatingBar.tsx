@@ -1,25 +1,27 @@
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useAppLanguage } from '../i18n';
+import { shellKind, shellLayout } from '../navigation/shellKind';
 import { RatingButton } from './RatingButton';
 import type { Rating } from './RatingButton';
+import { Text } from './Text';
 
 interface RatingBarProps {
   intervals?: { again: string; hard: string; good: string; easy: string };
   onSelect: (rating: Rating) => void;
 }
 
-const ratingColors: Record<Rating, string> = {
-  again: '#b3261e',
-  hard: '#d97706',
-  good: '#16a34a',
-  easy: '#6750a4',
-};
-
 const ratingScoreMap: Record<Rating, number> = {
   again: 0,
   hard: 1,
   good: 2,
   easy: 3,
+};
+
+const ratingShortcutMap: Record<Rating, string> = {
+  again: '1',
+  hard: '2',
+  good: '3',
+  easy: '4',
 };
 
 export function RatingBar({ intervals, onSelect }: RatingBarProps) {
@@ -37,23 +39,33 @@ export function RatingBar({ intervals, onSelect }: RatingBarProps) {
   const activeIntervals = intervals ?? defaultIntervals;
 
   const ratings: Rating[] = ['again', 'hard', 'good', 'easy'];
-  const compact = width < 520;
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const compact = shellLayout(shellKind(Platform.OS, ua), width) === 'bottom' || width < 520;
+  const showKeyboardHint = Platform.OS === 'web' && !compact;
 
   return (
-    <View style={[styles.container, compact && styles.containerCompact]}>
-      {ratings.map((rating) => (
-        <RatingButton
-          key={rating}
-          option={{
-            rating,
-            label: labels[rating],
-            interval: activeIntervals[rating],
-            color: ratingColors[rating],
-          }}
-          onPress={onSelect}
-          style={[styles.button, compact && styles.buttonCompact]}
-        />
-      ))}
+    <View style={styles.wrapper}>
+      <View style={[styles.container, compact ? styles.containerCompact : styles.containerDesktop]}>
+        {ratings.map((rating) => (
+          <RatingButton
+            key={rating}
+            option={{
+              rating,
+              label: labels[rating],
+              interval: activeIntervals[rating],
+              shortcutKey: ratingShortcutMap[rating],
+              compact,
+            }}
+            onPress={onSelect}
+            style={compact ? styles.buttonCompact : styles.buttonDesktop}
+          />
+        ))}
+      </View>
+      {showKeyboardHint ? (
+        <Text variant="caption" color="muted" style={styles.hint}>
+          {t('practice.rateHint')}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -63,19 +75,31 @@ export function scoreFromRating(rating: Rating): number {
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    width: '100%',
+    gap: 10,
+  },
   container: {
     width: '100%',
     flexDirection: 'row',
-    gap: 8,
+  },
+  containerDesktop: {
+    flexWrap: 'wrap',
+    gap: 10,
   },
   containerCompact: {
-    flexWrap: 'wrap',
+    gap: 8,
   },
-  button: {
+  buttonDesktop: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 140,
+  },
+  buttonCompact: {
     flex: 1,
     minWidth: 0,
   },
-  buttonCompact: {
-    flexBasis: '48%',
+  hint: {
+    textAlign: 'center',
   },
 });

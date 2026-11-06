@@ -104,6 +104,10 @@ function shouldRun(): boolean {
   }
 }
 
+if (typeof document !== 'undefined' && document.documentElement) {
+  document.documentElement.style.colorScheme = 'light';
+}
+
 if (shouldRun()) {
   installStyleMirror();
 }

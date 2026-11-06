@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppLanguage, type TranslationKey } from '../../i18n';
-import { useTheme } from '../../theme/ThemeProvider';
-import type { WordsStackParamList } from '../../navigation/WordsStack';
-import { Badge, Button, Card, Screen, Text } from '../../ui';
-import { SpeakButton } from '../../components/SpeakButton';
 import { listDecks, moveItemsToDeck } from '../../api/decks';
+import { archiveLearningItem } from '../../api/learningItems';
+import { SpeakButton } from '../../components/SpeakButton';
+import { useAppLanguage, type TranslationKey } from '../../i18n';
+import type { WordsStackParamList } from '../../navigation/WordsStack';
+import { spacing, useTheme } from '../../theme';
 import type { Deck, LearningItemListItem } from '../../types';
-import { MoveToDeckModal } from './MoveToDeckModal';
-import { ChangeMeaningSheet } from './ChangeMeaningSheet';
-import { getPosColor, getPosBadgeVariant } from '../../utils/text';
+import { Badge, Button, Card, ConfirmDialog, PageColumn, Screen, Text } from '../../ui';
 import { displayGloss } from '../../utils/meanings';
+import { ChangeMeaningSheet } from './ChangeMeaningSheet';
+import { MoveToDeckModal } from './MoveToDeckModal';
 
 type WordDetailScreenProps = NativeStackScreenProps<WordsStackParamList, 'WordDetail'>;
 
@@ -31,8 +31,7 @@ function formatDate(iso: string, locale: string): string {
 export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const { item: routeItem } = route.params;
   const [item, setItem] = useState<LearningItemListItem>(routeItem);
-  const { colors, spacing } = useTheme();
-  const posColor = getPosColor(item.part_of_speech, colors);
+  const { colors } = useTheme();
   const { t, language } = useAppLanguage();
   const insets = useSafeAreaInsets();
 
@@ -43,6 +42,8 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const [moveError, setMoveError] = useState<string | null>(null);
   const [changeMeaningOpen, setChangeMeaningOpen] = useState(false);
   const [changeMeaningBusy, setChangeMeaningBusy] = useState(false);
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -71,7 +72,7 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
       try {
         await moveItemsToDeck(deckId, [item.id]);
         setMoveModalOpen(false);
-        navigation.goBack();
+        navigation?.goBack?.();
       } catch (err) {
         setMoveError(err instanceof Error ? err.message : t('words.moveToDeckFailed'));
       } finally {
@@ -80,6 +81,17 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
     },
     [item.id, navigation, t],
   );
+
+  const handleConfirmRemove = useCallback(async () => {
+    setConfirmRemoveOpen(false);
+    setRemoveLoading(true);
+    try {
+      await archiveLearningItem(item.id);
+      navigation?.goBack?.();
+    } finally {
+      setRemoveLoading(false);
+    }
+  }, [item.id, navigation]);
 
   const gloss = displayGloss(item);
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
@@ -93,89 +105,117 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.header, { gap: spacing.sm, marginBottom: spacing.md }]}>
-          <View style={[styles.row, { gap: spacing.md }]}>
-            <Text variant="headline" bold style={[styles.flex, { color: posColor }]}>
-              {item.lemma}
-            </Text>
-            <SpeakButton language={item.language_code} text={item.lemma} />
+        <PageColumn>
+          <View style={styles.header}>
+            <View style={styles.row}>
+              <Text variant="cardLemma" style={styles.flex}>
+                {item.lemma}
+              </Text>
+              <SpeakButton language={item.language_code} text={item.lemma} />
+            </View>
+            {item.pronunciation && (
+              <Text variant="ipa" color={colors.textMuted}>
+                {item.pronunciation}
+              </Text>
+            )}
           </View>
-          {item.pronunciation && (
-            <Text variant="caption" color="muted">
-              {item.pronunciation}
-            </Text>
-          )}
-        </View>
 
-        <View style={[styles.badgeRow, { gap: spacing.sm, marginBottom: spacing.lg }]}>
-          <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant={getPosBadgeVariant(item.part_of_speech)} />
-          <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="primary" />
-          {item.is_leech ? <Badge label={t('words.stuckBadge')} variant="danger" /> : null}
-          {cefrLabel && <Badge label={cefrLabel} variant="info" />}
-        </View>
+          <View style={styles.badgeRow}>
+            <Badge label={t(`pos.${item.part_of_speech}` as TranslationKey)} variant="neutral" />
+            <Badge label={t(`home.stage.${item.learning_stage}` as TranslationKey)} variant="accent" />
+            {item.is_leech ? <Badge label={t('words.stuckBadge')} variant="danger" /> : null}
+            {cefrLabel && <Badge label={cefrLabel} variant="neutral" />}
+          </View>
 
-        {gloss ? (
-          <Card style={{ marginBottom: spacing.md }}>
-            <Text variant="headline" bold style={{ color: posColor }}>
-              {gloss}
-            </Text>
-            <Text variant="caption" color="muted" style={{ marginTop: spacing.sm }}>
-              {item.personal_note?.trim()
-                ? t('practice.yourMeaning')
-                : t('words.glossAttribution')}
-            </Text>
+          {gloss ? (
+            <Card style={styles.cardSpacing}>
+              <Text variant="meaning" color={colors.text}>
+                {gloss}
+              </Text>
+              <Text variant="caption" color={colors.textSecondary} style={styles.attribution}>
+                {item.personal_note?.trim()
+                  ? t('practice.yourMeaning')
+                  : t('words.glossAttribution')}
+              </Text>
+            </Card>
+          ) : null}
+
+          <Card>
+            <View style={styles.metaRow}>
+              <Text variant="caption" color={colors.textSecondary}>
+                {t('words.detailAdded')}
+              </Text>
+              <Text variant="body" tabular>
+                {formatDate(item.added_at, language)}
+              </Text>
+            </View>
+            <View style={[styles.metaRow, styles.metaRowSpacing]}>
+              <Text variant="caption" color={colors.textSecondary}>
+                {t('words.detailDue')}
+              </Text>
+              <Text variant="body" tabular>
+                {formatDate(item.due_at, language)}
+              </Text>
+            </View>
           </Card>
-        ) : null}
 
-        <Card>
-          <View style={[styles.metaRow, { gap: spacing.sm }]}>
-            <Text variant="label" color="muted">
-              {t('words.detailAdded')}
-            </Text>
-            <Text variant="body">{formatDate(item.added_at, language)}</Text>
+          <View style={styles.actions}>
+            <Button
+              label={t('words.changeMeaning')}
+              variant="secondary"
+              onPress={() => setChangeMeaningOpen(true)}
+              loading={changeMeaningBusy}
+              disabled={changeMeaningBusy}
+            />
+
+            <Button
+              testID="word-detail-move"
+              label={t('words.moveToDeck')}
+              variant="secondary"
+              iconLeft="folder-open-outline"
+              onPress={() => setMoveModalOpen(true)}
+            />
+
+            <Button
+              testID="word-detail-remove"
+              label={t('words.removeFromDeck')}
+              variant="danger"
+              iconLeft="trash-outline"
+              onPress={() => setConfirmRemoveOpen(true)}
+              loading={removeLoading}
+              disabled={removeLoading}
+            />
           </View>
-          <View style={[styles.metaRow, { gap: spacing.sm, marginTop: spacing.sm }]}>
-            <Text variant="label" color="muted">
-              {t('words.detailDue')}
-            </Text>
-            <Text variant="body">{formatDate(item.due_at, language)}</Text>
-          </View>
-        </Card>
 
-        <Button
-          label={t('words.changeMeaning')}
-          variant="outline"
-          onPress={() => setChangeMeaningOpen(true)}
-          loading={changeMeaningBusy}
-          disabled={changeMeaningBusy}
-          style={{ marginTop: spacing.md }}
-        />
+          <MoveToDeckModal
+            visible={moveModalOpen}
+            decks={decks}
+            excludeDeckId={item.deck_id ?? null}
+            onClose={() => setMoveModalOpen(false)}
+            onSelect={handleMove}
+            isLoading={moveLoading || decksLoading}
+            error={moveError}
+          />
 
-        <Button
-          label={t('words.moveToDeck')}
-          variant="tonal"
-          iconLeft="folder-open-outline"
-          onPress={() => setMoveModalOpen(true)}
-          style={{ marginTop: spacing.sm }}
-        />
+          <ChangeMeaningSheet
+            visible={changeMeaningOpen}
+            item={item}
+            onClose={() => setChangeMeaningOpen(false)}
+            onChanged={setItem}
+            onBusyChange={setChangeMeaningBusy}
+          />
 
-        <MoveToDeckModal
-          visible={moveModalOpen}
-          decks={decks}
-          excludeDeckId={item.deck_id ?? null}
-          onClose={() => setMoveModalOpen(false)}
-          onSelect={handleMove}
-          isLoading={moveLoading || decksLoading}
-          error={moveError}
-        />
-
-        <ChangeMeaningSheet
-          visible={changeMeaningOpen}
-          item={item}
-          onClose={() => setChangeMeaningOpen(false)}
-          onChanged={setItem}
-          onBusyChange={setChangeMeaningBusy}
-        />
+          <ConfirmDialog
+            visible={confirmRemoveOpen}
+            title={t('words.removeConfirmTitle')}
+            body={t('words.removeConfirmBody')}
+            confirmLabel={t('words.removeConfirmAction')}
+            cancelLabel={t('common.cancel')}
+            tone="danger"
+            onConfirm={() => void handleConfirmRemove()}
+            onCancel={() => setConfirmRemoveOpen(false)}
+          />
+        </PageColumn>
       </ScrollView>
     </Screen>
   );
@@ -183,24 +223,44 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingTop: 8,
+    paddingTop: spacing.sm,
   },
   flex: {
     flex: 1,
   },
-  header: {},
+  header: {
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.md,
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  cardSpacing: {
+    marginBottom: spacing.md,
+  },
+  attribution: {
+    marginTop: spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  metaRowSpacing: {
+    marginTop: spacing.sm,
+  },
+  actions: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
   },
 });

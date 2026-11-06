@@ -1,19 +1,29 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ApiError } from '../../api/client';
 import { getLanguageOptions } from '../../api/auth';
+import { ApiError } from '../../api/client';
 import { addUserLanguage } from '../../api/userLanguages';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { SUPPORTED_LANGUAGES } from '../../config';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useAppLanguage } from '../../i18n';
-import { useTheme } from '../../theme/ThemeProvider';
-import { Button, Card, LoadingState, Screen, Switch, Text } from '../../ui';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
+import { spacing, useTheme } from '../../theme';
+import {
+  Button,
+  Card,
+  LoadingState,
+  PageColumn,
+  Screen,
+  SettingsGroup,
+  SettingsRow,
+  Switch,
+  Text,
+} from '../../ui';
 
 export function AddLanguagePairScreen() {
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
   const { refresh } = useLanguage();
@@ -73,7 +83,10 @@ export function AddLanguagePairScreen() {
       navigation.goBack();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.toLowerCase().includes('already exists') || (err instanceof ApiError && err.status === 409)) {
+      if (
+        message.toLowerCase().includes('already exists') ||
+        (err instanceof ApiError && err.status === 409)
+      ) {
         setError(t('settings.languagePairAlreadyExists'));
       } else {
         setError(message);
@@ -95,7 +108,7 @@ export function AddLanguagePairScreen() {
     <Button
       key={code}
       label={languageLabel(code)}
-      variant={selected ? 'primary' : 'tonal'}
+      variant={selected ? 'primary' : 'secondary'}
       onPress={() => onToggle(code)}
       style={{ flex: 1 }}
     />
@@ -104,46 +117,50 @@ export function AddLanguagePairScreen() {
   return (
     <Screen padded>
       <ScrollView
-        contentContainerStyle={{ paddingVertical: spacing.lg, gap: spacing.lg }}
+        contentContainerStyle={{ paddingVertical: spacing.lg }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ gap: spacing.xs }}>
-          <Text variant="heading">{t('settings.addLanguagePair')}</Text>
-          <Text variant="caption" color="muted">
-            {t('settings.addLanguagePairDescription')}
-          </Text>
-        </View>
-
-        <Card style={{ gap: spacing.md }}>
-          <Text variant="label">{t('settings.targetLanguage')}</Text>
-          <View style={styles.optionsGrid}>
-            {targetOptions.map((code) => renderOption(code, selectedTarget === code, toggleTarget))}
+        <PageColumn style={{ gap: spacing.lg }}>
+          <View style={{ gap: spacing.xs }}>
+            <Text variant="pageTitle">{t('settings.addLanguagePair')}</Text>
+            <Text variant="caption" color={colors.textSecondary}>
+              {t('settings.addLanguagePairDescription')}
+            </Text>
           </View>
-        </Card>
 
-        <Card style={{ gap: spacing.md }}>
-          <Text variant="label">{t('settings.displayLanguage')}</Text>
-          <View style={styles.optionsGrid}>
-            {displayOptions.map((code) => renderOption(code, selectedDisplay === code, toggleDisplay))}
-          </View>
-        </Card>
+          <Card style={{ gap: spacing.md }}>
+            <Text variant="groupLabel">{t('settings.targetLanguage')}</Text>
+            <View style={styles.optionsGrid}>
+              {targetOptions.map((code) => renderOption(code, selectedTarget === code, toggleTarget))}
+            </View>
+          </Card>
 
-        <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text variant="body">{t('settings.setActiveOnAdd')}</Text>
-          <Switch value={setActive} onValueChange={setSetActive} />
-        </Card>
+          <Card style={{ gap: spacing.md }}>
+            <Text variant="groupLabel">{t('settings.displayLanguage')}</Text>
+            <View style={styles.optionsGrid}>
+              {displayOptions.map((code) =>
+                renderOption(code, selectedDisplay === code, toggleDisplay),
+              )}
+            </View>
+          </Card>
 
-        {error ? (
-          <Text variant="caption" color="danger">{error}</Text>
-        ) : null}
+          <SettingsGroup>
+            <SettingsRow
+              title={t('settings.setActiveOnAdd')}
+              trailing={<Switch value={setActive} onValueChange={setSetActive} />}
+            />
+          </SettingsGroup>
 
-        <Button
-          label={t('settings.save')}
-          onPress={() => void handleSave()}
-          loading={saving}
-          disabled={!selectedTarget || !selectedDisplay}
-          fullWidth
-        />
+          {error ? <Text variant="caption" color={colors.danger}>{error}</Text> : null}
+
+          <Button
+            label={t('settings.save')}
+            onPress={() => void handleSave()}
+            loading={saving}
+            disabled={!selectedTarget || !selectedDisplay}
+            fullWidth
+          />
+        </PageColumn>
       </ScrollView>
     </Screen>
   );

@@ -1,21 +1,20 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { PosSelector } from '../components/PosSelector';
 import { WordChip } from '../components/WordChip';
+import { useActiveTargetLanguage } from '../hooks/useActiveTargetLanguage';
 import { useAddQueue } from '../hooks/useAddQueue';
 import { useAppLanguage } from '../i18n';
-import { useTheme } from '../theme/ThemeProvider';
-import { Button, EmptyState, Input, Text } from '../ui';
+import { spacing, useTheme } from '../theme';
 import type { PosFilter } from '../types';
-
-import { useActiveTargetLanguage } from '../hooks/useActiveTargetLanguage';
+import { Button, EmptyState, Input, Text } from '../ui';
 
 function isMultiWord(text: string): boolean {
   return text.trim().split(/\s+/).filter(Boolean).length > 1;
 }
 
 export function ManualAddScreen() {
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const [word, setWord] = useState('');
   const [pos, setPos] = useState<PosFilter>('Any');
@@ -48,10 +47,15 @@ export function ManualAddScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={[styles.content, { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 }]}>
+    <View style={[styles.container, { backgroundColor: colors.canvas }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl * 2 },
+        ]}
+      >
         <View style={{ gap: spacing.sm }}>
-          <Text variant="label" color="muted">
+          <Text variant="groupLabel" color={colors.textSecondary}>
             {t('add.addWordOrPhrase')}
           </Text>
           <Input
@@ -71,7 +75,7 @@ export function ManualAddScreen() {
         </View>
 
         <View style={{ gap: spacing.sm }}>
-          <Text variant="label" color="muted">
+          <Text variant="groupLabel" color={colors.textSecondary}>
             {t('add.partOfSpeechOptional')}
           </Text>
           <PosSelector
@@ -93,7 +97,7 @@ export function ManualAddScreen() {
 
         {added.length > 0 ? (
           <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
-            <Text variant="label" color="muted">
+            <Text variant="groupLabel" color={colors.textSecondary}>
               {t('add.added')}
             </Text>
             <View style={styles.addedRow}>

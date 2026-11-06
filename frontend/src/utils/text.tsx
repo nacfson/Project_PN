@@ -70,7 +70,7 @@ export function getPosColor(pos: string | null | undefined, colors: Colors): str
   if (!pos) return colors.primary;
   switch (pos.toLowerCase()) {
     case 'noun':
-      return colors.info;
+      return colors.accent;
     case 'verb':
       return colors.success;
     case 'adjective':
@@ -78,7 +78,7 @@ export function getPosColor(pos: string | null | undefined, colors: Colors): str
     case 'adverb':
       return colors.primary;
     default:
-      return colors.secondary;
+      return colors.textSecondary;
   }
 }
 

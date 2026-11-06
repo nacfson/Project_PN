@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppLanguage } from '../i18n';
-import { useTheme } from '../theme/ThemeProvider';
-import { Icon, Text } from '../ui';
 import { useAddQueue, type AddJob } from '../hooks/useAddQueue';
+import { useAppLanguage } from '../i18n';
+import { radii, spacing, useTheme } from '../theme';
+import { Icon, Text } from '../ui';
 
 interface ToastItemProps {
   job: AddJob;
@@ -12,7 +12,7 @@ interface ToastItemProps {
 }
 
 function ToastItem({ job, dismiss }: ToastItemProps) {
-  const { colors, radii } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
 
   useEffect(() => {
@@ -23,7 +23,7 @@ function ToastItem({ job, dismiss }: ToastItemProps) {
       dismiss(job.id);
     }, 2500);
     return () => clearTimeout(timer);
-  }, [job.id, dismiss]);
+  }, [job.id, job.status, dismiss]);
 
   return (
     <View
@@ -32,7 +32,7 @@ function ToastItem({ job, dismiss }: ToastItemProps) {
         {
           borderRadius: radii.md,
           backgroundColor: job.status === 'done' ? colors.successSurface : colors.dangerSurface,
-          borderColor: job.status === 'done' ? colors.successBorder : colors.dangerBorder,
+          borderColor: job.status === 'done' ? colors.success : colors.danger,
         },
       ]}
     >
@@ -41,7 +41,10 @@ function ToastItem({ job, dismiss }: ToastItemProps) {
         size="md"
         color={job.status === 'done' ? colors.success : colors.danger}
       />
-      <Text variant="body" style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }}>
+      <Text
+        variant="body"
+        style={{ flex: 1, color: job.status === 'done' ? colors.success : colors.danger }}
+      >
         {job.status === 'done'
           ? t('queue.added', { text: job.text })
           : t('queue.failed', { text: job.text, error: job.error ?? t('queue.unknownError') })}
@@ -59,13 +62,12 @@ function ToastItem({ job, dismiss }: ToastItemProps) {
 }
 
 export function QueueBanner() {
-  const { colors, radii, spacing } = useTheme();
+  const { colors } = useTheme();
   const { t } = useAppLanguage();
   const { jobs, pendingCount, dismissedIds, dismiss } = useAddQueue();
 
   const toasts = jobs.filter(
-    (job) =>
-      (job.status === 'done' || job.status === 'error') && !dismissedIds.has(job.id),
+    (job) => (job.status === 'done' || job.status === 'error') && !dismissedIds.has(job.id),
   );
 
   if (pendingCount === 0 && toasts.length === 0) {
@@ -81,7 +83,7 @@ export function QueueBanner() {
           paddingHorizontal: spacing.xl,
           paddingBottom: spacing.sm,
           gap: spacing.sm,
-          backgroundColor: colors.background,
+          backgroundColor: colors.canvas,
         },
       ]}
     >
@@ -91,7 +93,7 @@ export function QueueBanner() {
             styles.banner,
             {
               backgroundColor: colors.warningSurface,
-              borderColor: colors.warningBorder,
+              borderColor: colors.warning,
               borderRadius: radii.md,
             },
           ]}
