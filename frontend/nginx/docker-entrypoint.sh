@@ -92,16 +92,16 @@ http {
         default "";
     }
     map \$time_iso8601 \$log_t_main {
-        ~^(?<p>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d) \$p;
+        "~^(?<p>\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d)" \$p;
     }
     map \$time_iso8601 \$log_t_tz {
-        ~(?<z>[+-]\d\d:\d\d|Z)\$ \$z;
+        "~(?<z>[+-]\\d\\d:\\d\\d|Z)\$" \$z;
     }
     map \$msec \$log_t_ms {
-        ~\.(?<ms>\d{3}) \$ms;
+        "~\\.(?<ms>\\d{3})" \$ms;
     }
     map \$request_id \$tp_parent {
-        ~^(?<p>[0-9a-f]{16}) \$p;
+        "~^(?<p>[0-9a-f]{16})" \$p;
         default 0000000000000001;
     }
     log_format contract escape=json '{"time":"\$log_t_main.\$log_t_ms\$log_t_tz","level":"\$log_level","msg":"\$request","service.name":"pn-web","service.version":"${SERVICE_VERSION}","trace_id":"\$request_id","http.request.method":"\$request_method","url.path":"\$uri","http.response.status_code":\$status,"http.server.request.duration":\$request_time,"exception.message":"\$log_exception"}';
