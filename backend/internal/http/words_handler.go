@@ -13,6 +13,7 @@ import (
 
 	"project-pn/internal/admin"
 	"project-pn/internal/enrich"
+	"project-pn/internal/httpx"
 	"project-pn/internal/words"
 )
 
@@ -330,7 +331,7 @@ func logHandlerError(r *http.Request, err error) {
 		slog.Error("handler error", "error", err)
 		return
 	}
-	slog.Error("handler error",
+	httpx.LoggerFromContext(r.Context()).Error("handler error",
 		"error", err,
 		"method", r.Method,
 		"path", r.URL.Path,

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"project-pn/internal/analytics"
 )
@@ -41,9 +42,10 @@ func (h analyticsHandler) collect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	trustedUserID := userIDFromRequest(r)
+	now := time.Now().UTC()
 	for _, event := range batch.Events {
 		event.AuthenticatedUserID = trustedUserID
-		h.logger.Emit(analytics.Record{Kind: "analytics", Event: event})
+		h.logger.Emit(analytics.NewRecord(event, now))
 	}
 	writeJSON(w, http.StatusAccepted, map[string]int{"accepted": len(batch.Events)})
 }

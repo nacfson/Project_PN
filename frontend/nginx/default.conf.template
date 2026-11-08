@@ -6,14 +6,17 @@ server {
     index index.html;
 
     location = /healthz {
+        proxy_set_header traceparent "00-$request_id-$tp_parent-01";
         proxy_pass http://${PN_BACKEND_HOST}:${PN_BACKEND_PORT};
     }
 
     location = /readyz {
+        proxy_set_header traceparent "00-$request_id-$tp_parent-01";
         proxy_pass http://${PN_BACKEND_HOST}:${PN_BACKEND_PORT};
     }
 
     location /api/ {
+        proxy_set_header traceparent "00-$request_id-$tp_parent-01";
         proxy_pass http://${PN_BACKEND_HOST}:${PN_BACKEND_PORT};
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;

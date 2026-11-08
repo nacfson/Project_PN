@@ -59,7 +59,7 @@ func TestAnalyticsEndpointAcceptsAnonymousBatch(t *testing.T) {
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if len(logger.events) != 1 || logger.events[0].Kind != "analytics" {
+	if len(logger.events) != 1 || logger.events[0].Category != "analytics" {
 		t.Fatalf("emitted events = %#v", logger.events)
 	}
 }

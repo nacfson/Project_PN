@@ -18,12 +18,16 @@ import (
 	"project-pn/internal/enrich"
 	httpapi "project-pn/internal/http"
 	"project-pn/internal/learninglog"
+	"project-pn/internal/logx"
 	"project-pn/internal/migrations"
 	"project-pn/internal/notify"
 	"project-pn/internal/words"
 )
 
+var version = "v0.0.0"
+
 func main() {
+	slog.SetDefault(logx.New(os.Stderr, "pn-api", version))
 	ctx := context.Background()
 
 	cfg := config.Load()
@@ -76,7 +80,7 @@ func main() {
 	var enricher enrich.Enricher = primaryEnricher
 	if cfg.EnrichPrimaryBaseURL != "" {
 		llm := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryModel)
-		enricher = enrich.NewFallback(primaryEnricher, llm, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+		enricher = enrich.NewFallback(primaryEnricher, llm, slog.Default())
 		slog.Info("gloss origin configured",
 			"primary", "wiktapi",
 			"fallback", "llm",

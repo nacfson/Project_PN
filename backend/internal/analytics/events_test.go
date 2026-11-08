@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -49,5 +50,26 @@ func TestValidateRejectsMissingProperties(t *testing.T) {
 	event.Properties = nil
 	if err := Validate(event); err == nil || !strings.Contains(err.Error(), "properties") {
 		t.Fatalf("Validate() error = %v, want properties error", err)
+	}
+}
+
+func TestRecordFollowsContractV3(t *testing.T) {
+	fixedNow := time.Date(2026, 10, 29, 9, 0, 0, 0, time.UTC)
+	b, err := json.Marshal(NewRecord(validEvent(), fixedNow))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m["event.name"] != "analytics" || m["level"] != "info" || m["msg"] != "analytics event" || m["time"] != "2026-10-29T09:00:00.000Z" {
+		t.Fatalf("unexpected record fields: %s", b)
+	}
+	if m["service.name"] != "pn-api" || m["service.version"] == "" || m["service.version"] == nil {
+		t.Fatalf("missing service coordinates: %s", b)
+	}
+	if _, ok := m["kind"]; ok {
+		t.Fatal("kind must be replaced by event.name")
 	}
 }

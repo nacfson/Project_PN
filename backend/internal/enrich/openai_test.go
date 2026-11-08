@@ -3,11 +3,12 @@ package enrich
 import (
 	"bytes"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"project-pn/internal/logx"
 )
 
 func TestParseModelOutputRejectsNormalizedTextMismatch(t *testing.T) {
@@ -570,7 +571,7 @@ func TestOpenAIEnricher_LogsErrorToStdoutOnHTTPError(t *testing.T) {
 
 	var buf bytes.Buffer
 	enricher := NewOpenAI(srv.URL, "gemini-3.1-flash-lite")
-	enricher.Logger = slog.New(slog.NewTextHandler(&buf, nil))
+	enricher.Logger = logx.New(&buf, "pn-api", "v0.0.0")
 
 	_, err := enricher.Enrich(t.Context(), Request{
 		Text:                   "run",
@@ -581,7 +582,7 @@ func TestOpenAIEnricher_LogsErrorToStdoutOnHTTPError(t *testing.T) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
 	}
 	logged := buf.String()
-	if !strings.Contains(logged, "status_code=502") || !strings.Contains(logged, "gemini-3.1-flash-lite") {
-		t.Fatalf("expected stdout error log with status_code=502 and model, got %q", logged)
+	if !strings.Contains(logged, `"status_code":502`) || !strings.Contains(logged, "gemini-3.1-flash-lite") {
+		t.Fatalf("expected JSON error log with status_code 502 and model, got %q", logged)
 	}
 }

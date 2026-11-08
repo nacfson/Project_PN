@@ -58,20 +58,25 @@ func TestStreamLogger_Concurrent(t *testing.T) {
 
 func assertAdminLine(t *testing.T, raw, category, message string) {
 	t.Helper()
-	var rec struct {
-		Kind     string `json:"kind"`
-		Category string `json:"category"`
-		Time     string `json:"time"`
-		Message  string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(raw), &rec); err != nil {
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		t.Fatalf("unmarshal %q: %v", raw, err)
 	}
-	if rec.Kind != "admin" || rec.Category != category || rec.Time == "" {
-		t.Fatalf("unexpected record: %+v", rec)
+	if _, ok := m["kind"]; ok {
+		t.Fatalf("legacy kind field must not be present: %q", raw)
 	}
-	if message != "" && rec.Message != message {
-		t.Fatalf("message %q, want %q", rec.Message, message)
+	if m["event.name"] != "admin" || m["level"] != "info" || m["category"] != category {
+		t.Fatalf("unexpected record: %+v", m)
+	}
+	if m["service.name"] != "pn-api" || m["service.version"] == nil || m["service.version"] == "" {
+		t.Fatalf("missing service coordinates: %+v", m)
+	}
+	timeStr, _ := m["time"].(string)
+	if !strings.Contains(timeStr, ".") {
+		t.Fatalf("time %q needs millisecond precision", timeStr)
+	}
+	if message != "" && m["msg"] != message {
+		t.Fatalf("msg %q, want %q", m["msg"], message)
 	}
 }
 

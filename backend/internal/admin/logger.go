@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"project-pn/internal/logx"
 )
 
 // Logger emits one JSON admin audit line per event.
@@ -25,10 +27,13 @@ func (NoopLogger) Logf(string, string, ...interface{}) {}
 func (NoopLogger) Close() error                        { return nil }
 
 type auditLine struct {
-	Kind     string `json:"kind"`
-	Category string `json:"category"`
-	Time     string `json:"time"`
-	Message  string `json:"message"`
+	Time           string `json:"time"`
+	Level          string `json:"level"`
+	Msg            string `json:"msg"`
+	ServiceName    string `json:"service.name"`
+	ServiceVersion string `json:"service.version"`
+	EventName      string `json:"event.name"`
+	Category       string `json:"category"`
 }
 
 // streamLogger writes audit lines to a writer. Close does not close the writer,
@@ -60,10 +65,13 @@ func (l *streamLogger) Log(category, message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	rec := auditLine{
-		Kind:     "admin",
-		Category: category,
-		Time:     time.Now().UTC().Format(time.RFC3339),
-		Message:  message,
+		Time:           time.Now().UTC().Format(logx.TimeFormat),
+		Level:          "info",
+		Msg:            message,
+		ServiceName:    logx.Service(),
+		ServiceVersion: logx.Version(),
+		EventName:      "admin",
+		Category:       category,
 	}
 	b, err := json.Marshal(rec)
 	if err != nil {

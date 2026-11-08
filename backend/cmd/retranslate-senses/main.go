@@ -15,10 +15,14 @@ import (
 	"project-pn/internal/db"
 	"project-pn/internal/enrich"
 	"project-pn/internal/learninglog"
+	"project-pn/internal/logx"
 	"project-pn/internal/words"
 )
 
+var version = "v0.0.0"
+
 func main() {
+	slog.SetDefault(logx.New(os.Stderr, "pn-api", version))
 	var (
 		limit           int
 		wordID          string
@@ -57,7 +61,7 @@ func main() {
 	var enricher enrich.Enricher = primary
 	if cfg.EnrichPrimaryBaseURL != "" {
 		llm := enrich.NewOpenAI(cfg.EnrichPrimaryBaseURL, cfg.EnrichPrimaryModel)
-		enricher = enrich.NewFallback(primary, llm, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+		enricher = enrich.NewFallback(primary, llm, slog.Default())
 	}
 	slog.Info("retranslate enricher", "primary", "wiktapi", "base", cfg.OriginWiktAPIBaseURL)
 

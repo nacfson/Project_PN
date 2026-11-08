@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -142,7 +141,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		SourceContext:          sourceContext,
 	})
 	if err != nil {
-		slog.New(slog.NewTextHandler(os.Stdout, nil)).Error(
+		slog.Error(
 			"enrich lookup failed",
 			"word", normalized,
 			"error", err,
