@@ -99,6 +99,7 @@ http {
     }
     map \$msec \$log_t_ms {
         "~\\.(?<ms>\\d{3})" \$ms;
+        default 000;
     }
     map \$request_id \$tp_parent {
         "~^(?<p>[0-9a-f]{16})" \$p;
