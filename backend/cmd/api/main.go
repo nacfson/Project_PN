@@ -105,7 +105,7 @@ func main() {
 		"issuer", cfg.AuthJWTIssuer,
 		"audience", cfg.AuthJWTAudience,
 		"jwks_url", cfg.AuthJWTJWKSURL,
-		"dev_bypass", cfg.AuthDevBypass,
+		"dev_mode", cfg.AuthDevBypass,
 	)
 
 	var centralAuth *auth.CentralClient
