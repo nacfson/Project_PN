@@ -10,11 +10,14 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"project-pn/internal/logx"
 )
 
 const CurrentEventVersion = 1
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var traceHexPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 var allowedEventNames = map[string]struct{}{
 	"session_started": {}, "session_ended": {}, "screen_viewed": {},
@@ -47,11 +50,29 @@ type Batch struct {
 	Events []Event `json:"events"`
 }
 
-// Record is one stdout JSON line. Kind is "analytics". The collector also reads
-// other stdout and stderr lines. This producer does not filter them.
+// Record is one stdout JSON line. Category ("event.name") is "analytics". The
+// collector also reads other stdout and stderr lines. This producer does not filter them.
 type Record struct {
-	Kind string `json:"kind"`
+	Time           string `json:"time"`
+	Level          string `json:"level"`
+	Msg            string `json:"msg"`
+	ServiceName    string `json:"service.name"`
+	ServiceVersion string `json:"service.version"`
+	Category       string `json:"event.name"`
 	Event
+}
+
+// NewRecord wraps a validated Event in a Contract v3 stdout Record.
+func NewRecord(event Event, now time.Time) Record {
+	return Record{
+		Time:           now.UTC().Format(logx.TimeFormat),
+		Level:          "info",
+		Msg:            "analytics event",
+		ServiceName:    logx.Service(),
+		ServiceVersion: logx.Version(),
+		Category:       "analytics",
+		Event:          event,
+	}
 }
 
 func Validate(event Event) error {
@@ -64,7 +85,11 @@ func Validate(event Event) error {
 	for name, value := range map[string]string{
 		"event_id": event.EventID, "session_id": event.SessionID, "trace_id": event.TraceID, "anonymous_id": event.AnonymousID,
 	} {
-		if !uuidPattern.MatchString(strings.ToLower(value)) {
+		lower := strings.ToLower(value)
+		if name == "trace_id" && traceHexPattern.MatchString(lower) {
+			continue
+		}
+		if !uuidPattern.MatchString(lower) {
 			return fmt.Errorf("%s must be a UUID", name)
 		}
 	}
@@ -105,12 +130,13 @@ func NewServerRecord(name, traceID string, properties map[string]any) Record {
 	if !uuidPattern.MatchString(strings.ToLower(traceID)) {
 		traceID = NewID()
 	}
-	return Record{Kind: "analytics", Event: Event{
+	now := time.Now().UTC()
+	return NewRecord(Event{
 		EventName: name, EventVersion: CurrentEventVersion, EventID: NewID(),
-		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: NewID(),
+		OccurredAt: now.Format(time.RFC3339Nano), SessionID: NewID(),
 		TraceID: traceID, AnonymousID: NewID(), Platform: "backend", AppVersion: "api",
 		Properties: properties,
-	}}
+	}, now)
 }
 
 func hasForbiddenProperty(value any) bool {

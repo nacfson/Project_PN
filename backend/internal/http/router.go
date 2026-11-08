@@ -14,6 +14,7 @@ import (
 	"project-pn/internal/admin"
 	"project-pn/internal/analytics"
 	"project-pn/internal/auth"
+	"project-pn/internal/httpx"
 	"project-pn/internal/words"
 )
 
@@ -38,6 +39,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(httpx.Middleware(nil))
 	r.Use(middleware.Recoverer)
 	if deps.AnalyticsEnabled && deps.AnalyticsLogger != nil {
 		r.Use(analyticsRequestMiddleware(deps.AnalyticsLogger))

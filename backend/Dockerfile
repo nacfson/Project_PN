@@ -1,19 +1,24 @@
 FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 ARG TARGETOS=linux
 ARG TARGETARCH
+ARG SERVICE_VERSION=v0.0.0
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ENV CGO_ENABLED=0
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
-    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate \
-    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/retranslate-senses ./cmd/retranslate-senses
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.version=${SERVICE_VERSION}" -o /out/api ./cmd/api \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.version=${SERVICE_VERSION}" -o /out/migrate ./cmd/migrate \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.version=${SERVICE_VERSION}" -o /out/retranslate-senses ./cmd/retranslate-senses
 
 FROM debian:bookworm-slim AS runtime
+ARG SERVICE_VERSION=v0.0.0
+ARG VCS_REF=""
 # Link this image to the GitHub repo so Actions GITHUB_TOKEN can publish to GHCR.
 LABEL org.opencontainers.image.source="https://github.com/nacfson/Project_PN"
 LABEL org.opencontainers.image.description="Project PN backend API"
+LABEL org.opencontainers.image.version="${SERVICE_VERSION}"
+LABEL org.opencontainers.image.revision="${VCS_REF}"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \

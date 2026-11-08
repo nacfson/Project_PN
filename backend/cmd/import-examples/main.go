@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -12,9 +11,13 @@ import (
 
 	"project-pn/internal/config"
 	"project-pn/internal/db"
+	"project-pn/internal/logx"
 )
 
+var version = "v0.0.0"
+
 func main() {
+	slog.SetDefault(logx.New(os.Stderr, "pn-api", version))
 	var (
 		word      string
 		lang      string
@@ -140,7 +143,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("import-examples: inserted=%d skipped=%d sense_id=%s\n", inserted, skipped, wordSenseID)
+	slog.Info("import-examples completed", "inserted", inserted, "skipped", skipped, "sense_id", wordSenseID)
 }
 
 func openInput(path string) (io.Reader, io.Closer, error) {

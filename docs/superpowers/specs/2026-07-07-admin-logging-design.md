@@ -8,7 +8,7 @@ The Go backend emits admin audit events on stderr. containerd saves that stream.
 
 ## Goals
 
-- Emit one JSON audit line per event on stderr, with `kind:"admin"`.
+- Emit one JSON audit line per event on stderr, with `event.name:"admin"` and Contract v3 required fields (`time`, `level`, `msg`, `service.name`, `service.version`).
 - Keep handler call sites on `admin.Logger`. A write failure must not fail the HTTP request.
 - Do not close process stderr. `Close()` is a no-op.
 - Keep analytics on stdout. Admin must not share that stream.
@@ -26,7 +26,7 @@ The Go backend emits admin audit events on stderr. containerd saves that stream.
 | Decision | Choice | Reason |
 |----------|--------|--------|
 | Storage | stderr | The kubelet already rotates stdout and stderr. A container file does not survive restart. |
-| Format | One JSON object per line: `kind`, `category`, `time`, `message` | `kind:"admin"` keeps this stream distinct from `kind:"analytics"`. |
+| Format | One JSON object per line: `time`, `level`, `msg`, `service.name`, `service.version`, `event.name`, `category` | `event.name:"admin"` keeps this stream distinct from `event.name:"analytics"` under Platform Log Contract v3. |
 | Stdout | Analytics only | The analytics contract excludes admin lines from that stream. |
 | Dashboard | None in this repo | Operator reads history through the platform log store. |
 | DB / API impact | None | No new tables or endpoints. |
@@ -45,28 +45,30 @@ The app does not open `/var/log/pods` and does not create `/var/log/project-pn/a
 ## Line format
 
 ```json
-{"kind":"admin","category":"AUTH","time":"2026-10-24T00:00:00Z","message":"..."}
+{"time":"2026-10-24T00:00:00.000Z","level":"info","msg":"...","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"AUTH"}
 ```
 
-- `kind` is always `admin`.
-- `time` is RFC 3339 UTC.
+- `event.name` is always `admin` (replaces legacy `kind`).
+- `time` is RFC 3339 UTC with millisecond precision.
+- `level` is `info`.
+- `service.name` is `pn-api` and `service.version` is the build version (`v<semver>` or `v0.0.0-<commit>`).
 - `category` is the existing tag (`AUTH`, `METRICS`, `ERROR`, and the others below).
-- `message` is the existing one-sentence description. Do not add tokens, passwords, or secrets.
-- Emails and IPs may already be in `message`. This stream is operator-only. Do not put these lines on the analytics stdout.
+- `msg` is the existing one-sentence description. Do not add tokens, passwords, or secrets.
+- Emails and IPs may already be in `msg`. This stream is operator-only. Do not put these lines on the analytics stdout.
 
 ## Event Categories
 
 | Category | Description | Example |
 |----------|-------------|---------|
-| `AUTH` | Confirmed authenticated identity or successful logout. | `{"kind":"admin","category":"AUTH","time":"2026-07-07T13:16:30Z","message":"user@example.com identity confirmed from 192.168.1.1"}` |
-| `AUTH_FAILURE` | Failed authentication or invalid session. | `{"kind":"admin","category":"AUTH_FAILURE","time":"2026-07-07T13:16:31Z","message":"login failed for unknown@example.com from 192.168.1.2: session invalid"}` |
-| `VERIFY_REQUIRED` | Unverified user attempted a protected route. | `{"kind":"admin","category":"VERIFY_REQUIRED","time":"2026-07-07T13:16:35Z","message":"user@example.com requested POST /api/learning-items but email is not verified"}` |
-| `ADD_WORD` | New global word created (cache miss or manual). | `{"kind":"admin","category":"ADD_WORD","time":"2026-07-07T13:16:40Z","message":"user 550e8400-e29b-41d4-a716-446655440000 created word 'analyze' (en, verb)"}` |
-| `ADD_ITEM` | User added a learning item. | `{"kind":"admin","category":"ADD_ITEM","time":"2026-07-07T13:16:45Z","message":"user@example.com added learning item word_sense_id=abc123"}` |
-| `DECK_CREATED` | User created a deck. | `{"kind":"admin","category":"DECK_CREATED","time":"2026-07-07T13:16:50Z","message":"user@example.com created deck 'Korean Core' (ko)"}` |
-| `METRICS` | Periodic server status summary. | `{"kind":"admin","category":"METRICS","time":"2026-07-07T13:17:00Z","message":"last 60s: 45 requests, 2 errors, avg latency 42ms, 12 active users"}` |
-| `ERROR` | Unexpected internal error. | `{"kind":"admin","category":"ERROR","time":"2026-07-07T13:17:05Z","message":"failed to connect to enrichment provider: timeout"}` |
-| `ENRICH_FAIL` | Enrichment request failed. | `{"kind":"admin","category":"ENRICH_FAIL","time":"2026-07-07T13:17:06Z","message":"enricher failed for word 'obscureterm': timeout"}` |
+| `AUTH` | Confirmed authenticated identity or successful logout. | `{"time":"2026-07-07T13:16:30.000Z","level":"info","msg":"user@example.com identity confirmed from 192.168.1.1","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"AUTH"}` |
+| `AUTH_FAILURE` | Failed authentication or invalid session. | `{"time":"2026-07-07T13:16:31.000Z","level":"info","msg":"login failed for unknown@example.com from 192.168.1.2: session invalid","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"AUTH_FAILURE"}` |
+| `VERIFY_REQUIRED` | Unverified user attempted a protected route. | `{"time":"2026-07-07T13:16:35.000Z","level":"info","msg":"user@example.com requested POST /api/learning-items but email is not verified","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"VERIFY_REQUIRED"}` |
+| `ADD_WORD` | New global word created (cache miss or manual). | `{"time":"2026-07-07T13:16:40.000Z","level":"info","msg":"user 550e8400-e29b-41d4-a716-446655440000 created word 'analyze' (en, verb)","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"ADD_WORD"}` |
+| `ADD_ITEM` | User added a learning item. | `{"time":"2026-07-07T13:16:45.000Z","level":"info","msg":"user@example.com added learning item word_sense_id=abc123","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"ADD_ITEM"}` |
+| `DECK_CREATED` | User created a deck. | `{"time":"2026-07-07T13:16:50.000Z","level":"info","msg":"user@example.com created deck 'Korean Core' (ko)","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"DECK_CREATED"}` |
+| `METRICS` | Periodic server status summary. | `{"time":"2026-07-07T13:17:00.000Z","level":"info","msg":"last 60s: 45 requests, 2 errors, avg latency 42ms, 12 active users","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"METRICS"}` |
+| `ERROR` | Unexpected internal error. | `{"time":"2026-07-07T13:17:05.000Z","level":"info","msg":"failed to connect to enrichment provider: timeout","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"ERROR"}` |
+| `ENRICH_FAIL` | Enrichment request failed. | `{"time":"2026-07-07T13:17:06.000Z","level":"info","msg":"enricher failed for word 'obscureterm': timeout","service.name":"pn-api","service.version":"v1.4.2","event.name":"admin","category":"ENRICH_FAIL"}` |
 
 ## Components
 
@@ -115,13 +117,13 @@ There is no `ADMIN_LOG_PATH`. Admin audit is always stderr. Learning daily files
 
 ## Security and Privacy
 
-- `message` may contain an email or an IP. The platform store is operator-only. Do not publish this stream.
+- `msg` may contain an email or an IP. The platform store is operator-only. Do not publish this stream.
 - Do not add tokens, passwords, secrets, or personal notes.
 - Do not print these lines on the analytics stdout.
 
 ## Testing
 
-- A unit test checks `kind`, `category`, `time`, and `message`, and concurrent writes.
+- A unit test checks `event.name`, `category`, `time`, `level`, `msg`, `service.name`, `service.version`, and concurrent writes.
 - `Close` does not close the test writer.
 - A logger write failure does not fail the request.
 
@@ -131,6 +133,6 @@ No database migration. Remove `ADMIN_LOG_PATH` from environments. An existing `/
 
 ## Future Considerations
 
-- An analytics-only sink may filter `kind == "analytics"`. This admin stream stays `kind:"admin"` on stderr.
+- An analytics-only sink may filter `event.name == "analytics"`. This admin stream stays `event.name:"admin"` on stderr.
 - Learning daily files stay files unless those events are also printed.
 - Email and IP redaction, if added, belongs in the collector, not in a second file.

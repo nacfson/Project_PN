@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 	"sync"
+	"time"
 )
 
 // Logger writes one structured record per event. Implementations must never
@@ -31,6 +33,10 @@ func NewJSONLogger(out io.Writer) *JSONLogger {
 
 func (l *JSONLogger) Emit(record Record) {
 	defer func() { _ = recover() }()
+	if record.Time == "" || record.Category == "" {
+		record = NewRecord(record.Event, time.Now().UTC())
+	}
+	record.TraceID = strings.ToLower(strings.ReplaceAll(record.TraceID, "-", ""))
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	_ = json.NewEncoder(l.out).Encode(record)

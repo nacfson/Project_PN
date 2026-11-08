@@ -7,10 +7,14 @@ import (
 	"os"
 
 	"project-pn/internal/config"
+	"project-pn/internal/logx"
 	"project-pn/internal/migrations"
 )
 
+var version = "v0.0.0"
+
 func main() {
+	slog.SetDefault(logx.New(os.Stderr, "pn-api", version))
 	var steps int
 	flag.IntVar(&steps, "steps", 1, "number of migration steps for down")
 	flag.Parse()

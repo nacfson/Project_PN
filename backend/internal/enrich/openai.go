@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -67,7 +66,7 @@ func NewOpenAI(baseURL, model string) *OpenAIEnricher {
 		BaseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		Model:   strings.TrimSpace(model),
 		Client:  &http.Client{Timeout: 30 * time.Second},
-		Logger:  slog.New(slog.NewTextHandler(os.Stdout, nil)),
+		Logger:  slog.Default(),
 	}
 }
 
@@ -75,7 +74,7 @@ func (e *OpenAIEnricher) logger() *slog.Logger {
 	if e != nil && e.Logger != nil {
 		return e.Logger
 	}
-	return slog.New(slog.NewTextHandler(os.Stdout, nil))
+	return slog.Default()
 }
 
 type chatRequest struct {

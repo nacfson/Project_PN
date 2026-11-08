@@ -1,17 +1,20 @@
 name: Publish Project PN images
 
-# Validates and publishes backend + frontend images to GHCR on push to main or manual dispatch.
+# Validates and publishes backend + frontend images to GHCR on push to main, release tags, or manual dispatch.
 #
 # Preflight gate:
 # 1. Statically lints module imports across all workspaces.
 # 2. Builds and validates the frontend web bundle with Expo Metro.
-# Only when all preflight checks AND the quality gates pass are the Docker images built and published.
+# 3. Validates backend and frontend container logs against Project Log Contract v3 (log-contract).
+# Only when all preflight checks, log-contract, AND the quality gates pass are the Docker images published.
 # Pull requests are validated by quality-gates.yml, not by this workflow.
 
 on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       target:
@@ -31,6 +34,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: ${{ github.repository_owner }}
+  LOGCHECK_IMAGE: ghcr.io/nacfson/logcheck@sha256:68d833e925a01497d8a60a93d926ce9d2aa2aef2b31f7b31de74f68d22773573
 
 jobs:
   # Mandatory quality gates (spec 002). Called here so no image is published
@@ -71,14 +75,150 @@ jobs:
           path: frontend/dist
           retention-days: 1
 
+  log-contract:
+    name: log-contract
+    needs: [preflight-checks]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: project_pn
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: project_pn_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U project_pn -d project_pn_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download frontend web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Resolve service version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="v0.0.0-${GITHUB_SHA::7}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved SERVICE_VERSION=${VERSION}"
+
+      - name: Build backend and frontend images for smoke test
+        run: |
+          docker build \
+            --build-arg SERVICE_VERSION="${{ steps.version.outputs.version }}" \
+            --build-arg VCS_REF="${{ github.sha }}" \
+            -t pn-backend:smoke \
+            ./backend
+          docker build \
+            --build-arg SERVICE_VERSION="${{ steps.version.outputs.version }}" \
+            --build-arg VCS_REF="${{ github.sha }}" \
+            -t pn-frontend:smoke \
+            -f ./frontend/Dockerfile.web \
+            ./frontend
+
+      - name: Validate backend logs against Contract v3
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          docker rm -f pn-backend-smoke >/dev/null 2>&1 || true
+          docker run -d --name pn-backend-smoke \
+            --network host \
+            -e DATABASE_URL="postgres://project_pn:ci_only_password@127.0.0.1:5432/project_pn_ci?sslmode=disable" \
+            -e MIGRATIONS_PATH="file://db/migrations" \
+            -e APP_ADDR=":18080" \
+            -e AUTH_DEV_BYPASS="true" \
+            pn-backend:smoke
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18080/readyz >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS -H "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" http://127.0.0.1:18080/healthz >/dev/null
+          docker stop pn-backend-smoke >/dev/null
+
+          docker logs pn-backend-smoke > /tmp/backend-smoke.log 2>&1
+          docker run --rm \
+            -e DATABASE_URL="postgres://invalid:invalid@127.0.0.1:1/invalid?connect_timeout=1" \
+            -e MIGRATIONS_PATH="file://db/migrations" \
+            pn-backend:smoke >> /tmp/backend-smoke.log 2>&1 || true
+          docker rm -f pn-backend-smoke >/dev/null 2>&1 || true
+
+          test -s /tmp/backend-smoke.log
+          cat /tmp/backend-smoke.log
+          docker run --rm -i "${{ env.LOGCHECK_IMAGE }}" \
+            --format json \
+            --expect-version "${VERSION}" \
+            --expect-service pn-api < /tmp/backend-smoke.log
+
+      - name: Validate frontend nginx logs against Contract v3
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          docker rm -f pn-frontend-smoke >/dev/null 2>&1 || true
+          docker run -d --name pn-frontend-smoke \
+            -p 18081:80 \
+            -e PN_BACKEND_HOST="127.0.0.1" \
+            -e PN_BACKEND_PORT="18080" \
+            pn-frontend:smoke
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18081/ >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          curl -s -o /dev/null http://127.0.0.1:18081/_expo/static/missing.js || true
+          docker stop pn-frontend-smoke >/dev/null
+
+          docker logs pn-frontend-smoke > /tmp/frontend-smoke.log 2>&1
+          docker rm -f pn-frontend-smoke >/dev/null 2>&1 || true
+
+          test -s /tmp/frontend-smoke.log
+          cat /tmp/frontend-smoke.log
+          docker run --rm -i "${{ env.LOGCHECK_IMAGE }}" \
+            --format nginx \
+            --expect-version "${VERSION}" \
+            --expect-service pn-web < /tmp/frontend-smoke.log
+
   publish-backend:
     name: Build & Publish Backend
-    needs: [preflight-checks, quality-gates]
+    needs: [preflight-checks, quality-gates, log-contract]
     if: github.event.inputs.target == '' || github.event.inputs.target == 'all' || github.event.inputs.target == 'backend'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Resolve service version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="v0.0.0-${GITHUB_SHA::7}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -99,13 +239,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-backend
           tags: |
+            type=semver,pattern={{raw}}
             type=sha,prefix=,format=short
             type=raw,value=latest,enable={{is_default_branch}}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Project PN backend API
-          annotations: |
-            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and publish backend image
         id: build
@@ -116,9 +252,19 @@ jobs:
           # Oracle Cloud Ampere needs arm64; keep amd64 for local/x86 runners.
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            SERVICE_VERSION=${{ steps.version.outputs.version }}
+            VCS_REF=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Project PN backend API
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            index:org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -132,14 +278,16 @@ jobs:
           echo ""
           echo "============================================================"
           echo " Backend Image Published Successfully:"
-          echo "   Tag:    ${IMAGE_URL}"
-          echo "   Latest: ${LATEST_URL}"
-          echo "   Digest: ${DIGEST_URL}"
+          echo "   Version: ${{ steps.version.outputs.version }}"
+          echo "   Tag:     ${IMAGE_URL}"
+          echo "   Latest:  ${LATEST_URL}"
+          echo "   Digest:  ${DIGEST_URL}"
           echo "============================================================"
           echo ""
 
           cat << EOF >> $GITHUB_STEP_SUMMARY
           ### 📦 Backend Image Published
+          - **Version**: \`${{ steps.version.outputs.version }}\`
           - **Tag URL**: \`${IMAGE_URL}\`
           - **Latest URL**: \`${LATEST_URL}\`
           - **Digest**: \`${DIGEST_URL}\`
@@ -147,12 +295,22 @@ jobs:
 
   publish-frontend:
     name: Build & Publish Frontend
-    needs: [preflight-checks, quality-gates]
+    needs: [preflight-checks, quality-gates, log-contract]
     if: github.event.inputs.target == '' || github.event.inputs.target == 'all' || github.event.inputs.target == 'frontend'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Resolve service version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="v0.0.0-${GITHUB_SHA::7}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Download frontend web bundle
         uses: actions/download-artifact@v4
@@ -179,13 +337,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/project-pn-frontend
           tags: |
+            type=semver,pattern={{raw}}
             type=sha,prefix=,format=short
             type=raw,value=latest,enable={{is_default_branch}}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Project PN frontend (Expo web / nginx)
-          annotations: |
-            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and publish frontend image
         id: build
@@ -195,9 +349,19 @@ jobs:
           file: ./frontend/Dockerfile.web
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            SERVICE_VERSION=${{ steps.version.outputs.version }}
+            VCS_REF=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Project PN frontend (Expo web / nginx)
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            index:org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -211,14 +375,16 @@ jobs:
           echo ""
           echo "============================================================"
           echo " Frontend Image Published Successfully:"
-          echo "   Tag:    ${IMAGE_URL}"
-          echo "   Latest: ${LATEST_URL}"
-          echo "   Digest: ${DIGEST_URL}"
+          echo "   Version: ${{ steps.version.outputs.version }}"
+          echo "   Tag:     ${IMAGE_URL}"
+          echo "   Latest:  ${LATEST_URL}"
+          echo "   Digest:  ${DIGEST_URL}"
           echo "============================================================"
           echo ""
 
           cat << EOF >> $GITHUB_STEP_SUMMARY
           ### 📦 Frontend Image Published
+          - **Version**: \`${{ steps.version.outputs.version }}\`
           - **Tag URL**: \`${IMAGE_URL}\`
           - **Latest URL**: \`${LATEST_URL}\`
           - **Digest**: \`${DIGEST_URL}\`

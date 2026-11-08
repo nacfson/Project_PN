@@ -8,7 +8,10 @@ fi
 if [ -z "${PN_BACKEND_PORT:-}" ]; then
   PN_BACKEND_PORT=8080
 fi
-export PN_BACKEND_HOST PN_BACKEND_PORT
+if [ -z "${SERVICE_VERSION:-}" ]; then
+  SERVICE_VERSION=v0.0.0
+fi
+export PN_BACKEND_HOST PN_BACKEND_PORT SERVICE_VERSION
 
 render_server_conf() {
   envsubst '${PN_BACKEND_HOST} ${PN_BACKEND_PORT}' \
@@ -79,10 +82,31 @@ events {
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-    log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
-                    '\$status \$body_bytes_sent "\$http_referer" '
-                    '"\$http_user_agent" "\$http_x_forwarded_for"';
-    access_log /dev/stdout main;
+    map \$status \$log_level {
+        ~^5     error;
+        ~^4     warn;
+        default info;
+    }
+    map \$status \$log_exception {
+        ~^5     "HTTP \$status";
+        default "";
+    }
+    map \$time_iso8601 \$log_t_main {
+        "~^(?<p>\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d)" \$p;
+    }
+    map \$time_iso8601 \$log_t_tz {
+        "~(?<z>[+-]\\d\\d:\\d\\d|Z)\$" \$z;
+    }
+    map \$msec \$log_t_ms {
+        "~\\.(?<ms>\\d{3})" \$ms;
+    }
+    map \$request_id \$tp_parent {
+        "~^(?<p>[0-9a-f]{16})" \$p;
+        default 0000000000000001;
+    }
+    log_format contract escape=json '{"time":"\$log_t_main.\$log_t_ms\$log_t_tz","level":"\$log_level","msg":"\$request","service.name":"pn-web","service.version":"${SERVICE_VERSION}","trace_id":"\$request_id","http.request.method":"\$request_method","url.path":"\$uri","http.response.status_code":\$status,"http.server.request.duration":\$request_time,"exception.message":"\$log_exception"}';
+    access_log /dev/stdout contract;
+    proxy_set_header traceparent "00-\$request_id-\$tp_parent-01";
     sendfile on;
     keepalive_timeout 65;
 
