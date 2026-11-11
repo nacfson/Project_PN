@@ -231,4 +231,17 @@ describe('ProfileScreen', () => {
     await fireEvent.press(screen.getByText('Log out'));
     await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1));
   });
+
+  it('renders daily goal and retention rows in stacked layout on mobile viewports', async () => {
+    await render(<ProfileScreen onLogout={jest.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('settings-row-daily-goal')).toBeTruthy());
+
+    const goalRow = screen.getByTestId('settings-row-daily-goal');
+    const flatGoalStyle = StyleSheet.flatten(goalRow.props.style);
+    expect(flatGoalStyle.flexDirection).toBe('column');
+
+    const retentionRow = screen.getByTestId('settings-row-retention');
+    const flatRetentionStyle = StyleSheet.flatten(retentionRow.props.style);
+    expect(flatRetentionStyle.flexDirection).toBe('column');
+  });
 });

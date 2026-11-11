@@ -40,7 +40,7 @@ export function ConnectedAccountsScreen() {
   }, [load]);
 
   return (
-    <Screen title={t('settings.connectedAccounts')} padded>
+    <Screen title={t('settings.connectedAccounts')}>
       <PageColumn style={{ paddingTop: spacing.md }}>
         {loading ? (
           <LoadingState />

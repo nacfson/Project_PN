@@ -773,7 +773,7 @@ export function PracticeScreen() {
 
   if (status === 'loading_due' || status === 'loading_repeat') {
     return (
-      <Screen padded>
+      <Screen>
         <PageColumn>
           <LoadingState message={t('practice.preparing')} />
         </PageColumn>
@@ -783,7 +783,7 @@ export function PracticeScreen() {
 
   if (status === 'submitting') {
     return (
-      <Screen padded>
+      <Screen>
         <PageColumn>
           <LoadingState message={t('practice.syncing')} />
         </PageColumn>
@@ -794,7 +794,7 @@ export function PracticeScreen() {
   if (status === 'success') {
     const stuckList = Object.values(sessionStuck);
     return (
-      <Screen padded>
+      <Screen>
         <Confetti active={true} />
         <PageColumn style={[styles.center, { gap: spacing.lg }]}>
           <View style={[styles.successIconCircle, { backgroundColor: colors.infoSurface }]}>
@@ -900,7 +900,7 @@ export function PracticeScreen() {
 
   if (status === 'error') {
     return (
-      <Screen padded>
+      <Screen>
         <PageColumn style={[styles.center, { gap: spacing.lg }]}>
           <ErrorState
             title={t('practice.submissionFailed')}
@@ -936,7 +936,7 @@ export function PracticeScreen() {
 
   if (status === 'idle') {
     return (
-      <Screen padded>
+      <Screen>
         <PageColumn style={[styles.center, { gap: spacing.lg }]}>
           <EmptyState
             icon="layers-outline"
@@ -972,7 +972,7 @@ export function PracticeScreen() {
   const rawCurrentItem = queue[currentIndex];
   if (!rawCurrentItem) {
     return (
-      <Screen padded>
+      <Screen>
         <PageColumn>
           <LoadingState message={t('practice.syncing')} />
         </PageColumn>
@@ -1120,7 +1120,7 @@ export function PracticeScreen() {
   ) : null;
 
   return (
-    <Screen padded>
+    <Screen scrollEnabled={false}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

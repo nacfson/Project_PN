@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listDecks, moveItemsToDeck } from '../../api/decks';
@@ -97,15 +97,8 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
   const cefrLabel = item.cefr_level ? `CEFR ${item.cefr_level}` : null;
 
   return (
-    <Screen padded>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: Math.max(spacing.lg, insets.bottom) },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <PageColumn>
+    <Screen>
+      <PageColumn>
           <View style={styles.header}>
             <View style={styles.row}>
               <Text variant="cardLemma" style={styles.flex}>
@@ -216,7 +209,6 @@ export function WordDetailScreen({ route, navigation }: WordDetailScreenProps) {
             onCancel={() => setConfirmRemoveOpen(false)}
           />
         </PageColumn>
-      </ScrollView>
     </Screen>
   );
 }

@@ -228,4 +228,41 @@ describe('ManualAddSection', () => {
       expect(screen.getByText('Please enter a valid word or phrase.')).toBeTruthy();
     });
   });
+
+  it('renders phrase support hint under hero input', async () => {
+    await renderSection();
+    expect(screen.getByTestId('manual-add-phrase-hint')).toBeTruthy();
+    expect(screen.getByTestId('manual-add-phrase-hint')).toHaveTextContent(
+      'Works with single words and multi-word phrases (e.g. look up, take for granted).',
+    );
+  });
+
+  it('resolves deck dynamically when selectedDeckId is null', async () => {
+    const resolveDeckId = jest.fn().mockResolvedValue('deck-resolved');
+    await render(
+      <AppLanguageProvider>
+        <ThemeProvider>
+          <ManualAddSection selectedDeckId={null} targetLanguage="en" resolveDeckId={resolveDeckId} />
+        </ThemeProvider>
+      </AppLanguageProvider>,
+    );
+
+    const input = screen.getByPlaceholderText('A word or phrase, e.g. look up');
+    await fireEvent.changeText(input, 'charge');
+    await fireEvent.press(screen.getByTestId('find-meanings-button'));
+
+    await waitFor(() => expect(screen.getByTestId('sense-picker-mock')).toBeTruthy());
+    await fireEvent.press(screen.getByText('to store energy'));
+
+    await waitFor(() => {
+      expect(resolveDeckId).toHaveBeenCalled();
+      expect(addLearningItem).toHaveBeenCalledWith(
+        'sense-1',
+        expect.anything(),
+        'deck-resolved',
+        undefined,
+        undefined,
+      );
+    });
+  });
 });

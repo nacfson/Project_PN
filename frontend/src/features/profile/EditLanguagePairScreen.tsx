@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getLanguageOptions } from '../../api/auth';
@@ -86,68 +86,63 @@ export function EditLanguagePairScreen() {
 
   if (loading) {
     return (
-      <Screen padded>
+      <Screen>
         <LoadingState />
       </Screen>
     );
   }
 
   return (
-    <Screen padded>
-      <ScrollView
-        contentContainerStyle={{ paddingVertical: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-      >
-        <PageColumn style={{ gap: spacing.lg }}>
-          <View style={{ gap: spacing.xs }}>
-            <Text variant="pageTitle">{t('settings.editLanguagePair')}</Text>
-            <Text variant="caption" color={colors.textSecondary}>
-              {t('settings.editLanguagePairDescription')}
-            </Text>
+    <Screen>
+      <PageColumn style={{ gap: spacing.lg, paddingVertical: spacing.lg }}>
+        <View style={{ gap: spacing.xs }}>
+          <Text variant="pageTitle">{t('settings.editLanguagePair')}</Text>
+          <Text variant="caption" color={colors.textSecondary}>
+            {t('settings.editLanguagePairDescription')}
+          </Text>
+        </View>
+
+        <Card style={{ gap: spacing.md }}>
+          <Text variant="groupLabel">{t('settings.targetLanguage')}</Text>
+          <View style={styles.optionsGrid}>
+            {targetOptions.map((code) => (
+              <Button
+                key={code}
+                testID={`target-language-${code}`}
+                label={languageLabel(code)}
+                variant={selectedTarget === code ? 'primary' : 'secondary'}
+                onPress={() => toggleTarget(code)}
+                style={{ flex: 1 }}
+              />
+            ))}
           </View>
+        </Card>
 
-          <Card style={{ gap: spacing.md }}>
-            <Text variant="groupLabel">{t('settings.targetLanguage')}</Text>
-            <View style={styles.optionsGrid}>
-              {targetOptions.map((code) => (
-                <Button
-                  key={code}
-                  testID={`target-language-${code}`}
-                  label={languageLabel(code)}
-                  variant={selectedTarget === code ? 'primary' : 'secondary'}
-                  onPress={() => toggleTarget(code)}
-                  style={{ flex: 1 }}
-                />
-              ))}
-            </View>
-          </Card>
+        <Card style={{ gap: spacing.md }}>
+          <Text variant="groupLabel">{t('settings.displayLanguage')}</Text>
+          <View style={styles.optionsGrid}>
+            {displayOptions.map((code) => (
+              <Button
+                key={code}
+                label={languageLabel(code)}
+                variant={selectedDisplay === code ? 'primary' : 'secondary'}
+                onPress={() => toggleDisplay(code)}
+                style={{ flex: 1 }}
+              />
+            ))}
+          </View>
+        </Card>
 
-          <Card style={{ gap: spacing.md }}>
-            <Text variant="groupLabel">{t('settings.displayLanguage')}</Text>
-            <View style={styles.optionsGrid}>
-              {displayOptions.map((code) => (
-                <Button
-                  key={code}
-                  label={languageLabel(code)}
-                  variant={selectedDisplay === code ? 'primary' : 'secondary'}
-                  onPress={() => toggleDisplay(code)}
-                  style={{ flex: 1 }}
-                />
-              ))}
-            </View>
-          </Card>
+        {error ? <Text variant="caption" color={colors.danger}>{error}</Text> : null}
 
-          {error ? <Text variant="caption" color={colors.danger}>{error}</Text> : null}
-
-          <Button
-            label={t('settings.save')}
-            onPress={() => void handleSave()}
-            loading={saving}
-            disabled={!selectedTarget || !selectedDisplay || !hasChanges}
-            fullWidth
-          />
-        </PageColumn>
-      </ScrollView>
+        <Button
+          label={t('settings.save')}
+          onPress={() => void handleSave()}
+          loading={saving}
+          disabled={!selectedTarget || !selectedDisplay || !hasChanges}
+          fullWidth
+        />
+      </PageColumn>
     </Screen>
   );
 }

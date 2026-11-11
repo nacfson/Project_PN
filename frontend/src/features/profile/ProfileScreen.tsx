@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { logout, me } from '../../api/auth';
 import { getReviewSettings, patchReviewSettings } from '../../api/reviewSettings';
 import { getStreakSettings, patchStreakSettings } from '../../api/streakSettings';
 import { type AppLanguage, useAppLanguage } from '../../i18n';
+import { shellKind, shellLayout } from '../../navigation/shellKind';
 import type { SettingsStackParamList } from '../../navigation/SettingsStack';
 import { radii, spacing, useTheme } from '../../theme';
 import type { ReviewSettings, StreakSettings } from '../../types';
@@ -34,6 +35,9 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   const { colors } = useTheme();
   const { language, setLanguage, t, languageLabel } = useAppLanguage();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
+  const { width } = useWindowDimensions();
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isWide = shellLayout(shellKind(Platform.OS, ua), width) === 'sidebar' && width >= 640;
 
   const [user, setUser] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -247,7 +251,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
     (retentionPercent - RETENTION_MIN) / (RETENTION_MAX - RETENTION_MIN);
 
   return (
-    <Screen padded>
+    <Screen>
       <PageColumn style={styles.page}>
         <View style={[styles.header, { borderBottomColor: colors.hairline }]}>
           <Text variant="pageTitle">{t('settings.title')}</Text>
@@ -302,6 +306,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
         <SettingsGroup title={t('settings.groupReview')}>
           <SettingsRow
             testID="settings-row-daily-goal"
+            stacked={!isWide}
             title={t('settings.dailyGoal')}
             subtitle={dailyGoalError ?? t('settings.dailyGoalSubtitle')}
             trailing={
@@ -311,6 +316,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
                 options={dailyGoalSegments}
                 value={String(selectedGoalXp)}
                 onChange={(val) => void handleSelectDailyGoal(val)}
+                style={!isWide ? { width: '100%' } : undefined}
               />
             }
           />
@@ -324,10 +330,11 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
           <SettingsRow
             testID="settings-row-retention"
+            stacked={!isWide}
             title={t('settings.desiredRetention')}
             subtitle={retentionError ?? t('settings.retentionSubtitle')}
             trailing={
-              <View style={styles.sliderControls}>
+              <View style={[styles.sliderControls, !isWide && styles.sliderControlsStacked]}>
                 <Pressable
                   testID="retention-decrease"
                   accessibilityRole="button"
@@ -349,7 +356,11 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
                   {...({
                     onValueChange: (val: number) => void commitRetentionPercent(val),
                   } as Record<string, unknown>)}
-                  style={[styles.sliderTrack, { backgroundColor: colors.fill }]}
+                  style={[
+                    styles.sliderTrack,
+                    !isWide && styles.sliderTrackStacked,
+                    { backgroundColor: colors.fill },
+                  ]}
                 >
                   <View
                     style={[
@@ -489,9 +500,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
+  sliderControlsStacked: {
+    width: '100%',
+    gap: spacing.sm,
+  },
   stepBtn: {
-    width: 26,
-    height: 26,
+    width: 36,
+    height: 36,
     borderRadius: radii.sm,
     borderWidth: 1,
     alignItems: 'center',
@@ -499,9 +514,13 @@ const styles = StyleSheet.create({
   },
   sliderTrack: {
     width: 96,
-    height: 6,
+    height: 8,
     borderRadius: radii.full,
     overflow: 'hidden',
+  },
+  sliderTrackStacked: {
+    flex: 1,
+    width: undefined,
   },
   sliderFill: {
     height: '100%',

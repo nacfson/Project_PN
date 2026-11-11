@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react-native';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { MainTabs } from './MainTabs';
+import { navigationRef } from './navigationRef';
 
 let mockWidth = 1200;
 
@@ -177,6 +178,7 @@ describe('MainTabs shell layout', () => {
     expect(screen.getByTestId('tab-button-settings')).toBeTruthy();
     expect(screen.getByText('Today')).toBeTruthy();
     expect(screen.getByText(/English/)).toBeTruthy();
+    expect(screen.getByTestId('command-dock')).toBeTruthy();
   });
 
   it('renders bottom bar at 600 px on browser shell and on phone shell', async () => {
@@ -204,5 +206,47 @@ describe('MainTabs shell layout', () => {
 
     expect(screen.queryByTestId('shell-sidebar')).toBeNull();
     expect(screen.queryByTestId('shell-bottom-bar')).toBeNull();
+    expect(screen.queryByTestId('command-dock')).toBeNull();
+  });
+
+  it('navigates to Add when "a" shortcut key is pressed on web', async () => {
+    mockWidth = 1200;
+    const navigateSpy = jest.spyOn(navigationRef, 'navigate').mockImplementation(() => {});
+    jest.spyOn(navigationRef, 'isReady').mockReturnValue(true);
+
+    const listeners: Array<(e: any) => void> = [];
+    const origAddEventListener = window.addEventListener;
+    const origRemoveEventListener = window.removeEventListener;
+    window.addEventListener = jest.fn((event: string, cb: any) => {
+      if (event === 'keydown') listeners.push(cb);
+    });
+    window.removeEventListener = jest.fn();
+
+    try {
+      const { unmount } = await render(<MainTabs onLogout={jest.fn()} />, { wrapper: Wrapper });
+
+      const fakeEvent = {
+        key: 'a',
+        target: { tagName: 'DIV' },
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        preventDefault: jest.fn(),
+      };
+      for (const listener of listeners) {
+        listener(fakeEvent);
+      }
+
+      expect(navigateSpy).toHaveBeenCalledWith(
+        'Add',
+        expect.objectContaining({ mode: 'manual' }),
+      );
+
+      await unmount();
+    } finally {
+      window.addEventListener = origAddEventListener;
+      window.removeEventListener = origRemoveEventListener;
+      navigateSpy.mockRestore();
+    }
   });
 });

@@ -294,4 +294,16 @@ describe('HomeScreen (Today)', () => {
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it('omits Enter kbd shortcut badge on mobile viewports', async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { get: () => 'ios', configurable: true });
+    try {
+      await render(<HomeScreen />, { wrapper: Wrapper });
+      await waitFor(() => expect(screen.getByText('Start review')).toBeTruthy());
+      expect(screen.queryByText('Enter')).toBeNull();
+    } finally {
+      Object.defineProperty(Platform, 'OS', { get: () => originalOS, configurable: true });
+    }
+  });
 });

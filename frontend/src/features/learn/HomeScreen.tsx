@@ -200,7 +200,16 @@ export function HomeScreen() {
                     {`${t('today.estimate', { minutes })}. ${t(mixKey)}`}
                   </Text>
                 ) : null}
-                <View style={[styles.ctaRow, { marginTop: spacing.xs }]}>
+                <View
+                  style={[
+                    styles.ctaRow,
+                    {
+                      marginTop: spacing.xs,
+                      flexDirection: isWide ? 'row' : 'column',
+                      alignItems: isWide ? 'center' : 'stretch',
+                    },
+                  ]}
+                >
                   {hasDue ? (
                     <>
                       <Button
@@ -209,14 +218,16 @@ export function HomeScreen() {
                         size="hero"
                         iconLeft="play"
                         onPress={startReview}
-                        hint={<Kbd color={colors.onPrimary}>Enter</Kbd>}
+                        hint={isWide && Platform.OS === 'web' ? <Kbd color={colors.onPrimary}>Enter</Kbd> : undefined}
+                        fullWidth={!isWide}
                       />
                       <Button
                         label={t('today.addWord')}
                         variant="secondary"
                         size="hero"
                         iconLeft="add-circle"
-                        onPress={() => navigation.navigate('Add')}
+                        onPress={() => navigation.navigate('Add', { mode: 'manual', focusTick: Date.now() })}
+                        fullWidth={!isWide}
                       />
                     </>
                   ) : (
@@ -225,7 +236,8 @@ export function HomeScreen() {
                       variant="primary"
                       size="hero"
                       iconLeft="add-circle"
-                      onPress={() => navigation.navigate('Add')}
+                      onPress={() => navigation.navigate('Add', { mode: 'manual', focusTick: Date.now() })}
+                      fullWidth={!isWide}
                     />
                   )}
                 </View>

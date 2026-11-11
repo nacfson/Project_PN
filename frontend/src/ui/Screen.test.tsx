@@ -25,4 +25,34 @@ describe('Screen', () => {
     const titles = screen.getAllByText('Test Title');
     expect(titles.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('defaults scrollEnabled to true without title and does not clamp maxWidth on scroll container', async () => {
+    const { getByTestId } = await render(
+      <Screen testID="screen-scroll">
+        <Text>Scrollable</Text>
+      </Screen>,
+      { wrapper: ThemeProvider },
+    );
+    const scrollContainer = getByTestId('screen-scroll');
+    expect(scrollContainer.props.scrollEnabled).toBe(true);
+    const flatStyle = Array.isArray(scrollContainer.props.style)
+      ? Object.assign({}, ...scrollContainer.props.style.filter(Boolean))
+      : scrollContainer.props.style;
+    expect(flatStyle?.maxWidth).toBeUndefined();
+  });
+
+  it('renders a bounded container when scrollEnabled is false without title', async () => {
+    const { getByTestId } = await render(
+      <Screen scrollEnabled={false} testID="screen-bounded">
+        <Text>Bounded</Text>
+      </Screen>,
+      { wrapper: ThemeProvider },
+    );
+    const container = getByTestId('screen-bounded');
+    // Bounded view is a plain View with flex: 1, not a ScrollView with contentContainerStyle
+    expect(container.props.contentContainerStyle).toBeUndefined();
+    expect(container.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ flex: 1, width: '100%' })]),
+    );
+  });
 });

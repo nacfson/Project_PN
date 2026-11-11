@@ -18,6 +18,7 @@ let mockPendingCount = 0;
 let mockWidth = 1024;
 
 jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate }),
 }));
 
@@ -81,7 +82,10 @@ describe('CommandDock', () => {
   it('navigates to Add screen on press', async () => {
     await render(<CommandDock />, { wrapper: Wrapper });
     await fireEvent.press(screen.getByTestId('dock-add'));
-    expect(mockNavigate).toHaveBeenCalledWith('Add');
+    expect(mockNavigate).toHaveBeenCalledWith(
+      'Add',
+      expect.objectContaining({ mode: 'manual' }),
+    );
   });
 
   it('navigates to Practice screen on press', async () => {

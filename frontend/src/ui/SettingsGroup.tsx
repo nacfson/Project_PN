@@ -57,6 +57,7 @@ export interface SettingsRowProps {
   tone?: 'default' | 'danger';
   testID?: string;
   disabled?: boolean;
+  stacked?: boolean;
 }
 
 export function SettingsRow({
@@ -67,13 +68,14 @@ export function SettingsRow({
   tone = 'default',
   testID,
   disabled,
+  stacked = false,
 }: SettingsRowProps) {
   const { colors } = useTheme();
   const isDanger = tone === 'danger';
 
   const content = (
     <>
-      <View style={styles.rowText}>
+      <View style={[styles.rowText, stacked && styles.rowTextStacked]}>
         <Text
           variant="body"
           style={{
@@ -89,7 +91,7 @@ export function SettingsRow({
           </Text>
         ) : null}
       </View>
-      <View style={styles.rowTrailing}>
+      <View style={[styles.rowTrailing, stacked && styles.rowTrailingStacked]}>
         {trailing}
         {onPress && !trailing ? (
           <Icon
@@ -102,9 +104,14 @@ export function SettingsRow({
     </>
   );
 
+  const rowStyles = [
+    styles.row,
+    stacked && styles.rowStacked,
+  ];
+
   if (!onPress) {
     return (
-      <View testID={testID} style={styles.row}>
+      <View testID={testID} style={rowStyles}>
         {content}
       </View>
     );
@@ -119,7 +126,7 @@ export function SettingsRow({
       style={(state) => {
         const hovered = Boolean((state as { hovered?: boolean }).hovered);
         return [
-          styles.row,
+          rowStyles,
           {
             backgroundColor: state.pressed || hovered ? colors.fillSubtle : 'transparent',
             opacity: disabled ? 0.5 : 1,
@@ -153,13 +160,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     minHeight: 56,
   },
+  rowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 12,
+  },
   rowText: {
     flex: 1,
     minWidth: 0,
+  },
+  rowTextStacked: {
+    flex: 0,
+    width: '100%',
   },
   rowTrailing: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  rowTrailingStacked: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
 });
