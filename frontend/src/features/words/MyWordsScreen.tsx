@@ -469,6 +469,17 @@ export function MyWordsScreen(props: MyWordsScreenProps = {}) {
                 {item.pronunciation}
               </Text>
             ) : null}
+            {!wideLayout && gloss ? (
+              <Text
+                variant="caption"
+                color={colors.textSecondary}
+                numberOfLines={2}
+                testID={`word-mobile-gloss-${item.id}`}
+                style={styles.shrinkText}
+              >
+                {gloss}
+              </Text>
+            ) : null}
           </View>
 
           {wideLayout ? (
@@ -724,7 +735,7 @@ export function MyWordsScreen(props: MyWordsScreenProps = {}) {
           autoCapitalize="none"
           autoCorrect={false}
           leading={<Icon name="search" size={16} color={colors.textMuted} />}
-          trailing={!q ? <Kbd>/</Kbd> : undefined}
+          trailing={!q && wideLayout && Platform.OS === 'web' ? <Kbd>/</Kbd> : undefined}
           onClear={() => setQ('')}
           loading={isSearching}
         />

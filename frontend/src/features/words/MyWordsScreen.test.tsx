@@ -396,4 +396,34 @@ describe('MyWordsScreen', () => {
     expect(maybeLoadMoreFromScroll).toHaveBeenCalled();
     await unmount();
   });
+
+  it('renders mobile gloss subtitle and hides desktop kbd shortcut on mobile viewport', async () => {
+    Object.defineProperty(Platform, 'OS', { get: () => 'ios', configurable: true });
+    mockedUseLearningItems.mockReturnValue({
+      items: sampleItems,
+      nextCursor: null,
+      hasMore: false,
+      status: 'ready',
+      isSearching: false,
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore: jest.fn(),
+      maybeLoadMoreFromScroll: jest.fn(),
+      refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
+    });
+
+    const { unmount } = await render(<MyWordsScreen />, { wrapper: createWrapper(375) });
+    await waitFor(() => expect(screen.getByText('latency')).toBeTruthy());
+    await fireEvent(screen.getByTestId('words-header'), 'layout', {
+      nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 160 } },
+    });
+
+    await waitFor(() => expect(screen.getByTestId('word-mobile-gloss-uws-1')).toBeTruthy());
+
+    expect(screen.getByTestId('word-mobile-gloss-uws-1')).toHaveTextContent('시간');
+    expect(screen.queryByText('/')).toBeNull();
+    await unmount();
+  });
 });
