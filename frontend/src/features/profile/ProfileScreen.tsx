@@ -247,7 +247,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
     (retentionPercent - RETENTION_MIN) / (RETENTION_MAX - RETENTION_MIN);
 
   return (
-    <Screen padded>
+    <Screen>
       <PageColumn style={styles.page}>
         <View style={[styles.header, { borderBottomColor: colors.hairline }]}>
           <Text variant="pageTitle">{t('settings.title')}</Text>

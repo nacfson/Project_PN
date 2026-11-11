@@ -29,7 +29,7 @@ export function AccountMergeScreen() {
   };
 
   return (
-    <Screen title={t('auth.mergeTitle')} padded>
+    <Screen title={t('auth.mergeTitle')}>
       <PageColumn style={{ paddingTop: spacing.md }}>
         <Card style={{ gap: spacing.md }}>
           <Text>{t('auth.mergeDescription')}</Text>

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
@@ -81,7 +80,7 @@ export function LanguagePairsScreen() {
 
   if (loading && languages.length === 0) {
     return (
-      <Screen padded>
+      <Screen>
         <LoadingState />
       </Screen>
     );
@@ -89,7 +88,7 @@ export function LanguagePairsScreen() {
 
   if (error) {
     return (
-      <Screen padded>
+      <Screen>
         <PageColumn style={{ gap: spacing.md }}>
           <Text variant="body" color={colors.danger}>{error}</Text>
           <Button label={t('common.retry')} onPress={refresh} />
@@ -99,12 +98,8 @@ export function LanguagePairsScreen() {
   }
 
   return (
-    <Screen padded>
-      <ScrollView
-        contentContainerStyle={{ paddingVertical: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-      >
-        <PageColumn style={{ gap: spacing.lg }}>
+    <Screen>
+      <PageColumn style={{ gap: spacing.lg }}>
           <View style={{ gap: spacing.xs }}>
             <Text variant="pageTitle">{t('settings.languagePairs')}</Text>
             <Text variant="caption" color={colors.textSecondary}>
@@ -182,7 +177,6 @@ export function LanguagePairsScreen() {
             disabled={refreshing}
           />
         </PageColumn>
-      </ScrollView>
     </Screen>
   );
 }

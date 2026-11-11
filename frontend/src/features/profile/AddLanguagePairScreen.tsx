@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getLanguageOptions } from '../../api/auth';
@@ -98,7 +98,7 @@ export function AddLanguagePairScreen() {
 
   if (loading) {
     return (
-      <Screen padded>
+      <Screen>
         <LoadingState />
       </Screen>
     );
@@ -115,12 +115,8 @@ export function AddLanguagePairScreen() {
   );
 
   return (
-    <Screen padded>
-      <ScrollView
-        contentContainerStyle={{ paddingVertical: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-      >
-        <PageColumn style={{ gap: spacing.lg }}>
+    <Screen>
+      <PageColumn style={{ gap: spacing.lg }}>
           <View style={{ gap: spacing.xs }}>
             <Text variant="pageTitle">{t('settings.addLanguagePair')}</Text>
             <Text variant="caption" color={colors.textSecondary}>
@@ -161,7 +157,6 @@ export function AddLanguagePairScreen() {
             fullWidth
           />
         </PageColumn>
-      </ScrollView>
     </Screen>
   );
 }

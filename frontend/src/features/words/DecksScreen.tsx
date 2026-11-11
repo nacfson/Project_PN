@@ -102,7 +102,7 @@ export function DecksScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen padded>
+    <Screen>
       <PageColumn style={styles.page}>
         <View style={[styles.header, { borderBottomColor: colors.hairline }]}>
           <Text variant="pageTitle">{t('words.decksTitle')}</Text>
