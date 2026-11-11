@@ -166,4 +166,53 @@ describe('AddScreen', () => {
 
     dateSpy.mockRestore();
   });
+
+  it('renders Manual Add section immediately on first paint before decks finish loading', async () => {
+    let resolveDecksPromise: (val: any) => void = () => {};
+    mockedListDecks.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDecksPromise = resolve;
+        }),
+    );
+
+    await render(<AddScreen />, { wrapper: Wrapper });
+
+    expect(screen.getByText('Add a word')).toBeTruthy();
+    expect(screen.getByPlaceholderText('A word or phrase, e.g. look up')).toBeTruthy();
+    expect(screen.getByTestId('manual-add-input-wrapper')).toBeTruthy();
+    expect(screen.getByTestId('switch-to-passage-link')).toBeTruthy();
+
+    resolveDecksPromise(enDecks);
+    await waitFor(() => expect(screen.getByText('All Words')).toBeTruthy());
+  });
+
+  it('switches between modes via secondary switcher links', async () => {
+    await render(<AddScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText('All Words')).toBeTruthy());
+
+    const linkToPassage = screen.getByTestId('switch-to-passage-link');
+    await fireEvent.press(linkToPassage);
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy(),
+    );
+    expect(screen.getByTestId('switch-to-manual-link')).toBeTruthy();
+
+    const linkToManual = screen.getByTestId('switch-to-manual-link');
+    await fireEvent.press(linkToManual);
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('A word or phrase, e.g. look up')).toBeTruthy(),
+    );
+  });
+
+  it('initializes in passage mode when route.params.mode is passage', async () => {
+    await render(
+      <AddScreen route={{ params: { mode: 'passage' } }} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(screen.getByText('All Words')).toBeTruthy());
+    expect(screen.getByPlaceholderText('Paste or type text here...')).toBeTruthy();
+  });
 });
