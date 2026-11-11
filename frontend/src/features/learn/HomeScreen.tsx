@@ -226,7 +226,7 @@ export function HomeScreen() {
                         variant="secondary"
                         size="hero"
                         iconLeft="add-circle"
-                        onPress={() => navigation.navigate('Add')}
+                        onPress={() => navigation.navigate('Add', { mode: 'manual', focusTick: Date.now() })}
                         fullWidth={!isWide}
                       />
                     </>
@@ -236,7 +236,7 @@ export function HomeScreen() {
                       variant="primary"
                       size="hero"
                       iconLeft="add-circle"
-                      onPress={() => navigation.navigate('Add')}
+                      onPress={() => navigation.navigate('Add', { mode: 'manual', focusTick: Date.now() })}
                       fullWidth={!isWide}
                     />
                   )}

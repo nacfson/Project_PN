@@ -6,7 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSharedValue } from 'react-native-reanimated';
 
 import { QueueBanner } from '../components/QueueBanner';
+import { CommandDock } from '../features/web/CommandDock';
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
 import { AddScreen } from './AddScreen';
+import { navigationRef } from './navigationRef';
 import { SettingsStack, type SettingsStackParamList } from './SettingsStack';
 import { WordsStack } from './WordsStack';
 import { HomeScreen } from '../features/learn/HomeScreen';
@@ -24,7 +27,7 @@ import { TabSlot } from './TabSlot';
 export type MainTabParamList = {
   Learn: undefined;
   Words: undefined;
-  Add: undefined;
+  Add: { mode?: 'manual' | 'passage'; focusTick?: number } | undefined;
   Practice: { deckId?: string; origin?: 'private' } | undefined;
   Settings: NavigatorScreenParams<SettingsStackParamList> | undefined;
 };
@@ -144,6 +147,12 @@ export function MainTabs({ onLogout, initialChromeHidden = false }: MainTabsProp
     setChromeHiddenState(hidden);
   }, []);
 
+  useKeyboardShortcut('a', () => {
+    if (navigationRef.isReady()) {
+      navigationRef.navigate('Add', { mode: 'manual', focusTick: Date.now() });
+    }
+  });
+
   const renderTabBar = useCallback(
     (props: BottomTabBarProps) => {
       if (chromeHidden) {
@@ -231,6 +240,7 @@ export function MainTabs({ onLogout, initialChromeHidden = false }: MainTabsProp
               {() => <SettingsStack onLogout={onLogout} />}
             </Tab.Screen>
           </Tab.Navigator>
+          {!chromeHidden ? <CommandDock /> : null}
         </View>
       </Frame>
     </TabBarScrollContext.Provider>

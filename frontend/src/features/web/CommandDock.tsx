@@ -9,6 +9,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useAppLanguage } from '../../i18n';
 import { Icon, Text } from '../../ui';
 import type { MainTabParamList } from '../../navigation/MainTabs';
+import { navigationRef } from '../../navigation/navigationRef';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList>;
 
@@ -21,9 +22,20 @@ const DOCK_ITEMS = [
 /** Hide the desktop floating dock on phone-sized web viewports. */
 const MOBILE_WEB_MAX_WIDTH = 720;
 
-export function CommandDock() {
+export interface CommandDockProps {
+  navigation?: NavigationProp;
+}
+
+export function CommandDock({ navigation: propNavigation }: CommandDockProps = {}) {
   const { colors, spacing, radii } = useTheme();
-  const navigation = useNavigation<NavigationProp>();
+  let hookNavigation: NavigationProp | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    hookNavigation = useNavigation<NavigationProp>();
+  } catch {
+    // Rendered outside navigation container
+  }
+  const navigation = propNavigation ?? hookNavigation;
   const { pendingCount } = useAddQueue();
   const reducedMotion = useReducedMotion();
   const { t } = useAppLanguage();
@@ -38,15 +50,17 @@ export function CommandDock() {
   const isExpanded = reducedMotion || expanded;
 
   const handleAction = (action: (typeof DOCK_ITEMS)[number]['action']) => {
+    const nav = navigation ?? (navigationRef.isReady() ? navigationRef : null);
+    if (!nav) return;
     switch (action) {
       case 'navigateAdd':
-        navigation.navigate('Add');
+        (nav as any).navigate('Add', { mode: 'manual', focusTick: Date.now() });
         break;
       case 'navigatePractice':
-        navigation.navigate('Practice', { origin: 'private' });
+        (nav as any).navigate('Practice', { origin: 'private' });
         break;
       case 'navigateWords':
-        navigation.navigate('Words');
+        (nav as any).navigate('Words');
         break;
     }
   };
