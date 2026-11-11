@@ -5,9 +5,12 @@ import { BROWSER_PAGE_MIN_WIDTH, browserPageWidth, browserScale } from './shellK
 export const BROWSER_PAGE_WIDTH = BROWSER_PAGE_MIN_WIDTH;
 
 export function BrowserFrame({ children }: { children: ReactNode }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const scale = browserScale(width);
   const pageWidth = browserPageWidth(width);
+  const frameSizing =
+    scale < 1 && height > 0 ? { height: height / scale } : { flex: 1 };
+
   return (
     <View
       testID="browser-shell"
@@ -19,7 +22,7 @@ export function BrowserFrame({ children }: { children: ReactNode }) {
           style={{
             width: pageWidth,
             position: 'relative',
-            flex: 1,
+            ...frameSizing,
             transform: [{ scale }],
             transformOrigin: 'top left',
           }}
