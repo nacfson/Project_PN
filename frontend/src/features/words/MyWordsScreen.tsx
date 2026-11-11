@@ -106,7 +106,7 @@ function formatDueLabel(dueAt: string | null | undefined, todayLabel: string, lo
 }
 
 export function MyWordsScreen(props: MyWordsScreenProps = {}) {
-  const { colors } = useTheme();
+  const { colors, layout } = useTheme();
   const { t, language } = useAppLanguage();
   const navigation = useNavigation<MyWordsScreenNavigationProp>();
   const { width: windowWidth } = useWindowDimensions();
@@ -802,7 +802,7 @@ export function MyWordsScreen(props: MyWordsScreenProps = {}) {
 
   if (!languageLoading && languageError) {
     return (
-      <Screen title={t('words.title')} padded>
+      <Screen title={t('words.title')}>
         <PageColumn>
           <ErrorState message={languageError} onRetry={() => void refreshLanguage()} />
         </PageColumn>
@@ -812,7 +812,7 @@ export function MyWordsScreen(props: MyWordsScreenProps = {}) {
 
   if (!languageLoading && !targetLanguage) {
     return (
-      <Screen title={t('words.title')} padded>
+      <Screen title={t('words.title')}>
         <PageColumn>
           <EmptyState
             icon="language-outline"
@@ -903,8 +903,12 @@ export function MyWordsScreen(props: MyWordsScreenProps = {}) {
     return (
       <>
         <Screen
-          padded
+          testID="words-screen-scroll"
           refreshControl={refreshControl}
+          onScroll={handleListScroll}
+          onLayout={handleListLayout}
+          onContentSizeChange={handleContentSizeChange}
+          scrollEventThrottle={16}
           contentContainerStyle={listContentStyle}
         >
           <PageColumn>
@@ -936,12 +940,15 @@ export function MyWordsScreen(props: MyWordsScreenProps = {}) {
   return (
     <>
       <Screen
-        padded
+        testID="words-screen-flatlist"
         as={Animated.FlatList}
         data={filteredItems}
         keyExtractor={(item: LearningItemListItem) => item.id}
         renderItem={renderItem}
-        contentContainerStyle={listContentStyle}
+        contentContainerStyle={[
+          listContentStyle,
+          { paddingHorizontal: layout.pagePadding.phone.x },
+        ]}
         onEndReached={() => void loadMore()}
         onEndReachedThreshold={0.2}
         onLayout={handleListLayout}

@@ -363,4 +363,37 @@ describe('MyWordsScreen', () => {
       expect(mockedArchiveLearningItems).toHaveBeenCalledWith(['uws-1', 'uws-2']);
     });
   });
+
+  it('triggers maybeLoadMoreFromScroll on web when Screen scrolls', async () => {
+    Object.defineProperty(Platform, 'OS', { get: () => 'web', configurable: true });
+    const maybeLoadMoreFromScroll = jest.fn();
+    mockedUseLearningItems.mockReturnValue({
+      items: sampleItems,
+      nextCursor: 'cursor-2',
+      hasMore: true,
+      status: 'ready',
+      isSearching: false,
+      isLoadingMore: false,
+      isRefreshing: false,
+      error: null,
+      loadMore: jest.fn(),
+      maybeLoadMoreFromScroll,
+      refresh: jest.fn(),
+      removeItemsLocally: jest.fn(),
+    });
+
+    const { unmount } = await render(<MyWordsScreen />, { wrapper: createWrapper(1024) });
+    await waitFor(() => expect(screen.getByTestId('words-screen-scroll')).toBeTruthy());
+
+    await fireEvent(screen.getByTestId('words-screen-scroll'), 'scroll', {
+      nativeEvent: {
+        contentOffset: { y: 500 },
+        contentSize: { height: 1000 },
+        layoutMeasurement: { height: 600 },
+      },
+    });
+
+    expect(maybeLoadMoreFromScroll).toHaveBeenCalled();
+    await unmount();
+  });
 });

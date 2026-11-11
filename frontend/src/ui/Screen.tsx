@@ -102,7 +102,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
 
     const scrollHandler = useAnimatedScrollHandler({
       onScroll: (event: any) => {
-        const currentY = event.contentOffset.y;
+        const currentY = event?.contentOffset?.y ?? event?.nativeEvent?.contentOffset?.y ?? 0;
         const delta = currentY - lastScrollY.value;
         scrollY.value = currentY;
 
@@ -130,7 +130,10 @@ export const Screen = React.forwardRef<any, ScreenProps>(
         lastScrollY.value = currentY;
 
         if (onScroll) {
-          runOnJS(onScroll)({ nativeEvent: event } as unknown as NativeSyntheticEvent<NativeScrollEvent>);
+          const syntheticEvent = event?.nativeEvent
+            ? event
+            : ({ nativeEvent: event } as unknown as NativeSyntheticEvent<NativeScrollEvent>);
+          runOnJS(onScroll)(syntheticEvent);
         }
       },
     });
