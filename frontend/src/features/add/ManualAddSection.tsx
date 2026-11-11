@@ -1,25 +1,37 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { PosSelector } from '../../components/PosSelector';
 import { SensePicker } from '../../components/SensePicker';
 import { useSenseFlow } from '../../hooks/useSenseFlow';
 import { useAppLanguage } from '../../i18n';
+import { shellKind, shellLayout } from '../../navigation/shellKind';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Icon, Input, Kbd, Text } from '../../ui';
 import type { PosFilter } from '../../types';
 
 interface ManualAddSectionProps {
-  selectedDeckId: string;
+  selectedDeckId: string | null;
   targetLanguage: string;
+  resolveDeckId?: () => Promise<string | null>;
+  autoFocus?: boolean;
 }
 
 function isMultiWord(text: string): boolean {
   return text.trim().split(/\s+/).filter(Boolean).length > 1;
 }
 
-export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSectionProps) {
+export function ManualAddSection({
+  selectedDeckId,
+  targetLanguage,
+  resolveDeckId,
+  autoFocus = true,
+}: ManualAddSectionProps) {
   const { colors, spacing, radii, shadows } = useTheme();
   const { t } = useAppLanguage();
+  const { width } = useWindowDimensions();
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isWide = shellLayout(shellKind(Platform.OS, ua), width) === 'sidebar' && width >= 640;
+
   const [word, setWord] = useState('');
   const [context, setContext] = useState('');
   const [personalNote, setPersonalNote] = useState('');
@@ -95,7 +107,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
       return;
     }
     const lookupPos: PosFilter = !posTouched && isMultiWord(trimmed) ? 'phrase' : pos;
-    void lookup(trimmed, lookupPos, context.trim() || undefined, targetLanguage, selectedDeckId);
+    void lookup(trimmed, lookupPos, context.trim() || undefined, targetLanguage, selectedDeckId || undefined);
   };
 
   const busy = lookingUp || confirming;
@@ -115,7 +127,15 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
       >
         <View style={[styles.topAccentBar, { backgroundColor: colors.brandPrimary }]} />
         <View style={styles.cardBody}>
-          <View style={styles.heroRow}>
+          <View
+            style={[
+              styles.heroRow,
+              {
+                flexDirection: isWide ? 'row' : 'column',
+                alignItems: isWide ? 'flex-start' : 'stretch',
+              },
+            ]}
+          >
             <View style={styles.inputFlex} testID="manual-add-input-wrapper">
               <Input
                 variant="display"
@@ -127,6 +147,7 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
                 placeholder={t('add.inputPlaceholder')}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoFocus={autoFocus}
                 onSubmitEditing={findSense}
                 returnKeyType="search"
                 onClear={() => {
@@ -135,16 +156,25 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
                   setTouched(false);
                 }}
               />
+              <Text
+                variant="caption"
+                color="secondary"
+                testID="manual-add-phrase-hint"
+                style={{ marginTop: 6, marginLeft: 4 }}
+              >
+                {t('add.phraseSupportHint')}
+              </Text>
             </View>
             <Button
               label={t('add.findMeanings')}
               variant="primary"
               size="hero"
-              hint={<Kbd color={colors.onPrimary}>Enter</Kbd>}
+              hint={isWide && Platform.OS === 'web' ? <Kbd color={colors.onPrimary}>Enter</Kbd> : undefined}
               onPress={findSense}
               disabled={word.trim().length === 0 || busy}
               loading={lookingUp}
               testID="find-meanings-button"
+              fullWidth={!isWide}
             />
           </View>
 
@@ -230,10 +260,15 @@ export function ManualAddSection({ selectedDeckId, targetLanguage }: ManualAddSe
         suggestPosPrompt={suggestPosPrompt}
         sourceContext={context}
         onSourceContextChange={setContext}
-        onConfirm={(wordSenseId) => {
+        onConfirm={async (wordSenseId) => {
+          let deckId = selectedDeckId;
+          if (!deckId && resolveDeckId) {
+            deckId = await resolveDeckId();
+          }
+          if (!deckId) return;
           void confirm(
             wordSenseId,
-            selectedDeckId,
+            deckId,
             context.trim() || undefined,
             personalNote.trim() || undefined,
           );
