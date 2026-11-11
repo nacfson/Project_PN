@@ -173,7 +173,8 @@ export const Screen = React.forwardRef<any, ScreenProps>(
       };
     });
 
-    const scrollEnabled = rest.scrollEnabled ?? (title ? true : false);
+    const scrollEnabled = rest.scrollEnabled ?? true;
+    const isBoundedContainer = !scrollEnabled && !as && !title;
     const ScrollComponent = as || Animated.ScrollView;
 
     const scrollProps: any = {
@@ -181,7 +182,7 @@ export const Screen = React.forwardRef<any, ScreenProps>(
       onScroll: scrollHandler,
       scrollEventThrottle: 16,
       scrollEnabled,
-      style: [styles.inner, { maxWidth: layout.contentMaxWidth }, style],
+      style: [styles.inner, style],
       contentContainerStyle: [
         padded && { paddingHorizontal: spacing.xl },
         title ? styles.innerWithTitle : undefined,
@@ -237,22 +238,28 @@ export const Screen = React.forwardRef<any, ScreenProps>(
             </Text>
           </Animated.View>
         )}
-        <ScrollComponent {...scrollProps}>
-          {!as && title && (
-            <Animated.View
-              style={[
-                styles.largeHeader,
-                padded && { paddingHorizontal: spacing.xl },
-                largeHeaderAnimatedStyle,
-              ]}
-            >
-              <Text variant="pageTitle" style={{ color: colors.text }}>
-                {title}
-              </Text>
-            </Animated.View>
-          )}
-          {!as && children}
-        </ScrollComponent>
+        {isBoundedContainer ? (
+          <View ref={ref} style={[styles.inner, style]} {...rest}>
+            {children}
+          </View>
+        ) : (
+          <ScrollComponent {...scrollProps}>
+            {!as && title && (
+              <Animated.View
+                style={[
+                  styles.largeHeader,
+                  padded && { paddingHorizontal: spacing.xl },
+                  largeHeaderAnimatedStyle,
+                ]}
+              >
+                <Text variant="pageTitle" style={{ color: colors.text }}>
+                  {title}
+                </Text>
+              </Animated.View>
+            )}
+            {!as && children}
+          </ScrollComponent>
+        )}
       </SafeAreaView>
     );
   }
