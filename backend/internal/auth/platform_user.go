@@ -18,10 +18,17 @@ type PlatformUserEnsurer interface {
 // Email is treated as an informational snapshot only; same-email auto-linking is NOT performed.
 // Verified identities receive ordinary user privileges with no admin grant.
 func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email, signInMethod string) (AuthResult, error) {
+	return s.ensurePlatformUserWithBeginner(ctx, s.pool, issuer, subject, email, signInMethod)
+}
+
+func (s *Service) ensurePlatformUserWithBeginner(ctx context.Context, beginner txBeginner, issuer, subject, email, signInMethod string) (AuthResult, error) {
 	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
 	subject = strings.TrimSpace(subject)
 	if issuer == "" || subject == "" {
 		return AuthResult{}, errors.New("auth: issuer and subject are required")
+	}
+	if beginner == nil {
+		return AuthResult{}, errors.New("auth: database pool is not configured")
 	}
 
 	method := strings.ToLower(strings.TrimSpace(signInMethod))
@@ -47,13 +54,49 @@ func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email
 		return AuthResult{}, err
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	var userID string
+	err = retryOncePreCommit(ctx, func() (bool, bool, error) {
+		var beginFailed, commitSent bool
+		userID, beginFailed, commitSent, err = s.ensurePlatformUserTx(ctx, beginner, issuer, subject, normEmail, method, nativeLang, targetLang, uiLang)
+		return beginFailed, commitSent, err
+	})
 	if err != nil {
-		return AuthResult{}, fmt.Errorf("auth: begin platform user sync: %w", err)
+		return AuthResult{}, err
+	}
+
+	var user User
+	if s.pool != nil {
+		user, err = s.userByID(ctx, userID)
+		if err != nil {
+			return AuthResult{}, fmt.Errorf("auth: load user: %w", err)
+		}
+	} else {
+		user = User{
+			ID:             userID,
+			Email:          normEmail,
+			NativeLanguage: nativeLang,
+			TargetLanguage: targetLang,
+			UILanguage:     uiLang,
+		}
+	}
+
+	return AuthResult{
+		User:            user,
+		SessionProvider: method,
+		// Ordinary learner access only: no admin grant
+	}, nil
+}
+
+func (s *Service) ensurePlatformUserTx(
+	ctx context.Context,
+	beginner txBeginner,
+	issuer, subject, normEmail, method, nativeLang, targetLang, uiLang string,
+) (userID string, beginFailed bool, commitSent bool, err error) {
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return "", true, false, fmt.Errorf("auth: begin platform user sync: %w", err)
 	}
 	defer tx.Rollback(ctx)
-
-	var userID string
 
 	// 1. Primary lookup strictly by (issuer, subject)
 	err = tx.QueryRow(ctx, `
@@ -64,7 +107,7 @@ func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email
 
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return AuthResult{}, fmt.Errorf("auth: lookup platform identity: %w", err)
+			return "", false, false, fmt.Errorf("auth: lookup platform identity: %w", err)
 		}
 
 		// 2. Identity does not exist: create a new local user with ordinary access only
@@ -92,7 +135,7 @@ func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email
 			returning id::text
 		`, userEmail, nativeLang, targetLang, uiLang).Scan(&userID)
 		if err != nil {
-			return AuthResult{}, fmt.Errorf("auth: insert user: %w", err)
+			return "", false, false, fmt.Errorf("auth: insert user: %w", err)
 		}
 
 		_, err = tx.Exec(ctx, `
@@ -100,7 +143,7 @@ func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email
 			values ($1::uuid, $2, $3, $4, $5, $4, $3)
 		`, userID, issuer, subject, method, normEmail)
 		if err != nil {
-			return AuthResult{}, fmt.Errorf("auth: insert platform identity: %w", err)
+			return "", false, false, fmt.Errorf("auth: insert platform identity: %w", err)
 		}
 	} else {
 		// Existing user found: update email_at_provider snapshot if available
@@ -122,21 +165,13 @@ func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email
 		on conflict (user_id, target_language) do nothing
 	`, userID, targetLang, nativeLang)
 	if err != nil {
-		return AuthResult{}, fmt.Errorf("auth: ensure user language: %w", err)
+		return "", false, false, fmt.Errorf("auth: ensure user language: %w", err)
 	}
 
+	commitSent = true
 	if err := tx.Commit(ctx); err != nil {
-		return AuthResult{}, fmt.Errorf("auth: commit user sync: %w", err)
+		return "", false, true, fmt.Errorf("auth: commit user sync: %w", err)
 	}
 
-	user, err := s.userByID(ctx, userID)
-	if err != nil {
-		return AuthResult{}, fmt.Errorf("auth: load user: %w", err)
-	}
-
-	return AuthResult{
-		User:            user,
-		SessionProvider: method,
-		// Ordinary learner access only: no admin grant
-	}, nil
+	return userID, false, true, nil
 }

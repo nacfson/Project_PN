@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -180,29 +181,36 @@ func (h *authHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	exch, err := h.gateway.ExchangeTicket(r.Context(), r.Host, ticket)
 	if err != nil || exch == nil || exch.Audience != "project-pn" {
-		if h.logger != nil && err != nil {
-			h.logger.Logf("AUTH_FAILURE", "gateway ticket exchange failed from %s: %v", r.RemoteAddr, err)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "gateway ticket exchange failed", "category", "AUTH_FAILURE", "remote_addr", r.RemoteAddr, "error", err)
+			if h.logger != nil {
+				h.logger.Logf("AUTH_FAILURE", "gateway ticket exchange failed from %s: %v", r.RemoteAddr, err)
+			}
 		}
-		http.Redirect(w, r, h.publicAppURL+"/", http.StatusFound)
+		writeError(w, http.StatusBadGateway, "sign-in ticket exchange failed; please try again")
 		return
 	}
 
 	ident, _, err := h.gateway.ConfirmSessionHandle(r.Context(), r.Host, exch.SessionHandle)
 	if err != nil || ident == nil {
-		if h.logger != nil && err != nil {
-			h.logger.Logf("AUTH_FAILURE", "gateway session confirmation on callback failed from %s: %v", r.RemoteAddr, err)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "gateway session confirmation on callback failed", "category", "AUTH_FAILURE", "remote_addr", r.RemoteAddr, "error", err)
+			if h.logger != nil {
+				h.logger.Logf("AUTH_FAILURE", "gateway session confirmation on callback failed from %s: %v", r.RemoteAddr, err)
+			}
 		}
-		http.Redirect(w, r, h.publicAppURL+"/", http.StatusFound)
+		writeError(w, http.StatusBadGateway, "sign-in session confirmation failed; please try again")
 		return
 	}
 
 	email := ident.Email
 
 	if _, err := h.svc.EnsurePlatformUser(r.Context(), exch.Issuer, exch.Subject, email, "google"); err != nil {
+		slog.ErrorContext(r.Context(), "ensure platform user on callback failed", "category", "AUTH_FAILURE", "error", err)
 		if h.logger != nil {
 			h.logger.Logf("AUTH_FAILURE", "ensure platform user on callback failed: %v", err)
 		}
-		http.Redirect(w, r, h.publicAppURL+"/", http.StatusFound)
+		writeError(w, http.StatusServiceUnavailable, "account provisioning failed; please try again")
 		return
 	}
 

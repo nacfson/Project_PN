@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -133,6 +134,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 					"google",
 				)
 				if err != nil {
+					slog.ErrorContext(r.Context(), "ensure platform user failed", "category", "AUTH_FAILURE", "error", err)
 					if logger != nil {
 						logger.Logf("AUTH_FAILURE", "ensure platform user failed: %v", err)
 					}
@@ -149,6 +151,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 					"google",
 				)
 				if err != nil {
+					slog.ErrorContext(r.Context(), "ensure platform user failed", "category", "AUTH_FAILURE", "error", err)
 					writeCodedError(w, http.StatusInternalServerError, "AUTH-599", "internal error", true)
 					return
 				}
@@ -178,6 +181,7 @@ func authMiddleware(verifier *auth.JWTVerifier, svc platformUserEnsurer, devBypa
 					claims.SignInMethod,
 				)
 				if err != nil {
+					slog.ErrorContext(r.Context(), "ensure platform user failed", "category", "AUTH_FAILURE", "error", err)
 					if logger != nil {
 						logger.Logf("AUTH_FAILURE", "ensure platform user failed: %v", err)
 					}

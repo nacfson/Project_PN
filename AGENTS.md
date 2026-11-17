@@ -52,6 +52,15 @@ Core backend principle:
 - Do not reintroduce `user_words` as the main learning table.
 - Project PN authenticates requests via in-cluster Keycloak project-scoped access tokens under Traefik ForwardAuth (`001-gateway-jwt-auth`). Users resolve strictly by `(issuer, subject)` to ordinary learner privileges (no application-administrator product role). Fail closed on invalid/missing JWT or unreachable JWKS.
 
+### Database connections (platform CONTRACT_DATABASE §4.3)
+
+- The platform `vault-db-proxy` closes every connection 15 minutes after its handshake, even mid-transaction. The client sees `unexpected EOF`, not a SQLSTATE.
+- Every connection pool MUST cap connection lifetime at 5 minutes (`SetConnMaxLifetime(5 * time.Minute)` or `pgxpool` `MaxConnLifetime = 5m` with `MaxConnLifetimeJitter = 30s` and `HealthCheckPeriod = 30s`). Never raise it to 15 minutes or more, and never set it to 0 (unlimited).
+- Retry a unit of work once on a pre-commit connection error (`BEGIN` failure, `io.ErrUnexpectedEOF`, `driver.ErrBadConn`, SQLSTATE class `08`). Never retry after commit. Never loop.
+- An auth path that fails to persist MUST fail visibly. `/api/auth/callback` never redirects as signed in after user provisioning fails.
+- Log database and `AUTH_FAILURE` events at `level: "error"`.
+- Use `DATABASE_URL` as given by the platform. Do not add Vault clients, Secret mounts, or proxy-specific code.
+
 ## Frontend Rules
 
 - Use React Native / Expo with TypeScript targeting Web, iOS, and Android.
