@@ -92,8 +92,9 @@ func TestAuthCallback_ProvisioningFailure_Returns503AndLogsErrorWithTraceID(t *t
 	if err := json.Unmarshal(bytes.TrimSpace(logBuf.Bytes()), &logged); err != nil {
 		t.Fatalf("unmarshal slog line %q: %v", logBuf.String(), err)
 	}
-	if logged["level"] != "error" {
-		t.Fatalf("expected slog level=error, got %v", logged["level"])
+	// logx keeps slog's level names (see logx_test.go); the admin stream is lowercase.
+	if logged["level"] != "ERROR" {
+		t.Fatalf("expected slog level=ERROR, got %v", logged["level"])
 	}
 	if logged["category"] != "AUTH_FAILURE" {
 		t.Fatalf("expected category=AUTH_FAILURE, got %v", logged["category"])

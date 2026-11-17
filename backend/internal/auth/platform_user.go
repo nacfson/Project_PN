@@ -18,7 +18,13 @@ type PlatformUserEnsurer interface {
 // Email is treated as an informational snapshot only; same-email auto-linking is NOT performed.
 // Verified identities receive ordinary user privileges with no admin grant.
 func (s *Service) EnsurePlatformUser(ctx context.Context, issuer, subject, email, signInMethod string) (AuthResult, error) {
-	return s.ensurePlatformUserWithBeginner(ctx, s.pool, issuer, subject, email, signInMethod)
+	// A nil *pgxpool.Pool stored in the interface is non-nil, which would defeat
+	// the nil-beginner guard and panic in Begin. Leave the interface nil instead.
+	var beginner txBeginner
+	if s.pool != nil {
+		beginner = s.pool
+	}
+	return s.ensurePlatformUserWithBeginner(ctx, beginner, issuer, subject, email, signInMethod)
 }
 
 func (s *Service) ensurePlatformUserWithBeginner(ctx context.Context, beginner txBeginner, issuer, subject, email, signInMethod string) (AuthResult, error) {
