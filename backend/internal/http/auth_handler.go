@@ -187,7 +187,8 @@ func (h *authHandler) callback(w http.ResponseWriter, r *http.Request) {
 				h.logger.Logf("AUTH_FAILURE", "gateway ticket exchange failed from %s: %v", r.RemoteAddr, err)
 			}
 		}
-		writeError(w, http.StatusBadGateway, "sign-in ticket exchange failed; please try again")
+		// Not signed in: send the browser back to the app, which shows sign-in again.
+		http.Redirect(w, r, h.publicAppURL+"/", http.StatusFound)
 		return
 	}
 
@@ -199,7 +200,7 @@ func (h *authHandler) callback(w http.ResponseWriter, r *http.Request) {
 				h.logger.Logf("AUTH_FAILURE", "gateway session confirmation on callback failed from %s: %v", r.RemoteAddr, err)
 			}
 		}
-		writeError(w, http.StatusBadGateway, "sign-in session confirmation failed; please try again")
+		http.Redirect(w, r, h.publicAppURL+"/", http.StatusFound)
 		return
 	}
 
