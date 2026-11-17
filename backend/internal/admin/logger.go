@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,13 @@ type auditLine struct {
 	ServiceVersion string `json:"service.version"`
 	EventName      string `json:"event.name"`
 	Category       string `json:"category"`
+}
+
+func levelForCategory(category string) string {
+	if category == "AUTH_FAILURE" || strings.HasSuffix(category, "_FAILURE") {
+		return "error"
+	}
+	return "info"
 }
 
 // streamLogger writes audit lines to a writer. Close does not close the writer,
@@ -66,7 +74,7 @@ func (l *streamLogger) Log(category, message string) {
 	defer l.mu.Unlock()
 	rec := auditLine{
 		Time:           time.Now().UTC().Format(logx.TimeFormat),
-		Level:          "info",
+		Level:          levelForCategory(category),
 		Msg:            message,
 		ServiceName:    logx.Service(),
 		ServiceVersion: logx.Version(),
