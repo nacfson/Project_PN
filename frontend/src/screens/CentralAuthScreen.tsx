@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { analytics } from '../analytics/analytics';
@@ -22,6 +22,9 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
   const { colors } = useTheme();
   const { t } = useAppLanguage();
   const [phase, setPhase] = useState<AuthPhase>('idle');
+  const handleCancel = useCallback(() => {
+    setPhase('idle');
+  }, []);
 
   useEffect(() => {
     if (!isBrowserWeb() || typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
@@ -86,7 +89,7 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
       phase === 'verifying' ? t('auth.loadingVerifyTitle') : t('auth.loadingRedirectTitle');
     return (
       <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-        <AuthLoadingCard title={loadingTitle} onCancel={() => setPhase('idle')} />
+        <AuthLoadingCard title={loadingTitle} onCancel={handleCancel} />
       </View>
     );
   }
@@ -134,7 +137,9 @@ export function CentralAuthScreen({ onTokenReceived, connectionError }: CentralA
         </Text>
         <Button
           label={t('auth.centralSignIn')}
-          onPress={handleSignIn}
+          onPress={() => {
+            void handleSignIn();
+          }}
           style={{ width: '100%' }}
         />
       </Card>
