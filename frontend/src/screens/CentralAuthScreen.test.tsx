@@ -8,7 +8,17 @@ import { sessionStorage } from '../api/sessionStorage';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 
+jest.mock('expo-font', () => ({
+  useFonts: () => [true, null],
+  FontDisplay: { SWAP: 'swap' },
+}));
+
 jest.mock('../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => true,
+}));
+
+jest.mock('../theme/motion', () => ({
+  ...jest.requireActual('../theme/motion'),
   useReducedMotion: () => true,
 }));
 
@@ -17,6 +27,7 @@ jest.mock('../api/storage', () => ({
     getLanguage: jest.fn().mockResolvedValue('en'),
     setLanguage: jest.fn().mockResolvedValue(undefined),
   },
+  clearLegacyThemePreferences: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('expo-web-browser', () => ({

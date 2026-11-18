@@ -32,9 +32,14 @@ jest.mock('./src/api/storage', () => ({
     getVariation: jest.fn().mockResolvedValue('default'),
     setVariation: jest.fn().mockResolvedValue(undefined),
   },
+  clearLegacyThemePreferences: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('./src/hooks/useReducedMotion', () => ({
+  useReducedMotion: () => true,
+}));
+jest.mock('./src/theme/motion', () => ({
+  ...jest.requireActual('./src/theme/motion'),
   useReducedMotion: () => true,
 }));
 jest.mock('./src/utils/authLaunch', () => ({

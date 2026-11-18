@@ -51,10 +51,16 @@ export function useReducedMotion() {
       };
     } else {
       AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-        if (active) setReduced(enabled);
+        if (active) {
+          const next = Boolean(enabled);
+          setReduced((prev) => (prev === next ? prev : next));
+        }
       });
       const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-        if (active) setReduced(enabled);
+        if (active) {
+          const next = Boolean(enabled);
+          setReduced((prev) => (prev === next ? prev : next));
+        }
       });
       return () => {
         active = false;
