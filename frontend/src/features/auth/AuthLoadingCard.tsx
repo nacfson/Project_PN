@@ -29,14 +29,17 @@ export function AuthLoadingCard({
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    setIsSlow(false);
+    setIsSlow((prev) => (prev ? false : prev));
+    if (!onCancel) {
+      return;
+    }
     const timer = setTimeout(() => {
       setIsSlow(true);
     }, slowThresholdMs);
     return () => {
       clearTimeout(timer);
     };
-  }, [slowThresholdMs, title]);
+  }, [onCancel, slowThresholdMs, title]);
 
   useEffect(() => {
     if (reducedMotion) {

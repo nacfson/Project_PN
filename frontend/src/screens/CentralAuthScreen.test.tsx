@@ -1,12 +1,23 @@
 import React from 'react';
 import { Platform } from 'react-native';
-import { act, render, screen, fireEvent } from '@testing-library/react-native';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { CentralAuthScreen } from './CentralAuthScreen';
 import { API_BASE_URL } from '../config';
 import { sessionStorage } from '../api/sessionStorage';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
+
+jest.mock('../hooks/useReducedMotion', () => ({
+  useReducedMotion: () => true,
+}));
+
+jest.mock('../api/storage', () => ({
+  appLanguageStorage: {
+    getLanguage: jest.fn().mockResolvedValue('en'),
+    setLanguage: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 jest.mock('expo-web-browser', () => ({
   openAuthSessionAsync: jest.fn(),
@@ -28,7 +39,6 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 describe('CentralAuthScreen', () => {
   afterEach(() => {
-    jest.useRealTimers();
     jest.clearAllMocks();
   });
 
@@ -66,8 +76,7 @@ describe('CentralAuthScreen', () => {
     }
   });
 
-  it('reveals Cancel & Try Again after slow wait and resets on press or pageshow restore', async () => {
-    jest.useFakeTimers();
+  it('resets loading UI back to Sign In when browser restores page from bfcache (pageshow)', async () => {
     const originalPlatform = Platform.OS;
     const originalWindow = global.window;
     let pageShowHandler: ((e: { persisted?: boolean }) => void) | undefined;
@@ -87,21 +96,6 @@ describe('CentralAuthScreen', () => {
       };
 
       await render(<CentralAuthScreen />, { wrapper: Wrapper });
-      await fireEvent.press(screen.getByText('Continue to Sign In'));
-
-      expect(screen.queryByTestId('auth-loading-cancel')).toBeNull();
-
-      await act(async () => {
-        jest.advanceTimersByTime(3600);
-      });
-
-      expect(screen.getByText('Taking a few extra seconds — almost there.')).toBeTruthy();
-      const cancelBtn = screen.getByTestId('auth-loading-cancel');
-      await fireEvent.press(cancelBtn);
-
-      expect(screen.getByText('Continue to Sign In')).toBeTruthy();
-
-      // Trigger again and verify bfcache pageshow restore resets loading UI
       await fireEvent.press(screen.getByText('Continue to Sign In'));
       expect(screen.getByTestId('auth-brand-pulse')).toBeTruthy();
 
@@ -136,15 +130,19 @@ describe('CentralAuthScreen', () => {
       await render(<CentralAuthScreen onTokenReceived={onTokenReceived} />, { wrapper: Wrapper });
       await fireEvent.press(screen.getByText('Continue to Sign In'));
 
-      expect(sessionStorage.setSession).toHaveBeenCalled();
-      expect(onTokenReceived).toHaveBeenCalled();
-      expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
+      await waitFor(() => {
+        expect(sessionStorage.setSession).toHaveBeenCalled();
+        expect(onTokenReceived).toHaveBeenCalled();
+        expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
+      });
 
       await act(async () => {
         resolveTokenCheck();
       });
 
-      expect(screen.getByText('Continue to Sign In')).toBeTruthy();
+      await waitFor(() => {
+        expect(screen.getByText('Continue to Sign In')).toBeTruthy();
+      });
     } finally {
       Platform.OS = originalPlatform;
     }

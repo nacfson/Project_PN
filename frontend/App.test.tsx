@@ -34,6 +34,13 @@ jest.mock('./src/api/storage', () => ({
   },
 }));
 
+jest.mock('./src/hooks/useReducedMotion', () => ({
+  useReducedMotion: () => true,
+}));
+jest.mock('./src/utils/authLaunch', () => ({
+  extractSessionFromUrl: jest.fn(() => null),
+  parseSessionFromLaunchUrl: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('./src/navigation/RootNavigator', () => ({
   RootNavigator: () => {
     const { Text } = require('react-native');
@@ -107,6 +114,9 @@ describe('App fail-closed auth gate (001-gateway-jwt-auth)', () => {
 
     await render(<App />);
 
+    await waitFor(() => {
+      expect(authApi.me).toHaveBeenCalled();
+    });
     expect(screen.getByTestId('auth-brand-pulse')).toBeTruthy();
     expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
 

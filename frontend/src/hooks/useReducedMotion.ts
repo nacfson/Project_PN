@@ -46,13 +46,15 @@ export function useReducedMotion(): boolean {
 
     AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
       if (active) {
-        setReducedMotion(enabled);
+        const next = Boolean(enabled);
+        setReducedMotion((prev) => (prev === next ? prev : next));
       }
     });
 
     subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled: boolean) => {
       if (active) {
-        setReducedMotion(enabled);
+        const next = Boolean(enabled);
+        setReducedMotion((prev) => (prev === next ? prev : next));
       }
     });
 
