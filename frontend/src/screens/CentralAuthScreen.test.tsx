@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform } from 'react-native';
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, cleanup, render, screen, fireEvent } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { CentralAuthScreen } from './CentralAuthScreen';
 import { API_BASE_URL } from '../config';
@@ -49,7 +49,8 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('CentralAuthScreen', () => {
-  afterEach(() => {
+  afterEach(async () => {
+    await cleanup();
     jest.clearAllMocks();
   });
 
@@ -123,6 +124,7 @@ describe('CentralAuthScreen', () => {
 
   it('shows verifying state while awaiting native onTokenReceived callback', async () => {
     const originalPlatform = Platform.OS;
+    let resolveAuthSession!: (res: WebBrowser.WebBrowserAuthSessionResult) => void;
     let resolveTokenCheck!: () => void;
     const onTokenReceived = jest.fn(
       () =>
@@ -133,31 +135,36 @@ describe('CentralAuthScreen', () => {
 
     try {
       Platform.OS = 'ios';
-      (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValueOnce({
-        type: 'success',
-        url: 'projectpn://auth?token=test-jwt',
-      });
+      (WebBrowser.openAuthSessionAsync as jest.Mock).mockImplementationOnce(
+        () =>
+          new Promise<WebBrowser.WebBrowserAuthSessionResult>((resolve) => {
+            resolveAuthSession = resolve;
+          }),
+      );
 
       await render(<CentralAuthScreen onTokenReceived={onTokenReceived} />, { wrapper: Wrapper });
       await fireEvent.press(screen.getByText('Continue to Sign In'));
 
-      await waitFor(() => {
-        expect(sessionStorage.setSession).toHaveBeenCalled();
-        expect(onTokenReceived).toHaveBeenCalled();
-        expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
+      expect(screen.getByText('Opening secure sign-in…')).toBeTruthy();
+
+      await act(async () => {
+        resolveAuthSession({
+          type: 'success',
+          url: 'projectpn://auth?token=test-jwt',
+        });
       });
+
+      expect(sessionStorage.setSession).toHaveBeenCalled();
+      expect(onTokenReceived).toHaveBeenCalled();
+      expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
 
       await act(async () => {
         resolveTokenCheck();
       });
 
-      await waitFor(() => {
-        expect(screen.getByText('Continue to Sign In')).toBeTruthy();
-      });
+      expect(screen.getByText('Continue to Sign In')).toBeTruthy();
     } finally {
       Platform.OS = originalPlatform;
     }
   });
 });
-
-
