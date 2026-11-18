@@ -1,10 +1,22 @@
 import React from 'react';
 import { Platform } from 'react-native';
-import { render, screen, fireEvent } from '@testing-library/react-native';
+import { act, render, screen, fireEvent } from '@testing-library/react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { CentralAuthScreen } from './CentralAuthScreen';
 import { API_BASE_URL } from '../config';
+import { sessionStorage } from '../api/sessionStorage';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
+
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(),
+}));
+
+jest.mock('../api/sessionStorage', () => ({
+  sessionStorage: {
+    setSession: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -15,6 +27,11 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('CentralAuthScreen', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.clearAllMocks();
+  });
+
   it('renders the central redirect buttons and project explanation', async () => {
     await render(<CentralAuthScreen />, { wrapper: Wrapper });
     expect(screen.getByText('Continue to Sign In')).toBeTruthy();
@@ -22,7 +39,7 @@ describe('CentralAuthScreen', () => {
     expect(screen.getByText('A word is global, but memory is personal.')).toBeTruthy();
   });
 
-  it('redirects browser web to project backend /api/auth/login endpoint on press', async () => {
+  it('redirects browser web to /api/auth/login and keeps Brand Pulse loading UI visible', async () => {
     const originalPlatform = Platform.OS;
     const originalWindow = global.window;
     try {
@@ -40,10 +57,98 @@ describe('CentralAuthScreen', () => {
       await fireEvent.press(button);
 
       expect(global.window.location.href).toBe(`${API_BASE_URL}/api/auth/login`);
+      expect(screen.getByTestId('auth-brand-pulse')).toBeTruthy();
+      expect(screen.getByText('Opening secure sign-in…')).toBeTruthy();
+      expect(screen.queryByText('Continue to Sign In')).toBeNull();
     } finally {
       Platform.OS = originalPlatform;
       global.window = originalWindow;
     }
   });
+
+  it('reveals Cancel & Try Again after slow wait and resets on press or pageshow restore', async () => {
+    jest.useFakeTimers();
+    const originalPlatform = Platform.OS;
+    const originalWindow = global.window;
+    let pageShowHandler: ((e: { persisted?: boolean }) => void) | undefined;
+
+    try {
+      Platform.OS = 'web';
+      // @ts-expect-error Mocking window for web test
+      global.window = {
+        location: {
+          origin: 'https://pn.nacfson.cloud',
+          href: 'https://pn.nacfson.cloud/',
+        },
+        addEventListener: jest.fn((event: string, cb: (e: { persisted?: boolean }) => void) => {
+          if (event === 'pageshow') pageShowHandler = cb;
+        }),
+        removeEventListener: jest.fn(),
+      };
+
+      await render(<CentralAuthScreen />, { wrapper: Wrapper });
+      await fireEvent.press(screen.getByText('Continue to Sign In'));
+
+      expect(screen.queryByTestId('auth-loading-cancel')).toBeNull();
+
+      await act(async () => {
+        jest.advanceTimersByTime(3600);
+      });
+
+      expect(screen.getByText('Taking a few extra seconds — almost there.')).toBeTruthy();
+      const cancelBtn = screen.getByTestId('auth-loading-cancel');
+      await fireEvent.press(cancelBtn);
+
+      expect(screen.getByText('Continue to Sign In')).toBeTruthy();
+
+      // Trigger again and verify bfcache pageshow restore resets loading UI
+      await fireEvent.press(screen.getByText('Continue to Sign In'));
+      expect(screen.getByTestId('auth-brand-pulse')).toBeTruthy();
+
+      await act(async () => {
+        pageShowHandler?.({ persisted: true });
+      });
+
+      expect(screen.getByText('Continue to Sign In')).toBeTruthy();
+    } finally {
+      Platform.OS = originalPlatform;
+      global.window = originalWindow;
+    }
+  });
+
+  it('shows verifying state while awaiting native onTokenReceived callback', async () => {
+    const originalPlatform = Platform.OS;
+    let resolveTokenCheck!: () => void;
+    const onTokenReceived = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveTokenCheck = resolve;
+        }),
+    );
+
+    try {
+      Platform.OS = 'ios';
+      (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValueOnce({
+        type: 'success',
+        url: 'projectpn://auth?token=test-jwt',
+      });
+
+      await render(<CentralAuthScreen onTokenReceived={onTokenReceived} />, { wrapper: Wrapper });
+      await fireEvent.press(screen.getByText('Continue to Sign In'));
+
+      expect(sessionStorage.setSession).toHaveBeenCalled();
+      expect(onTokenReceived).toHaveBeenCalled();
+      expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
+
+      await act(async () => {
+        resolveTokenCheck();
+      });
+
+      expect(screen.getByText('Continue to Sign In')).toBeTruthy();
+    } finally {
+      Platform.OS = originalPlatform;
+    }
+  });
 });
+
 

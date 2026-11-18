@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 import App from './App';
 import * as authApi from './src/api/auth';
 import { sessionStorage } from './src/api/sessionStorage';
@@ -94,5 +94,36 @@ describe('App fail-closed auth gate (001-gateway-jwt-auth)', () => {
     });
 
     expect(screen.queryByText('Continue to Sign In')).toBeNull();
+  });
+
+  it('shows Brand Pulse LoadingScreen while verifying session on return/launch', async () => {
+    (sessionStorage.getToken as jest.Mock).mockResolvedValue('valid-access-token');
+    let resolveMe!: (val: unknown) => void;
+    (authApi.me as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        resolveMe = resolve;
+      }),
+    );
+
+    await render(<App />);
+
+    expect(screen.getByTestId('auth-brand-pulse')).toBeTruthy();
+    expect(screen.getByText('Syncing your personal memory…')).toBeTruthy();
+
+    await act(async () => {
+      resolveMe({
+        id: 'user-123',
+        email: 'learner@example.com',
+        email_verified: true,
+        native_language: 'ko',
+        target_language: 'en',
+        ui_language: 'en',
+        active_language: { id: 'lang-1', target_language: 'en' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated-app')).toBeTruthy();
+    });
   });
 });

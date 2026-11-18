@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { me } from './src/api/auth';
 import { onboardingStorage } from './src/api/storage';
 import { sessionStorage } from './src/api/sessionStorage';
+import { AuthLoadingCard } from './src/features/auth/AuthLoadingCard';
 import { AddQueueProvider } from './src/hooks/useAddQueue';
 import { useSessionRenewal } from './src/hooks/useSessionRenewal';
-import { AppLanguageProvider } from './src/i18n';
+import { AppLanguageProvider, useAppLanguage } from './src/i18n';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { CentralAuthScreen } from './src/screens/CentralAuthScreen';
@@ -23,11 +24,12 @@ type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
 function LoadingScreen() {
   const { colors } = useTheme();
+  const { t } = useAppLanguage();
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]}>
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <AuthLoadingCard title={t('auth.loadingVerifyTitle')} />
       </View>
     </SafeAreaView>
   );
@@ -221,5 +223,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 24,
   },
 });

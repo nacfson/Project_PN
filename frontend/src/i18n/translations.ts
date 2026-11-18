@@ -24,6 +24,11 @@ export const en = {
   'auth.centralDescription':
     'Sign in with Google to sync vocabulary, reviews, and spaced repetition across devices.',
   'auth.centralSignIn': 'Continue to Sign In',
+  'auth.loadingRedirectTitle': 'Opening secure sign-in…',
+  'auth.loadingVerifyTitle': 'Syncing your personal memory…',
+  'auth.loadingKeepOpen': 'Please keep this window open.',
+  'auth.loadingSlowSubtitle': 'Taking a few extra seconds — almost there.',
+  'auth.loadingCancelRetry': 'Cancel & Try Again',
   'auth.connectionFailed': 'Could not connect to the backend server.',
   'auth.signInFailed': 'Sign-in failed',
   'auth.googleSignIn': 'Sign in with Google',
@@ -464,6 +469,11 @@ export const ko: Record<TranslationKey, string> = {
   'auth.centralDescription':
     'Google로 로그인하여 단어장, 복습, 간격 반복 진도를 기기 간에 동기화할 수 있습니다.',
   'auth.centralSignIn': '로그인 계속하기',
+  'auth.loadingRedirectTitle': '보안 로그인을 여는 중…',
+  'auth.loadingVerifyTitle': '개인 단어장을 동기화하는 중…',
+  'auth.loadingKeepOpen': '이 창을 닫지 말고 잠시만 기다려 주세요.',
+  'auth.loadingSlowSubtitle': '연결에 시간이 조금 더 걸리고 있어요. 거의 다 됐습니다.',
+  'auth.loadingCancelRetry': '취소 후 다시 시도',
   'auth.connectionFailed': '백엔드 서버에 연결할 수 없습니다.',
   'auth.signInFailed': '로그인에 실패했습니다',
   'auth.googleSignIn': 'Google로 로그인',
