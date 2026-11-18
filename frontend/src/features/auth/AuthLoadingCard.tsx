@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useAppLanguage } from '../../i18n';
 import { radii, spacing, useTheme } from '../../theme';
@@ -49,12 +49,14 @@ export function AuthLoadingCard({
       return;
     }
 
+    const useNativeDriver = Platform.OS !== 'web';
+
     const outerLoop = Animated.loop(
       Animated.timing(outerSpin, {
         toValue: 1,
         duration: 900,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver,
       }),
     );
 
@@ -63,7 +65,7 @@ export function AuthLoadingCard({
         toValue: 1,
         duration: 1600,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver,
       }),
     );
 
@@ -73,13 +75,13 @@ export function AuthLoadingCard({
           toValue: 1,
           duration: 900,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver,
         }),
         Animated.timing(pulse, {
           toValue: 0,
           duration: 900,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver,
         }),
       ]),
     );
@@ -121,9 +123,7 @@ export function AuthLoadingCard({
     <Card
       elevated
       testID="auth-loading-card"
-      accessibilityRole="progressbar"
       accessibilityLiveRegion="polite"
-      accessibilityLabel={title}
       style={styles.card}
     >
       <View style={styles.emblemWrapper} testID="auth-brand-pulse">
@@ -139,6 +139,8 @@ export function AuthLoadingCard({
           ]}
         />
         <Animated.View
+          accessibilityRole="progressbar"
+          accessibilityLabel={title}
           style={[
             styles.outerRing,
             {

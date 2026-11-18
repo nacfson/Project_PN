@@ -1,11 +1,19 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react-native';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react-native';
 import App from './App';
 import * as authApi from './src/api/auth';
 import { sessionStorage } from './src/api/sessionStorage';
 import { onboardingStorage } from './src/api/storage';
 
+jest.mock('expo-font', () => ({
+  useFonts: () => [true, null],
+  FontDisplay: { SWAP: 'swap' },
+}));
 jest.mock('./src/api/auth');
+jest.mock('./src/api/userLanguages', () => ({
+  getUserLanguages: jest.fn().mockResolvedValue([]),
+  setActiveUserLanguage: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('./src/api/sessionStorage', () => ({
   sessionStorage: {
     getToken: jest.fn(),
@@ -58,6 +66,10 @@ describe('App fail-closed auth gate (001-gateway-jwt-auth)', () => {
     jest.clearAllMocks();
     (onboardingStorage.getCompleted as jest.Mock).mockResolvedValue(true);
     (sessionStorage.getToken as jest.Mock).mockResolvedValue(null);
+  });
+
+  afterEach(async () => {
+    await cleanup();
   });
 
   it('fails closed to unauthenticated on backend network/connection error', async () => {
