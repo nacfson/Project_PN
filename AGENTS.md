@@ -114,6 +114,12 @@ Future expansion tables are listed in `backend/docs/backend-future-scope.md` and
 - Run `npm run verify` (stack health) and `npm run verify:full` (also lint, typechecks, tests) to validate; quality gates have no skip option. CI runs them on every PR and they must pass before images publish, but merges to `main` are not blocked while the `main_PR` ruleset is disabled.
 - For documentation-only edits, verify by reading/searching the changed document.
 
+### Parallel worker orchestration (T3 Code / Antigravity)
+
+- **Wait for all parallel workers before writing**: While parallel subagents are still running, do not issue `write_file`, `edit_file`, or `run_command` calls in the parent turn. A pending approval prompt blocks the turn and queues incoming worker completions.
+- **Keep native `invoke_subagent` workers strictly read-only in T3 Code**: Pre-enumerate file paths in the parent and pass them to native subagents so workers only call `read_file` and return drafts/findings via `send_message`. Native subagent `run_command` and `write_file` approval prompts are not surfaced in T3 Code's UI and time out after 60s.
+- **Use `delegate_task` for live observation or child writes**: When the user wants observable child threads in T3 Code or child agents must run commands/write files directly, dispatch via `delegate_task` instead of `invoke_subagent`.
+
 ## Cursor Cloud specific instructions
 
 This is an npm-workspaces monorepo plus a standalone Go backend module. Cloud VM tooling comes from `.cursor/Dockerfile` (Go 1.26, Node 22, Docker CE with fuse-overlayfs + iptables-legacy, `postgresql-client`). The install script in `.cursor/environment.json` is dependency-only (`npm install`, then `go -C backend mod download`) and runs during Builds; do not re-run it unless dependencies changed. Do **not** put `docker compose` or migrations in `install` — Builds keep disk only, not running processes. Standard build/test/run commands live in `backend/docs/go-backend-setup.md`, root/`frontend`/`browser-extension`/`packages/api` `package.json` scripts, and `scripts/start-web-dev.sh` — reference those rather than duplicating them. The notes below are the non-obvious startup/run caveats.
