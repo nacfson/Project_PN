@@ -1,6 +1,12 @@
 # Central Auth (nacfson-auth)
 
-Nacfson Cloud authentication service for Project PN and other apps on `*.nacfson.cloud`.
+## Overview
+Nacfson Cloud authentication service (`github.com/nacfson/central-auth`, Go 1.26) for Project PN and other apps on `*.nacfson.cloud`. Packaged as a distroless container (`Dockerfile`) that builds `./cmd/api`, bundles `db/migrations` at `/db/migrations`, and listens on port `8090`.
+
+## Subdirectories & Boundaries
+- [cmd](./cmd/README.md) - Executable service entrypoints (`cmd/api` HTTP server).
+- [db](./db/README.md) - Ordered PostgreSQL schema migrations (`users`, `sessions`, `user_identities`, `oauth_states`).
+- [internal](./internal/README.md) - Internal Go packages for config, PostgreSQL pooling, HTTP transport, Google OAuth, session lifecycle, and cryptographic tokens.
 
 ## Features
 
