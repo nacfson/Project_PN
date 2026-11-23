@@ -204,8 +204,7 @@ func (s *Service) DeleteDeck(ctx context.Context, userID, deckID string) error {
 }
 
 // MoveItemsToDeck moves active learning items into a deck. All items must
-// belong to the user and their word language must match the deck's target
-// language.
+// belong to the user and match the deck's target language.
 func (s *Service) MoveItemsToDeck(ctx context.Context, userID, deckID string, itemIDs []string) error {
 	if len(itemIDs) == 0 {
 		return nil
@@ -223,10 +222,9 @@ func (s *Service) MoveItemsToDeck(ctx context.Context, userID, deckID string, it
 		  and uws.user_id = $3::uuid
 		  and uws.archived_at is null
 		  and exists (
-			  select 1 from word_senses ws
-			  join words w on w.id = ws.word_id
-			  where ws.id = uws.word_sense_id
-			    and w.language_code = $4
+			  select 1 from decks d
+			  where d.id = uws.deck_id
+			    and d.target_language = $4
 		  )
 		returning uws.id::text
 	`, deckID, itemIDs, userID, deck.TargetLanguage)

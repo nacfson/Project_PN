@@ -120,13 +120,14 @@ test('throws ApiError on non-ok response', async () => {
   await expect(getJson('/test')).rejects.toBeInstanceOf(ApiError);
 });
 
-test('preserves an API error code and retryability', async () => {
+test('preserves an API error code, reason, and retryability', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: false,
     status: 503,
     text: async () => JSON.stringify({
       error: 'Dictionary service is temporarily unavailable.',
       code: 'ADD-403',
+      reason: 'provider_unavailable',
       retryable: true,
     }),
   });
@@ -134,8 +135,29 @@ test('preserves an API error code and retryability', async () => {
   await expect(postJson('/api/learning-items', {})).rejects.toMatchObject({
     status: 503,
     code: 'ADD-403',
+    reason: 'provider_unavailable',
     retryable: true,
   });
+});
+
+test('classifies client-side request timeout as ADD-102', async () => {
+  jest.useFakeTimers();
+  configureApi({
+    baseUrls: ['http://only'],
+    getToken: async () => '',
+  });
+  global.fetch = jest.fn().mockImplementation(() => new Promise(() => {}));
+
+  const pending = postJson('/api/words/lookup', { text: 'hello' });
+  const assertion = expect(pending).rejects.toMatchObject({
+    status: 0,
+    code: 'ADD-102',
+    reason: 'request_timeout',
+    retryable: true,
+  });
+  await jest.advanceTimersByTimeAsync(60_001);
+  await assertion;
+  jest.useRealTimers();
 });
 
 test('classifies a malformed error response as an unknown API failure', async () => {

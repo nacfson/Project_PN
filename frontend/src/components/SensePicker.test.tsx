@@ -1,9 +1,11 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ApiError } from '../api/client';
 import { AppLanguageProvider } from '../i18n';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import type { SenseOption } from '../types';
+import { classifyAddError } from '../utils/addErrors';
 import { SensePicker } from './SensePicker';
 
 jest.mock('../api/storage', () => ({
@@ -172,5 +174,107 @@ describe('SensePicker', () => {
     await waitFor(() => {
       expect(onForceExisting).toHaveBeenCalledWith('w1', 'Charge the battery overnight.');
     });
+  });
+
+  it('shows explicit not-found recovery with Edit word and inline manual meaning save', async () => {
+    const onAddManual = jest.fn();
+    const onEditWord = jest.fn();
+    const errorInfo = classifyAddError(new ApiError(404, 'word not found', 'ADD-309', false, 'word_not_found'));
+    await render(
+      wrap(
+        <SensePicker
+          visible
+          query="glorp"
+          options={[]}
+          lookingUp={false}
+          errorInfo={errorInfo}
+          onConfirm={jest.fn()}
+          onAddManual={onAddManual}
+          onEditWord={onEditWord}
+          onForceExisting={jest.fn()}
+          onForceWithPos={jest.fn()}
+          onClose={jest.fn()}
+        />,
+      ),
+    );
+
+    expect(screen.getByText('Not in dictionary')).toBeTruthy();
+    expect(screen.getByText('Code: ADD-309')).toBeTruthy();
+    expect(screen.queryByText('None of these — search again')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('sense-edit-word-button'));
+    expect(onEditWord).toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByTestId('sense-save-manual'));
+    expect(screen.getByText('Enter a meaning to save this word.')).toBeTruthy();
+    expect(onAddManual).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByTestId('sense-manual-input'), '내 뜻');
+    await fireEvent.press(screen.getByTestId('sense-save-manual'));
+    expect(onAddManual).toHaveBeenCalledWith('내 뜻', 'unknown');
+  });
+
+  it('shows Try again on retryable provider errors', async () => {
+    const onRetry = jest.fn();
+    const errorInfo = classifyAddError(new ApiError(504, 'timed out', 'ADD-405', true, 'provider_timeout'));
+    await render(
+      wrap(
+        <SensePicker
+          visible
+          query="charge"
+          options={[]}
+          lookingUp={false}
+          errorInfo={errorInfo}
+          onConfirm={jest.fn()}
+          onAddManual={jest.fn()}
+          onRetry={onRetry}
+          onForceExisting={jest.fn()}
+          onForceWithPos={jest.fn()}
+          onClose={jest.fn()}
+        />,
+      ),
+    );
+
+    expect(screen.getByText('Lookup timed out')).toBeTruthy();
+    expect(screen.getByText('Code: ADD-405')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('sense-retry-button'));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('requires personal meaning when translationMissing is true and passes it to onConfirm', async () => {
+    const onConfirm = jest.fn();
+    const englishOnly: SenseOption[] = [
+      {
+        ...options[0],
+        localized_definition: 'to accuse formally in a court',
+        localized_short_definition: null,
+        has_localized_translation: false,
+      },
+    ];
+    await render(
+      wrap(
+        <SensePicker
+          visible
+          query="charge"
+          options={englishOnly}
+          translationMissing
+          onConfirm={onConfirm}
+          onForceExisting={jest.fn()}
+          onForceWithPos={jest.fn()}
+          onClose={jest.fn()}
+        />,
+      ),
+    );
+
+    expect(screen.getByTestId('sense-translation-missing-banner')).toBeTruthy();
+    expect(screen.getByText('to accuse formally in a court')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('sense-add'));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a meaning to save this word.')).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('sense-translation-note-input'), '기소하다');
+    await fireEvent.press(screen.getByTestId('sense-add'));
+    expect(onConfirm).toHaveBeenCalledWith('accuse', '기소하다');
   });
 });

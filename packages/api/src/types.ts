@@ -38,6 +38,7 @@ export interface SenseOption {
   localized_short_definition: string | null;
   cefr_level: string | null;
   meaning_order: number;
+  has_localized_translation?: boolean;
   similarity?: number | null;
   examples: Example[];
 }
@@ -55,12 +56,24 @@ export interface LookupRequest {
 export interface LookupResponse {
   query: string;
   normalized_text: string;
+  translation_missing?: boolean;
   sense_options: SenseOption[];
+}
+
+export interface ManualLearningItemRequest {
+  text: string;
+  part_of_speech?: string;
+  language_code?: string;
+  display_language_code?: string;
+  deck_id?: string;
+  source_context?: string;
+  personal_note: string;
 }
 
 export interface LearningItem {
   id: string;
   word_sense_id: string;
+  is_custom?: boolean;
   learning_stage: string;
   due_at: string;
   personal_note?: string | null;
@@ -69,6 +82,7 @@ export interface LearningItem {
 export interface LearningItemListItem {
   id: string;
   word_sense_id: string;
+  is_custom?: boolean;
   word_id: string;
   language_code: string;
   lemma: string;
@@ -162,6 +176,7 @@ export interface BatchReviewResult {
 export interface DueItem {
   user_word_sense_id: string;
   word_sense_id: string;
+  is_custom?: boolean;
   word_id: string;
   language_code: string;
   lemma: string;

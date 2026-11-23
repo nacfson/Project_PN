@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWiktAPIEnrichMapsKoreanGlosses(t *testing.T) {
@@ -99,7 +100,7 @@ func TestWiktAPIEnrichCoercesMultiWordToPhrase(t *testing.T) {
 func TestWiktAPIEnrichSkipsExistingAnd404(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "missing") {
+		if !strings.Contains(r.URL.Path, "/word/have/") {
 			http.NotFound(w, r)
 			return
 		}
@@ -130,8 +131,11 @@ func TestWiktAPIEnrichSkipsExistingAnd404(t *testing.T) {
 	}
 
 	_, err = client.Enrich(context.Background(), Request{Text: "missing", DefinitionLanguageCode: "ko"})
-	if err == nil {
-		t.Fatal("expected error for 404")
+	if !errors.Is(err, ErrWordNotFound) {
+		t.Fatalf("expected ErrWordNotFound for 404, got %v", err)
+	}
+	if errors.Is(err, ErrUnavailable) {
+		t.Fatalf("404 must not be classified as ErrUnavailable: %v", err)
 	}
 
 	_, err = client.Enrich(context.Background(), Request{
@@ -316,6 +320,109 @@ func TestWiktAPITranslateFallsBackToDisplayDefinitions(t *testing.T) {
 	}
 	if len(res.Senses) != 1 || res.Senses[0].Definition != "묵시적으로" {
 		t.Fatalf("unexpected translate result: %+v", res)
+	}
+}
+
+func TestWiktAPIEnrichFallsBackToStemWhenRootReturns404(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/en/word/procure/translations":
+			_, _ = w.Write([]byte(`{
+				"word": "procure",
+				"edition": "en",
+				"translations": [
+					{"pos": "verb", "lang_code": "en", "translations": [
+						{"lang": "Korean", "code": "ko", "lang_code": "ko", "sense": "to obtain", "word": "조달하다"}
+					]}
+				]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewWiktAPI(srv.URL)
+	result, err := client.Enrich(context.Background(), Request{
+		Text:                   "procured",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if err != nil {
+		t.Fatalf("Enrich: %v", err)
+	}
+	if len(result.Entries) != 1 || len(result.Entries[0].Senses) == 0 || result.Entries[0].Senses[0].NativeShortDefinition != "조달하다" {
+		t.Fatalf("unexpected stem fallback result: %+v", result)
+	}
+}
+
+func TestWiktAPIEnrichReturnsCanonicalSensesWithErrNoDisplayGloss(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/en/word/ephemeral/definitions":
+			_, _ = w.Write([]byte(`{
+				"word": "ephemeral",
+				"edition": "en",
+				"definitions": [
+					{"pos": "adjective", "lang_code": "en", "senses": [
+						{"glosses": ["lasting for a very short time"]}
+					]}
+				]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewWiktAPI(srv.URL)
+	result, err := client.Enrich(context.Background(), Request{
+		Text:                   "ephemeral",
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+	})
+	if !errors.Is(err, ErrNoDisplayGloss) {
+		t.Fatalf("expected ErrNoDisplayGloss, got %v", err)
+	}
+	if len(result.Entries) != 1 || len(result.Entries[0].Senses) != 1 {
+		t.Fatalf("expected canonical entries alongside ErrNoDisplayGloss, got %+v", result)
+	}
+	if result.Entries[0].Senses[0].Definition != "lasting for a very short time" {
+		t.Fatalf("unexpected definition: %+v", result.Entries[0].Senses[0])
+	}
+}
+
+func TestWiktAPIClassifies5xxAsUnavailableAndTimeoutAsProviderTimeout(t *testing.T) {
+	t.Parallel()
+	srv500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "upstream overloaded", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(srv500.Close)
+
+	client := NewWiktAPI(srv500.URL)
+	_, err := client.Enrich(context.Background(), Request{Text: "hello", LanguageCode: "en", DefinitionLanguageCode: "ko"})
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("expected ErrUnavailable on 503, got %v", err)
+	}
+
+	slowSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(200 * time.Millisecond):
+			w.WriteHeader(http.StatusOK)
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(slowSrv.Close)
+
+	timeoutClient := NewWiktAPI(slowSrv.URL)
+	timeoutClient.httpClient.Timeout = 20 * time.Millisecond
+	_, err = timeoutClient.Enrich(context.Background(), Request{Text: "hello", LanguageCode: "en", DefinitionLanguageCode: "ko"})
+	if !errors.Is(err, ErrProviderTimeout) {
+		t.Fatalf("expected ErrProviderTimeout on HTTP client timeout, got %v", err)
 	}
 }
 

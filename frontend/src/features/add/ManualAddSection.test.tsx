@@ -15,6 +15,7 @@ jest.mock('../../api/storage', () => ({
 
 jest.mock('../../api/words', () => ({
   addLearningItem: jest.fn().mockResolvedValue({ id: 'item-1', word_sense_id: 'sense-1' }),
+  addManualLearningItem: jest.fn().mockResolvedValue({ id: 'item-m1', word_sense_id: 'sense-m1' }),
   lookupWord: jest.fn().mockResolvedValue({
     sense_options: [
       {

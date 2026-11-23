@@ -305,7 +305,7 @@ sense 3: to store electrical energy in a device
 
 Rules:
 
-- Senses are global dictionary data written in the word's target `language_code` (canonical definitions).
+- Senses are pure global dictionary data written in the word's target `language_code` (canonical definitions). Never store user-authored or manual wording in `words` or `word_senses`.
 - A user can learn any number of senses for the same word.
 - Review state must not be stored here because memory belongs to the user.
 - Per-display-language definitions live in `sense_translations`, filled on demand and cached.
@@ -348,11 +348,11 @@ This is the central user-learning table.
 user_word_senses
 - id uuid primary key default gen_random_uuid()
 - user_id uuid not null references users(id) on delete cascade
-- word_sense_id uuid not null references word_senses(id) on delete cascade
+- word_sense_id uuid references word_senses(id) on delete cascade -- nullable for custom cards
 - deck_id uuid not null references decks(id) on delete restrict
 - learning_stage text not null default 'new'
 - source_context text
-- personal_note text
+- personal_note text -- deprecated legacy column temporarily retained for rolling deploys; see user_personal_meanings
 - difficulty_rating integer
 - added_at timestamptz not null default now()
 - archived_at timestamptz
@@ -376,16 +376,50 @@ constraint user_word_senses_difficulty_valid
 Rules:
 
 - This replaces the earlier `user_words` table.
-- The same user cannot add the same `word_sense` twice.
+- The same user cannot add the same `word_sense` twice (PostgreSQL treats `NULL` values in `word_sense_id` as distinct for custom cards).
 - The same user can learn two different senses of the same word.
 - Different users can learn the same `word_sense` with independent notes, stages, and schedules.
 - Every item belongs to exactly one `decks` row. New items are placed in the active target language's default deck unless the caller specifies a custom deck.
 - `learning_stage` is a high-level capability label, not the scheduling source of truth.
 - `archived_at` should be set when the user no longer wants the item in active review.
-- `personal_note` is the Option A personal display gloss override (free-form; no CHECK). Clients show a non-empty `personal_note` before catalog glosses. It must never be written into `word_senses` / `sense_translations`.
+- Active personal display glosses and custom-card headword metadata live in `user_personal_meanings`. Legacy `user_word_senses.personal_note` is temporarily retained for zero-downtime rolling k3s deploys and nulled on write; reads coalesce `pm.meaning` with `nullif(btrim(uws.personal_note), '')`.
 - `source_context` is provenance / lookup ranking only — do not overload it as a gloss.
 - Active user list queries should use a partial index on `(user_id, added_at desc, id desc) where archived_at is null`.
-- Learning-item prefix search should filter through `words.normalized_text like $query || '%'` and use a B-tree `text_pattern_ops` index.
+- Learning-item queries join `decks` for target-language scoping and match `coalesce(words.normalized_text, lower(user_personal_meanings.lemma)) like $query || '%'`.
+
+## user_personal_meanings
+
+Stores user-private gloss overrides on dictionary cards (`lemma is null`, `part_of_speech is null`) and complete user-authored custom cards (`word_sense_id is null` on `user_word_senses`, non-null `lemma` and `part_of_speech`).
+
+```sql
+user_personal_meanings
+- user_word_sense_id uuid primary key references user_word_senses(id) on delete cascade
+- lemma text
+- part_of_speech text
+- meaning text not null check (btrim(meaning) <> '')
+- updated_at timestamptz not null default now()
+```
+
+Required constraints:
+
+```sql
+constraint user_personal_meanings_custom_pair_valid check (
+  (lemma is null and part_of_speech is null)
+  or (
+    lemma is not null
+    and part_of_speech is not null
+    and btrim(lemma) <> ''
+    and btrim(part_of_speech) <> ''
+  )
+)
+```
+
+Rules:
+
+- Strictly user-private (`user_id` ownership is inherited via `user_word_sense_id` FK with `ON DELETE CASCADE`).
+- Dictionary card overrides leave `lemma` and `part_of_speech` as `NULL`.
+- Custom cards (`user_word_senses.word_sense_id is null`) always store cleaned non-blank `lemma`, normalized `part_of_speech`, and non-blank `meaning` here, inheriting `language_code` from `decks.target_language`.
+- Global `words`, `word_senses`, `sense_translations`, and `examples` are never modified by `SetPersonalNote`, `AddManualLearningItem`, or Anki CSV imports.
 
 ## review_states
 
@@ -723,6 +757,6 @@ A small set of fields are intentionally left unenforced at the DB level so the L
 |-------|--------|
 | `words.part_of_speech` | Enricher emits one entry per POS; the project keeps the set open. Lowercase on persist. |
 | `words.language_code` | Free text by design. Treat as ISO 639-1 in application code. |
-| `user_word_senses.personal_note`, `source_context` | Free-form user text. `personal_note` is the Option A personal display gloss (no CHECK); `source_context` is provenance only. |
+| `user_personal_meanings.meaning`, `user_word_senses.source_context` | Free-form user text (`meaning` requires non-blank `btrim`; `source_context` is provenance only). |
 
 The above do not have a check constraint. Do not add one without first freezing the enricher's output contract.

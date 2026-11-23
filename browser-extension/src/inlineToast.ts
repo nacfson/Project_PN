@@ -24,15 +24,27 @@ function createStyles(): HTMLStyleElement {
     .pn-toast * { box-sizing: border-box; }
     .pn-toast-title { font-weight: 700; font-size: 15px; }
     .pn-toast-word { font-weight: 600; color: #4a4458; word-break: break-word; }
+    .pn-toast-notice {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #7c2d12;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .pn-toast-code { font-size: 11px; color: #605d66; margin-top: 2px; }
     .pn-toast-label { font-size: 11px; color: #605d66; margin-bottom: 4px; }
-    .pn-toast-select {
+    .pn-toast-select, .pn-toast-input {
       width: 100%;
       padding: 8px 10px;
       border-radius: 8px;
       border: 1px solid #cac4d0;
       background: #fff;
       font-size: 13px;
+      color: #1c1b1f;
     }
+    .pn-toast-input.invalid { border-color: #dc2626; }
     .pn-toast-actions { display: flex; gap: 8px; margin-top: 4px; }
     .pn-toast-btn {
       flex: 1;
@@ -65,7 +77,8 @@ function createStyles(): HTMLStyleElement {
 export function showAddToast(
   target: Range,
   payload: AddToastPayload,
-  onAdd: (wordSenseId: string, deckId: string) => void,
+  onAdd: (wordSenseId: string, deckId: string, personalNote?: string) => void,
+  onAddManual: (personalNote: string, deckId: string) => void,
   onCancel: () => void,
 ): { close: () => void } {
   const rect = target.getBoundingClientRect();
@@ -87,23 +100,63 @@ export function showAddToast(
   word.textContent = payload.text;
   wrapper.appendChild(word);
 
-  const senseLabel = document.createElement('div');
-  senseLabel.className = 'pn-toast-label';
-  senseLabel.textContent = 'Sense';
-  wrapper.appendChild(senseLabel);
+  const manualOnly = Boolean(payload.manualOnly || payload.senseOptions.length === 0);
+  const needsManualNote = manualOnly || Boolean(payload.translationMissing);
 
-  const senseSelect = document.createElement('select');
-  senseSelect.className = 'pn-toast-select';
-  payload.senseOptions.forEach((sense) => {
-    const option = document.createElement('option');
-    option.value = sense.word_sense_id;
-    option.textContent = `${sense.lemma} · ${sense.part_of_speech} · ${sense.localized_definition}`;
-    senseSelect.appendChild(option);
-  });
-  if (payload.defaultSenseId) {
-    senseSelect.value = payload.defaultSenseId;
+  if (payload.errorMessage || payload.translationMissing) {
+    const notice = document.createElement('div');
+    notice.className = 'pn-toast-notice';
+    const msg = document.createElement('div');
+    msg.textContent =
+      payload.errorMessage ??
+      'No localized meaning found — enter your own meaning below to save.';
+    notice.appendChild(msg);
+    if (payload.errorCode) {
+      const code = document.createElement('div');
+      code.className = 'pn-toast-code';
+      code.textContent = `Code: ${payload.errorCode}`;
+      notice.appendChild(code);
+    }
+    wrapper.appendChild(notice);
   }
-  wrapper.appendChild(senseSelect);
+
+  let senseSelect: HTMLSelectElement | null = null;
+  if (!manualOnly) {
+    const senseLabel = document.createElement('div');
+    senseLabel.className = 'pn-toast-label';
+    senseLabel.textContent = 'Sense';
+    wrapper.appendChild(senseLabel);
+
+    senseSelect = document.createElement('select');
+    senseSelect.className = 'pn-toast-select';
+    payload.senseOptions.forEach((sense) => {
+      const option = document.createElement('option');
+      option.value = sense.word_sense_id;
+      const gloss = payload.translationMissing
+        ? sense.definition
+        : sense.localized_short_definition ?? sense.localized_definition;
+      option.textContent = `${sense.lemma} · ${sense.part_of_speech} · ${gloss}`;
+      senseSelect!.appendChild(option);
+    });
+    if (payload.defaultSenseId) {
+      senseSelect.value = payload.defaultSenseId;
+    }
+    wrapper.appendChild(senseSelect);
+  }
+
+  let noteInput: HTMLInputElement | null = null;
+  if (needsManualNote) {
+    const noteLabel = document.createElement('div');
+    noteLabel.className = 'pn-toast-label';
+    noteLabel.textContent = 'Your meaning';
+    wrapper.appendChild(noteLabel);
+
+    noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.className = 'pn-toast-input';
+    noteInput.placeholder = 'Type the meaning to remember';
+    wrapper.appendChild(noteInput);
+  }
 
   const deckLabel = document.createElement('div');
   deckLabel.className = 'pn-toast-label';
@@ -123,19 +176,22 @@ export function showAddToast(
   }
   wrapper.appendChild(deckSelect);
 
-  const progress = document.createElement('div');
-  progress.className = 'pn-toast-progress';
-  const progressBar = document.createElement('div');
-  progressBar.className = 'pn-toast-progress-bar';
-  progress.appendChild(progressBar);
-  wrapper.appendChild(progress);
+  let progressBar: HTMLDivElement | null = null;
+  if (!needsManualNote) {
+    const progress = document.createElement('div');
+    progress.className = 'pn-toast-progress';
+    progressBar = document.createElement('div');
+    progressBar.className = 'pn-toast-progress-bar';
+    progress.appendChild(progressBar);
+    wrapper.appendChild(progress);
+  }
 
   const actions = document.createElement('div');
   actions.className = 'pn-toast-actions';
 
   const addBtn = document.createElement('button');
   addBtn.className = 'pn-toast-btn primary';
-  addBtn.textContent = 'Add';
+  addBtn.textContent = manualOnly ? 'Save meaning' : 'Add';
   actions.appendChild(addBtn);
 
   const cancelBtn = document.createElement('button');
@@ -146,13 +202,16 @@ export function showAddToast(
   wrapper.appendChild(actions);
   document.body.appendChild(wrapper);
 
-  const canAdd = payload.senseOptions.length > 0 && payload.decks.length > 0;
-  if (!canAdd) {
+  const canAutoAdd = !needsManualNote && payload.senseOptions.length > 0 && payload.decks.length > 0;
+  const hasDeck = payload.decks.length > 0;
+  if (!hasDeck || (!manualOnly && payload.senseOptions.length === 0)) {
     addBtn.disabled = true;
-    addBtn.title = 'No sense or deck available';
+    addBtn.title = 'No deck available';
   }
 
   let closed = false;
+  let timer = 0;
+  let animFrame = 0;
   const close = () => {
     if (closed) return;
     closed = true;
@@ -165,9 +224,28 @@ export function showAddToast(
 
   const doAdd = () => {
     if (closed) return;
-    const senseId = senseSelect.value;
     const deckId = deckSelect.value;
-    if (!senseId || !deckId) return;
+    if (!deckId) return;
+    if (needsManualNote) {
+      const note = noteInput?.value.trim() ?? '';
+      if (!note) {
+        noteInput?.classList.add('invalid');
+        noteInput?.focus();
+        return;
+      }
+      if (manualOnly) {
+        close();
+        onAddManual(note, deckId);
+        return;
+      }
+      const senseId = senseSelect?.value;
+      if (!senseId) return;
+      close();
+      onAdd(senseId, deckId, note);
+      return;
+    }
+    const senseId = senseSelect?.value;
+    if (!senseId) return;
     close();
     onAdd(senseId, deckId);
   };
@@ -182,6 +260,8 @@ export function showAddToast(
     if (e.key === 'Escape') {
       close();
       onCancel();
+    } else if (e.key === 'Enter' && needsManualNote && document.activeElement === noteInput) {
+      doAdd();
     }
   };
   document.addEventListener('keydown', onKeyDown);
@@ -194,24 +274,25 @@ export function showAddToast(
   };
   document.addEventListener('click', onClickOutside);
 
-  const start = performance.now();
-  let animFrame = 0;
-  const animate = (now: number) => {
-    const elapsed = now - start;
-    const remaining = Math.max(0, AUTO_ADD_MS - elapsed);
-    const pct = remaining / AUTO_ADD_MS;
-    progressBar.style.transform = `scaleX(${pct})`;
-    if (remaining > 0 && !closed) {
-      animFrame = requestAnimationFrame(animate);
-    }
-  };
-  animFrame = requestAnimationFrame(animate);
+  if (canAutoAdd && progressBar) {
+    const start = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const remaining = Math.max(0, AUTO_ADD_MS - elapsed);
+      const pct = remaining / AUTO_ADD_MS;
+      progressBar!.style.transform = `scaleX(${pct})`;
+      if (remaining > 0 && !closed) {
+        animFrame = requestAnimationFrame(animate);
+      }
+    };
+    animFrame = requestAnimationFrame(animate);
 
-  const timer = window.setTimeout(() => {
-    if (!closed && canAdd) {
-      doAdd();
-    }
-  }, AUTO_ADD_MS);
+    timer = window.setTimeout(() => {
+      if (!closed && canAutoAdd) {
+        doAdd();
+      }
+    }, AUTO_ADD_MS);
+  }
 
   return { close };
 }

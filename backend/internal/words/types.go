@@ -27,21 +27,24 @@ type SenseOption struct {
 	LocalizedShortDefinition *string   `json:"localized_short_definition"`
 	CEFRLevel                *string   `json:"cefr_level"`
 	MeaningOrder             int       `json:"meaning_order"`
+	HasLocalizedTranslation  bool      `json:"has_localized_translation"`
 	Similarity               *float64  `json:"similarity,omitempty"`
 	Examples                 []Example `json:"examples"`
 }
 
 // LookupResult is the flattened response shape for /api/words/lookup.
 type LookupResult struct {
-	Query          string        `json:"query"`
-	NormalizedText string        `json:"normalized_text"`
-	SenseOptions   []SenseOption `json:"sense_options"`
+	Query              string        `json:"query"`
+	NormalizedText     string        `json:"normalized_text"`
+	TranslationMissing bool          `json:"translation_missing,omitempty"`
+	SenseOptions       []SenseOption `json:"sense_options"`
 }
 
 // LearningItem is the personal learnable item created for the dev user.
 type LearningItem struct {
 	ID            string    `json:"id"`
 	WordSenseID   string    `json:"word_sense_id"`
+	IsCustom      bool      `json:"is_custom,omitempty"`
 	LearningStage string    `json:"learning_stage"`
 	DueAt         time.Time `json:"due_at"`
 	PersonalNote  *string   `json:"personal_note,omitempty"`
@@ -71,6 +74,7 @@ type LearningItemsPage struct {
 type LearningItemListItem struct {
 	ID                       string     `json:"id"`
 	WordSenseID              string     `json:"word_sense_id"`
+	IsCustom                 bool       `json:"is_custom,omitempty"`
 	WordID                   string     `json:"word_id"`
 	LanguageCode             string     `json:"language_code"`
 	Lemma                    string     `json:"lemma"`
@@ -138,6 +142,7 @@ type IntervalPreview struct {
 type DueItem struct {
 	UserWordSenseID          string           `json:"user_word_sense_id"`
 	WordSenseID              string           `json:"word_sense_id"`
+	IsCustom                 bool             `json:"is_custom,omitempty"`
 	WordID                   string           `json:"word_id"`
 	LanguageCode             string           `json:"language_code"`
 	Lemma                    string           `json:"lemma"`

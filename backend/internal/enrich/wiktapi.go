@@ -13,7 +13,11 @@ import (
 	"unicode"
 )
 
-const defaultWiktAPIBaseURL = "https://api.wiktapi.dev"
+const (
+	defaultWiktAPIBaseURL = "https://api.wiktapi.dev"
+	defaultWiktAPITimeout = 8 * time.Second
+	maxCanonicalRows      = 6
+)
 
 // WiktAPI looks up EN→display-language glosses via public WiktApi (Kaikki/Wiktionary).
 // No API key is required. It implements Enricher for the gloss-only product path.
@@ -31,12 +35,12 @@ func NewWiktAPI(baseURL string) *WiktAPI {
 	return &WiktAPI{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 20 * time.Second,
+			Timeout: defaultWiktAPITimeout,
 		},
 	}
 }
 
-var errWiktNotFound = fmt.Errorf("%w: not found", ErrUnavailable)
+var errWiktNotFound = fmt.Errorf("%w: not found", ErrWordNotFound)
 
 type wiktTranslationsResponse struct {
 	Word         string `json:"word"`
@@ -71,12 +75,25 @@ type wiktGlossRow struct {
 	gloss string
 }
 
+type wiktCanonicalRow struct {
+	pos string
+	def string
+}
+
+type wiktCollectResult struct {
+	rows             []wiktGlossRow
+	canonicalRows    []wiktCanonicalRow
+	anyEndpointFound bool
+	sawDisplayGloss  bool
+	rootEnglishPOS   []string
+}
+
 // Enrich fetches KO (or other display-language) glosses for the lemma and maps
 // each unique gloss to one sense. Examples are not generated.
 func (w *WiktAPI) Enrich(ctx context.Context, req Request) (Result, error) {
 	lemma := strings.TrimSpace(req.Text)
 	if lemma == "" {
-		return Result{}, fmt.Errorf("%w: empty word", ErrUnavailable)
+		return Result{}, fmt.Errorf("%w: empty word", ErrWordNotFound)
 	}
 	targetLang := strings.ToLower(strings.TrimSpace(req.LanguageCode))
 	if targetLang == "" {
@@ -97,18 +114,46 @@ func (w *WiktAPI) Enrich(ctx context.Context, req Request) (Result, error) {
 		posFilter = ""
 	}
 
-	rows, sawDisplayGloss, err := w.collectGlossRows(ctx, lemma, targetLang, displayLang, posFilter, existing)
+	collected, err := w.collectGlossRows(ctx, lemma, targetLang, displayLang, posFilter, existing)
 	if err != nil {
 		return Result{}, err
 	}
 
-	if len(rows) == 0 {
-		if len(existing) > 0 || posFilter != "" || sawDisplayGloss {
-			return Result{}, fmt.Errorf("%w: no new %s glosses for %q", ErrNoAdditionalSenses, displayLang, lemma)
-		}
-		return Result{}, fmt.Errorf("%w: no %s glosses for %q", ErrUnavailable, displayLang, lemma)
+	if len(collected.rows) > 0 {
+		return buildWiktResult(lemma, collected.rows), nil
 	}
 
+	if len(existing) > 0 || collected.sawDisplayGloss {
+		return Result{}, fmt.Errorf("%w: no new %s glosses for %q", ErrNoAdditionalSenses, displayLang, lemma)
+	}
+
+	canonicalRows := collected.canonicalRows
+	if len(canonicalRows) == 0 {
+		probed, foundDef, err := w.collectCanonicalDefinitions(ctx, lemma, targetLang, posFilter, collected.rootEnglishPOS)
+		if err != nil {
+			return Result{}, err
+		}
+		if foundDef {
+			collected.anyEndpointFound = true
+		}
+		canonicalRows = probed
+	}
+
+	if len(canonicalRows) > 0 {
+		canonicalResult := buildCanonicalWiktResult(lemma, targetLang, displayLang, canonicalRows)
+		if displayLang == targetLang {
+			return canonicalResult, nil
+		}
+		return canonicalResult, fmt.Errorf("%w: no %s glosses for %q", ErrNoDisplayGloss, displayLang, lemma)
+	}
+
+	if !collected.anyEndpointFound {
+		return Result{}, fmt.Errorf("%w: no entries for %q", ErrWordNotFound, lemma)
+	}
+	return Result{}, fmt.Errorf("%w: no %s glosses for %q", ErrNoDisplayGloss, displayLang, lemma)
+}
+
+func buildWiktResult(lemma string, rows []wiktGlossRow) Result {
 	byPOS := map[string]*Entry{}
 	var order []string
 	for _, row := range rows {
@@ -141,7 +186,43 @@ func (w *WiktAPI) Enrich(ctx context.Context, req Request) (Result, error) {
 	return Result{
 		NormalizedText: strings.ToLower(strings.Join(strings.Fields(lemma), " ")),
 		Entries:        entries,
-	}, nil
+	}
+}
+
+func buildCanonicalWiktResult(lemma, targetLang, displayLang string, rows []wiktCanonicalRow) Result {
+	byPOS := map[string]*Entry{}
+	var order []string
+	sameLang := displayLang == targetLang
+	for _, row := range rows {
+		entry, ok := byPOS[row.pos]
+		if !ok {
+			entry = &Entry{
+				Lemma:        lemma,
+				PartOfSpeech: row.pos,
+			}
+			byPOS[row.pos] = entry
+			order = append(order, row.pos)
+		}
+		short := PreferSimpleGlossForLemma(lemma, "", row.def)
+		sense := Sense{
+			Definition:      row.def,
+			ShortDefinition: short,
+		}
+		if sameLang {
+			sense.NativeDefinition = row.def
+			sense.NativeShortDefinition = short
+		}
+		entry.Senses = append(entry.Senses, sense)
+	}
+
+	entries := make([]Entry, 0, len(order))
+	for _, pos := range order {
+		entries = append(entries, *byPOS[pos])
+	}
+	return Result{
+		NormalizedText: strings.ToLower(strings.Join(strings.Fields(lemma), " ")),
+		Entries:        entries,
+	}
 }
 
 // Translate re-queries WiktApi and assigns display glosses to senses by matching
@@ -149,7 +230,7 @@ func (w *WiktAPI) Enrich(ctx context.Context, req Request) (Result, error) {
 func (w *WiktAPI) Translate(ctx context.Context, req TranslateRequest) (TranslateResult, error) {
 	displayLang := strings.ToLower(strings.TrimSpace(req.DisplayLang))
 	if displayLang == "" {
-		return TranslateResult{}, fmt.Errorf("%w: empty display language", ErrUnavailable)
+		return TranslateResult{}, fmt.Errorf("%w: empty display language", ErrNoDisplayGloss)
 	}
 	lemma := strings.TrimSpace(req.WordText)
 	if lemma == "" || len(req.Senses) == 0 {
@@ -160,12 +241,15 @@ func (w *WiktAPI) Translate(ctx context.Context, req TranslateRequest) (Translat
 		targetLang = "en"
 	}
 
-	rows, _, err := w.collectGlossRows(ctx, lemma, targetLang, displayLang, "", nil)
+	collected, err := w.collectGlossRows(ctx, lemma, targetLang, displayLang, "", nil)
 	if err != nil {
 		return TranslateResult{}, err
 	}
-	if len(rows) == 0 {
-		return TranslateResult{}, fmt.Errorf("%w: no %s glosses for %q", ErrUnavailable, displayLang, lemma)
+	if len(collected.rows) == 0 {
+		if !collected.anyEndpointFound {
+			return TranslateResult{}, fmt.Errorf("%w: no entries for %q", ErrWordNotFound, lemma)
+		}
+		return TranslateResult{}, fmt.Errorf("%w: no %s glosses for %q", ErrNoDisplayGloss, displayLang, lemma)
 	}
 
 	used := map[int]struct{}{}
@@ -174,7 +258,7 @@ func (w *WiktAPI) Translate(ctx context.Context, req TranslateRequest) (Translat
 		gloss := ""
 		defKey := normalizeGlossKey(sense.Definition)
 		shortKey := normalizeGlossKey(sense.ShortDefinition)
-		for i, p := range rows {
+		for i, p := range collected.rows {
 			if _, taken := used[i]; taken {
 				continue
 			}
@@ -188,7 +272,7 @@ func (w *WiktAPI) Translate(ctx context.Context, req TranslateRequest) (Translat
 			}
 		}
 		if gloss == "" {
-			for i, p := range rows {
+			for i, p := range collected.rows {
 				if _, taken := used[i]; taken {
 					continue
 				}
@@ -207,7 +291,7 @@ func (w *WiktAPI) Translate(ctx context.Context, req TranslateRequest) (Translat
 		})
 	}
 	if len(out.Senses) == 0 {
-		return TranslateResult{}, fmt.Errorf("%w: could not map glosses for %q", ErrUnavailable, lemma)
+		return TranslateResult{}, fmt.Errorf("%w: could not map glosses for %q", ErrNoDisplayGloss, lemma)
 	}
 	return out, nil
 }
@@ -216,18 +300,13 @@ func (w *WiktAPI) collectGlossRows(
 	ctx context.Context,
 	lemma, targetLang, displayLang, posFilter string,
 	existing map[string]struct{},
-) ([]wiktGlossRow, bool, error) {
-	candidates := []string{lemma}
-	if !IsMultiWordLemma(lemma) && targetLang == "en" {
-		candidates = append(candidates, englishStemCandidates(lemma)...)
-	}
+) (wiktCollectResult, error) {
+	candidates := candidateLemmas(lemma, targetLang)
 
 	var (
-		rows              []wiktGlossRow
+		res               wiktCollectResult
 		seenGloss         = map[string]struct{}{}
-		anyEndpointFound  bool
-		sawDisplayGloss   bool
-		rootEnglishPOS    []string
+		seenCanonical     = map[string]struct{}{}
 		rootEnglishSenses []string
 	)
 
@@ -235,7 +314,7 @@ func (w *WiktAPI) collectGlossRows(
 		if gloss == "" {
 			return
 		}
-		sawDisplayGloss = true
+		res.sawDisplayGloss = true
 		key := pos + "\x00" + normalizeGlossKey(gloss)
 		if _, ok := seenGloss[key]; ok {
 			return
@@ -251,7 +330,20 @@ func (w *WiktAPI) collectGlossRows(
 			}
 		}
 		seenGloss[key] = struct{}{}
-		rows = append(rows, wiktGlossRow{pos: pos, sense: strings.TrimSpace(sense), gloss: gloss})
+		res.rows = append(res.rows, wiktGlossRow{pos: pos, sense: strings.TrimSpace(sense), gloss: gloss})
+	}
+
+	addCanonical := func(pos, sense string) {
+		def := cleanCanonicalDefinition(sense)
+		if def == "" || len(res.canonicalRows) >= maxCanonicalRows {
+			return
+		}
+		key := pos + "\x00" + normalizeGlossKey(def)
+		if _, ok := seenCanonical[key]; ok {
+			return
+		}
+		seenCanonical[key] = struct{}{}
+		res.canonicalRows = append(res.canonicalRows, wiktCanonicalRow{pos: pos, def: def})
 	}
 
 	for idx, candidate := range candidates {
@@ -259,18 +351,18 @@ func (w *WiktAPI) collectGlossRows(
 		var candidateEnglishPOS []string
 		var candidateEnglishSenses []string
 
-		rawTrans, transErr := w.fetchTranslations(ctx, candidate)
+		rawTrans, transErr := w.fetchTranslations(ctx, targetLang, candidate)
 		if transErr != nil && !errors.Is(transErr, errWiktNotFound) {
-			return nil, false, transErr
+			return wiktCollectResult{}, transErr
 		}
 		if transErr == nil {
-			anyEndpointFound = true
+			res.anyEndpointFound = true
 			for _, block := range rawTrans.Translations {
 				normPOS := normalizePOS(block.POS)
 				if normPOS != "" && normPOS != "unknown" {
 					candidateEnglishPOS = appendUniqueString(candidateEnglishPOS, normPOS)
 					if isRoot {
-						rootEnglishPOS = appendUniqueString(rootEnglishPOS, normPOS)
+						res.rootEnglishPOS = appendUniqueString(res.rootEnglishPOS, normPOS)
 					}
 				}
 				for _, t := range block.Translations {
@@ -284,7 +376,7 @@ func (w *WiktAPI) collectGlossRows(
 			}
 
 			for _, block := range rawTrans.Translations {
-				pos := resolveCandidatePOS(block.POS, isRoot, rootEnglishPOS, candidateEnglishPOS, posFilter)
+				pos := resolveCandidatePOS(block.POS, isRoot, res.rootEnglishPOS, candidateEnglishPOS, posFilter)
 				if pos == "" {
 					continue
 				}
@@ -295,6 +387,7 @@ func (w *WiktAPI) collectGlossRows(
 					continue
 				}
 				for _, t := range block.Translations {
+					addCanonical(pos, t.Sense)
 					if !matchesDisplayLang(t.LangCode, t.Code, t.Lang, displayLang) {
 						continue
 					}
@@ -303,16 +396,16 @@ func (w *WiktAPI) collectGlossRows(
 			}
 		}
 
-		if len(rows) > 0 || (isRoot && sawDisplayGloss) {
+		if len(res.rows) > 0 || (isRoot && res.sawDisplayGloss) {
 			break
 		}
 
 		rawDefs, defErr := w.fetchDefinitions(ctx, displayLang, candidate)
 		if defErr != nil && !errors.Is(defErr, errWiktNotFound) {
-			return nil, false, defErr
+			return wiktCollectResult{}, defErr
 		}
 		if defErr == nil {
-			anyEndpointFound = true
+			res.anyEndpointFound = true
 			enSenses := rootEnglishSenses
 			if len(enSenses) == 0 {
 				enSenses = candidateEnglishSenses
@@ -322,7 +415,7 @@ func (w *WiktAPI) collectGlossRows(
 				if defBlock.LangCode != "" && !strings.EqualFold(defBlock.LangCode, targetLang) {
 					continue
 				}
-				pos := resolveCandidatePOS(defBlock.POS, isRoot, rootEnglishPOS, candidateEnglishPOS, posFilter)
+				pos := resolveCandidatePOS(defBlock.POS, isRoot, res.rootEnglishPOS, candidateEnglishPOS, posFilter)
 				if pos == "" {
 					continue
 				}
@@ -347,19 +440,96 @@ func (w *WiktAPI) collectGlossRows(
 			}
 		}
 
-		if len(rows) > 0 || (isRoot && !anyEndpointFound) {
+		if len(res.rows) > 0 || (isRoot && res.sawDisplayGloss) {
 			break
 		}
 	}
 
-	if !anyEndpointFound {
-		return nil, false, fmt.Errorf("%w: no entries for %q", ErrUnavailable, lemma)
-	}
-	return rows, sawDisplayGloss, nil
+	return res, nil
 }
 
-func (w *WiktAPI) fetchTranslations(ctx context.Context, lemma string) (wiktTranslationsResponse, error) {
-	endpoint := fmt.Sprintf("%s/v1/en/word/%s/translations", w.baseURL, url.PathEscape(lemma))
+func (w *WiktAPI) collectCanonicalDefinitions(
+	ctx context.Context,
+	lemma, targetLang, posFilter string,
+	rootEnglishPOS []string,
+) ([]wiktCanonicalRow, bool, error) {
+	candidates := candidateLemmas(lemma, targetLang)
+	var (
+		rows      []wiktCanonicalRow
+		seen      = map[string]struct{}{}
+		foundAny  bool
+	)
+	for idx, candidate := range candidates {
+		rawDefs, defErr := w.fetchDefinitions(ctx, targetLang, candidate)
+		if defErr != nil {
+			if errors.Is(defErr, errWiktNotFound) {
+				continue
+			}
+			return nil, false, defErr
+		}
+		foundAny = true
+		isRoot := idx == 0
+		for _, defBlock := range rawDefs.Definitions {
+			if defBlock.LangCode != "" && !strings.EqualFold(defBlock.LangCode, targetLang) {
+				continue
+			}
+			pos := resolveCandidatePOS(defBlock.POS, isRoot, rootEnglishPOS, nil, posFilter)
+			if pos == "" {
+				continue
+			}
+			if IsMultiWordLemma(lemma) {
+				pos = "phrase"
+			}
+			if posFilter != "" && pos != posFilter {
+				continue
+			}
+			for _, senseItem := range defBlock.Senses {
+				for _, rawGloss := range senseItem.Glosses {
+					def := cleanCanonicalDefinition(rawGloss)
+					if def == "" {
+						continue
+					}
+					key := pos + "\x00" + normalizeGlossKey(def)
+					if _, dup := seen[key]; dup {
+						continue
+					}
+					seen[key] = struct{}{}
+					rows = append(rows, wiktCanonicalRow{pos: pos, def: def})
+					if len(rows) >= maxCanonicalRows {
+						return rows, true, nil
+					}
+				}
+			}
+		}
+		if len(rows) > 0 {
+			return rows, true, nil
+		}
+	}
+	return rows, foundAny, nil
+}
+
+func candidateLemmas(lemma, targetLang string) []string {
+	candidates := []string{lemma}
+	if !IsMultiWordLemma(lemma) && targetLang == "en" {
+		candidates = append(candidates, englishStemCandidates(lemma)...)
+	}
+	return candidates
+}
+
+func cleanCanonicalDefinition(raw string) string {
+	cleaned := stripDefinitionAnnotations(raw)
+	if cleaned == "" {
+		cleaned = strings.TrimSpace(raw)
+	}
+	return strings.TrimSpace(strings.Join(strings.Fields(cleaned), " "))
+}
+
+func (w *WiktAPI) fetchTranslations(ctx context.Context, edition, lemma string) (wiktTranslationsResponse, error) {
+	edition = strings.ToLower(strings.TrimSpace(edition))
+	if edition == "" {
+		edition = "en"
+	}
+	endpoint := fmt.Sprintf("%s/v1/%s/word/%s/translations", w.baseURL, url.PathEscape(edition), url.PathEscape(lemma))
 	var parsed wiktTranslationsResponse
 	if err := w.getJSON(ctx, endpoint, lemma, &parsed); err != nil {
 		return wiktTranslationsResponse{}, err
@@ -386,6 +556,9 @@ func (w *WiktAPI) getJSON(ctx context.Context, endpoint, lemma string, dest any)
 
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
+		if isTimeoutErr(err) {
+			return fmt.Errorf("%w: call endpoint: %v", ErrProviderTimeout, err)
+		}
 		return fmt.Errorf("%w: call endpoint: %v", ErrUnavailable, err)
 	}
 	defer resp.Body.Close()

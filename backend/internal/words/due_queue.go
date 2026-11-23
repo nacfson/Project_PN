@@ -1,6 +1,9 @@
 package words
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+	"strings"
+)
 
 // shuffleAndInterleaveDueItems randomizes card order, then round-robins
 // lemma families so consecutive cards avoid the same word. Origin/add
@@ -19,9 +22,18 @@ func shuffleAndInterleaveDueItemsWith(items []DueItem, shuffle func(n int, swap 
 	return interleaveDueItems(out)
 }
 
-// interleaveDueItems round-robins items across WordID buckets so consecutive
-// cards avoid the same lemma family. Items from the same word with multiple
-// CEFR senses stay separated by cards from other words.
+func dueItemInterleaveKey(item DueItem) string {
+	if norm := strings.TrimSpace(item.NormalizedText); norm != "" {
+		return strings.ToLower(strings.TrimSpace(item.LanguageCode) + ":" + norm)
+	}
+	if item.WordID != "" {
+		return item.WordID
+	}
+	return item.UserWordSenseID
+}
+
+// interleaveDueItems round-robins items across lemma/word buckets so consecutive
+// cards avoid the same lemma family across both dictionary and custom cards.
 func interleaveDueItems(items []DueItem) []DueItem {
 	if len(items) <= 1 {
 		return items
@@ -35,10 +47,11 @@ func interleaveDueItems(items []DueItem) []DueItem {
 	var buckets []bucket
 
 	for _, item := range items {
-		idx, ok := bucketIndex[item.WordID]
+		key := dueItemInterleaveKey(item)
+		idx, ok := bucketIndex[key]
 		if !ok {
 			idx = len(buckets)
-			bucketIndex[item.WordID] = idx
+			bucketIndex[key] = idx
 			buckets = append(buckets, bucket{})
 		}
 		buckets[idx].items = append(buckets[idx].items, item)

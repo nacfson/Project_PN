@@ -48,11 +48,15 @@ export function ManualAddSection({
     lookingUp,
     confirming,
     error,
+    errorInfo,
+    translationMissing,
     suggestPosPrompt,
     lookup,
+    retry,
     forceExisting,
     forceWithPos,
     confirm,
+    addManual,
     close,
   } = useSenseFlow({
     onAdded: () => {
@@ -257,22 +261,38 @@ export function ManualAddSection({
         lookingUp={lookingUp}
         confirming={confirming}
         errorMessage={error}
+        errorInfo={errorInfo}
+        translationMissing={translationMissing}
+        initialPersonalNote={personalNote}
         suggestPosPrompt={suggestPosPrompt}
         sourceContext={context}
         onSourceContextChange={setContext}
-        onConfirm={async (wordSenseId) => {
+        onConfirm={async (wordSenseId, inlinePersonalNote) => {
           let deckId = selectedDeckId;
           if (!deckId && resolveDeckId) {
             deckId = await resolveDeckId();
           }
           if (!deckId) return;
+          const resolvedNote = (inlinePersonalNote ?? personalNote).trim();
           void confirm(
             wordSenseId,
             deckId,
             context.trim() || undefined,
-            personalNote.trim() || undefined,
+            resolvedNote || undefined,
           );
         }}
+        onAddManual={async (note, manualPos) => {
+          let deckId = selectedDeckId;
+          if (!deckId && resolveDeckId) {
+            deckId = await resolveDeckId();
+          }
+          if (!deckId) return;
+          void addManual(note, manualPos, deckId, context.trim() || undefined);
+        }}
+        onRetry={() => {
+          void retry();
+        }}
+        onEditWord={close}
         onForceExisting={forceExisting}
         onForceWithPos={forceWithPos}
         onClose={close}

@@ -106,3 +106,53 @@ func TestFallbackEnricher_NilFallbackReturnsOriginalError(t *testing.T) {
 		t.Fatal("expected error with nil fallback")
 	}
 }
+
+func TestFallbackEnricher_PreservesCanonicalResultWhenFallbackFailsOnNoDisplayGloss(t *testing.T) {
+	canonical := Result{
+		NormalizedText: "ephemeral",
+		Entries: []Entry{{
+			Lemma:        "ephemeral",
+			PartOfSpeech: "adjective",
+			Senses:       []Sense{{Definition: "lasting for a very short time"}},
+		}},
+	}
+	primary := &stubEnricher{enrichResult: canonical, enrichErr: ErrNoDisplayGloss}
+	fallback := &stubEnricher{enrichErr: ErrUnavailable}
+	e := NewFallback(primary, fallback, slog.Default())
+	got, err := e.Enrich(t.Context(), Request{Text: "ephemeral"})
+	if !errors.Is(err, ErrNoDisplayGloss) {
+		t.Fatalf("expected ErrNoDisplayGloss, got %v", err)
+	}
+	if len(got.Entries) != 1 || got.Entries[0].Senses[0].Definition != "lasting for a very short time" {
+		t.Fatalf("expected canonical entries preserved, got %+v", got)
+	}
+}
+
+func TestFallbackEnricher_UsesFallbackOnNoDisplayGlossWhenFallbackSucceeds(t *testing.T) {
+	canonical := Result{
+		NormalizedText: "ephemeral",
+		Entries: []Entry{{
+			Lemma:        "ephemeral",
+			PartOfSpeech: "adjective",
+			Senses:       []Sense{{Definition: "lasting for a very short time"}},
+		}},
+	}
+	translated := Result{
+		NormalizedText: "ephemeral",
+		Entries: []Entry{{
+			Lemma:        "ephemeral",
+			PartOfSpeech: "adjective",
+			Senses:       []Sense{{Definition: "lasting for a very short time", NativeDefinition: "단명하는", NativeShortDefinition: "일시적인"}},
+		}},
+	}
+	primary := &stubEnricher{enrichResult: canonical, enrichErr: ErrNoDisplayGloss}
+	fallback := &stubEnricher{enrichResult: translated}
+	e := NewFallback(primary, fallback, slog.Default())
+	got, err := e.Enrich(t.Context(), Request{Text: "ephemeral"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Entries[0].Senses[0].NativeShortDefinition != "일시적인" {
+		t.Fatalf("expected fallback translation, got %+v", got)
+	}
+}

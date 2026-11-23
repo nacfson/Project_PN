@@ -46,6 +46,7 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 		var uwsID string
 		var wordSenseID string
 		var lemma string
+		var langCode string
 		var intervalDays int
 		var easeFactor float64
 		var reviewCount int
@@ -60,8 +61,9 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 
 		err = tx.QueryRow(ctx, `
 			select uws.id::text,
-			       uws.word_sense_id::text,
-			       w.normalized_text,
+			       coalesce(uws.word_sense_id::text, ''),
+			       coalesce(w.normalized_text, lower(pm.lemma), ''),
+			       d.target_language,
 			       rs.interval_days,
 			       rs.ease_factor,
 			       rs.review_count,
@@ -75,8 +77,10 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 			       rs.last_reviewed_at
 			from user_word_senses uws
 			join review_states rs on rs.user_word_sense_id = uws.id
-			join word_senses ws on ws.id = uws.word_sense_id
-			join words w on w.id = ws.word_id
+			join decks d on d.id = uws.deck_id
+			left join word_senses ws on ws.id = uws.word_sense_id
+			left join words w on w.id = ws.word_id
+			left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
 			where uws.id = $1::uuid and uws.user_id = $2::uuid
 			  and uws.archived_at is null
 			  and rs.is_suspended = false`,
@@ -85,6 +89,7 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 			&uwsID,
 			&wordSenseID,
 			&lemma,
+			&langCode,
 			&intervalDays,
 			&easeFactor,
 			&reviewCount,
@@ -257,26 +262,30 @@ func (s *Service) RecordBatchReviewAttempts(ctx context.Context, userID string, 
 			return BatchReviewResult{}, fmt.Errorf("words: update daily counts: %w", err)
 		}
 
-		// Bury other senses of the same word for the rest of today (UTC).
-		endOfToday := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
-		_, err = tx.Exec(ctx, `
-			update review_states
-			set buried_until = $1, updated_at = now()
-			where user_word_sense_id in (
-				select uws2.id
-				from user_word_senses uws2
-				join word_senses ws2 on ws2.id = uws2.word_sense_id
-				join word_senses ws on ws.word_id = ws2.word_id
-				join user_word_senses uws on uws.word_sense_id = ws.id
-				where uws.id = $2::uuid
-				  and uws2.id != uws.id
-				  and uws2.user_id = $3::uuid
-				  and uws2.archived_at is null
-			)`,
-			endOfToday, attempt.UserWordSenseID, userID,
-		)
-		if err != nil {
-			return BatchReviewResult{}, fmt.Errorf("words: bury same-word senses for %s: %w", attempt.UserWordSenseID, err)
+		// Bury other senses/custom cards of the same word in the same language for the rest of today (UTC).
+		if lemma != "" {
+			endOfToday := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
+			_, err = tx.Exec(ctx, `
+				update review_states
+				set buried_until = $1, updated_at = now()
+				where user_word_sense_id in (
+					select uws2.id
+					from user_word_senses uws2
+					join decks d2 on d2.id = uws2.deck_id
+					left join word_senses ws2 on ws2.id = uws2.word_sense_id
+					left join words w2 on w2.id = ws2.word_id
+					left join user_personal_meanings pm2 on pm2.user_word_sense_id = uws2.id
+					where uws2.id <> $2::uuid
+					  and uws2.user_id = $3::uuid
+					  and uws2.archived_at is null
+					  and d2.target_language = $4
+					  and coalesce(w2.normalized_text, lower(pm2.lemma), '') = $5
+				)`,
+				endOfToday, attempt.UserWordSenseID, userID, langCode, lemma,
+			)
+			if err != nil {
+				return BatchReviewResult{}, fmt.Errorf("words: bury same-word senses for %s: %w", attempt.UserWordSenseID, err)
+			}
 		}
 
 		pending = append(pending, pendingLearningLog{
