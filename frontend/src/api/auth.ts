@@ -5,6 +5,7 @@ import {
 } from '@project-pn/api';
 import type { LinkedProvider, MeResponse } from '@project-pn/api';
 import {
+  clearDevUrlToken,
   getLanguageOptions as getLanguageOptionsApi,
   logout as logoutApi,
   me as meApi,
@@ -77,11 +78,13 @@ export async function logout(): Promise<void> {
       throw err;
     }
     clearLanguageOptionsCache();
+    clearDevUrlToken();
     scrubLaunchTokenFromBrowserUrl();
     await sessionStorage.clearSession();
     throw err;
   }
   clearLanguageOptionsCache();
+  clearDevUrlToken();
   scrubLaunchTokenFromBrowserUrl();
   await sessionStorage.clearSession();
 }
