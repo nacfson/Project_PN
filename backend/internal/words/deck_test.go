@@ -229,6 +229,45 @@ func TestGetDueReviewItemsFiltersByDeck(t *testing.T) {
 	}
 }
 
+func TestMoveItemsToDeckMovesCustomCards(t *testing.T) {
+	pool := deckTestPool(t)
+	svc := deckTestService(t, pool)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	customDeck, err := svc.CreateDeck(ctx, userID, "Custom Cards", "en")
+	if err != nil {
+		t.Fatalf("create deck: %v", err)
+	}
+	item, err := svc.AddManualLearningItem(ctx, userID, "glorp", "noun", "en", "ko", "", "", "Custom gloss")
+	if err != nil {
+		t.Fatalf("add manual: %v", err)
+	}
+
+	if err := svc.MoveItemsToDeck(ctx, userID, customDeck.ID, []string{item.ID}); err != nil {
+		t.Fatalf("MoveItemsToDeck custom card: %v", err)
+	}
+
+	var movedDeckID string
+	if err := pool.QueryRow(ctx, `select deck_id::text from user_word_senses where id = $1::uuid`, item.ID).Scan(&movedDeckID); err != nil {
+		t.Fatalf("query deck_id: %v", err)
+	}
+	if movedDeckID != customDeck.ID {
+		t.Fatalf("expected deck_id=%q, got %q", customDeck.ID, movedDeckID)
+	}
+
+	if _, err := pool.Exec(ctx, `insert into user_languages (user_id, target_language, display_language, is_active) values ($1::uuid, 'ja', 'ko', false)`, userID); err != nil {
+		t.Fatalf("add ja user language: %v", err)
+	}
+	jaDeck, err := svc.CreateDeck(ctx, userID, "Japanese", "ja")
+	if err != nil {
+		t.Fatalf("create ja deck: %v", err)
+	}
+	if err := svc.MoveItemsToDeck(ctx, userID, jaDeck.ID, []string{item.ID}); err != ErrDeckLanguageMismatch {
+		t.Fatalf("expected ErrDeckLanguageMismatch across languages, got %v", err)
+	}
+}
+
 func repoPath(t *testing.T, parts ...string) string {
 	t.Helper()
 

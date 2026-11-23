@@ -99,6 +99,23 @@ func TestInterleaveDueItemsPreservesAllItems(t *testing.T) {
 	}
 }
 
+func TestInterleaveDueItemsSeparatesCustomCards(t *testing.T) {
+	items := []DueItem{
+		{UserWordSenseID: "u-c1", WordID: "", LanguageCode: "en", NormalizedText: "glorp", Lemma: "glorp"},
+		{UserWordSenseID: "u-c2", WordID: "", LanguageCode: "en", NormalizedText: "snorf", Lemma: "snorf"},
+		{UserWordSenseID: "u-d1", WordID: "w-glorp", LanguageCode: "en", NormalizedText: "glorp", Lemma: "glorp"},
+		{UserWordSenseID: "u-d2", WordID: "w-snorf", LanguageCode: "en", NormalizedText: "snorf", Lemma: "snorf"},
+	}
+
+	got := interleaveDueItems(items)
+	if len(got) != len(items) {
+		t.Fatalf("expected %d items, got %d", len(items), len(got))
+	}
+	if got[0].NormalizedText != "glorp" || got[1].NormalizedText != "snorf" || got[2].NormalizedText != "glorp" || got[3].NormalizedText != "snorf" {
+		t.Fatalf("expected interleaved lemmas glorp/snorf/glorp/snorf, got %+v", lemmas(got))
+	}
+}
+
 func TestClampDesiredRetention(t *testing.T) {
 	if got := clampDesiredRetention(0.50); got != minDesiredRetention {
 		t.Fatalf("expected clamp to min, got %f", got)

@@ -1,23 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
-import { addLearningItem, lookupWord } from '../api/words';
+import { addLearningItem, addManualLearningItem, lookupWord } from '../api/words';
 import { ApiError } from '../api/client';
 import { DEFAULT_DEFINITION_LANGUAGE_CODE } from '../config';
 import { useAppLanguage } from '../i18n';
-import type { TranslationKey } from '../i18n';
 import type { PartOfSpeech, PosFilter, SenseOption } from '../types';
-import { classifyAddError } from '../utils/addErrors';
+import { classifyAddError, type AddErrorInfo } from '../utils/addErrors';
 
 interface SenseFlowCallbacks {
-  onAdded?: (wordSenseId: string) => void;
+  onAdded?: (wordSenseId: string, queryText?: string) => void;
   onDismiss?: () => void;
-}
-
-function messageOf(
-  error: unknown,
-  t: (key: TranslationKey) => string,
-): string {
-  const info = classifyAddError(error);
-  return `${info.code}: ${t(info.messageKey)}`;
 }
 
 function isNoAdditionalSensesError(error: unknown): boolean {
@@ -32,6 +23,8 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const [lookingUp, setLookingUp] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorInfo, setErrorInfo] = useState<AddErrorInfo | null>(null);
+  const [translationMissing, setTranslationMissing] = useState(false);
   const [suggestPosPrompt, setSuggestPosPrompt] = useState(false);
 
   const lastText = useRef('');
@@ -42,6 +35,16 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
   const confirmingRef = useRef(false);
+
+  const applyError = useCallback(
+    (err: unknown) => {
+      const info = classifyAddError(err);
+      setErrorInfo(info);
+      setError(t(info.messageKey));
+      return info;
+    },
+    [t],
+  );
 
   const lookup = useCallback(
     async (
@@ -62,6 +65,8 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
       lastDeckId.current = deckId;
       setQuery(trimmed);
       setError(null);
+      setErrorInfo(null);
+      setTranslationMissing(false);
       setSuggestPosPrompt(false);
       setLookingUp(true);
       setOptions([]);
@@ -74,22 +79,65 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         });
         setOptions(response.sense_options);
         if (response.sense_options.length === 0) {
-          setError(`ADD-303: ${t('add.error.noAdditionalSense')}`);
+          applyError(new ApiError(404, 'word not found', 'ADD-309', false, 'word_not_found'));
+          return false;
         }
+        const missing =
+          Boolean(response.translation_missing) ||
+          (response.sense_options.some((o) => o.has_localized_translation === false) &&
+            response.sense_options.every((o) => o.has_localized_translation === false));
+        setTranslationMissing(missing);
         return true;
       } catch (err) {
-        if (isNoAdditionalSensesError(err)) {
-          setError(messageOf(err, t));
-        } else {
-          setError(messageOf(err, t));
-        }
+        applyError(err);
         return false;
       } finally {
         setLookingUp(false);
       }
     },
+    [applyError],
+  );
+
+  const openFailedLookup = useCallback(
+    (
+      text: string,
+      posFilter: PosFilter,
+      sourceContext: string | undefined,
+      languageCode: string | undefined,
+      deckId: string | undefined,
+      existingError: AddErrorInfo,
+    ) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      lastText.current = trimmed;
+      lastPos.current = posFilter;
+      lastSourceContext.current = (sourceContext ?? '').trim();
+      lastLanguageCode.current = languageCode;
+      lastDeckId.current = deckId;
+      setQuery(trimmed);
+      setOptions([]);
+      setLookingUp(false);
+      setTranslationMissing(existingError.category === 'translation_missing');
+      setSuggestPosPrompt(false);
+      setErrorInfo(existingError);
+      setError(t(existingError.messageKey));
+      setPickerVisible(true);
+    },
     [t],
   );
+
+  const retry = useCallback(async (): Promise<boolean> => {
+    if (!lastText.current) {
+      return false;
+    }
+    return lookup(
+      lastText.current,
+      lastPos.current,
+      lastSourceContext.current || undefined,
+      lastLanguageCode.current,
+      lastDeckId.current,
+    );
+  }, [lookup]);
 
   const rememberContext = (sourceContext?: string) => {
     const trimmed = (sourceContext ?? lastSourceContext.current).trim();
@@ -102,6 +150,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
   const forceExisting = useCallback(
     async (wordId: string, sourceContext?: string) => {
       setError(null);
+      setErrorInfo(null);
       setSuggestPosPrompt(false);
       setLookingUp(true);
       try {
@@ -113,23 +162,23 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           languageCode: lastLanguageCode.current,
         });
         setOptions(response.sense_options);
+        setTranslationMissing(Boolean(response.translation_missing));
       } catch (err) {
+        applyError(err);
         if (isNoAdditionalSensesError(err)) {
-          setError(messageOf(err, t));
           setSuggestPosPrompt(true);
-        } else {
-          setError(messageOf(err, t));
         }
       } finally {
         setLookingUp(false);
       }
     },
-    [t],
+    [applyError],
   );
 
   const forceWithPos = useCallback(
     async (pos: PartOfSpeech, sourceContext?: string) => {
       setError(null);
+      setErrorInfo(null);
       setSuggestPosPrompt(false);
       setLookingUp(true);
       try {
@@ -141,18 +190,17 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           languageCode: lastLanguageCode.current,
         });
         setOptions(response.sense_options);
+        setTranslationMissing(Boolean(response.translation_missing));
       } catch (err) {
+        applyError(err);
         if (isNoAdditionalSensesError(err)) {
-          setError(messageOf(err, t));
           setSuggestPosPrompt(true);
-        } else {
-          setError(messageOf(err, t));
         }
       } finally {
         setLookingUp(false);
       }
     },
-    [t],
+    [applyError],
   );
 
   const confirm = useCallback(
@@ -161,6 +209,7 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
         return;
       }
       setError(null);
+      setErrorInfo(null);
       confirmingRef.current = true;
       setConfirming(true);
       try {
@@ -175,15 +224,60 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
           resolvedNote || undefined,
         );
         setPickerVisible(false);
-        callbacksRef.current.onAdded?.(wordSenseId);
+        callbacksRef.current.onAdded?.(wordSenseId, lastText.current);
       } catch (err) {
-        setError(messageOf(err, t));
+        applyError(err);
       } finally {
         confirmingRef.current = false;
         setConfirming(false);
       }
     },
-    [t],
+    [applyError],
+  );
+
+  const addManual = useCallback(
+    async (
+      personalNote: string,
+      partOfSpeech?: PartOfSpeech | 'unknown',
+      deckId?: string,
+      sourceContext?: string,
+    ) => {
+      if (confirmingRef.current) {
+        return;
+      }
+      const trimmedNote = personalNote.trim();
+      if (!trimmedNote) {
+        applyError(new ApiError(400, 'personal meaning is required', 'ADD-310', false, 'personal_meaning_required'));
+        return;
+      }
+      setError(null);
+      setErrorInfo(null);
+      confirmingRef.current = true;
+      setConfirming(true);
+      try {
+        const resolvedDeck = deckId ?? lastDeckId.current;
+        const resolvedContext = (sourceContext ?? lastSourceContext.current).trim();
+        const resolvedPos =
+          partOfSpeech ?? (lastPos.current !== 'Any' ? lastPos.current : undefined);
+        const item = await addManualLearningItem({
+          text: lastText.current,
+          part_of_speech: resolvedPos,
+          language_code: lastLanguageCode.current,
+          display_language_code: DEFAULT_DEFINITION_LANGUAGE_CODE,
+          deck_id: resolvedDeck,
+          source_context: resolvedContext || undefined,
+          personal_note: trimmedNote,
+        });
+        setPickerVisible(false);
+        callbacksRef.current.onAdded?.(item.word_sense_id || item.id, lastText.current);
+      } catch (err) {
+        applyError(err);
+      } finally {
+        confirmingRef.current = false;
+        setConfirming(false);
+      }
+    },
+    [applyError],
   );
 
   const close = useCallback(() => {
@@ -202,16 +296,21 @@ export function useSenseFlow(callbacks: SenseFlowCallbacks = {}) {
     options,
     /** True while lookup / force-generate is in flight (SensePicker list spinner). */
     lookingUp,
-    /** True while addLearningItem is in flight (SensePicker Add button spinner). */
+    /** True while addLearningItem / addManualLearningItem is in flight (SensePicker Add button spinner). */
     confirming,
     /** Backward-compatible busy flag for callers that only need “any spinner”. */
     generating: lookingUp || confirming,
     error,
+    errorInfo,
+    translationMissing,
     suggestPosPrompt,
     lookup,
+    openFailedLookup,
+    retry,
     forceExisting,
     forceWithPos,
     confirm,
+    addManual,
     close,
   };
 }

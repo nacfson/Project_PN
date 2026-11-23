@@ -1,19 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ApiError } from '../../api/client';
 import { PosSelector } from '../../components/PosSelector';
+import { SensePicker } from '../../components/SensePicker';
 import { TappablePassage, type PassageSpan } from '../../components/TappablePassage';
 import { WordChip } from '../../components/WordChip';
 import { useAddQueue } from '../../hooks/useAddQueue';
+import { useSenseFlow } from '../../hooks/useSenseFlow';
 import { recordCapturedWords } from '../../storage/captureHistory';
 import { useAppLanguage } from '../../i18n';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Card, Input, Text } from '../../ui';
 import type { PosFilter } from '../../types';
+import { classifyAddError } from '../../utils/addErrors';
 
 const UNDO_DURATION_MS = 3000;
 
 function spanKey(span: PassageSpan): string {
   return `${span.start}:${span.end}:${span.text}`;
+}
+
+export function extractSentenceContext(passage: string, term: string): string | undefined {
+  const cleanPassage = passage.trim();
+  const cleanTerm = term.trim().toLowerCase();
+  if (!cleanPassage || !cleanTerm) return undefined;
+  const sentences = cleanPassage
+    .split(/(?<=[.!?。])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const found = sentences.find((sentence) => sentence.toLowerCase().includes(cleanTerm));
+  if (found) return found;
+  return cleanPassage.length <= 240 ? cleanPassage : cleanPassage.slice(0, 240);
 }
 
 export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDeckId: string; targetLanguage: string }) {
@@ -26,7 +43,32 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
   const [phraseAnchor, setPhraseAnchor] = useState<number | null>(null);
   const [clearedAt, setClearedAt] = useState<number | null>(null);
   const previousPassageRef = useRef('');
-  const { enqueueMany, statusOf } = useAddQueue();
+  const { enqueueMany, statusOf, jobs = [], markManualAdded } = useAddQueue();
+
+  const {
+    pickerVisible,
+    query,
+    options,
+    lookingUp,
+    confirming,
+    error,
+    errorInfo,
+    translationMissing,
+    suggestPosPrompt,
+    openFailedLookup,
+    retry,
+    forceExisting,
+    forceWithPos,
+    confirm,
+    addManual,
+    close,
+  } = useSenseFlow({
+    onAdded: (wordSenseId, text) => {
+      if (text) {
+        markManualAdded?.(text, wordSenseId);
+      }
+    },
+  });
 
   useEffect(() => {
     if (!clearedAt) return;
@@ -75,16 +117,37 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
       return;
     }
     const texts = spans.map((s) => s.text);
+    const sourceContexts: Record<string, string> = {};
+    for (const span of spans) {
+      const ctx = extractSentenceContext(passage, span.text);
+      if (ctx) {
+        sourceContexts[span.text.trim()] = ctx;
+      }
+    }
     void recordCapturedWords(texts);
     const lookupPos: PosFilter =
       pos === 'Any' && texts.every((text) => text.trim().split(/\s+/).filter(Boolean).length > 1)
         ? 'phrase'
         : pos;
-    enqueueMany(texts, lookupPos, selectedDeckId, targetLanguage);
+    enqueueMany(texts, lookupPos, selectedDeckId, targetLanguage, sourceContexts);
+  };
+
+  const handleOpenFailedChip = (span: PassageSpan) => {
+    const trimmed = span.text.trim();
+    const matching = jobs.filter((job) => job.text === trimmed);
+    const latest = matching[matching.length - 1];
+    const lookupPos: PosFilter =
+      pos === 'Any' && trimmed.split(/\s+/).filter(Boolean).length > 1 ? 'phrase' : pos;
+    const context = latest?.sourceContext ?? extractSentenceContext(passage, trimmed);
+    const info =
+      latest?.errorInfo ??
+      classifyAddError(new ApiError(404, 'word not found', 'ADD-309', false, 'word_not_found'));
+    openFailedLookup(trimmed, lookupPos, context, targetLanguage, selectedDeckId, info);
   };
 
   const selectedList = selected;
   const hasPendingSelected = selectedList.some((s) => statusOf(s.text) === 'pending');
+  const hasErrorSelected = selectedList.some((s) => statusOf(s.text) === 'error');
   const addableCount = selectedList.filter((s) => {
     const status = statusOf(s.text);
     return status !== 'added' && status !== 'pending';
@@ -189,15 +252,25 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
                 {t('add.selected', { count: selectedList.length })}
               </Text>
               <View style={styles.chipRow}>
-                {selectedList.map((span) => (
-                  <WordChip
-                    key={spanKey(span)}
-                    word={span.text}
-                    status={statusOf(span.text)}
-                    onRemove={() => toggleSpan(span)}
-                  />
-                ))}
+                {selectedList.map((span) => {
+                  const status = statusOf(span.text);
+                  return (
+                    <WordChip
+                      key={spanKey(span)}
+                      testID={`word-chip-${span.text}`}
+                      word={span.text}
+                      status={status}
+                      onPress={status === 'error' ? () => handleOpenFailedChip(span) : undefined}
+                      onRemove={() => toggleSpan(span)}
+                    />
+                  );
+                })}
               </View>
+              {hasErrorSelected ? (
+                <Text variant="caption" color="muted">
+                  {t('queue.tapToResolve')}
+                </Text>
+              ) : null}
             </View>
 
             <Button
@@ -211,6 +284,30 @@ export function CaptureSection({ selectedDeckId, targetLanguage }: { selectedDec
           </>
         )}
       </View>
+
+      <SensePicker
+        visible={pickerVisible}
+        query={query}
+        options={options}
+        lookingUp={lookingUp}
+        confirming={confirming}
+        errorMessage={error}
+        errorInfo={errorInfo}
+        translationMissing={translationMissing}
+        suggestPosPrompt={suggestPosPrompt}
+        onConfirm={(wordSenseId, inlineNote) => {
+          void confirm(wordSenseId, selectedDeckId, undefined, inlineNote);
+        }}
+        onAddManual={(note, manualPos) => {
+          void addManual(note, manualPos, selectedDeckId);
+        }}
+        onRetry={() => {
+          void retry();
+        }}
+        onForceExisting={forceExisting}
+        onForceWithPos={forceWithPos}
+        onClose={close}
+      />
     </View>
   );
 }

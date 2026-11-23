@@ -610,3 +610,478 @@ func TestNormalizeStripsOuterPunctuation(t *testing.T) {
 	}
 }
 
+type countingEnricher struct {
+	stubEnricher
+	enrichCalls int
+}
+
+func (c *countingEnricher) Enrich(ctx context.Context, req enrich.Request) (enrich.Result, error) {
+	c.enrichCalls++
+	return c.stubEnricher.Enrich(ctx, req)
+}
+
+func TestLookupDegradesToCanonicalSensesWithTranslationMissing(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	lemma := fmt.Sprintf("canonicalonly%d", time.Now().UnixNano())
+	svc := New(pool, &stubEnricher{
+		enrichResult: enrich.Result{
+			NormalizedText: lemma,
+			Entries: []enrich.Entry{{
+				Lemma:        lemma,
+				PartOfSpeech: "noun",
+				Senses: []enrich.Sense{{
+					Definition:      "a canonical English meaning without Korean",
+					ShortDefinition: "canonical meaning",
+				}},
+			}},
+		},
+		enrichErr: enrich.ErrNoDisplayGloss,
+	}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	res, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil)
+	if err != nil {
+		t.Fatalf("expected degraded 200 lookup, got %v", err)
+	}
+	if !res.TranslationMissing {
+		t.Fatal("expected TranslationMissing=true")
+	}
+	if len(res.SenseOptions) != 1 || res.SenseOptions[0].Definition != "a canonical English meaning without Korean" {
+		t.Fatalf("unexpected sense options: %+v", res.SenseOptions)
+	}
+	if res.SenseOptions[0].HasLocalizedTranslation {
+		t.Fatal("expected HasLocalizedTranslation=false")
+	}
+}
+
+func TestAddLearningItemAllowsUntranslatedSenseWithPersonalNote(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	lemma := fmt.Sprintf("untransnote%d", time.Now().UnixNano())
+	_, senseID := insertEnglishSenseWithoutTranslation(t, pool, lemma, "untranslated definition")
+
+	// Without personal_note and ErrNoDisplayGloss from Translate -> ErrTranslationUnavailable (not ErrUnavailable).
+	svcMissing := New(pool, &stubEnricher{translateErr: enrich.ErrNoDisplayGloss}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+	if _, err := svcMissing.AddLearningItem(ctx, userID, senseID, "ko", "", "", ""); !errors.Is(err, ErrTranslationUnavailable) {
+		t.Fatalf("expected ErrTranslationUnavailable, got %v", err)
+	}
+
+	// With personal_note -> succeeds even when sense_translations is missing.
+	item, err := svcMissing.AddLearningItem(ctx, userID, senseID, "ko", "", "", "내가 정한 뜻")
+	if err != nil {
+		t.Fatalf("expected add with personal_note to succeed, got %v", err)
+	}
+	if item.PersonalNote == nil || *item.PersonalNote != "내가 정한 뜻" {
+		t.Fatalf("expected personal_note saved, got %v", item.PersonalNote)
+	}
+}
+
+func TestCleanManualLemma(t *testing.T) {
+	cases := []struct {
+		in        string
+		wantClean string
+		wantNorm  string
+	}{
+		{in: `  "Glorp"  `, wantClean: "Glorp", wantNorm: "glorp"},
+		{in: "  OpenAI, API! ", wantClean: "OpenAI API", wantNorm: "openai api"},
+		{in: "rock , roll", wantClean: "rock roll", wantNorm: "rock roll"},
+		{in: "McDonald's.", wantClean: "McDonald's", wantNorm: "mcdonald's"},
+	}
+	for _, tc := range cases {
+		gotClean := cleanManualLemma(tc.in)
+		if gotClean != tc.wantClean {
+			t.Fatalf("cleanManualLemma(%q) = %q, want %q", tc.in, gotClean, tc.wantClean)
+		}
+		if again := cleanManualLemma(gotClean); again != gotClean {
+			t.Fatalf("cleanManualLemma(%q) not idempotent: %q", tc.in, again)
+		}
+		if gotNorm := normalize(tc.in); gotNorm != tc.wantNorm || gotNorm != strings.ToLower(gotClean) {
+			t.Fatalf("normalize(%q) = %q, want %q and strings.ToLower(%q)", tc.in, gotNorm, tc.wantNorm, gotClean)
+		}
+	}
+}
+
+func TestAddManualLearningItemDoesNotPolluteDictionaryLookup(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+
+	lemma := fmt.Sprintf("ManualOnly%d", time.Now().UnixNano())
+	normalized := strings.ToLower(lemma)
+	enricher := &countingEnricher{
+		stubEnricher: stubEnricher{enrichErr: enrich.ErrWordNotFound},
+	}
+	svc := New(pool, enricher, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	item, err := svc.AddManualLearningItem(ctx, userID, lemma, "noun", "en", "ko", "", "In a sentence.", "직접 쓴 뜻")
+	if err != nil {
+		t.Fatalf("AddManualLearningItem: %v", err)
+	}
+	if !item.IsCustom || item.WordSenseID != "" {
+		t.Fatalf("expected custom card with empty WordSenseID, got %+v", item)
+	}
+	if item.PersonalNote == nil || *item.PersonalNote != "직접 쓴 뜻" {
+		t.Fatalf("expected personal_note, got %v", item.PersonalNote)
+	}
+
+	var globalWordCount int
+	if err := pool.QueryRow(ctx, `select count(*) from words where normalized_text = $1`, normalized).Scan(&globalWordCount); err != nil {
+		t.Fatalf("count global words: %v", err)
+	}
+	if globalWordCount != 0 {
+		t.Fatalf("expected zero rows in global words table, got %d", globalWordCount)
+	}
+
+	var storedLemma, storedPOS, storedMeaning string
+	if err := pool.QueryRow(ctx, `
+		select lemma, part_of_speech, meaning
+		from user_personal_meanings
+		where user_word_sense_id = $1::uuid`, item.ID,
+	).Scan(&storedLemma, &storedPOS, &storedMeaning); err != nil {
+		t.Fatalf("query user_personal_meanings: %v", err)
+	}
+	if storedLemma != lemma || storedPOS != "noun" || storedMeaning != "직접 쓴 뜻" {
+		t.Fatalf("unexpected custom row: lemma=%q pos=%q meaning=%q", storedLemma, storedPOS, storedMeaning)
+	}
+
+	// Empty SetPersonalNote must be rejected on custom cards.
+	if _, err := svc.SetPersonalNote(ctx, userID, item.ID, "  "); !errors.Is(err, ErrPersonalNoteRequired) {
+		t.Fatalf("expected ErrPersonalNoteRequired on empty note, got %v", err)
+	}
+
+	// ListLearningItems prefix search matches lower(pm.lemma).
+	page, err := svc.ListLearningItems(ctx, userID, ListLearningItemsParams{Limit: 20, Search: normalized[:10]})
+	if err != nil {
+		t.Fatalf("ListLearningItems: %v", err)
+	}
+	if len(page.Items) != 1 || !page.Items[0].IsCustom || page.Items[0].Lemma != lemma || page.Items[0].Definition != "직접 쓴 뜻" {
+		t.Fatalf("unexpected listed custom item: %+v", page.Items)
+	}
+
+	// Shared dictionary lookup must miss global cache and hit the enricher.
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); !errors.Is(err, enrich.ErrWordNotFound) {
+		t.Fatalf("expected Lookup to miss dictionary and return ErrWordNotFound, got %v", err)
+	}
+	if enricher.enrichCalls != 1 {
+		t.Fatalf("expected 1 enrich call, got %d", enricher.enrichCalls)
+	}
+
+	// Padded language codes must deduplicate onto the same custom card and NOT evict the negative lookup cache.
+	dupItem, err := svc.AddManualLearningItem(ctx, userID, lemma, "noun", " en ", " ko ", "", "", "패딩 언어 뜻")
+	if err != nil {
+		t.Fatalf("AddManualLearningItem with padded langs: %v", err)
+	}
+	if dupItem.ID != item.ID {
+		t.Fatalf("expected padded language_code to deduplicate onto %q, got %q", item.ID, dupItem.ID)
+	}
+	if _, err := svc.Lookup(ctx, userID, lemma, "en", "ko", "", nil); !errors.Is(err, enrich.ErrWordNotFound) {
+		t.Fatalf("expected cached ErrWordNotFound on repeat Lookup, got %v", err)
+	}
+	if enricher.enrichCalls != 1 {
+		t.Fatalf("expected AddManualLearningItem not to evict negative cache (want 1 enrich call, got %d)", enricher.enrichCalls)
+	}
+
+	// ArchiveLearningItems works on custom cards.
+	archivedCount, err := svc.ArchiveLearningItems(ctx, userID, []string{item.ID})
+	if err != nil || archivedCount != 1 {
+		t.Fatalf("ArchiveLearningItems count=%d err=%v", archivedCount, err)
+	}
+}
+
+func TestCustomCardUpgradeSameSenseAndLegacyNoteDrain(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+	svc := New(pool, &stubEnricher{}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	lemma := fmt.Sprintf("UpgradeMe%d", time.Now().UnixNano())
+	normalized := strings.ToLower(lemma)
+
+	customItem, err := svc.AddManualLearningItem(ctx, userID, lemma, "unknown", "en", "ko", "", "", "내 커스텀 뜻")
+	if err != nil {
+		t.Fatalf("AddManualLearningItem: %v", err)
+	}
+
+	var wordID, dictSenseA, dictSenseB string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', $1, $1, 'noun') returning id::text
+	`, normalized).Scan(&wordID); err != nil {
+		t.Fatal(err)
+	}
+	for i, def := range []string{"dictionary meaning A", "dictionary meaning B"} {
+		var sid string
+		if err := pool.QueryRow(ctx, `
+			insert into word_senses (word_id, definition, meaning_order)
+			values ($1::uuid, $2, $3) returning id::text
+		`, wordID, def, i+1).Scan(&sid); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `
+			insert into sense_translations (word_sense_id, language_code, definition)
+			values ($1::uuid, 'ko', $2)
+		`, sid, "사전 뜻"); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			dictSenseA = sid
+		} else {
+			dictSenseB = sid
+		}
+	}
+
+	// Seed an archived duplicate on dictSenseA to verify conflict cleanup on upgrade.
+	archItem, err := svc.AddLearningItem(ctx, userID, dictSenseA, "ko", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ArchiveLearningItems(ctx, userID, []string{archItem.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Upgrade custom -> dictionary with omitted note clears user_personal_meanings.
+	upgraded, err := svc.ChangeLearningItemSense(ctx, userID, customItem.ID, dictSenseA, "ko", nil)
+	if err != nil {
+		t.Fatalf("ChangeLearningItemSense upgrade: %v", err)
+	}
+	if upgraded.IsCustom || upgraded.WordSenseID != dictSenseA || upgraded.PersonalNote != nil {
+		t.Fatalf("unexpected upgraded item: %+v", upgraded)
+	}
+	var pmCount int
+	if err := pool.QueryRow(ctx, `select count(*) from user_personal_meanings where user_word_sense_id = $1::uuid`, customItem.ID).Scan(&pmCount); err != nil {
+		t.Fatal(err)
+	}
+	if pmCount != 0 {
+		t.Fatalf("expected custom user_personal_meanings row deleted on upgrade, got %d", pmCount)
+	}
+
+	// Same-sense dictionary note update + clear (case c) stores/clears user_personal_meanings with lemma = null.
+	note := "사전 + 내 메모"
+	withNote, err := svc.ChangeLearningItemSense(ctx, userID, customItem.ID, dictSenseA, "ko", &note)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withNote.PersonalNote == nil || *withNote.PersonalNote != note {
+		t.Fatalf("expected same-sense note set, got %v", withNote.PersonalNote)
+	}
+	var pmLemma *string
+	if err := pool.QueryRow(ctx, `select lemma from user_personal_meanings where user_word_sense_id = $1::uuid`, customItem.ID).Scan(&pmLemma); err != nil {
+		t.Fatal(err)
+	}
+	if pmLemma != nil {
+		t.Fatalf("expected nil lemma on dictionary card override, got %v", *pmLemma)
+	}
+	empty := ""
+	cleared, err := svc.ChangeLearningItemSense(ctx, userID, customItem.ID, dictSenseA, "ko", &empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.PersonalNote != nil {
+		t.Fatalf("expected same-sense clear, got %v", cleared.PersonalNote)
+	}
+
+	// Re-saving identical text or clearing a whitespace-only legacy uws.personal_note drains it without resurrection.
+	itemB, err := svc.AddLearningItem(ctx, userID, dictSenseB, "ko", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `update user_word_senses set personal_note = 'legacy note' where id = $1::uuid`, itemB.ID); err != nil {
+		t.Fatal(err)
+	}
+	resaved, err := svc.SetPersonalNote(ctx, userID, itemB.ID, "legacy note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resaved.PersonalNote == nil || *resaved.PersonalNote != "legacy note" {
+		t.Fatalf("expected legacy note migrated to user_personal_meanings, got %v", resaved.PersonalNote)
+	}
+	var pmMeaning string
+	if err := pool.QueryRow(ctx, `select meaning from user_personal_meanings where user_word_sense_id = $1::uuid`, itemB.ID).Scan(&pmMeaning); err != nil {
+		t.Fatal(err)
+	}
+	if pmMeaning != "legacy note" {
+		t.Fatalf("expected user_personal_meanings meaning 'legacy note', got %q", pmMeaning)
+	}
+	var legacyCol *string
+	if err := pool.QueryRow(ctx, `select personal_note from user_word_senses where id = $1::uuid`, itemB.ID).Scan(&legacyCol); err != nil {
+		t.Fatal(err)
+	}
+	if legacyCol != nil {
+		t.Fatalf("expected user_word_senses.personal_note nulled on identical resave, got %q", *legacyCol)
+	}
+
+	if _, err := pool.Exec(ctx, `delete from user_personal_meanings where user_word_sense_id = $1::uuid`, itemB.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `update user_word_senses set personal_note = '   ' where id = $1::uuid`, itemB.ID); err != nil {
+		t.Fatal(err)
+	}
+	drained, err := svc.SetPersonalNote(ctx, userID, itemB.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drained.PersonalNote != nil {
+		t.Fatalf("expected drained legacy note to be nil, got %v", drained.PersonalNote)
+	}
+	if err := pool.QueryRow(ctx, `select personal_note from user_word_senses where id = $1::uuid`, itemB.ID).Scan(&legacyCol); err != nil {
+		t.Fatal(err)
+	}
+	if legacyCol != nil {
+		t.Fatalf("expected whitespace-only user_word_senses.personal_note nulled, got %q", *legacyCol)
+	}
+}
+
+func TestAnkiImportIsolationAndCustomSiblingBurying(t *testing.T) {
+	pool := deckTestPool(t)
+	userID, _ := deckTestUser(t, pool)
+	ctx := context.Background()
+	svc := New(pool, &stubEnricher{enrichErr: enrich.ErrWordNotFound}, admin.NoopLogger{}, learninglog.NoopLogger{}, "", "en", "ko")
+
+	customDeck, err := svc.CreateDeck(ctx, userID, "My Anki Deck", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	existingLemma := fmt.Sprintf("ankidict%d", time.Now().UnixNano())
+	existingSense := insertDeckFixtureWord(t, pool, existingLemma)
+	dictItem, err := svc.AddLearningItem(ctx, userID, existingSense, "ko", customDeck.ID, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	degradedLemma := fmt.Sprintf("ankidegraded%d", time.Now().UnixNano())
+	var degradedWordID, degradedSenseID string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', $1, $1, 'noun') returning id::text
+	`, degradedLemma).Scan(&degradedWordID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'canonical untran gloss', 1) returning id::text
+	`, degradedWordID).Scan(&degradedSenseID); err != nil {
+		t.Fatal(err)
+	}
+
+	unlistedLemma := fmt.Sprintf("ankiunlisted%d", time.Now().UnixNano())
+	importRes, err := svc.ImportAnkiCards(ctx, userID, AnkiImportRequest{
+		LanguageCode:           "en",
+		DefinitionLanguageCode: "ko",
+		Cards: []AnkiCard{
+			{Front: existingLemma, Back: "내 덮어쓰기 뜻", Action: ImportActionOverwriteMeaning},
+			{Front: unlistedLemma, Back: "개인 암기 뜻", Action: ImportActionAdd},
+			{Front: degradedLemma, Back: "canonical untran gloss", Action: ImportActionAdd},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ImportAnkiCards: %v", err)
+	}
+	if importRes.Imported != 3 || importRes.Failed != 0 {
+		t.Fatalf("unexpected import result: %+v", importRes)
+	}
+
+	// Global word_senses.definition must stay untouched; user overrides and custom cards live in user_personal_meanings and keep custom deck.
+	var globalDef, currentDeckID string
+	if err := pool.QueryRow(ctx, `select definition from word_senses where id = $1::uuid`, existingSense).Scan(&globalDef); err != nil {
+		t.Fatal(err)
+	}
+	if globalDef == "내 덮어쓰기 뜻" {
+		t.Fatal("importOverwriteMeaning mutated global word_senses.definition")
+	}
+	if err := pool.QueryRow(ctx, `select deck_id::text from user_word_senses where id = $1::uuid`, dictItem.ID).Scan(&currentDeckID); err != nil {
+		t.Fatal(err)
+	}
+	if currentDeckID != customDeck.ID {
+		t.Fatalf("expected custom deck preserved %q, got %q", customDeck.ID, currentDeckID)
+	}
+	var overrideLemma *string
+	var overrideMeaning string
+	if err := pool.QueryRow(ctx, `
+		select lemma, meaning from user_personal_meanings where user_word_sense_id = $1::uuid
+	`, dictItem.ID).Scan(&overrideLemma, &overrideMeaning); err != nil {
+		t.Fatalf("load overwritten personal meaning: %v", err)
+	}
+	if overrideLemma != nil || overrideMeaning != "내 덮어쓰기 뜻" {
+		t.Fatalf("unexpected overwritten personal meaning: lemma=%v meaning=%q", overrideLemma, overrideMeaning)
+	}
+
+	var unlistedWords int
+	if err := pool.QueryRow(ctx, `select count(*) from words where normalized_text = $1`, unlistedLemma).Scan(&unlistedWords); err != nil {
+		t.Fatal(err)
+	}
+	if unlistedWords != 0 {
+		t.Fatalf("expected unlisted Anki word isolated from global words, got %d", unlistedWords)
+	}
+	var unlistedMeaning string
+	if err := pool.QueryRow(ctx, `
+		select pm.meaning
+		from user_word_senses uws
+		join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		where uws.user_id = $1::uuid and uws.word_sense_id is null and lower(pm.lemma) = $2
+	`, userID, unlistedLemma).Scan(&unlistedMeaning); err != nil {
+		t.Fatalf("load unlisted custom card personal meaning: %v", err)
+	}
+	if unlistedMeaning != "개인 암기 뜻" {
+		t.Fatalf("expected unlisted custom meaning '개인 암기 뜻', got %q", unlistedMeaning)
+	}
+
+	var degradedLemmaPtr *string
+	var degradedMeaning string
+	if err := pool.QueryRow(ctx, `
+		select pm.lemma, pm.meaning
+		from user_word_senses uws
+		join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		where uws.user_id = $1::uuid and uws.word_sense_id = $2::uuid
+	`, userID, degradedSenseID).Scan(&degradedLemmaPtr, &degradedMeaning); err != nil {
+		t.Fatalf("load degraded dictionary personal meaning: %v", err)
+	}
+	if degradedLemmaPtr != nil || degradedMeaning != "canonical untran gloss" {
+		t.Fatalf("unexpected degraded canonical override: lemma=%v meaning=%q", degradedLemmaPtr, degradedMeaning)
+	}
+
+	// Due queue + RecordBatchReviewAttempts + cross-kind sibling burying on shared normalized lemma.
+	sibCustom, err := svc.AddManualLearningItem(ctx, userID, existingLemma, "verb", "en", "ko", "", "", "커스텀 품사 뜻")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dueBefore, err := svc.GetDueReviewItems(ctx, userID, "en", "", "", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundSib bool
+	for _, d := range dueBefore {
+		if d.UserWordSenseID == sibCustom.ID {
+			foundSib = true
+			if !d.IsCustom {
+				t.Fatalf("expected due custom card IsCustom=true")
+			}
+		}
+	}
+	if !foundSib {
+		t.Fatalf("expected custom sibling card in due queue")
+	}
+
+	if _, err := svc.RecordBatchReviewAttempts(ctx, userID, []ReviewAttemptParams{{
+		UserWordSenseID: dictItem.ID,
+		ActivityType:    "word_to_meaning",
+		IsCorrect:       true,
+		RatingScore:     2,
+	}}); err != nil {
+		t.Fatalf("RecordBatchReviewAttempts: %v", err)
+	}
+	dueAfter, err := svc.GetDueReviewItems(ctx, userID, "en", "", "", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range dueAfter {
+		if d.UserWordSenseID == sibCustom.ID {
+			t.Fatalf("expected custom sibling %q to be buried after reviewing dictionary sibling", sibCustom.ID)
+		}
+	}
+}
+

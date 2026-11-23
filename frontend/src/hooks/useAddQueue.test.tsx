@@ -87,9 +87,9 @@ describe('useAddQueue deck-aware', () => {
     });
   });
 
-  it('keeps a coded, user-facing reason when lookup fails', async () => {
+  it('keeps explicit errorInfo when lookup fails', async () => {
     (lookupWord as jest.Mock).mockRejectedValueOnce(
-      new ApiError(503, 'word enrichment provider unavailable', 'ADD-403', true),
+      new ApiError(503, 'word enrichment provider unavailable', 'ADD-403', true, 'provider_unavailable'),
     );
     const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
 
@@ -100,12 +100,18 @@ describe('useAddQueue deck-aware', () => {
     await waitFor(() => {
       expect(result.current.jobs[0]).toMatchObject({
         status: 'error',
-        error: 'ADD-403: The dictionary service is temporarily unavailable. Try again.',
+        error: 'The dictionary service could not be reached right now. Try again or write your own meaning.',
+        errorInfo: expect.objectContaining({
+          code: 'ADD-403',
+          category: 'provider_unavailable',
+          retryable: true,
+          canManualAdd: true,
+        }),
       });
     });
   });
 
-  it('classifies an empty lookup result as no dictionary meaning', async () => {
+  it('classifies an empty lookup result as ADD-309 word not found', async () => {
     (lookupWord as jest.Mock).mockResolvedValueOnce({ sense_options: [] });
     const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
 
@@ -116,8 +122,63 @@ describe('useAddQueue deck-aware', () => {
     await waitFor(() => {
       expect(result.current.jobs[0]).toMatchObject({
         status: 'error',
-        error: 'ADD-303: No additional dictionary meaning was found.',
+        error: "We couldn't find this word in the dictionary. Check the spelling or write your own meaning.",
+        errorInfo: expect.objectContaining({
+          code: 'ADD-309',
+          category: 'not_found',
+          canManualAdd: true,
+        }),
       });
+    });
+  });
+
+  it('classifies translation_missing lookup as ADD-304 and supports retryJob and markManualAdded', async () => {
+    (lookupWord as jest.Mock).mockResolvedValueOnce({
+      translation_missing: true,
+      sense_options: [
+        {
+          word_sense_id: 'sense-en',
+          meaning_order: 1,
+          has_localized_translation: false,
+        },
+      ],
+    });
+    const { result } = await renderHook(() => useAddQueue(), { wrapper: Wrapper });
+
+    await act(() => {
+      result.current.enqueue('ephemeral', 'Any', 'deck-1', 'en', 'Fame is ephemeral.');
+    });
+
+    await waitFor(() => {
+      expect(result.current.jobs[0]).toMatchObject({
+        status: 'error',
+        sourceContext: 'Fame is ephemeral.',
+        errorInfo: expect.objectContaining({
+          code: 'ADD-304',
+          category: 'translation_missing',
+        }),
+      });
+    });
+
+    await act(() => {
+      result.current.markManualAdded('ephemeral', 'manual-sense-1');
+    });
+    expect(result.current.statusOf('ephemeral')).toBe('added');
+
+    (lookupWord as jest.Mock).mockRejectedValueOnce(new ApiError(504, 'timeout', 'ADD-405', true));
+    await act(() => {
+      result.current.enqueue('slow', 'Any');
+    });
+    await waitFor(() => expect(result.current.jobs[1].status).toBe('error'));
+
+    (lookupWord as jest.Mock).mockResolvedValueOnce({
+      sense_options: [{ word_sense_id: 'sense-1', meaning_order: 1 }],
+    });
+    await act(() => {
+      result.current.retryAllFailed();
+    });
+    await waitFor(() => {
+      expect(result.current.jobs[1].status).toBe('done');
     });
   });
 });

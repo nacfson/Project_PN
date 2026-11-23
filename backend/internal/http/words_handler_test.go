@@ -322,7 +322,10 @@ func TestAddLearningItemPersistsPersonalNote(t *testing.T) {
 
 	var got *string
 	err = pool.QueryRow(ctx,
-		`select personal_note from user_word_senses where id=$1::uuid`,
+		`select coalesce(pm.meaning, uws.personal_note)
+		 from user_word_senses uws
+		 left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		 where uws.id=$1::uuid`,
 		item.ID,
 	).Scan(&got)
 	if err != nil {
@@ -341,7 +344,10 @@ func TestAddLearningItemPersistsPersonalNote(t *testing.T) {
 		t.Fatalf("re-add expected 201, got %d body=%s", reRec.Code, reRec.Body.String())
 	}
 	err = pool.QueryRow(ctx,
-		`select personal_note from user_word_senses where id=$1::uuid`,
+		`select coalesce(pm.meaning, uws.personal_note)
+		 from user_word_senses uws
+		 left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		 where uws.id=$1::uuid`,
 		item.ID,
 	).Scan(&got)
 	if err != nil {
@@ -606,7 +612,10 @@ func TestWriteServiceErrorMapsNotConfigured(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "set ENRICH_PRIMARY_BASE_URL") {
+	if strings.Contains(rec.Body.String(), "ENRICH_PRIMARY") {
+		t.Fatalf("must not leak internal env var names: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"code":"ADD-402"`) || !strings.Contains(rec.Body.String(), `"reason":"enrichment_not_configured"`) {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
 }
@@ -620,7 +629,10 @@ func TestWriteServiceErrorMapsUnavailable(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected %d, got %d body=%s", http.StatusServiceUnavailable, rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "unreachable or rejected") {
+	if strings.Contains(rec.Body.String(), "ENRICH_PRIMARY") {
+		t.Fatalf("must not leak internal env var names: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"reason":"provider_unavailable"`) {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
 }
@@ -636,6 +648,7 @@ func TestWriteServiceErrorReturnsStableAddErrorCode(t *testing.T) {
 	}
 	var response struct {
 		Code      string `json:"code"`
+		Reason    string `json:"reason"`
 		Retryable bool   `json:"retryable"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
@@ -644,6 +657,9 @@ func TestWriteServiceErrorReturnsStableAddErrorCode(t *testing.T) {
 	if response.Code != "ADD-403" {
 		t.Fatalf("expected ADD-403, got %q", response.Code)
 	}
+	if response.Reason != "provider_unavailable" {
+		t.Fatalf("expected provider_unavailable, got %q", response.Reason)
+	}
 	if !response.Retryable {
 		t.Fatal("expected enrichment-provider failure to be retryable")
 	}
@@ -651,21 +667,30 @@ func TestWriteServiceErrorReturnsStableAddErrorCode(t *testing.T) {
 
 func TestWriteServiceErrorClassifiesEveryKnownAddFailure(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
-		code string
+		name      string
+		err       error
+		status    int
+		code      string
+		reason    string
+		retryable bool
 	}{
-		{name: "missing sense", err: words.ErrSenseNotFound, code: "ADD-302"},
-		{name: "translation unavailable", err: words.ErrTranslationUnavailable, code: "ADD-304"},
-		{name: "missing deck", err: words.ErrDeckNotFound, code: "ADD-305"},
-		{name: "deck unavailable", err: words.ErrDeckLanguageMismatch, code: "ADD-306"},
-		{name: "invalid language", err: words.ErrInvalidTargetLang, code: "ADD-307"},
-		{name: "existing sense", err: words.ErrSenseConflict, code: "ADD-308"},
-		{name: "unsupported language", err: enrich.ErrUnsupportedLanguage, code: "ADD-401"},
-		{name: "enrichment unconfigured", err: enrich.ErrNotConfigured, code: "ADD-402"},
-		{name: "enrichment unavailable", err: enrich.ErrUnavailable, code: "ADD-403"},
-		{name: "invalid enrichment output", err: enrich.ErrInvalidOutput, code: "ADD-404"},
-		{name: "no additional sense", err: words.ErrNoAdditionalSense, code: "ADD-303"},
+		{name: "empty word text", err: words.ErrEmptyWordText, status: http.StatusBadRequest, code: "ADD-301", reason: "invalid_request", retryable: false},
+		{name: "missing sense", err: words.ErrSenseNotFound, status: http.StatusUnprocessableEntity, code: "ADD-302", reason: "sense_not_found", retryable: false},
+		{name: "no additional senses", err: enrich.ErrNoAdditionalSenses, status: http.StatusUnprocessableEntity, code: "ADD-303", reason: "no_additional_senses", retryable: false},
+		{name: "no additional sense", err: words.ErrNoAdditionalSense, status: http.StatusUnprocessableEntity, code: "ADD-303", reason: "no_additional_senses", retryable: false},
+		{name: "translation unavailable", err: words.ErrTranslationUnavailable, status: http.StatusUnprocessableEntity, code: "ADD-304", reason: "translation_unavailable", retryable: false},
+		{name: "no display gloss", err: enrich.ErrNoDisplayGloss, status: http.StatusUnprocessableEntity, code: "ADD-304", reason: "translation_unavailable", retryable: false},
+		{name: "missing deck", err: words.ErrDeckNotFound, status: http.StatusNotFound, code: "ADD-305", reason: "deck_not_found", retryable: false},
+		{name: "deck unavailable", err: words.ErrDeckLanguageMismatch, status: http.StatusForbidden, code: "ADD-306", reason: "deck_unavailable", retryable: false},
+		{name: "invalid language", err: words.ErrInvalidTargetLang, status: http.StatusBadRequest, code: "ADD-307", reason: "language_invalid", retryable: false},
+		{name: "existing sense", err: words.ErrSenseConflict, status: http.StatusConflict, code: "ADD-308", reason: "already_added", retryable: false},
+		{name: "word not found", err: enrich.ErrWordNotFound, status: http.StatusNotFound, code: "ADD-309", reason: "word_not_found", retryable: false},
+		{name: "personal meaning required", err: words.ErrPersonalNoteRequired, status: http.StatusBadRequest, code: "ADD-310", reason: "personal_meaning_required", retryable: false},
+		{name: "unsupported language", err: enrich.ErrUnsupportedLanguage, status: http.StatusServiceUnavailable, code: "ADD-401", reason: "language_unsupported", retryable: false},
+		{name: "enrichment unconfigured", err: enrich.ErrNotConfigured, status: http.StatusServiceUnavailable, code: "ADD-402", reason: "enrichment_not_configured", retryable: false},
+		{name: "enrichment unavailable", err: enrich.ErrUnavailable, status: http.StatusServiceUnavailable, code: "ADD-403", reason: "provider_unavailable", retryable: true},
+		{name: "invalid enrichment output", err: enrich.ErrInvalidOutput, status: http.StatusServiceUnavailable, code: "ADD-404", reason: "provider_invalid_output", retryable: true},
+		{name: "provider timeout", err: enrich.ErrProviderTimeout, status: http.StatusGatewayTimeout, code: "ADD-405", reason: "provider_timeout", retryable: true},
 	}
 
 	for _, tt := range tests {
@@ -673,8 +698,13 @@ func TestWriteServiceErrorClassifiesEveryKnownAddFailure(t *testing.T) {
 			rec := httptest.NewRecorder()
 			(&wordsHandler{}).writeServiceError(rec, httptest.NewRequest(http.MethodPost, "/api/learning-items", nil), tt.err)
 
+			if rec.Code != tt.status {
+				t.Fatalf("expected status %d, got %d body=%s", tt.status, rec.Code, rec.Body.String())
+			}
 			var response struct {
-				Code string `json:"code"`
+				Code      string `json:"code"`
+				Reason    string `json:"reason"`
+				Retryable bool   `json:"retryable"`
 			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 				t.Fatalf("decode error response: %v", err)
@@ -682,7 +712,69 @@ func TestWriteServiceErrorClassifiesEveryKnownAddFailure(t *testing.T) {
 			if response.Code != tt.code {
 				t.Fatalf("expected %s, got %q", tt.code, response.Code)
 			}
+			if response.Reason != tt.reason {
+				t.Fatalf("expected reason %s, got %q", tt.reason, response.Reason)
+			}
+			if response.Retryable != tt.retryable {
+				t.Fatalf("expected retryable=%v, got %v", tt.retryable, response.Retryable)
+			}
 		})
+	}
+}
+
+func TestAddManualLearningItemEndpointValidationAndPersistence(t *testing.T) {
+	router, token, pool, _ := validationRouterWithPool(t)
+	ctx := context.Background()
+
+	// Empty personal_note fails with ADD-310.
+	badReq := authRequest(t, http.MethodPost, "/api/learning-items/manual", `{"text":"vibe","personal_note":"  "}`, token)
+	badRec := httptest.NewRecorder()
+	router.ServeHTTP(badRec, badReq)
+	if badRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty personal_note, got %d body=%s", badRec.Code, badRec.Body.String())
+	}
+	if !strings.Contains(badRec.Body.String(), `"code":"ADD-310"`) {
+		t.Fatalf("expected ADD-310, got %s", badRec.Body.String())
+	}
+
+	lemma := "manualword" + time.Now().Format("150405.000000")
+	req := authRequest(t, http.MethodPost, "/api/learning-items/manual", `{"text":"`+lemma+`","part_of_speech":"noun","language_code":"en","display_language_code":"ko","personal_note":"내 단어 뜻"}`, token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var item words.LearningItem
+	if err := json.NewDecoder(rec.Body).Decode(&item); err != nil {
+		t.Fatalf("decode item: %v", err)
+	}
+	if !item.IsCustom || item.WordSenseID != "" {
+		t.Fatalf("expected custom card with empty word_sense_id, got %+v", item)
+	}
+	if item.PersonalNote == nil || *item.PersonalNote != "내 단어 뜻" {
+		t.Fatalf("expected personal_note in response, got %v", item.PersonalNote)
+	}
+
+	var storedLemma, storedPOS, storedMeaning string
+	var wsID *string
+	if err := pool.QueryRow(ctx, `
+		select uws.word_sense_id::text, pm.lemma, pm.part_of_speech, pm.meaning
+		from user_word_senses uws
+		join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		where uws.id = $1::uuid`, item.ID,
+	).Scan(&wsID, &storedLemma, &storedPOS, &storedMeaning); err != nil {
+		t.Fatalf("query user_personal_meanings: %v", err)
+	}
+	if wsID != nil || storedLemma != lemma || storedPOS != "noun" || storedMeaning != "내 단어 뜻" {
+		t.Fatalf("unexpected custom row: wsID=%v lemma=%q pos=%q meaning=%q", wsID, storedLemma, storedPOS, storedMeaning)
+	}
+
+	var globalWordCount int
+	if err := pool.QueryRow(ctx, `select count(*) from words where normalized_text = $1`, lemma).Scan(&globalWordCount); err != nil {
+		t.Fatalf("count global words: %v", err)
+	}
+	if globalWordCount != 0 {
+		t.Fatalf("expected zero rows in global words table, got %d", globalWordCount)
 	}
 }
 

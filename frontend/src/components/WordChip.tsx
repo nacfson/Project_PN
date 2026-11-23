@@ -9,6 +9,7 @@ interface WordChipProps {
   status: WordStatus;
   onPress?: () => void;
   onRemove?: () => void;
+  testID?: string;
 }
 
 const STATUS_LABEL: Record<WordStatus, string> = {
@@ -18,7 +19,7 @@ const STATUS_LABEL: Record<WordStatus, string> = {
   error: 'error',
 };
 
-export function WordChip({ word, status, onPress, onRemove }: WordChipProps) {
+export function WordChip({ word, status, onPress, onRemove, testID }: WordChipProps) {
   const { colors, radii, spacing } = useTheme();
 
   const palette = {
@@ -32,6 +33,7 @@ export function WordChip({ word, status, onPress, onRemove }: WordChipProps) {
 
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={[
         styles.chip,

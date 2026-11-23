@@ -54,19 +54,22 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly retryable: boolean;
+  readonly reason?: string;
 
-  constructor(status: number, message: string, code?: string, retryable = false) {
+  constructor(status: number, message: string, code?: string, retryable = false, reason?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.retryable = retryable;
+    this.reason = reason;
   }
 }
 
 interface ErrorBody {
   error?: string;
   code?: string;
+  reason?: string;
   retryable?: boolean;
 }
 
@@ -248,8 +251,16 @@ function throwOnError(response: Response, parsed: unknown): void {
   if (!response.ok) {
     const body = parsed as ErrorBody | null;
     const message = body?.error ?? `Request failed (${response.status})`;
-    throw new ApiError(response.status, message, body?.code, body?.retryable === true);
+    throw new ApiError(response.status, message, body?.code, body?.retryable === true, body?.reason);
   }
+}
+
+function toNetworkApiError(err: unknown, fallbackMessage?: string): ApiError {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('Request timed out')) {
+    return new ApiError(0, 'Request timed out', 'ADD-102', true, 'request_timeout');
+  }
+  return new ApiError(0, fallbackMessage ?? `Network request failed: ${msg}`);
 }
 
 export async function getJson<TResponse>(path: string, options?: RequestOptions): Promise<TResponse> {
@@ -270,8 +281,7 @@ export async function getJson<TResponse>(path: string, options?: RequestOptions)
   try {
     response = await execute();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new ApiError(0, 'Network request failed: ' + msg);
+    throw toNetworkApiError(err);
   }
 
   let parsed = await parseResponse(response);
@@ -301,8 +311,8 @@ export async function postJson<TResponse>(
   let response: Response;
   try {
     response = await execute();
-  } catch {
-    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  } catch (err) {
+    throw toNetworkApiError(err, 'Network request failed. Is the backend running?');
   }
 
   let parsed = await parseResponse(response);
@@ -332,8 +342,8 @@ export async function patchJson<TResponse>(
   let response: Response;
   try {
     response = await execute();
-  } catch {
-    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  } catch (err) {
+    throw toNetworkApiError(err, 'Network request failed. Is the backend running?');
   }
 
   let parsed = await parseResponse(response);
@@ -361,8 +371,8 @@ export async function deleteJson<TResponse>(
   let response: Response;
   try {
     response = await execute();
-  } catch {
-    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  } catch (err) {
+    throw toNetworkApiError(err, 'Network request failed. Is the backend running?');
   }
 
   let parsed = await parseResponse(response);
@@ -406,8 +416,8 @@ export async function postFormData<TResponse>(
   let response: Response;
   try {
     response = await execute();
-  } catch {
-    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  } catch (err) {
+    throw toNetworkApiError(err, 'Network request failed. Is the backend running?');
   }
 
   let parsed = await parseResponse(response);
@@ -437,8 +447,8 @@ export async function postNoContent(
   let response: Response;
   try {
     response = await execute();
-  } catch {
-    throw new ApiError(0, 'Network request failed. Is the backend running?');
+  } catch (err) {
+    throw toNetworkApiError(err, 'Network request failed. Is the backend running?');
   }
 
   if (!response.ok) {

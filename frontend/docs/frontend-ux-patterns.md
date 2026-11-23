@@ -17,7 +17,7 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 - Show soft validation feedback after blur, not while the user is still typing.
 - Use the `error` and `helperText` props on `Input`.
-- Add translation keys for validation messages to both `en` and `ko` in `frontend/src/i18n/translations.ts`.
+- Add translation keys for validation messages to both `en` and `ko` in `frontend/src/i18n/csv/<prefix>.csv` and run `npm run i18n:sync` to regenerate `frontend/src/i18n/translations.ts`.
 
 ## Loading states
 
@@ -37,7 +37,12 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 - On first paint with a deck selected, the Manual Add input (`testID="manual-add-input-wrapper"`) must be visible without an extra tap.
 - Do not flip the default to passage or remove Manual Add without an explicit product decision. `AddScreen.test.tsx` is the CI gate for this invariant.
 - Ownership cluster: `frontend/src/navigation/AddScreen.tsx`, `AddScreen.test.tsx`, `frontend/src/features/add/ManualAddSection.tsx`, `CaptureSection.tsx` (related: `SensePicker.tsx`, `useSenseFlow.ts`). See `GEMINI.md` Add-tab UI ownership.
-- **Gloss-only `SensePicker`**: `SensePicker` renders a single compact localized gloss (`displayGloss`) and optional part-of-speech tag per sense row, plus the "Closest to your sentence" badge when `similarity >= 0.08`. It never renders English dictionary definitions or example sentences on sense option rows.
+- **Gloss-only `SensePicker`**: `SensePicker` renders a single compact localized gloss (`displayGloss`) and optional part-of-speech tag per sense row, plus the "Closest to your sentence" badge when `similarity >= 0.08`. It never renders English dictionary definitions or example sentences on sense option rows during normal localized lookup.
+- **Explicit error & manual personal-meaning recovery**:
+  - Lookup errors render a cause-specific card (soft warning for `ADD-309` not found / `ADD-304` missing translation / `ADD-303` no more senses; danger for `ADD-403`/`ADD-405`/`ADD-101`/`ADD-102` service/network issues) without raw `ADD-403:` headline prefixes, keeping the diagnostic code as muted caption text and offering **Try again** (retryable) or **Edit word** (`ADD-309`).
+  - When `translation_missing` is true, `SensePicker` explains that no localized gloss was found, displays the canonical English definitions, and requires an inline personal meaning (`personal_note`) before saving.
+  - When lookup finds no options (or via "Write my own meaning instead"), `SensePicker` provides an inline manual-meaning form (`POST /api/learning-items/manual`) with optional POS selection so learners can save unlisted words/phrases immediately.
+  - In `CaptureSection`, failed `WordChip` pills are tappable to open `SensePicker` with the containing passage sentence as `source_context`, and `QueueBanner` groups ≥ 2 failed batch jobs into a collapsible summary with **Retry failed** and **Dismiss all**.
 
 ## Keyboard shortcuts (web / desktop)
 
@@ -103,5 +108,6 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 
 ## Translations
 
-- Every new user-facing string needs a `TranslationKey` in `frontend/src/i18n/translations.ts`.
-- Add the key to both English and Korean before opening a PR.
+- Every new user-facing string needs a key (`<prefix>.<name>`) with both `en` and `ko` values in `frontend/src/i18n/csv/<prefix>.csv`.
+- Run `npm run i18n:sync` to regenerate `frontend/src/i18n/translations.ts` (never hand-edit `translations.ts`), and verify with `npm run i18n:check` before opening a PR.
+- For bulk spreadsheet editing, run `npm run i18n:export`, edit the exported UTF-8 BOM CSV, and run `npm run i18n:import -- <path>`.

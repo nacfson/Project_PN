@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 )
 
@@ -28,33 +29,50 @@ func NewFallback(primary, fallback Enricher, logger *slog.Logger) Enricher {
 }
 
 func (f *FallbackEnricher) Enrich(ctx context.Context, req Request) (Result, error) {
-	result, err := f.primary.Enrich(ctx, req)
-	if err == nil {
-		return result, nil
+	primaryResult, primaryErr := f.primary.Enrich(ctx, req)
+	if primaryErr == nil {
+		return primaryResult, nil
 	}
 	if f.fallback == nil {
-		return Result{}, err
+		return primaryResult, primaryErr
 	}
-	if errors.Is(err, ErrNotConfigured) {
+	if errors.Is(primaryErr, ErrNotConfigured) {
 		f.logger.Debug("enrich: primary not configured, trying fallback")
 	} else {
-		f.logger.Warn("enrich: primary failed, trying fallback", "primary_error", err)
+		f.logger.Warn("enrich: primary failed, trying fallback", "primary_error", primaryErr)
 	}
-	return f.fallback.Enrich(ctx, req)
+	fallbackResult, fallbackErr := f.fallback.Enrich(ctx, req)
+	if fallbackErr == nil {
+		return fallbackResult, nil
+	}
+	if errors.Is(fallbackErr, ErrNotConfigured) {
+		return primaryResult, primaryErr
+	}
+	if errors.Is(primaryErr, ErrNoDisplayGloss) && len(primaryResult.Entries) > 0 {
+		return primaryResult, fmt.Errorf("%w (fallback failed: %v)", primaryErr, fallbackErr)
+	}
+	return Result{}, fallbackErr
 }
 
 func (f *FallbackEnricher) Translate(ctx context.Context, req TranslateRequest) (TranslateResult, error) {
-	result, err := f.primary.Translate(ctx, req)
-	if err == nil {
-		return result, nil
+	primaryResult, primaryErr := f.primary.Translate(ctx, req)
+	if primaryErr == nil {
+		return primaryResult, nil
 	}
 	if f.fallback == nil {
-		return TranslateResult{}, err
+		return TranslateResult{}, primaryErr
 	}
-	if errors.Is(err, ErrNotConfigured) {
+	if errors.Is(primaryErr, ErrNotConfigured) {
 		f.logger.Debug("enrich: primary translate not configured, trying fallback")
 	} else {
-		f.logger.Warn("enrich: primary translate failed, trying fallback", "primary_error", err)
+		f.logger.Warn("enrich: primary translate failed, trying fallback", "primary_error", primaryErr)
 	}
-	return f.fallback.Translate(ctx, req)
+	fallbackResult, fallbackErr := f.fallback.Translate(ctx, req)
+	if fallbackErr == nil {
+		return fallbackResult, nil
+	}
+	if errors.Is(fallbackErr, ErrNotConfigured) {
+		return TranslateResult{}, primaryErr
+	}
+	return TranslateResult{}, fallbackErr
 }

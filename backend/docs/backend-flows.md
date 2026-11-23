@@ -19,7 +19,7 @@
 - Provider: `google` (Google OAuth).
 - Same verified email: automatically bound on Google sign-in.
 - Different emails, same domain: soft merge hint in Settings; manual merge via `POST /api/auth/merge-requests` + confirm (target user logged in).
-- Word lists are unioned on merge; duplicate `(user, word_sense)` rows keep the target account schedule.
+- Word lists are unioned on merge; duplicate `(user, word_sense)` dictionary rows and colliding `(target_language, lower(lemma), part_of_speech)` custom cards keep the target account schedule, and colliding decks (`is_default = true` or matching `(target_language, lower(name))`) reparent their items onto the target deck before remaining decks transfer.
 
 ## Add-Word Flow
 
@@ -27,13 +27,22 @@
 2. App normalizes the word text.
 3. App creates or reuses a row in `words`.
 4. App creates or selects the intended row in `word_senses`.
-5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language. On-demand Translate is best-effort per sense: extra or missing example translations no longer abort the whole word. If the enricher is unconfigured or the provider rejects the request, add returns HTTP 503 with that cause. If Translate ran but this sense still has no valid display-language definition, the add is rejected with HTTP 422.
+5. Before committing the personal row, app ensures a valid `sense_translations` row exists for the requested `display_language_code` when it differs from the word's target language — **unless** the caller provided a non-empty `personal_note` (personal meaning override). On-demand Translate is best-effort per sense: extra or missing example translations no longer abort the whole word. If the enricher is unconfigured or the provider rejects/times out, add returns HTTP 503/504 (`ADD-402` / `ADD-403` / `ADD-405`). If Translate ran and confirmed no display-language gloss exists (and `personal_note` is empty), the add is rejected with HTTP 422 (`ADD-304`, `reason: "translation_unavailable"`).
 6. App resolves the target deck. If the request includes `deck_id`, it validates ownership and that the deck's `target_language` matches the word's `language_code`. Otherwise it uses the active target language's default deck, creating the default deck if necessary.
-7. App upserts a row in `user_word_senses` with the chosen `deck_id`. Optional `source_context` (provenance) and `personal_note` (display override) may be stored. On conflict re-add, empty/omitted `personal_note` keeps the existing note (same coalesce pattern as `source_context`).
+7. App upserts a row in `user_word_senses` with the chosen `deck_id`. Optional `source_context` (provenance) is stored on `user_word_senses`, while non-empty `personal_note` (display override) is stored privately in `user_personal_meanings` (nulling legacy `user_word_senses.personal_note`). On conflict re-add, empty/omitted `personal_note` keeps any existing personal meaning override (same preserve pattern as `source_context`).
 8. App creates one `review_states` row if missing.
 9. App may attach sense-specific examples.
 
 `POST /api/learning-items` body: `{ "word_sense_id", "display_language_code", "deck_id?", "source_context?", "personal_note?" }`. `word_sense_id` remains required. `personal_note` is personal display-only; it never writes to `word_senses` / `sense_translations`. List and due payloads include `personal_note` so clients can prefer it over catalog glosses.
+
+### Manual Personal-Meaning Flow (`POST /api/learning-items/manual`)
+
+When a word or phrase does not exist in the dictionary API (or enrichment is unavailable/missing display-language translations):
+
+1. Client submits `{ "text", "personal_note", "part_of_speech?", "language_code?", "display_language_code?", "deck_id?", "source_context?" }`. Non-empty `text` (`ADD-301`) and non-empty `personal_note` (`ADD-310`) are required.
+2. App cleans outer punctuation while preserving display casing (`cleanManualLemma`), coerces multi-word inputs to `part_of_speech = 'phrase'` (defaulting empty/`Any` to `'unknown'`), and resolves the target deck.
+3. Under a per-`(user, langCode, normalized, pos)` transaction advisory lock (`pg_advisory_xact_lock`), app creates or unarchives a custom `user_word_senses` row with `word_sense_id = NULL` (`personal_note = NULL`) and upserts `user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)` plus `review_states`, never touching global `words` or `word_senses`.
+4. List/Due queries `LEFT JOIN` dictionary tables, return `word_sense_id = ""`, `word_id = ""`, `is_custom = true`, project `meaning` into `definition`/`localized_definition`/`personal_note`, and inherit `language_code` from `decks.target_language`.
 
 Steps 6-8 must be idempotent: re-adding the same `(user_id, word_sense_id)` must not fail, and the `review_states` row must be created with `ON CONFLICT (user_word_sense_id) DO UPDATE SET updated_at = now()` semantics so a second call does not reset the schedule.
 
@@ -43,11 +52,11 @@ Steps 6-8 must be idempotent: re-adding the same `(user_id, word_sense_id)` must
 2. API derives the acting user from the bearer session.
 3. API resolves the target language. If `language_code` is omitted, the active `user_languages` row is used.
 4. If `deck_id` is provided, API validates deck ownership and resolves the target language from the deck.
-5. API queries `user_word_senses` joined to `word_senses`, `words`, `decks`, and `review_states`, filtering to the resolved target language and deck.
+5. API queries `user_word_senses` joined to `decks` and `review_states` and `LEFT JOIN`ed to `word_senses`, `words`, `sense_translations`, and `user_personal_meanings`, filtering by `decks.target_language` and deck.
 6. API excludes rows where `user_word_senses.archived_at is not null`.
-7. If `q` is present, API normalizes it and filters with `words.normalized_text like q || '%'`.
+7. If `q` is present, API normalizes it and filters with `coalesce(words.normalized_text, lower(pm.lemma)) like q || '%'`.
 8. API orders by `user_word_senses.added_at` plus `id` as a stable tie-breaker.
-9. API loads example sentences and their translations for each returned item when present.
+9. API loads example sentences and their translations for each dictionary item when `word_sense_id != ""`.
 10. API returns up to `limit` items and an opaque `next_cursor` when another page exists.
 
 Rules:
@@ -66,11 +75,30 @@ This is the `POST /api/words/lookup` happy path when the global cache has no row
 2. App resolves the target/display language pair (request or active `user_languages`).
 3. App queries `words` by `(language_code, normalized_text[, part_of_speech])`. On a cache hit, load senses and left-join `sense_translations` for the display language.
 4. On a hit with missing display-language translations, app may call the enricher's `Translate` (WiktApi re-query) and upsert `sense_translations`.
-5. On a full miss, app calls the configured enricher. Default is **WiktApi** (`ORIGIN_WIKTAPI_BASE_URL`, no API key): `GET /v1/en/word/{lemma}/translations`, keep display-language glosses (e.g. `ko`), map each gloss to one sense (no examples required). When the English translations table has no display-language entries (e.g. `procurement`, `implicitly`), WiktApi falls back to `GET /v1/{displayLang}/word/{lemma}/definitions` (and base English stems for inflected forms like `intertwined` → `intertwine`).
-6. In one transaction, upsert `words`, run `FilterProperSenses` on each entry (same criteria as Force-Generate step 4: simple display-language gloss uniqueness vs existing catalog text and others in the batch), then `appendSenses` for survivors (canonical text + display gloss in `sense_translations`). Entries that filter to empty are skipped; if every entry is empty, return no senses (do not leave empty `words` rows from this miss). Words enriched before this filter may still show duplicate-looking cards until cleaned or force-regenerated.
-7. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard (definition + localized gloss, excluding the lemma and English stopwords so headword restatements do not dominate) and sets `similarity` on each option. Stored `meaning_order` is unchanged.
+5. On a full miss, app calls the configured enricher (checking a 60s negative cache for deterministic `ErrWordNotFound` first). Default is **WiktApi** (`ORIGIN_WIKTAPI_BASE_URL`, no API key, 8s per-request timeout): `GET /v1/{targetLang}/word/{lemma}/translations`, keep display-language glosses (e.g. `ko`), map each gloss to one sense (no examples required). When the translations table has no display-language entries (e.g. `procurement`, `implicitly`), WiktApi falls back to `GET /v1/{displayLang}/word/{lemma}/definitions` and English base stems (`englishStemCandidates` runs even when the inflected root 404s).
+6. If display-language glosses are still absent across all candidates, WiktApi probes `GET /v1/{targetLang}/word/{lemma}/definitions` (or collected canonical senses) and returns canonical target-language entries alongside `ErrNoDisplayGloss` so `FallbackEnricher` tries the LLM first; if no LLM succeeds and canonical entries exist, `Lookup` persists them (`filterSenses = false`) and returns HTTP 200 with `translation_missing: true` and `has_localized_translation: false` on each option.
+7. Otherwise, on `err == nil`, app runs `FilterProperSenses` on each entry and persists survivors to global dictionary tables (`words` / `word_senses`).
+8. Return sense options for **Select Words** (lemma → list of glosses). Optional `source_context` re-ranks options by token Jaccard and sets `similarity` on each option. Stored `meaning_order` is unchanged.
 
-If WiktApi has no entry and no legacy Gemini fallback is configured, lookup returns HTTP 503 for **single-word** lemmas. Multi-word phrases usually miss on public WiktApi; when an LLM key is configured, **phrase lookups try the LLM first**, then WiktApi, using phrase-specific gloss rules. If both fail (or no LLM key is set), lookup **creates a draft `phrase` sense** so the learner can still add the expression to a private deck via `user_word_senses`; better shared senses can be force-generated later when enrichment is available. Phrases are stored as normal `words` rows (`normalized_text` keeps spaces, e.g. `in which`) with `part_of_speech = 'phrase'` (enrichment/persist coerce multi-word lemmas away from noun/verb tags). Manual add and passage phrase-mode can submit multi-word lemmas the same way as single words.
+### Explicit Lookup & Add Error Mapping (`ADD-*`)
+
+| Code | HTTP | `reason` | `retryable` | Cause |
+|------|------|----------|-------------|-------|
+| `ADD-301` | 400 | `invalid_request` | `false` | Empty word text or invalid request parameters |
+| `ADD-302` | 404/422 | `sense_not_found` | `false` | Unknown sense or learning item ID |
+| `ADD-303` | 422 | `no_additional_senses` | `false` | Force lookup found no new distinct senses |
+| `ADD-304` | 422 | `translation_unavailable` | `false` | Word exists in target language, no display-language gloss and no `personal_note` |
+| `ADD-305` | 404 | `deck_not_found` | `false` | Target deck not found |
+| `ADD-306` | 403 | `deck_unavailable` | `false` | Deck not owned or target language mismatch |
+| `ADD-307` | 400 | `language_invalid` | `false` | Invalid target language |
+| `ADD-308` | 409 | `already_added` | `false` | Sense already in user's active learning set |
+| `ADD-309` | 404 | `word_not_found` | `false` | Word not found in dictionary or stem endpoints |
+| `ADD-310` | 400 | `personal_meaning_required` | `false` | Empty `personal_note` on manual add |
+| `ADD-401` | 503 | `language_unsupported` | `false` | Target language requires multilingual AI provider |
+| `ADD-402` | 503 | `enrichment_not_configured` | `false` | No enrichment endpoint configured |
+| `ADD-403` | 503 | `provider_unavailable` | `true` | Upstream dictionary/LLM unreachable or returned 5xx/429 |
+| `ADD-404` | 503 | `provider_invalid_output` | `true` | Upstream returned unusable/empty output |
+| `ADD-405` | 504 | `provider_timeout` | `true` | Upstream dictionary/LLM request timed out |
 
 ## Force-Generate Flow (none of these match)
 
@@ -80,7 +108,7 @@ This is the `POST /api/words/lookup` path with `force: true` (Select Words / Cha
 2. Load existing sense definitions (for the LLM `Existing` list) and display-language gloss texts (for the propriety filter).
 3. Ask the enricher for additional glosses. WiktApi skips glosses already present. If WiktApi has nothing new it returns `ErrUnavailable`, and the Gemini/OpenAI fallback runs when `ENRICH_PRIMARY_API_KEY` is set. The LLM is steered by `source_context` and must not emit near-synonym pairs.
 4. Run `FilterProperSenses` on the new batch: drop empty rows, missing display-language glosses, long paraphrases that are not a simple gloss, and near-duplicates (token Jaccard ≥ 0.8 vs existing catalog text or others in the batch).
-5. If the filter empties the batch, return HTTP 503 `no additional distinct sense` (do not re-return the same list as success).
+5. If the filter empties the batch, return HTTP 422 (`ADD-303`, `no_additional_senses`) — do not re-return the same list as success.
 6. Append survivors as shared `word_senses` / `sense_translations` and return the refreshed options, re-ranked when `source_context` is set.
 
 If no LLM key is configured and WiktApi has nothing new, force returns HTTP 503 (same enrichment-unavailable family). Typed / `personal_note` glosses are not accepted on this path.
@@ -89,17 +117,18 @@ If no LLM key is configured and WiktApi has nothing new, force returns HTTP 503 
 
 `PATCH /api/learning-items/{id}` with body `{ "word_sense_id": "...", "display_language_code": "...", "personal_note?": "..." }`:
 
-1. Load the learning item by `id` + authenticated `user_id` (404 if missing).
-2. Verify the new sense exists and belongs to the same `word_id` as the current sense (422 otherwise).
-3. Ensure display-language translations as on add.
-4. If another **active** card already has `(user_id, new_word_sense_id)`, return HTTP 409 `sense_already_in_learning_set`.
-5. Update `user_word_senses.word_sense_id`. Do **not** modify `review_states`.
-6. `personal_note` policy:
-   - Sense **swap** with note omitted → clear `personal_note` (old wording belonged to the previous sense).
-   - Sense swap with non-empty note → set the new note.
-   - Sense swap with `""` (or JSON null treated as clear when provided as empty string) → clear.
-   - **Same** `word_sense_id` with a provided note → note-only update (no 409; schedule unchanged).
+1. Load and row-lock (`FOR UPDATE`) the active learning item by `id` + authenticated `user_id` (404 if missing or archived).
+2. Verify the new sense exists and either (a) belongs to the same `word_id` as the current dictionary sense, or (b) upgrades a custom card (`word_sense_id is null`) whose `(deck.target_language, lower(pm.lemma))` matches the target sense's `(words.language_code, words.normalized_text)` (422 otherwise).
+3. Ensure display-language translations as on add (outside transaction).
+4. If another **active** card already has `(user_id, new_word_sense_id)`, return HTTP 409 `sense_already_in_learning_set` (delete any archived duplicate so unique `(user_id, word_sense_id)` succeeds).
+5. Update `user_word_senses.word_sense_id` (and clear `user_word_senses.personal_note = null`). Do **not** modify `review_states`.
+6. `personal_note` / `user_personal_meanings` policy:
+   - Sense **swap / upgrade** with note omitted → delete `user_personal_meanings` row (old wording/custom lemma belonged to the previous state).
+   - Sense swap / upgrade with non-empty note → upsert `user_personal_meanings` (`lemma = null, part_of_speech = null`, `meaning = note`).
+   - Sense swap / upgrade with `""` → delete `user_personal_meanings` row.
+   - **Same** dictionary `word_sense_id` with a provided note → upsert or delete `user_personal_meanings` row (`lemma = null, part_of_speech = null`; no 409; schedule unchanged).
    - Same sense with note omitted → no-op.
+   - Custom card (`word_sense_id` omitted) with note → update `user_personal_meanings.meaning` (preserving `lemma`/`part_of_speech`; empty clears are rejected with `ADD-310`).
 
 ## Archive Learning Item Flow
 
@@ -130,11 +159,11 @@ go run ./cmd/retranslate-senses -email 'you@example.com' -continue-on-error
 
 ## Review Flow
 
-1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. It queries due items by joining `review_states` to `user_word_senses`, `words`, and `decks`, filtering to the resolved target language and deck.
+1. App resolves the active target language from `user_languages` (or from the explicit `language_code` query parameter). If `deck_id` is provided, it validates ownership and uses the deck's target language. It queries due items by joining `review_states` to `user_word_senses` and `decks` and `LEFT JOIN`ing `word_senses`, `words`, `sense_translations`, and `user_personal_meanings`, filtering by `decks.target_language` and deck.
 2. App loads or creates the user's `review_settings` (lazily, with defaults).
 3. App loads today's `daily_review_counts` for the user.
 4. App excludes rows where `user_word_senses.archived_at is not null`, `review_states.is_suspended = true`, or `review_states.buried_until > now()`.
-5. App returns unfinished intra-day Learning/Relearning items first (no daily quota, including cards whose step interval has not elapsed yet), then Review items (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`). This recovers a failed-word retry queue if the user exits or refreshes mid-session. Within the review-like group and the new-card group, items are shuffled and then interleaved by `word_id` so origin/add order cannot be memorized.
+5. App returns unfinished intra-day Learning/Relearning items first (no daily quota, including cards whose step interval has not elapsed yet), then Review items (up to `reviews_per_day - reviews_done`), then New items (up to `new_cards_per_day - new_cards_done`). This recovers a failed-word retry queue if the user exits or refreshes mid-session. Within the review-like group and the new-card group, items are shuffled and then round-robin interleaved by normalized lemma key (`language_code:normalized_text`, falling back to `word_id`, then `user_word_sense_id`) so origin/add order cannot be memorized and empty-`word_id` custom cards stay separated.
 6. User answers a prompt.
 7. App loads the user's `review_settings` and builds a `SchedulerConfig` (learning steps, relearning steps, desired retention, fuzz, FSRS weights).
 8. App calls `CalculateNextFSRSState` with the config, which applies Anki-style step logic:
@@ -147,10 +176,10 @@ go run ./cmd/retranslate-senses -email 'you@example.com' -continue-on-error
 10. App updates `review_states` (due_at, interval_days, ease_factor, last_reviewed_at, review_count, lapse_count, fsrs_state, stability, difficulty, scheduled_days, remaining_steps, is_suspended) in the same transaction.
 11. App upserts `daily_review_counts`, incrementing `new_cards_done` or `reviews_done` based on the card's previous state.
 12. App checks leech condition: if `lapse_count >= leech_threshold`, marks the attempt metadata with leech and sets `leech`/`is_leech` on the batch update. Only when `leech_action = suspend` does it also archive the card and set `is_suspended = true`. Default `tag` leaves the card in the due queue.
-13. App buries other senses of the same word: sets `buried_until = end_of_today_utc` on all sibling `user_word_senses` sharing the same `word_id`.
+13. App buries sibling senses and custom cards of the same word: sets `buried_until = end_of_today_utc` on all sibling `user_word_senses` sharing `(target_language, normalized_lemma)` across both dictionary senses (`words.normalized_text`) and custom cards (`lower(user_personal_meanings.lemma)`).
 14. App may update `user_word_senses.learning_stage`, but scheduling must still come from `review_states.due_at`.
 
-`PATCH /api/learning-items/{id}` may set `word_sense_id` (catalog sense swap; does not reset FSRS) and/or `personal_note` (personal display gloss only on `user_word_senses`). Typed manual text must never be inserted into global `word_senses` / `sense_translations`. Changing `personal_note` emits a learning-log `personal_meaning_set` event. Flashcards prefer a non-empty `personal_note` over the catalog gloss.
+`PATCH /api/learning-items/{id}` may set `word_sense_id` (catalog sense swap or custom → dictionary upgrade; does not reset FSRS) and/or `personal_note` (stored privately in `user_personal_meanings`). Typed manual text must never be inserted into global `words` / `word_senses` / `sense_translations`. Changing personal meaning emits a learning-log `personal_meaning_set` event. Flashcards prefer a non-empty `personal_note` / `user_personal_meanings.meaning` over the catalog gloss.
 
 ## FSRS Weight Optimization Flow
 
@@ -186,6 +215,7 @@ The optimization status can be checked via `GET /api/reviews/optimization-status
 | `POST /api/words/lookup` (`force: true`) | Force-Generate | `words.Service.ForceGenerate` |
 | `GET /api/learning-items` | Learning Items List | `words.Service.ListLearningItems` |
 | `POST /api/learning-items` | Add-Word (steps 5-6); optional `source_context`, `personal_note` | `words.Service.AddLearningItem` |
+| `POST /api/learning-items/manual` | Manual Personal-Meaning Add (`text`, `personal_note`, optional `part_of_speech`, `source_context`, `deck_id`) | `words.Service.AddManualLearningItem` |
 | `DELETE /api/learning-items/{id}` | Archive one learning item (remove from deck) | `words.Service.ArchiveLearningItems` |
 | `POST /api/learning-items/archive` | Batch archive `{ item_ids }` | `words.Service.ArchiveLearningItems` |
 | `PATCH /api/learning-items/{id}` | Change meaning (swap `word_sense_id` and/or update `personal_note`, keep schedule) | `words.Service.ChangeLearningItemSense` |

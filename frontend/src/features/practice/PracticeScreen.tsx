@@ -103,6 +103,7 @@ function learningItemToDueItem(item: LearningItemListItem): DueItem {
   return {
     user_word_sense_id: item.id,
     word_sense_id: item.word_sense_id,
+    is_custom: item.is_custom,
     word_id: item.word_id,
     language_code: item.language_code,
     lemma: item.lemma,
@@ -129,6 +130,7 @@ export function dueItemToListItem(item: DueItem): LearningItemListItem {
   return {
     id: item.user_word_sense_id,
     word_sense_id: item.word_sense_id,
+    is_custom: item.is_custom,
     word_id: item.word_id,
     language_code: item.language_code,
     lemma: item.lemma,
@@ -353,6 +355,11 @@ export function PracticeScreen() {
   const handleMeaningChanged = useCallback((next: LearningItemListItem) => {
     const duePatch: Partial<DueItem> = {
       word_sense_id: next.word_sense_id,
+      is_custom: next.is_custom,
+      word_id: next.word_id,
+      part_of_speech: next.part_of_speech,
+      pronunciation: next.pronunciation,
+      cefr_level: next.cefr_level,
       definition: next.definition,
       short_definition: next.short_definition,
       localized_definition: next.localized_definition,

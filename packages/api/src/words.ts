@@ -1,5 +1,11 @@
 import { patchJson, postJson } from './client';
-import type { LearningItem, LookupRequest, LookupResponse, PosFilter } from './types';
+import type {
+  LearningItem,
+  LookupRequest,
+  LookupResponse,
+  ManualLearningItemRequest,
+  PosFilter,
+} from './types';
 
 export interface LookupOptions {
   partOfSpeech?: PosFilter;
@@ -46,6 +52,32 @@ export function addLearningItem(
     body.personal_note = personalNote;
   }
   return postJson<LearningItem>('/api/learning-items', body, { traceId });
+}
+
+export function addManualLearningItem(
+  params: ManualLearningItemRequest,
+  traceId?: string,
+): Promise<LearningItem> {
+  const body: Record<string, unknown> = {
+    text: params.text,
+    personal_note: params.personal_note,
+  };
+  if (params.part_of_speech && params.part_of_speech !== 'Any') {
+    body.part_of_speech = params.part_of_speech;
+  }
+  if (params.language_code) {
+    body.language_code = params.language_code;
+  }
+  if (params.display_language_code) {
+    body.display_language_code = params.display_language_code;
+  }
+  if (params.deck_id) {
+    body.deck_id = params.deck_id;
+  }
+  if (params.source_context) {
+    body.source_context = params.source_context;
+  }
+  return postJson<LearningItem>('/api/learning-items/manual', body, { traceId });
 }
 
 export function changeLearningItemSense(

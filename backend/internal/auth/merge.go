@@ -79,16 +79,100 @@ func (s *Service) ConfirmMergeRequest(ctx context.Context, targetUserID, request
 }
 
 func mergeUsersTx(ctx context.Context, tx pgx.Tx, targetUserID, sourceUserID string) error {
-	// Remove duplicate word senses (keep target rows).
+	// Remove duplicate dictionary word senses (keep target rows).
 	_, err := tx.Exec(ctx, `
 		delete from user_word_senses src
 		using user_word_senses tgt
 		where src.user_id = $1::uuid
 		  and tgt.user_id = $2::uuid
+		  and src.word_sense_id is not null
 		  and src.word_sense_id = tgt.word_sense_id
 	`, sourceUserID, targetUserID)
 	if err != nil {
 		return fmt.Errorf("auth: dedupe word senses: %w", err)
+	}
+
+	// Remove duplicate custom cards (keep target rows; user_personal_meanings cascades).
+	_, err = tx.Exec(ctx, `
+		delete from user_word_senses src
+		using decks sd,
+		      user_personal_meanings spm,
+		      user_word_senses tgt,
+		      decks td,
+		      user_personal_meanings tpm
+		where src.user_id = $1::uuid
+		  and src.word_sense_id is null
+		  and sd.id = src.deck_id
+		  and spm.user_word_sense_id = src.id
+		  and tgt.user_id = $2::uuid
+		  and tgt.word_sense_id is null
+		  and td.id = tgt.deck_id
+		  and tpm.user_word_sense_id = tgt.id
+		  and td.target_language = sd.target_language
+		  and lower(tpm.lemma) = lower(spm.lemma)
+		  and tpm.part_of_speech = spm.part_of_speech
+	`, sourceUserID, targetUserID)
+	if err != nil {
+		return fmt.Errorf("auth: dedupe custom senses: %w", err)
+	}
+
+	// Reparent and drop source default decks that collide on (target_language, is_default = true)
+	// before reassigning remaining decks (user_word_senses.deck_id uses ON DELETE RESTRICT).
+	if _, err := tx.Exec(ctx, `
+		update user_word_senses uws
+		set deck_id = td.id
+		from decks sd,
+		     decks td
+		where uws.user_id = $1::uuid
+		  and uws.deck_id = sd.id
+		  and sd.user_id = $1::uuid
+		  and sd.is_default = true
+		  and td.user_id = $2::uuid
+		  and td.target_language = sd.target_language
+		  and td.is_default = true
+	`, sourceUserID, targetUserID); err != nil {
+		return fmt.Errorf("auth: reparent default deck items: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		delete from decks sd
+		where sd.user_id = $1::uuid
+		  and sd.is_default = true
+		  and exists (
+			  select 1 from decks td
+			  where td.user_id = $2::uuid
+			    and td.target_language = sd.target_language
+			    and td.is_default = true
+		  )
+	`, sourceUserID, targetUserID); err != nil {
+		return fmt.Errorf("auth: dedupe default decks: %w", err)
+	}
+
+	// Reparent and drop remaining source decks that collide on (target_language, lower(name)).
+	if _, err := tx.Exec(ctx, `
+		update user_word_senses uws
+		set deck_id = td.id
+		from decks sd,
+		     decks td
+		where uws.user_id = $1::uuid
+		  and uws.deck_id = sd.id
+		  and sd.user_id = $1::uuid
+		  and td.user_id = $2::uuid
+		  and td.target_language = sd.target_language
+		  and lower(td.name) = lower(sd.name)
+	`, sourceUserID, targetUserID); err != nil {
+		return fmt.Errorf("auth: reparent colliding deck items: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		delete from decks sd
+		where sd.user_id = $1::uuid
+		  and exists (
+			  select 1 from decks td
+			  where td.user_id = $2::uuid
+			    and td.target_language = sd.target_language
+			    and lower(td.name) = lower(sd.name)
+		  )
+	`, sourceUserID, targetUserID); err != nil {
+		return fmt.Errorf("auth: dedupe named decks: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `

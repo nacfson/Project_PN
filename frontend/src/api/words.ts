@@ -1,11 +1,17 @@
 import { DEFAULT_DEFINITION_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE } from '../config';
 import {
   addLearningItem as addLearningItemApi,
+  addManualLearningItem as addManualLearningItemApi,
   changeLearningItemSense as changeLearningItemSenseApi,
   setLearningItemPersonalNote as setLearningItemPersonalNoteApi,
   lookupWord as lookupWordApi,
 } from './client';
-import type { LearningItem, LookupResponse, PosFilter } from '@project-pn/api';
+import type {
+  LearningItem,
+  LookupResponse,
+  ManualLearningItemRequest,
+  PosFilter,
+} from '@project-pn/api';
 import { analytics } from '../analytics/analytics';
 
 interface LookupOptions {
@@ -96,4 +102,47 @@ export async function changeLearningItemSense(
 
 export async function setLearningItemPersonalNote(itemId: string, personalNote: string): Promise<LearningItem> {
   return setLearningItemPersonalNoteApi(itemId, personalNote);
+}
+
+export async function addManualLearningItem(params: ManualLearningItemRequest): Promise<LearningItem> {
+  const traceId = analytics.track('word_add_requested', {
+    manual: true,
+    word: params.text,
+    deck_id: params.deck_id ?? null,
+    source_context: params.source_context ?? null,
+  });
+  try {
+    const item = await addManualLearningItemApi(
+      {
+        ...params,
+        language_code: params.language_code ?? DEFAULT_LANGUAGE_CODE,
+        display_language_code: params.display_language_code ?? DEFAULT_DEFINITION_LANGUAGE_CODE,
+      },
+      traceId,
+    );
+    analytics.track(
+      'word_add_succeeded',
+      {
+        manual: true,
+        word: params.text,
+        word_sense_id: item.word_sense_id,
+        learning_item_id: item.id,
+        deck_id: params.deck_id ?? null,
+      },
+      traceId,
+    );
+    return item;
+  } catch (error) {
+    analytics.track(
+      'word_add_failed',
+      {
+        manual: true,
+        word: params.text,
+        error_code: error instanceof Error && 'code' in error ? (error as { code?: string }).code ?? 'UNKNOWN' : 'UNKNOWN',
+        retryable: error instanceof Error && 'retryable' in error ? (error as { retryable?: boolean }).retryable === true : false,
+      },
+      traceId,
+    );
+    throw error;
+  }
 }

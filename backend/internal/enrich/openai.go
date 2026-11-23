@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -33,6 +34,26 @@ var ErrUnavailable = errors.New("enrich: endpoint unavailable")
 // ErrNoAdditionalSenses is returned when the enricher found the word but every
 // gloss/sense for the requested scope is already stored (typical WiktApi force path).
 var ErrNoAdditionalSenses = errors.New("enrich: no additional senses")
+
+// ErrWordNotFound is returned when the dictionary lookup finds no entry for the
+// requested word or any of its inflected stems.
+var ErrWordNotFound = errors.New("enrich: word not found in dictionary")
+
+// ErrNoDisplayGloss is returned when the dictionary contains the word in the
+// target language, but no display-language gloss could be resolved.
+var ErrNoDisplayGloss = errors.New("enrich: no display-language gloss available")
+
+// ErrProviderTimeout is returned when an upstream dictionary or LLM request
+// times out before completing.
+var ErrProviderTimeout = errors.New("enrich: provider timed out")
+
+func isTimeoutErr(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
 
 const englishDictionaryFallbackModel = "english-dictionary-fallback-v1"
 
@@ -227,6 +248,9 @@ func (e *OpenAIEnricher) complete(ctx context.Context, body []byte) (string, err
 	resp, err := e.Client.Do(httpReq)
 	if err != nil {
 		e.logger().Error("enrich: llm request failed", "url", e.BaseURL+"/chat/completions", "model", e.Model, "error", err)
+		if isTimeoutErr(err) {
+			return "", fmt.Errorf("%w: call endpoint: %v", ErrProviderTimeout, err)
+		}
 		return "", fmt.Errorf("%w: call endpoint: %v", ErrUnavailable, err)
 	}
 	defer resp.Body.Close()

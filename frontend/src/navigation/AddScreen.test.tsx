@@ -21,6 +21,7 @@ jest.mock('../hooks/useActiveTargetLanguage', () => ({
 
 jest.mock('../api/words', () => ({
   addLearningItem: jest.fn().mockResolvedValue(undefined),
+  addManualLearningItem: jest.fn().mockResolvedValue(undefined),
   lookupWord: jest.fn().mockResolvedValue({ sense_options: [] }),
 }));
 

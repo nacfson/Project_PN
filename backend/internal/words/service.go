@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,8 @@ import (
 
 // Sentinel errors mapped to HTTP statuses by the handler layer.
 var (
+	ErrEmptyWordText             = errors.New("words: empty word text")
+	ErrPersonalNoteRequired      = errors.New("words: personal meaning is required")
 	ErrSenseNotFound             = errors.New("words: word sense not found")
 	ErrForceAmbiguous            = errors.New("words: forced generation needs a concrete part_of_speech or word_id")
 	ErrNoSenses                  = errors.New("words: no senses available and generation is disabled")
@@ -43,6 +46,13 @@ var (
 	ErrSenseWrongWord            = errors.New("words: sense belongs to a different word")
 )
 
+const negativeCacheTTL = 60 * time.Second
+
+type negativeCacheEntry struct {
+	err       error
+	expiresAt time.Time
+}
+
 // querier is satisfied by both *pgxpool.Pool and pgx.Tx.
 type querier interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -60,6 +70,9 @@ type Service struct {
 	DefaultUserID  string
 	TargetLang     string
 	DefinitionLang string
+
+	negCacheMu sync.Mutex
+	negCache   map[string]negativeCacheEntry
 }
 
 func (s *Service) logf(category, format string, args ...interface{}) {
@@ -82,7 +95,90 @@ func New(pool *pgxpool.Pool, enricher enrich.Enricher, adminLogger admin.Logger,
 		DefaultUserID:  defaultUserID,
 		TargetLang:     targetLang,
 		DefinitionLang: definitionLang,
+		negCache:       map[string]negativeCacheEntry{},
 	}
+}
+
+func negCacheKey(langCode, defLangCode, posHint, normalized string) string {
+	return strings.ToLower(strings.TrimSpace(langCode)) + "|" +
+		strings.ToLower(strings.TrimSpace(defLangCode)) + "|" +
+		strings.ToLower(strings.TrimSpace(posHint)) + "|" +
+		normalized
+}
+
+func (s *Service) checkNegativeCache(langCode, defLangCode, posHint, normalized string) (error, bool) {
+	s.negCacheMu.Lock()
+	defer s.negCacheMu.Unlock()
+	if len(s.negCache) == 0 {
+		return nil, false
+	}
+	key := negCacheKey(langCode, defLangCode, posHint, normalized)
+	entry, ok := s.negCache[key]
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(entry.expiresAt) {
+		delete(s.negCache, key)
+		return nil, false
+	}
+	return entry.err, true
+}
+
+func (s *Service) setNegativeCache(langCode, defLangCode, posHint, normalized string, err error) {
+	if !errors.Is(err, enrich.ErrWordNotFound) {
+		return
+	}
+	s.negCacheMu.Lock()
+	defer s.negCacheMu.Unlock()
+	if s.negCache == nil {
+		s.negCache = map[string]negativeCacheEntry{}
+	}
+	key := negCacheKey(langCode, defLangCode, posHint, normalized)
+	s.negCache[key] = negativeCacheEntry{
+		err:       err,
+		expiresAt: time.Now().Add(negativeCacheTTL),
+	}
+}
+
+func (s *Service) clearNegativeCacheForWord(langCode, normalized string) {
+	prefix := strings.ToLower(strings.TrimSpace(langCode)) + "|"
+	suffix := "|" + normalized
+	s.negCacheMu.Lock()
+	defer s.negCacheMu.Unlock()
+	for k := range s.negCache {
+		if strings.HasPrefix(k, prefix) && strings.HasSuffix(k, suffix) {
+			delete(s.negCache, k)
+		}
+	}
+}
+
+func anyHasLocalizedTranslation(options []SenseOption) bool {
+	for _, opt := range options {
+		if opt.HasLocalizedTranslation {
+			return true
+		}
+	}
+	return false
+}
+
+func filterCanonicalEntries(entries []enrich.Entry) []enrich.Entry {
+	out := make([]enrich.Entry, 0, len(entries))
+	for _, entry := range entries {
+		var clean []enrich.Sense
+		for _, sense := range entry.Senses {
+			if strings.TrimSpace(sense.Definition) == "" {
+				continue
+			}
+			clean = append(clean, sense)
+		}
+		clean = enrich.DedupeSenses(clean)
+		if len(clean) == 0 {
+			continue
+		}
+		entry.Senses = clean
+		out = append(out, entry)
+	}
+	return out
 }
 
 func (s *Service) writeLearningLine(ts time.Time, line string) {
@@ -104,7 +200,7 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 	}
 	normalized := normalize(text)
 	if normalized == "" {
-		return LookupResult{}, fmt.Errorf("words: empty lookup text")
+		return LookupResult{}, ErrEmptyWordText
 	}
 	sourceContext = strings.TrimSpace(sourceContext)
 
@@ -119,18 +215,29 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		if err != nil {
 			return LookupResult{}, err
 		}
-		rankSenseOptions(options, sourceContext)
-		return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
+		if len(options) > 0 {
+			rankSenseOptions(options, sourceContext)
+			translationMissing := defLangCode != langCode && !anyHasLocalizedTranslation(options)
+			return LookupResult{
+				Query:              text,
+				NormalizedText:     normalized,
+				TranslationMissing: translationMissing,
+				SenseOptions:       options,
+			}, nil
+		}
 	}
 
 	posHint := ""
 	if pos != nil {
 		posHint = *pos
 	}
+	if cachedErr, hit := s.checkNegativeCache(langCode, defLangCode, posHint, normalized); hit {
+		return LookupResult{}, cachedErr
+	}
 	enrichCtx := ctx
 	var cancel context.CancelFunc
 	if ctx.Err() == nil {
-		enrichCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		enrichCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 40*time.Second)
 		defer cancel()
 	}
 	result, err := s.enricher.Enrich(enrichCtx, enrich.Request{
@@ -141,12 +248,29 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		SourceContext:          sourceContext,
 	})
 	if err != nil {
+		if errors.Is(err, enrich.ErrNoDisplayGloss) && len(result.Entries) > 0 {
+			canonical := filterCanonicalEntries(result.Entries)
+			if len(canonical) > 0 {
+				options, persistErr := s.persistEntries(enrichCtx, userID, langCode, defLangCode, normalized, canonical, false)
+				if persistErr != nil {
+					return LookupResult{}, persistErr
+				}
+				rankSenseOptions(options, sourceContext)
+				return LookupResult{
+					Query:              text,
+					NormalizedText:     normalized,
+					TranslationMissing: defLangCode != langCode && !anyHasLocalizedTranslation(options),
+					SenseOptions:       options,
+				}, nil
+			}
+		}
 		slog.Error(
 			"enrich lookup failed",
 			"word", normalized,
 			"error", err,
 		)
 		s.logf("ENRICH_FAIL", "enricher failed for word '%s': %v", normalized, err)
+		s.setNegativeCache(langCode, defLangCode, posHint, normalized, err)
 		return LookupResult{}, err
 	}
 
@@ -155,7 +279,12 @@ func (s *Service) Lookup(ctx context.Context, userID, text, langCode, defLangCod
 		return LookupResult{}, err
 	}
 	rankSenseOptions(options, sourceContext)
-	return LookupResult{Query: text, NormalizedText: normalized, SenseOptions: options}, nil
+	return LookupResult{
+		Query:              text,
+		NormalizedText:     normalized,
+		TranslationMissing: defLangCode != langCode && !anyHasLocalizedTranslation(options),
+		SenseOptions:       options,
+	}, nil
 }
 
 // ForceGenerate is the "none of these match" path. It appends a new sense and
@@ -310,9 +439,6 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 	}
 
 	if displayLang != wordLang {
-		if _, err := s.ensureTranslationsForWord(ctx, []string{wordID}, displayLang); err != nil {
-			return LearningItem{}, err
-		}
 		var hasTranslation bool
 		if err := s.pool.QueryRow(ctx, `
 			select exists(
@@ -322,13 +448,29 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 		).Scan(&hasTranslation); err != nil {
 			return LearningItem{}, fmt.Errorf("words: verify translation: %w", err)
 		}
-		if !hasTranslation {
-			var normalized string
-			_ = s.pool.QueryRow(ctx, `select normalized_text from words where id = $1::uuid`, wordID).Scan(&normalized)
-			slog.Warn("add refused: translation unavailable",
-				"word", normalized, "target_lang", wordLang, "display_lang", displayLang,
-				"word_sense_id", wordSenseID, "reason", "missing_sense_translation")
-			return LearningItem{}, ErrTranslationUnavailable
+		if !hasTranslation && personalNote == "" {
+			if _, err := s.ensureTranslationsForWord(ctx, []string{wordID}, displayLang); err != nil {
+				if errors.Is(err, enrich.ErrNoDisplayGloss) || errors.Is(err, enrich.ErrWordNotFound) {
+					return LearningItem{}, ErrTranslationUnavailable
+				}
+				return LearningItem{}, err
+			}
+			if err := s.pool.QueryRow(ctx, `
+				select exists(
+					select 1 from sense_translations
+					where word_sense_id = $1::uuid and language_code = $2
+				)`, wordSenseID, displayLang,
+			).Scan(&hasTranslation); err != nil {
+				return LearningItem{}, fmt.Errorf("words: verify translation: %w", err)
+			}
+			if !hasTranslation {
+				var normalized string
+				_ = s.pool.QueryRow(ctx, `select normalized_text from words where id = $1::uuid`, wordID).Scan(&normalized)
+				slog.Warn("add refused: translation unavailable",
+					"word", normalized, "target_lang", wordLang, "display_lang", displayLang,
+					"word_sense_id", wordSenseID, "reason", "missing_sense_translation")
+				return LearningItem{}, ErrTranslationUnavailable
+			}
 		}
 	}
 
@@ -347,22 +489,55 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 	var inserted bool
 	err = tx.QueryRow(ctx,
 		`insert into user_word_senses (user_id, word_sense_id, deck_id, source_context, personal_note)
-		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''), nullif($5, ''))
+		 values ($1::uuid, $2::uuid, $3::uuid, nullif($4, ''), null)
 		 on conflict (user_id, word_sense_id) do update set
 		   deck_id = excluded.deck_id,
 		   source_context = coalesce(nullif(excluded.source_context, ''), user_word_senses.source_context),
-		   personal_note = coalesce(nullif(excluded.personal_note, ''), user_word_senses.personal_note),
+		   personal_note = case
+		     when $5 <> '' then null
+		     else user_word_senses.personal_note
+		   end,
 		   archived_at = null,
 		   learning_stage = case
 		     when user_word_senses.archived_at is not null then 'new'
 		     else user_word_senses.learning_stage
 		   end,
 		   updated_at = now()
-		 returning id::text, word_sense_id::text, learning_stage, personal_note, (xmax = 0) as inserted`,
+		 returning id::text, word_sense_id::text, learning_stage, (xmax = 0) as inserted`,
 		userID, wordSenseID, deckID, sourceContext, personalNote,
-	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.PersonalNote, &inserted)
+	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &inserted)
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: upsert user_word_sense: %w", err)
+	}
+
+	if personalNote != "" {
+		if _, err := tx.Exec(ctx, `
+			insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning, updated_at)
+			values ($1::uuid, null, null, $2, now())
+			on conflict (user_word_sense_id) do update set
+			  lemma = null,
+			  part_of_speech = null,
+			  meaning = excluded.meaning,
+			  updated_at = now()`,
+			item.ID, personalNote,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: upsert personal meaning: %w", err)
+		}
+	}
+
+	var effectiveNote sql.NullString
+	if err := tx.QueryRow(ctx, `
+		select coalesce(pm.meaning, nullif(btrim(uws.personal_note), ''))
+		from user_word_senses uws
+		left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		where uws.id = $1::uuid`,
+		item.ID,
+	).Scan(&effectiveNote); err != nil {
+		return LearningItem{}, fmt.Errorf("words: load effective personal note: %w", err)
+	}
+	if effectiveNote.Valid {
+		note := effectiveNote.String
+		item.PersonalNote = &note
 	}
 
 	// Re-adding an archived leech must clear suspend/bury so the card is
@@ -391,8 +566,163 @@ func (s *Service) AddLearningItem(ctx context.Context, userID, wordSenseID, disp
 	return item, nil
 }
 
-// ChangeLearningItemSense swaps word_sense_id on an existing learning item
-// without touching review_states. Rejects cross-word senses and active conflicts.
+// AddManualLearningItem creates or updates a custom learning card whose lemma,
+// part_of_speech, and meaning live solely in user_personal_meanings (with
+// user_word_senses.word_sense_id = NULL) so global words/word_senses remain pure.
+func (s *Service) AddManualLearningItem(
+	ctx context.Context,
+	userID, text, partOfSpeech, langCode, displayLangCode, deckID, sourceContext, personalNote string,
+) (LearningItem, error) {
+	cleanLemma := cleanManualLemma(text)
+	normalized := strings.ToLower(cleanLemma)
+	if normalized == "" {
+		return LearningItem{}, ErrEmptyWordText
+	}
+	personalNote = strings.TrimSpace(personalNote)
+	if personalNote == "" {
+		return LearningItem{}, ErrPersonalNoteRequired
+	}
+	sourceContext = strings.TrimSpace(sourceContext)
+
+	var err error
+	langCode, displayLangCode, err = s.fillLangs(ctx, userID, langCode, displayLangCode)
+	if err != nil {
+		return LearningItem{}, err
+	}
+
+	pos := strings.ToLower(strings.TrimSpace(partOfSpeech))
+	if enrich.IsMultiWordLemma(normalized) {
+		pos = "phrase"
+	} else if pos == "" || pos == "any" {
+		pos = "unknown"
+	}
+
+	deckID, err = s.resolveDeckForAdd(ctx, userID, deckID, langCode)
+	if err != nil {
+		return LearningItem{}, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return LearningItem{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		userID+"|"+langCode+"|"+normalized+"|"+pos,
+	); err != nil {
+		return LearningItem{}, fmt.Errorf("words: lock manual learning item: %w", err)
+	}
+
+	var item LearningItem
+	var existingID string
+	var updatedExisting, inserted bool
+	err = tx.QueryRow(ctx, `
+		select uws.id::text
+		from user_word_senses uws
+		join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+		join decks d on d.id = uws.deck_id
+		where uws.user_id = $1::uuid
+		  and uws.word_sense_id is null
+		  and d.target_language = $2
+		  and lower(pm.lemma) = $3
+		  and pm.part_of_speech = $4
+		order by (uws.archived_at is null) desc, uws.added_at desc, uws.id desc
+		limit 1
+		for update of uws`,
+		userID, langCode, normalized, pos,
+	).Scan(&existingID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, fmt.Errorf("words: lookup existing manual item: %w", err)
+	}
+	if err == nil {
+		err = tx.QueryRow(ctx, `
+			update user_word_senses
+			set deck_id = $1::uuid,
+			    source_context = coalesce(nullif($2, ''), source_context),
+			    personal_note = null,
+			    archived_at = null,
+			    learning_stage = case
+			      when archived_at is not null then 'new'
+			      else learning_stage
+			    end,
+			    updated_at = now()
+			where id = $3::uuid and user_id = $4::uuid and word_sense_id is null
+			returning id::text, learning_stage`,
+			deckID, sourceContext, existingID, userID,
+		).Scan(&item.ID, &item.LearningStage)
+		if err == nil {
+			updatedExisting = true
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return LearningItem{}, fmt.Errorf("words: update existing manual user_word_sense: %w", err)
+		}
+	}
+	if !updatedExisting {
+		if err := tx.QueryRow(ctx, `
+			insert into user_word_senses (user_id, word_sense_id, deck_id, source_context, personal_note)
+			values ($1::uuid, null, $2::uuid, nullif($3, ''), null)
+			returning id::text, learning_stage`,
+			userID, deckID, sourceContext,
+		).Scan(&item.ID, &item.LearningStage); err != nil {
+			return LearningItem{}, fmt.Errorf("words: insert manual user_word_sense: %w", err)
+		}
+		inserted = true
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning, updated_at)
+		values ($1::uuid, $2, $3, $4, now())
+		on conflict (user_word_sense_id) do update set
+		  lemma = excluded.lemma,
+		  part_of_speech = excluded.part_of_speech,
+		  meaning = excluded.meaning,
+		  updated_at = now()`,
+		item.ID, cleanLemma, pos, personalNote,
+	); err != nil {
+		return LearningItem{}, fmt.Errorf("words: upsert manual personal meaning: %w", err)
+	}
+
+	if err := tx.QueryRow(ctx, `
+		insert into review_states (user_word_sense_id)
+		values ($1::uuid)
+		on conflict (user_word_sense_id) do update set
+		  is_suspended = false,
+		  buried_until = null,
+		  updated_at = now()
+		returning due_at`,
+		item.ID,
+	).Scan(&item.DueAt); err != nil {
+		return LearningItem{}, fmt.Errorf("words: ensure manual review_state: %w", err)
+	}
+
+	noteCopy := personalNote
+	item.WordSenseID = ""
+	item.IsCustom = true
+	item.PersonalNote = &noteCopy
+
+	if err := tx.Commit(ctx); err != nil {
+		return LearningItem{}, err
+	}
+
+	if inserted {
+		s.emitManualLearningItemAdded(userID, item.ID, normalized, pos, personalNote, langCode, displayLangCode, sourceContext)
+	}
+	now := time.Now().UTC()
+	s.writeLearningLine(now, learninglog.RowPersonalMeaningSet(now, learninglog.PersonalMeaningSetParams{
+		UserID:       userID,
+		UWSID:        item.ID,
+		WordSenseID:  "",
+		Lemma:        normalized,
+		PersonalNote: personalNote,
+		Cleared:      false,
+	}))
+	return item, nil
+}
+
+// ChangeLearningItemSense swaps word_sense_id on an existing learning item (or
+// upgrades a custom card to a dictionary sense) without touching review_states.
+// Rejects cross-word/mismatched-lemma upgrades and active conflicts.
 //
 // personalNote nil means the field was omitted. On a sense swap, an omitted note
 // clears personal_note (old wording belonged to the previous sense). On a same-sense
@@ -416,14 +746,23 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 		}
 	}
 
-	var currentSenseID, currentWordID string
-	err := s.pool.QueryRow(ctx, `
-		select uws.word_sense_id::text, ws.word_id::text
-		from user_word_senses uws
-		join word_senses ws on ws.id = uws.word_sense_id
-		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
-		itemID, userID,
-	).Scan(&currentSenseID, &currentWordID)
+	loadItemMeta := func(ctx context.Context, q querier) (senseID, wordID, deckLang, customLemma string, err error) {
+		err = q.QueryRow(ctx, `
+			select coalesce(uws.word_sense_id::text, ''),
+			       coalesce(ws.word_id::text, ''),
+			       d.target_language,
+			       coalesce(lower(pm.lemma), '')
+			from user_word_senses uws
+			join decks d on d.id = uws.deck_id
+			left join word_senses ws on ws.id = uws.word_sense_id
+			left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
+			where uws.id = $1::uuid and uws.user_id = $2::uuid and uws.archived_at is null`,
+			itemID, userID,
+		).Scan(&senseID, &wordID, &deckLang, &customLemma)
+		return
+	}
+
+	currentSenseID, currentWordID, currentDeckLang, currentCustomLemma, err := loadItemMeta(ctx, s.pool)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LearningItem{}, ErrLearningItemNotFound
 	}
@@ -431,46 +770,45 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
 	}
 
-	if currentSenseID == newWordSenseID {
-		if !noteProvided {
-			return s.loadLearningItem(ctx, userID, itemID)
-		}
-		if _, err := s.pool.Exec(ctx, `
-			update user_word_senses
-			set personal_note = $1, updated_at = now()
-			where id = $2::uuid and user_id = $3::uuid`,
-			noteToStore, itemID, userID,
-		); err != nil {
-			return LearningItem{}, fmt.Errorf("words: update personal note: %w", err)
-		}
-		return s.loadLearningItem(ctx, userID, itemID)
-	}
-
-	var newWordID, wordLang string
+	var newWordID, wordLang, newWordNormalized string
 	err = s.pool.QueryRow(ctx, `
-		select w.id::text, w.language_code
+		select w.id::text, w.language_code, w.normalized_text
 		from word_senses ws
 		join words w on w.id = ws.word_id
 		where ws.id = $1::uuid`,
 		newWordSenseID,
-	).Scan(&newWordID, &wordLang)
+	).Scan(&newWordID, &wordLang, &newWordNormalized)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LearningItem{}, ErrSenseNotFound
 	}
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: verify new sense: %w", err)
 	}
-	if newWordID != currentWordID {
-		return LearningItem{}, ErrSenseWrongWord
+
+	validateTargetMatch := func(senseID, wordID, deckLang, customLemma string) error {
+		if senseID == "" {
+			if wordLang != deckLang || customLemma == "" || newWordNormalized != customLemma {
+				return ErrSenseWrongWord
+			}
+			return nil
+		}
+		if senseID != newWordSenseID && newWordID != wordID {
+			return ErrSenseWrongWord
+		}
+		return nil
+	}
+	if err := validateTargetMatch(currentSenseID, currentWordID, currentDeckLang, currentCustomLemma); err != nil {
+		return LearningItem{}, err
 	}
 
 	displayLang, err := s.resolveDisplayLang(ctx, userID, displayLangCode)
 	if err != nil {
 		return LearningItem{}, err
 	}
-	if displayLang != wordLang {
-		if _, err := s.ensureTranslationsForWord(ctx, []string{newWordID}, displayLang); err != nil {
-			return LearningItem{}, err
+
+	ensureTargetTranslation := func() error {
+		if displayLang == wordLang || noteToStore != nil {
+			return nil
 		}
 		var hasTranslation bool
 		if err := s.pool.QueryRow(ctx, `
@@ -479,15 +817,136 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 				where word_sense_id = $1::uuid and language_code = $2
 			)`, newWordSenseID, displayLang,
 		).Scan(&hasTranslation); err != nil {
-			return LearningItem{}, fmt.Errorf("words: verify translation: %w", err)
+			return fmt.Errorf("words: verify translation: %w", err)
 		}
 		if !hasTranslation {
-			return LearningItem{}, ErrTranslationUnavailable
+			if _, err := s.ensureTranslationsForWord(ctx, []string{newWordID}, displayLang); err != nil {
+				if errors.Is(err, enrich.ErrNoDisplayGloss) || errors.Is(err, enrich.ErrWordNotFound) {
+					return ErrTranslationUnavailable
+				}
+				return err
+			}
+			if err := s.pool.QueryRow(ctx, `
+				select exists(
+					select 1 from sense_translations
+					where word_sense_id = $1::uuid and language_code = $2
+				)`, newWordSenseID, displayLang,
+			).Scan(&hasTranslation); err != nil {
+				return fmt.Errorf("words: verify translation: %w", err)
+			}
+			if !hasTranslation {
+				return ErrTranslationUnavailable
+			}
 		}
+		return nil
+	}
+
+	translationVerified := displayLang == wordLang || noteToStore != nil
+	if currentSenseID != newWordSenseID && !translationVerified {
+		if err := ensureTargetTranslation(); err != nil {
+			return LearningItem{}, err
+		}
+		translationVerified = true
+	}
+
+	// At most 2 iterations: once translationVerified becomes true, the loop always breaks or returns.
+	var tx pgx.Tx
+	for {
+		tx, err = s.pool.Begin(ctx)
+		if err != nil {
+			return LearningItem{}, fmt.Errorf("words: begin change sense tx: %w", err)
+		}
+
+		// Two-statement lock-then-read avoids PG READ COMMITTED outer-join EPQ snapshot skew.
+		var locked int
+		err = tx.QueryRow(ctx, `
+			select 1
+			from user_word_senses
+			where id = $1::uuid and user_id = $2::uuid and archived_at is null
+			for update`,
+			itemID, userID,
+		).Scan(&locked)
+		if errors.Is(err, pgx.ErrNoRows) {
+			_ = tx.Rollback(ctx)
+			return LearningItem{}, ErrLearningItemNotFound
+		}
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			return LearningItem{}, fmt.Errorf("words: lock learning item: %w", err)
+		}
+
+		currentSenseID, currentWordID, currentDeckLang, currentCustomLemma, err = loadItemMeta(ctx, tx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			_ = tx.Rollback(ctx)
+			return LearningItem{}, ErrLearningItemNotFound
+		}
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			return LearningItem{}, fmt.Errorf("words: reload locked learning item: %w", err)
+		}
+
+		if currentSenseID != "" && currentSenseID == newWordSenseID {
+			break
+		}
+		if err := validateTargetMatch(currentSenseID, currentWordID, currentDeckLang, currentCustomLemma); err != nil {
+			_ = tx.Rollback(ctx)
+			return LearningItem{}, err
+		}
+		if !translationVerified {
+			// Concurrent swap moved currentSenseID off newWordSenseID; release row lock before external translation I/O.
+			_ = tx.Rollback(ctx)
+			if err := ensureTargetTranslation(); err != nil {
+				return LearningItem{}, err
+			}
+			translationVerified = true
+			continue
+		}
+		break
+	}
+	defer tx.Rollback(ctx)
+
+	if currentSenseID != "" && currentSenseID == newWordSenseID {
+		if !noteProvided {
+			_ = tx.Rollback(ctx)
+			return s.loadLearningItem(ctx, userID, itemID)
+		}
+		if noteToStore != nil {
+			if _, err := tx.Exec(ctx, `
+				insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning, updated_at)
+				values ($1::uuid, null, null, $2, now())
+				on conflict (user_word_sense_id) do update set
+				  lemma = null,
+				  part_of_speech = null,
+				  meaning = excluded.meaning,
+				  updated_at = now()`,
+				itemID, *noteToStore,
+			); err != nil {
+				return LearningItem{}, fmt.Errorf("words: upsert same-sense personal meaning: %w", err)
+			}
+		} else {
+			if _, err := tx.Exec(ctx,
+				`delete from user_personal_meanings where user_word_sense_id = $1::uuid`,
+				itemID,
+			); err != nil {
+				return LearningItem{}, fmt.Errorf("words: delete same-sense personal meaning: %w", err)
+			}
+		}
+		if _, err := tx.Exec(ctx, `
+			update user_word_senses
+			set personal_note = null, updated_at = now()
+			where id = $1::uuid and user_id = $2::uuid`,
+			itemID, userID,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: clear legacy same-sense note: %w", err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return LearningItem{}, fmt.Errorf("words: commit same-sense note update: %w", err)
+		}
+		return s.loadLearningItem(ctx, userID, itemID)
 	}
 
 	var conflict bool
-	if err := s.pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		select exists(
 			select 1 from user_word_senses
 			where user_id = $1::uuid
@@ -502,14 +961,55 @@ func (s *Service) ChangeLearningItemSense(ctx context.Context, userID, itemID, n
 		return LearningItem{}, ErrSenseConflict
 	}
 
-	// Sense swap: omitted note clears; provided empty clears; non-empty sets.
-	if _, err := s.pool.Exec(ctx, `
-		update user_word_senses
-		set word_sense_id = $1::uuid, personal_note = $2, updated_at = now()
-		where id = $3::uuid and user_id = $4::uuid`,
-		newWordSenseID, noteToStore, itemID, userID,
+	// Remove any archived duplicate for the target sense so unique (user_id, word_sense_id) succeeds.
+	if _, err := tx.Exec(ctx, `
+		delete from user_word_senses
+		where user_id = $1::uuid
+		  and word_sense_id = $2::uuid
+		  and archived_at is not null
+		  and id <> $3::uuid`,
+		userID, newWordSenseID, itemID,
 	); err != nil {
+		return LearningItem{}, fmt.Errorf("words: cleanup archived sense duplicate: %w", err)
+	}
+
+	// Sense swap / upgrade: omitted note clears; provided empty clears; non-empty sets.
+	if _, err := tx.Exec(ctx, `
+		update user_word_senses
+		set word_sense_id = $1::uuid, personal_note = null, updated_at = now()
+		where id = $2::uuid and user_id = $3::uuid`,
+		newWordSenseID, itemID, userID,
+	); err != nil {
+		if isUniqueViolation(err) {
+			return LearningItem{}, ErrSenseConflict
+		}
 		return LearningItem{}, fmt.Errorf("words: change sense: %w", err)
+	}
+
+	if noteToStore != nil {
+		if _, err := tx.Exec(ctx, `
+			insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning, updated_at)
+			values ($1::uuid, null, null, $2, now())
+			on conflict (user_word_sense_id) do update set
+			  lemma = null,
+			  part_of_speech = null,
+			  meaning = excluded.meaning,
+			  updated_at = now()`,
+			itemID, *noteToStore,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: upsert swap personal meaning: %w", err)
+		}
+	} else {
+		if _, err := tx.Exec(ctx,
+			`delete from user_personal_meanings where user_word_sense_id = $1::uuid`,
+			itemID,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: delete swap personal meaning: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return LearningItem{}, fmt.Errorf("words: commit sense change: %w", err)
 	}
 
 	s.emitSenseChanged(ctx, userID, itemID, currentSenseID, newWordSenseID, displayLang)
@@ -549,11 +1049,14 @@ func (s *Service) ArchiveLearningItems(ctx context.Context, userID string, itemI
 		archived    bool
 	}
 	rows, err := s.pool.Query(ctx, `
-		select uws.id::text, uws.word_sense_id::text, w.normalized_text,
+		select uws.id::text,
+		       coalesce(uws.word_sense_id::text, ''),
+		       coalesce(w.normalized_text, lower(pm.lemma), ''),
 		       (uws.archived_at is not null) as archived
 		from user_word_senses uws
-		join word_senses ws on ws.id = uws.word_sense_id
-		join words w on w.id = ws.word_id
+		left join word_senses ws on ws.id = uws.word_sense_id
+		left join words w on w.id = ws.word_id
+		left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
 		where uws.user_id = $1::uuid and uws.id = any($2::uuid[])`,
 		userID, unique,
 	)
@@ -625,9 +1128,14 @@ func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (
 	var item LearningItem
 	var personalNote sql.NullString
 	err := s.pool.QueryRow(ctx, `
-		select uws.id::text, uws.word_sense_id::text, uws.learning_stage, rs.due_at, uws.personal_note
+		select uws.id::text,
+		       coalesce(uws.word_sense_id::text, ''),
+		       uws.learning_stage,
+		       rs.due_at,
+		       coalesce(pm.meaning, nullif(btrim(uws.personal_note), ''))
 		from user_word_senses uws
 		join review_states rs on rs.user_word_sense_id = uws.id
+		left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
 		where uws.id = $1::uuid and uws.user_id = $2::uuid`,
 		itemID, userID,
 	).Scan(&item.ID, &item.WordSenseID, &item.LearningStage, &item.DueAt, &personalNote)
@@ -637,6 +1145,7 @@ func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (
 	if err != nil {
 		return LearningItem{}, fmt.Errorf("words: load learning item: %w", err)
 	}
+	item.IsCustom = item.WordSenseID == ""
 	if personalNote.Valid {
 		note := personalNote.String
 		item.PersonalNote = &note
@@ -644,8 +1153,9 @@ func (s *Service) loadLearningItem(ctx context.Context, userID, itemID string) (
 	return item, nil
 }
 
-// SetPersonalNote stores a user-authored gloss on the learning card only.
-// It never writes to global word_senses / sense_translations. Empty note clears.
+// SetPersonalNote stores a user-authored gloss in user_personal_meanings only.
+// It never writes to global word_senses / sense_translations. Empty note clears
+// on dictionary cards and returns ErrPersonalNoteRequired on custom cards.
 func (s *Service) SetPersonalNote(ctx context.Context, userID, itemID, note string) (LearningItem, error) {
 	itemID = strings.TrimSpace(itemID)
 	userID = strings.TrimSpace(userID)
@@ -654,16 +1164,42 @@ func (s *Service) SetPersonalNote(ctx context.Context, userID, itemID, note stri
 	}
 	note = strings.TrimSpace(note)
 
-	var prev sql.NullString
-	var wordSenseID, lemma string
-	err := s.pool.QueryRow(ctx, `
-		select uws.personal_note, uws.word_sense_id::text, w.normalized_text
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: begin personal note tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Two-statement lock-then-read avoids PG READ COMMITTED outer-join EPQ snapshot skew.
+	var locked int
+	err = tx.QueryRow(ctx, `
+		select 1
+		from user_word_senses
+		where id = $1::uuid and user_id = $2::uuid and archived_at is null
+		for update`,
+		itemID, userID,
+	).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LearningItem{}, ErrLearningItemNotFound
+	}
+	if err != nil {
+		return LearningItem{}, fmt.Errorf("words: lock personal note item: %w", err)
+	}
+
+	var prevVal, wordSenseID, lemma string
+	var hasLegacyNote bool
+	err = tx.QueryRow(ctx, `
+		select coalesce(pm.meaning, nullif(btrim(uws.personal_note), ''), ''),
+		       (uws.personal_note is not null),
+		       coalesce(uws.word_sense_id::text, ''),
+		       coalesce(w.normalized_text, lower(pm.lemma), '')
 		from user_word_senses uws
-		join word_senses ws on ws.id = uws.word_sense_id
-		join words w on w.id = ws.word_id
+		left join word_senses ws on ws.id = uws.word_sense_id
+		left join words w on w.id = ws.word_id
+		left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
 		where uws.id = $1::uuid and uws.user_id = $2::uuid and uws.archived_at is null`,
 		itemID, userID,
-	).Scan(&prev, &wordSenseID, &lemma)
+	).Scan(&prevVal, &hasLegacyNote, &wordSenseID, &lemma)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LearningItem{}, ErrLearningItemNotFound
 	}
@@ -671,27 +1207,57 @@ func (s *Service) SetPersonalNote(ctx context.Context, userID, itemID, note stri
 		return LearningItem{}, fmt.Errorf("words: load personal note: %w", err)
 	}
 
-	prevVal := ""
-	if prev.Valid {
-		prevVal = prev.String
+	if wordSenseID == "" && note == "" {
+		return LearningItem{}, ErrPersonalNoteRequired
 	}
-	if prevVal == note {
+
+	if prevVal == note && !hasLegacyNote {
+		_ = tx.Rollback(ctx)
 		return s.loadLearningItem(ctx, userID, itemID)
 	}
 
-	var noteArg any
-	if note == "" {
-		noteArg = nil
+	if wordSenseID == "" {
+		if _, err := tx.Exec(ctx, `
+			update user_personal_meanings
+			set meaning = $2, updated_at = now()
+			where user_word_sense_id = $1::uuid`,
+			itemID, note,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: update custom personal meaning: %w", err)
+		}
+	} else if note == "" {
+		if _, err := tx.Exec(ctx,
+			`delete from user_personal_meanings where user_word_sense_id = $1::uuid`,
+			itemID,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: delete personal meaning: %w", err)
+		}
 	} else {
-		noteArg = note
+		if _, err := tx.Exec(ctx, `
+			insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning, updated_at)
+			values ($1::uuid, null, null, $2, now())
+			on conflict (user_word_sense_id) do update set
+			  lemma = null,
+			  part_of_speech = null,
+			  meaning = excluded.meaning,
+			  updated_at = now()`,
+			itemID, note,
+		); err != nil {
+			return LearningItem{}, fmt.Errorf("words: upsert personal meaning: %w", err)
+		}
 	}
-	if _, err := s.pool.Exec(ctx, `
+
+	if _, err := tx.Exec(ctx, `
 		update user_word_senses
-		set personal_note = $1, updated_at = now()
-		where id = $2::uuid and user_id = $3::uuid`,
-		noteArg, itemID, userID,
+		set personal_note = null, updated_at = now()
+		where id = $1::uuid and user_id = $2::uuid`,
+		itemID, userID,
 	); err != nil {
 		return LearningItem{}, fmt.Errorf("words: set personal note: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return LearningItem{}, fmt.Errorf("words: commit personal note: %w", err)
 	}
 
 	now := time.Now().UTC()
@@ -751,7 +1317,7 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	searchPredicate := ""
 	if search := normalize(params.Search); search != "" {
 		args = append(args, search+"%")
-		searchPredicate = fmt.Sprintf("and w.normalized_text like $%d", len(args))
+		searchPredicate = fmt.Sprintf("and coalesce(w.normalized_text, lower(pm.lemma)) like $%d", len(args))
 	}
 
 	cursorPredicate := ""
@@ -775,25 +1341,35 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 	}
 
 	query := fmt.Sprintf(
-		`select uws.id::text, uws.word_sense_id::text, w.id::text,
-		        w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
+		`select uws.id::text,
+		        coalesce(uws.word_sense_id::text, ''),
+		        coalesce(w.id::text, ''),
+		        coalesce(w.language_code, d.target_language),
+		        coalesce(w.lemma, pm.lemma, ''),
+		        coalesce(w.normalized_text, lower(pm.lemma), ''),
+		        coalesce(w.part_of_speech, pm.part_of_speech, 'unknown'),
+		        w.pronunciation,
 		        $3::text as display_language,
-		        ws.definition, ws.short_definition,
-		        coalesce(st.definition, ws.definition),
+		        coalesce(ws.definition, pm.meaning, ''),
+		        ws.short_definition,
+		        coalesce(st.definition, ws.definition, pm.meaning, ''),
 		        coalesce(st.short_definition, ws.short_definition),
-		        ws.cefr_level, ws.meaning_order,
+		        ws.cefr_level,
+		        coalesce(ws.meaning_order, 0),
 		        uws.learning_stage, rs.due_at, uws.added_at,
 		        uws.deck_id::text, d.name, rs.last_reviewed_at,
-		        uws.personal_note, rs.lapse_count
+		        coalesce(pm.meaning, nullif(btrim(uws.personal_note), '')),
+		        rs.lapse_count
 		 from user_word_senses uws
-		 join word_senses ws on ws.id = uws.word_sense_id
-		 join words w on w.id = ws.word_id
 		 join review_states rs on rs.user_word_sense_id = uws.id
 		 join decks d on d.id = uws.deck_id
+		 left join word_senses ws on ws.id = uws.word_sense_id
+		 left join words w on w.id = ws.word_id
 		 left join sense_translations st
 		   on st.word_sense_id = ws.id and st.language_code = $3
+		 left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
 		 where uws.user_id = $1::uuid
-		   and w.language_code = $2
+		   and d.target_language = $2
 		   and uws.archived_at is null
 		   and rs.is_suspended = false
 		   %s
@@ -832,14 +1408,17 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 		); err != nil {
 			return LearningItemsPage{}, err
 		}
+		item.IsCustom = item.WordSenseID == ""
 		if personalNote.Valid {
 			note := personalNote.String
 			item.PersonalNote = &note
 		}
 		item.IsLeech = item.LapseCount >= settings.LeechThreshold
-		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
-			item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
-		)
+		if !item.IsCustom {
+			item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
+				item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
+			)
+		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -856,6 +1435,10 @@ func (s *Service) ListLearningItems(ctx context.Context, userID string, params L
 
 	// Load example sentences for each list item.
 	for i := range items {
+		if items[i].WordSenseID == "" {
+			items[i].Examples = []Example{}
+			continue
+		}
 		examples, err := loadExamples(ctx, s.pool, items[i].WordSenseID, items[i].DisplayLanguageCode)
 		if err != nil {
 			return LearningItemsPage{}, err
@@ -897,11 +1480,13 @@ func encodeLearningItemsCursor(cursor LearningItemsCursor) string {
 }
 
 func (s *Service) fillLangs(ctx context.Context, userID, langCode, defLangCode string) (string, string, error) {
-	if strings.TrimSpace(langCode) == "" {
-		langCode = s.resolveTargetLang(ctx, userID)
+	langCode = strings.TrimSpace(langCode)
+	if langCode == "" {
+		langCode = strings.TrimSpace(s.resolveTargetLang(ctx, userID))
 	}
-	if strings.TrimSpace(defLangCode) == "" {
-		defLangCode = s.resolveDefinitionLang(ctx, userID)
+	defLangCode = strings.TrimSpace(defLangCode)
+	if defLangCode == "" {
+		defLangCode = strings.TrimSpace(s.resolveDefinitionLang(ctx, userID))
 	}
 	return langCode, defLangCode, nil
 }
@@ -972,13 +1557,15 @@ func (s *Service) findWordIDs(ctx context.Context, q querier, langCode, normaliz
 	var rows pgx.Rows
 	var err error
 	if pos != nil {
-		rows, err = q.Query(ctx,
-			`select id::text from words where language_code = $1 and normalized_text = $2 and part_of_speech = $3`,
+		rows, err = q.Query(ctx, `
+			select w.id::text from words w
+			where w.language_code = $1 and w.normalized_text = $2 and w.part_of_speech = $3`,
 			langCode, normalized, strings.ToLower(strings.TrimSpace(*pos)),
 		)
 	} else {
-		rows, err = q.Query(ctx,
-			`select id::text from words where language_code = $1 and normalized_text = $2`,
+		rows, err = q.Query(ctx, `
+			select w.id::text from words w
+			where w.language_code = $1 and w.normalized_text = $2`,
 			langCode, normalized,
 		)
 	}
@@ -1428,6 +2015,7 @@ func (s *Service) persistEntries(ctx context.Context, userID, langCode, defLangC
 		return nil, err
 	}
 
+	s.clearNegativeCacheForWord(langCode, normalized)
 	for _, w := range addedWords {
 		s.logf("ADD_WORD", "user %s created word '%s' (%s, %s)", userID, w.lemma, langCode, w.pos)
 	}
@@ -1535,8 +2123,10 @@ func loadSenseOptions(ctx context.Context, q querier, wordIDs []string, displayL
 			return nil, err
 		}
 		o.DisplayLanguageCode = displayLang
+		hasTranslatedDef := translatedDef != nil && strings.TrimSpace(*translatedDef) != ""
+		o.HasLocalizedTranslation = (displayLang == o.LanguageCode) || hasTranslatedDef
 		o.LocalizedDefinition = o.Definition
-		if translatedDef != nil && strings.TrimSpace(*translatedDef) != "" {
+		if hasTranslatedDef {
 			o.LocalizedDefinition = *translatedDef
 		}
 		o.LocalizedShortDefinition = o.ShortDefinition
@@ -1593,13 +2183,20 @@ func loadExamples(ctx context.Context, q querier, wordSenseID, displayLang strin
 
 const lookupOuterPunctCutset = ".,;:!?\"'()[]{}“”‘’«»<>`"
 
-func normalize(text string) string {
-	collapsed := strings.ToLower(strings.Join(strings.Fields(text), " "))
-	parts := strings.Fields(collapsed)
-	for i, p := range parts {
-		parts[i] = strings.Trim(p, lookupOuterPunctCutset)
+func cleanManualLemma(text string) string {
+	fields := strings.Fields(text)
+	cleaned := make([]string, 0, len(fields))
+	for _, f := range fields {
+		trimmed := strings.Trim(f, lookupOuterPunctCutset)
+		if trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
 	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	return strings.Join(cleaned, " ")
+}
+
+func normalize(text string) string {
+	return strings.ToLower(cleanManualLemma(text))
 }
 
 func nullString(s string) *string {
@@ -1637,8 +2234,6 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
-
-// TODO: negative-cache / backoff for repeatedly-failing (word, language) pairs
 
 // GetDueReviewItems returns due review items, respecting daily limits and
 // excluding buried/suspended cards.
@@ -1722,29 +2317,38 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 	}
 
 	baseQuery := `
-		select uws.id::text, uws.word_sense_id::text, w.id::text,
-		       w.language_code, w.lemma, w.normalized_text, w.part_of_speech, w.pronunciation,
+		select uws.id::text,
+		       coalesce(uws.word_sense_id::text, ''),
+		       coalesce(w.id::text, ''),
+		       coalesce(w.language_code, d.target_language),
+		       coalesce(w.lemma, pm.lemma, ''),
+		       coalesce(w.normalized_text, lower(pm.lemma), ''),
+		       coalesce(w.part_of_speech, pm.part_of_speech, 'unknown'),
+		       w.pronunciation,
 		       $3::text as display_language,
-		       ws.definition, ws.short_definition,
-		       coalesce(st.definition, ws.definition),
+		       coalesce(ws.definition, pm.meaning, ''),
+		       ws.short_definition,
+		       coalesce(st.definition, ws.definition, pm.meaning, ''),
 		       coalesce(st.short_definition, ws.short_definition),
-		       ws.cefr_level, ws.meaning_order,
-		       uws.learning_stage, rs.due_at, uws.personal_note,
+		       ws.cefr_level,
+		       coalesce(ws.meaning_order, 0),
+		       uws.learning_stage, rs.due_at,
+		       coalesce(pm.meaning, nullif(btrim(uws.personal_note), '')),
 		       rs.interval_days, rs.ease_factor,
 		       rs.review_count, rs.lapse_count,
 		       rs.fsrs_state, rs.stability, rs.difficulty,
 		       rs.scheduled_days, rs.remaining_steps,
-		       rs.last_reviewed_at,
-		       uws.personal_note
+		       rs.last_reviewed_at
 		from user_word_senses uws
-		join word_senses ws on ws.id = uws.word_sense_id
-		join words w on w.id = ws.word_id
 		join review_states rs on rs.user_word_sense_id = uws.id
 		join decks d on d.id = uws.deck_id
+		left join word_senses ws on ws.id = uws.word_sense_id
+		left join words w on w.id = ws.word_id
 		left join sense_translations st
 		  on st.word_sense_id = ws.id and st.language_code = $3
+		left join user_personal_meanings pm on pm.user_word_sense_id = uws.id
 		where uws.user_id = $1::uuid
-		  and w.language_code = $2
+		  and d.target_language = $2
 		  %s
 		  and uws.archived_at is null
 		  and uws.learning_stage != 'archived'
@@ -1774,18 +2378,18 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 			&item.Definition, &item.ShortDefinition,
 			&item.LocalizedDefinition, &item.LocalizedShortDefinition,
 			&item.CEFRLevel, &item.MeaningOrder,
-			&item.LearningStage, &item.DueAt, &item.PersonalNote,
+			&item.LearningStage, &item.DueAt, &personalNote,
 			&intervalDays, &easeFactor,
 			&reviewCount, &lapseCount,
 			&fsrsState, &stability, &difficulty,
 			&scheduledDays, &remainingSteps,
 			&lastReviewedAt,
-			&personalNote,
 		)
 		if err != nil {
 			return err
 		}
 
+		item.IsCustom = item.WordSenseID == ""
 		var reviewedAt *time.Time
 		if lastReviewedAt.Valid {
 			reviewedAt = &lastReviewedAt.Time
@@ -1804,9 +2408,11 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 			}
 		}
 
-		item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
-			item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
-		)
+		if !item.IsCustom {
+			item.ShortDefinition, item.LocalizedShortDefinition = polishSenseGlosses(
+				item.Lemma, item.ShortDefinition, item.LocalizedShortDefinition, item.Definition, item.LocalizedDefinition,
+			)
+		}
 
 		state := FSRSState{
 			State:          fsrsState,
@@ -1885,6 +2491,10 @@ func (s *Service) GetDueReviewItems(ctx context.Context, userID, langCode, deckI
 
 	// Load example sentences for each due item.
 	for i := range items {
+		if items[i].WordSenseID == "" {
+			items[i].Examples = []Example{}
+			continue
+		}
 		examples, err := loadExamples(ctx, s.pool, items[i].WordSenseID, items[i].DisplayLanguageCode)
 		if err != nil {
 			return nil, err

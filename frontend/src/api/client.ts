@@ -5,6 +5,27 @@ import { isBrowserWeb } from '../utils/platform';
 import { extractTokenFromUrl } from '../utils/authLaunch';
 import { reportUnreachableBackend } from './devBackendHint';
 
+let devUrlToken: string | null = null;
+
+function readDevUrlToken(): string | null {
+  if (!__DEV__ || !isBrowserWeb() || typeof window === 'undefined') {
+    return null;
+  }
+  const urlToken = extractTokenFromUrl(window.location.href);
+  if (urlToken) {
+    devUrlToken = urlToken;
+    return urlToken;
+  }
+  return devUrlToken;
+}
+
+/**
+ * Clears the in-memory __DEV__ browser URL token cached on initial load.
+ */
+export function clearDevUrlToken(): void {
+  devUrlToken = null;
+}
+
 function getCsrfToken(): string | null {
   if (!isBrowserWeb() || typeof document === 'undefined') {
     return null;
@@ -21,7 +42,7 @@ function resolveAuthMode(): 'bearer' | 'cookie' {
   if (!isBrowserWeb()) {
     return 'bearer';
   }
-  if (__DEV__ && typeof window !== 'undefined' && extractTokenFromUrl(window.location.href)) {
+  if (readDevUrlToken()) {
     return 'bearer';
   }
   return 'cookie';
@@ -31,11 +52,9 @@ configureApi({
   baseUrls: API_BASE_URLS,
   authMode: resolveAuthMode(),
   getToken: async () => {
-    if (__DEV__ && isBrowserWeb() && typeof window !== 'undefined') {
-      const urlToken = extractTokenFromUrl(window.location.href);
-      if (urlToken) {
-        return urlToken;
-      }
+    const devToken = readDevUrlToken();
+    if (devToken) {
+      return devToken;
     }
     return sessionStorage.getToken();
   },
@@ -51,6 +70,7 @@ configureApi({
   getCsrfToken,
   onNetworkError: __DEV__ ? (info) => { reportUnreachableBackend(info); } : undefined,
   onUnauthorized: () => {
+    clearDevUrlToken();
     if (!isBrowserWeb()) {
       sessionStorage.clearSession().catch((err) => {
         console.error('Failed to clear session on 401:', err);

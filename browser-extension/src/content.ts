@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'SHOW_ADD_TOAST') {
+  if (message.type === 'SHOW_ADD_TOAST' || message.type === 'SHOW_MANUAL_ADD_TOAST') {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
     const range = selection.getRangeAt(0);
@@ -16,15 +16,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const { close } = showAddToast(
       range,
       payload,
-      (wordSenseId, deckId) => {
+      (wordSenseId, deckId, personalNote) => {
         chrome.runtime.sendMessage(
-          { type: 'ADD_ITEM', payload: { wordSenseId, deckId, displayLanguage: payload.displayLanguage } },
+          {
+            type: 'ADD_ITEM',
+            payload: {
+              wordSenseId,
+              deckId,
+              displayLanguage: payload.displayLanguage,
+              personalNote,
+            },
+          },
           (result) => {
             close();
             if (result?.success) {
               showStatusToast(`Added “${payload.text}” to deck`);
             } else {
-              showStatusToast(`Failed to add “${payload.text}”`);
+              showStatusToast(result?.error ?? `Failed to add “${payload.text}”`);
+            }
+            sendResponse({ handled: true });
+          },
+        );
+      },
+      (personalNote, deckId) => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'ADD_MANUAL_ITEM',
+            payload: {
+              text: payload.text,
+              deckId,
+              displayLanguage: payload.displayLanguage,
+              targetLanguage: payload.targetLanguage,
+              personalNote,
+            },
+          },
+          (result) => {
+            close();
+            if (result?.success) {
+              showStatusToast(`Added “${payload.text}” to deck`);
+            } else {
+              showStatusToast(result?.error ?? `Failed to add “${payload.text}”`);
             }
             sendResponse({ handled: true });
           },
@@ -49,5 +80,5 @@ function showStatusToast(message: string): void {
   el.style.cssText =
     'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1c1b1f;color:#fff;padding:12px 20px;border-radius:999px;z-index:2147483647;font-family:sans-serif;font-size:14px;';
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2500);
+  setTimeout(() => el.remove(), 3000);
 }

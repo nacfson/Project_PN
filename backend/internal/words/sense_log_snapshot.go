@@ -57,6 +57,22 @@ func (s *Service) emitLearningItemAdded(ctx context.Context, userID, uwsID, word
 	}))
 }
 
+func (s *Service) emitManualLearningItemAdded(userID, uwsID, lemma, pos, meaning, wordLang, displayLang, sourceContext string) {
+	now := time.Now().UTC()
+	langPair := wordLang + "-" + displayLang
+	s.writeLearningLine(now, learninglog.RowLearningItemAdded(now, learninglog.LearningItemAddedParams{
+		UserID:              userID,
+		UWSID:               uwsID,
+		WordSenseID:         "",
+		Lemma:               lemma,
+		POS:                 pos,
+		Definition:          meaning,
+		LocalizedDefinition: meaning,
+		LangPair:            langPair,
+		SourceContext:       sourceContext,
+	}))
+}
+
 func (s *Service) emitLearningItemArchived(userID, uwsID, wordSenseID, lemma string, ts time.Time) {
 	s.writeLearningLine(ts, learninglog.RowLearningItemArchived(ts, learninglog.LearningItemArchivedParams{
 		UserID:      userID,

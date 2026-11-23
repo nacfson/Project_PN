@@ -1,7 +1,13 @@
 import './auth/login';
 import { createContextMenu, removeContextMenu } from './contextMenu';
 import { extensionStorage } from './auth/storage';
-import { lookupWord, addLearningItem, listDecks } from './api/client';
+import {
+  addLearningItem,
+  addManualLearningItem,
+  classifyApiError,
+  listDecks,
+  lookupWord,
+} from './api/client';
 import { openLoginWindow } from './auth/login';
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -43,15 +49,39 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const text = selection.result as string;
   if (!text) return;
 
+  const targetLanguage = (await extensionStorage.getTargetLanguage()) ?? 'en';
+  const displayLanguage = (await extensionStorage.getDisplayLanguage()) ?? 'ko';
+
   try {
-    const targetLanguage = (await extensionStorage.getTargetLanguage()) ?? 'en';
-    const displayLanguage = (await extensionStorage.getDisplayLanguage()) ?? 'ko';
     const response = await lookupWord(text, {
       languageCode: targetLanguage,
       displayLanguageCode: displayLanguage,
     });
     const decks = await listDecks(targetLanguage);
     const defaultDeckId = (await extensionStorage.getDefaultDeckId()) ?? decks.find((d) => d.is_default)?.id;
+
+    if (response.sense_options.length === 0) {
+      await sendToContentScript(tab.id, {
+        type: 'SHOW_MANUAL_ADD_TOAST',
+        payload: {
+          text,
+          senseOptions: [],
+          decks,
+          defaultDeckId,
+          displayLanguage,
+          targetLanguage,
+          manualOnly: true,
+          errorMessage: 'Could not find this word in the dictionary. Enter your own meaning to save.',
+          errorCode: 'ADD-309',
+        },
+      });
+      return;
+    }
+
+    const translationMissing =
+      Boolean(response.translation_missing) ||
+      (response.sense_options.some((o) => o.has_localized_translation === false) &&
+        response.sense_options.every((o) => o.has_localized_translation === false));
 
     await sendToContentScript(tab.id, {
       type: 'SHOW_ADD_TOAST',
@@ -62,21 +92,73 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         defaultSenseId: response.sense_options[0]?.word_sense_id,
         defaultDeckId,
         displayLanguage,
+        targetLanguage,
+        translationMissing,
       },
     });
   } catch (err) {
+    const classified = classifyApiError(err);
+    if (classified.canManualAdd) {
+      try {
+        const decks = await listDecks(targetLanguage);
+        const defaultDeckId = (await extensionStorage.getDefaultDeckId()) ?? decks.find((d) => d.is_default)?.id;
+        await sendToContentScript(tab.id, {
+          type: 'SHOW_MANUAL_ADD_TOAST',
+          payload: {
+            text,
+            senseOptions: [],
+            decks,
+            defaultDeckId,
+            displayLanguage,
+            targetLanguage,
+            manualOnly: true,
+            errorMessage: classified.fallbackMessage,
+            errorCode: classified.code,
+          },
+        });
+        return;
+      } catch {
+        // Fall through to error toast if decks cannot be loaded either.
+      }
+    }
     await sendToContentScript(tab.id, {
       type: 'SHOW_ERROR_TOAST',
-      payload: { text, message: err instanceof Error ? err.message : 'Add failed' },
+      payload: { text, message: `${classified.fallbackMessage} (${classified.code})` },
     });
   }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'ADD_ITEM' && sender.tab?.id) {
-    addLearningItem(message.payload.wordSenseId, message.payload.displayLanguage, message.payload.deckId)
+    addLearningItem(
+      message.payload.wordSenseId,
+      message.payload.displayLanguage,
+      message.payload.deckId,
+      undefined,
+      undefined,
+      message.payload.personalNote,
+    )
       .then(() => sendResponse({ success: true }))
-      .catch((err) => sendResponse({ success: false, error: err instanceof Error ? err.message : String(err) }));
+      .catch((err) => {
+        const classified = classifyApiError(err);
+        sendResponse({ success: false, error: `${classified.fallbackMessage} (${classified.code})` });
+      });
+    return true;
+  }
+
+  if (message.type === 'ADD_MANUAL_ITEM' && sender.tab?.id) {
+    addManualLearningItem({
+      text: message.payload.text,
+      language_code: message.payload.targetLanguage,
+      display_language_code: message.payload.displayLanguage,
+      deck_id: message.payload.deckId,
+      personal_note: message.payload.personalNote,
+    })
+      .then(() => sendResponse({ success: true }))
+      .catch((err) => {
+        const classified = classifyApiError(err);
+        sendResponse({ success: false, error: `${classified.fallbackMessage} (${classified.code})` });
+      });
     return true;
   }
 });

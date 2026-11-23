@@ -7,4 +7,9 @@ export interface AddToastPayload {
   defaultSenseId?: string;
   defaultDeckId?: string;
   displayLanguage: string;
+  targetLanguage?: string;
+  translationMissing?: boolean;
+  manualOnly?: boolean;
+  errorMessage?: string;
+  errorCode?: string;
 }

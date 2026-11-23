@@ -152,7 +152,12 @@ export function resolveDueItem(
   return mergeDueItemUpdate(item, override);
 }
 
-type WordIdItem = { word_id: string };
+type WordIdItem = {
+  word_id: string;
+  language_code?: string;
+  normalized_text?: string;
+  user_word_sense_id?: string;
+};
 
 export function shufflePracticeQueue<T extends WordIdItem>(
   items: readonly T[],
@@ -208,11 +213,19 @@ function interleaveByWordId<T extends WordIdItem>(items: T[]): T[] {
 
   const bucketIndex = new Map<string, number>();
   const buckets: T[][] = [];
-  for (const item of items) {
-    let idx = bucketIndex.get(item.word_id);
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i];
+    if (!item) {
+      continue;
+    }
+    const normalized = item.normalized_text?.trim();
+    const key = normalized
+      ? `${(item.language_code ?? '').trim().toLowerCase()}:${normalized.toLowerCase()}`
+      : item.word_id || item.user_word_sense_id || `idx:${i}`;
+    let idx = bucketIndex.get(key);
     if (idx === undefined) {
       idx = buckets.length;
-      bucketIndex.set(item.word_id, idx);
+      bucketIndex.set(key, idx);
       buckets.push([]);
     }
     buckets[idx]?.push(item);

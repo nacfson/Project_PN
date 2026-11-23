@@ -489,6 +489,182 @@ func TestDeckSchemaAcceptance(t *testing.T) {
 	}
 }
 
+func TestUserPersonalMeaningsSchemaAcceptance(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is required for schema acceptance tests")
+	}
+
+	ctx := context.Background()
+	migrationsPath := "file://" + repoPath(t, "db", "migrations")
+
+	if err := Down(migrationsPath, databaseURL, 1); err != nil {
+		t.Fatalf("down migration before test: %v", err)
+	}
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("up migration: %v", err)
+	}
+
+	pool, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer pool.Close()
+
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE users, words, word_senses, decks, user_languages, user_word_senses, review_states, review_attempts CASCADE;`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
+	assertRejects := func(name, query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err == nil {
+			t.Fatalf("%s: expected query to fail", name)
+		}
+	}
+
+	var userID, deckID, customUWSID string
+	if err := pool.QueryRow(ctx, `
+		insert into users (email, native_language, target_language, ui_language)
+		values ('pm-a@example.com', 'ko', 'en', 'ko')
+		returning id::text
+	`).Scan(&userID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into decks (user_id, target_language, name, is_default)
+		values ($1::uuid, 'en', 'en (Default)', true)
+		returning id::text
+	`, userID).Scan(&deckID); err != nil {
+		t.Fatalf("insert deck: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1::uuid, null, $2::uuid)
+		returning id::text
+	`, userID, deckID).Scan(&customUWSID); err != nil {
+		t.Fatalf("insert custom user_word_sense with null word_sense_id: %v", err)
+	}
+
+	assertRejects("blank meaning", `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, 'glorp', 'noun', '   ')
+	`, customUWSID)
+	assertRejects("half-null lemma only", `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, 'glorp', null, 'custom gloss')
+	`, customUWSID)
+	assertRejects("half-null pos only", `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, null, 'noun', 'custom gloss')
+	`, customUWSID)
+	assertRejects("blank lemma with valid pos", `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, '  ', 'noun', 'custom gloss')
+	`, customUWSID)
+	assertRejects("blank pos with valid lemma", `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, 'glorp', '  ', 'custom gloss')
+	`, customUWSID)
+
+	if _, err := pool.Exec(ctx, `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, 'Glorp', 'noun', 'custom gloss')
+	`, customUWSID); err != nil {
+		t.Fatalf("insert valid custom personal meaning: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `delete from user_word_senses where id = $1::uuid`, customUWSID); err != nil {
+		t.Fatalf("delete custom uws: %v", err)
+	}
+	var pmCount int
+	if err := pool.QueryRow(ctx, `select count(*) from user_personal_meanings where user_word_sense_id = $1::uuid`, customUWSID).Scan(&pmCount); err != nil {
+		t.Fatalf("count cascading user_personal_meanings: %v", err)
+	}
+	if pmCount != 0 {
+		t.Fatalf("expected user_personal_meanings cascade delete, got %d", pmCount)
+	}
+
+	// Verify (NULL, NULL) dictionary override row + custom card, then verify 000030 Down -> Up round-trip.
+	var dictWordID, dictSenseID, dictUWSID, customUWSID2 string
+	if err := pool.QueryRow(ctx, `
+		insert into words (language_code, lemma, normalized_text, part_of_speech)
+		values ('en', 'roundtrip', 'roundtrip', 'noun') returning id::text
+	`).Scan(&dictWordID); err != nil {
+		t.Fatalf("insert dictionary word: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into word_senses (word_id, definition, meaning_order)
+		values ($1::uuid, 'dict gloss', 1) returning id::text
+	`, dictWordID).Scan(&dictSenseID); err != nil {
+		t.Fatalf("insert dictionary sense: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into user_word_senses (user_id, word_sense_id, deck_id, personal_note)
+		values ($1::uuid, $2::uuid, $3::uuid, null) returning id::text
+	`, userID, dictSenseID, deckID).Scan(&dictUWSID); err != nil {
+		t.Fatalf("insert dict uws: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, null, null, 'override gloss')
+	`, dictUWSID); err != nil {
+		t.Fatalf("insert valid (NULL, NULL) dictionary override: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		insert into user_word_senses (user_id, word_sense_id, deck_id)
+		values ($1::uuid, null, $2::uuid) returning id::text
+	`, userID, deckID).Scan(&customUWSID2); err != nil {
+		t.Fatalf("insert second custom uws: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into user_personal_meanings (user_word_sense_id, lemma, part_of_speech, meaning)
+		values ($1::uuid, 'Snorf', 'verb', 'custom verb')
+	`, customUWSID2); err != nil {
+		t.Fatalf("insert second custom personal meaning: %v", err)
+	}
+
+	if err := Down(migrationsPath, databaseURL, 1); err != nil {
+		t.Fatalf("down 000030 migration: %v", err)
+	}
+	var restoredNote *string
+	if err := pool.QueryRow(ctx, `select personal_note from user_word_senses where id = $1::uuid`, dictUWSID).Scan(&restoredNote); err != nil {
+		t.Fatalf("query restored personal_note after down: %v", err)
+	}
+	if restoredNote == nil || *restoredNote != "override gloss" {
+		t.Fatalf("expected restored personal_note 'override gloss' after down, got %v", restoredNote)
+	}
+	var survivingCustom int
+	if err := pool.QueryRow(ctx, `select count(*) from user_word_senses where id = $1::uuid`, customUWSID2).Scan(&survivingCustom); err != nil {
+		t.Fatalf("count purged custom uws after down: %v", err)
+	}
+	if survivingCustom != 0 {
+		t.Fatalf("expected custom-only uws deleted on 000030 down, got %d", survivingCustom)
+	}
+	var droppedTable *string
+	if err := pool.QueryRow(ctx, `select to_regclass('public.user_personal_meanings')::text`).Scan(&droppedTable); err != nil {
+		t.Fatalf("check user_personal_meanings dropped: %v", err)
+	}
+	if droppedTable != nil {
+		t.Fatalf("expected user_personal_meanings table dropped on down, got %q", *droppedTable)
+	}
+
+	if err := Up(migrationsPath, databaseURL); err != nil {
+		t.Fatalf("re-up 000030 migration: %v", err)
+	}
+	var backfilledLemma, backfilledPOS *string
+	var backfilledMeaning string
+	if err := pool.QueryRow(ctx, `
+		select lemma, part_of_speech, meaning
+		from user_personal_meanings
+		where user_word_sense_id = $1::uuid
+	`, dictUWSID).Scan(&backfilledLemma, &backfilledPOS, &backfilledMeaning); err != nil {
+		t.Fatalf("query backfilled user_personal_meanings after re-up: %v", err)
+	}
+	if backfilledLemma != nil || backfilledPOS != nil || backfilledMeaning != "override gloss" {
+		t.Fatalf("unexpected backfilled override row: lemma=%v pos=%v meaning=%q", backfilledLemma, backfilledPOS, backfilledMeaning)
+	}
+}
+
 func repoPath(t *testing.T, parts ...string) string {
 	t.Helper()
 

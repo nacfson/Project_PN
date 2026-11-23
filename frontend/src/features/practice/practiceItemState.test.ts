@@ -143,10 +143,64 @@ describe('practice queue order', () => {
   });
 
   it('keeps sibling senses from landing consecutively after a shuffle', () => {
-    const items = [card('run-1', 'run'), card('run-2', 'run'), card('go-1', 'go'), card('go-2', 'go')];
+    const sibling = (id: string, normalizedText: string, wordId = normalizedText): DueItem => ({
+      ...baseItem,
+      user_word_sense_id: `uws-${id}`,
+      word_sense_id: `ws-${id}`,
+      word_id: wordId,
+      lemma: normalizedText,
+      normalized_text: normalizedText,
+    });
+    const items = [
+      sibling('run-1', 'run'),
+      sibling('run-2', 'run'),
+      sibling('go-1', 'go'),
+      sibling('go-2', 'go'),
+    ];
     const got = shufflePracticeQueue(items, () => 0.999);
     for (let i = 1; i < got.length; i += 1) {
       expect(got[i - 1]?.word_id).not.toBe(got[i]?.word_id);
+    }
+  });
+
+  it('separates custom cards and mixed custom/dictionary siblings without clumping empty word_id', () => {
+    const custom = (id: string, lemma: string): DueItem => ({
+      ...baseItem,
+      user_word_sense_id: id,
+      word_sense_id: '',
+      is_custom: true,
+      word_id: '',
+      lemma,
+      normalized_text: lemma,
+    });
+    const dict = (id: string, lemma: string, wordId: string): DueItem => ({
+      ...baseItem,
+      user_word_sense_id: id,
+      word_sense_id: `ws-${id}`,
+      word_id: wordId,
+      lemma,
+      normalized_text: lemma,
+    });
+
+    const mixed = [
+      custom('c1', 'glorp'),
+      dict('d1', 'glorp', 'w-glorp'),
+      custom('c2', 'snorf'),
+      dict('d2', 'snorf', 'w-snorf'),
+    ];
+    const gotMixed = shufflePracticeQueue(mixed, () => 0.999);
+    expect(gotMixed.map((it) => it.normalized_text)).toEqual(['glorp', 'snorf', 'glorp', 'snorf']);
+
+    // Falls back cleanly to word_id when normalized_text is empty.
+    const wordIdOnly = [
+      { ...card('a1', 'w-run'), normalized_text: '' },
+      { ...card('a2', 'w-run'), normalized_text: '' },
+      { ...card('b1', 'w-go'), normalized_text: '' },
+      { ...card('b2', 'w-go'), normalized_text: '' },
+    ];
+    const gotFallback = shufflePracticeQueue(wordIdOnly, () => 0.999);
+    for (let i = 1; i < gotFallback.length; i += 1) {
+      expect(gotFallback[i - 1]?.word_id).not.toBe(gotFallback[i]?.word_id);
     }
   });
 
