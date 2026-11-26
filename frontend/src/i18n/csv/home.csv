@@ -1,0 +1,27 @@
+key,en,ko
+home.greeting,"Hello, {name}","안녕하세요, {name}님"
+home.subtitle,Ready to keep your streak going?,오늘도 연속 학습을 이어갈까요?
+home.wordsDue,Words due today,오늘 복습할 단어
+home.allCaughtUp,All caught up,모두 완료했어요
+home.checkingDue,Checking for due cards...,복습할 카드를 확인하는 중...
+home.startReview,Start {count}-card review,{count}개 카드 복습 시작
+home.previewPractice,Study again,다시 학습하기
+home.dayStreak,Day streak,일 연속 학습
+home.xpToday,XP today,오늘 XP
+home.progressTitle,Your progress,학습 현황
+home.masteryTitle,Mastery breakdown,숙련도 분포
+home.masteryEmpty,Add words to see your mastery breakdown.,단어를 추가하면 숙련도 분포를 볼 수 있어요.
+home.forecastTitle,14-day review forecast,14일 복습 예측
+home.forecastToday,Today,오늘
+home.forecastTotal,reviews scheduled,개 복습 예정
+home.statsLoadFailed,Could not load progress stats.,진행 통계를 불러오지 못했어요.
+home.streakAtRisk,Review {count} due cards today to keep your {days}-day streak.,오늘 {count}개의 복습 카드를 마치면 {days}일 연속 기록을 지킬 수 있어요.
+home.streakVacation,Vacation mode — streak pressure paused.,휴가 모드 — 연속 기록 압박이 일시 중지됐어요.
+home.streakFreezeAvailable,Streak freezes available: {count},연속 기록 보호 {count}회 사용 가능
+home.longestStreak,Best: {days} days,최고: {days}일
+home.stage.new,New,새 단어
+home.stage.learning,Learning,학습 중
+home.stage.recognized,Recognized,인지
+home.stage.recalled,Recalled,회상
+home.stage.usable,Usable,활용
+home.stage.mastered,Mastered,완전 숙달

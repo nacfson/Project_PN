@@ -40,6 +40,10 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - name: Lint module imports
         run: npm run lint:imports
+      - name: Verify i18n CSV schema & sync
+        run: npm run i18n:check
+      - name: Test i18n CSV workflow script
+        run: npm run test:scripts
       - name: Typecheck frontend
         run: npm run typecheck -w frontend
       - name: Typecheck shared API package

@@ -1,0 +1,22 @@
+key,en,ko
+today.headlineDue,{count} words are due,복습할 단어 {count}개
+today.headlineNone,You're caught up for today,오늘 복습을 모두 마쳤습니다
+today.estimate,About {minutes} minutes,약 {minutes}분 소요
+today.mixAllNew,"All of them are new, so this is your first pass.",모두 새 단어이므로 첫 학습입니다.
+today.mixMostlyReviews,Mostly reviews from earlier sessions.,이전 학습에서 복습할 단어가 대부분입니다.
+today.mixMixed,A mix of new words and scheduled reviews.,새 단어와 예정된 복습이 섞여 있습니다.
+today.startReview,Start review,복습 시작
+today.addWord,Add a word,단어 추가
+today.dailyGoal,Daily goal,일일 목표
+today.streak,Streak,연속 학습
+today.days,days,일
+today.freezesAvailable,{count} freeze available,연속 보호 {count}개 사용 가능
+today.inYourDecks,In your decks,내 단어장
+today.words,words,단어
+today.nextReview,Next review after today: {date},오늘 이후 다음 복습: {date}
+today.nextReviewNone,Next review after today: none yet,오늘 이후 다음 복습: 아직 없음
+today.upNext,Up next,다음 단어
+today.seeAllWords,See all words,모든 단어 보기
+today.andMore,and {count} more,외 {count}개 더
+today.mastery,Mastery,숙련도
+today.noWordsYet,No words yet,아직 단어가 없습니다

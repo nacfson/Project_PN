@@ -1,0 +1,55 @@
+key,en,ko
+practice.preparing,Preparing practice session...,복습 세션을 준비하는 중...
+practice.syncing,Syncing results with server...,결과를 서버와 동기화하는 중...
+practice.complete,Practice Complete,복습 완료
+practice.xpEarned,XP Earned,획득 XP
+practice.progressSaved,Your spaced-repetition progress has been saved.,간격 반복 학습 진행도가 저장되었습니다.
+practice.saved,Saved,저장됨
+practice.backHome,Back to Home,홈으로 돌아가기
+practice.submissionFailed,Submission Failed,제출 실패
+practice.saveError,An error occurred while saving your session attempts.,세션 기록을 저장하는 중 오류가 발생했습니다.
+practice.retrySync,Retry Sync,동기화 다시 시도
+practice.discardProgress,Discard Progress,진행도 버리기
+practice.noDueMessage,You have no words due for review today.,오늘 복습할 단어가 없습니다.
+practice.noDueCustom,No words due today. Add words to your private decks to practice.,오늘 복습할 단어가 없습니다. 개인 덱에 단어를 추가해 연습하세요.
+practice.refreshDue,Refresh Due Words,복습 단어 새로고침
+practice.studyAgain,Study Again,다시 학습하기
+practice.repeatMode,Repeat Review,반복 복습
+practice.flashcardMode,Flashcard,플래시카드
+practice.finishRepeat,Finish,끝내기
+practice.noReviewedWordsRepeat,"No reviewed words yet. Complete new cards first, then study them again.",아직 복습한 단어가 없습니다. 새 카드를 먼저 풀고 다시 학습해 보세요.
+practice.loadDueFailed,Failed to load due review items.,복습할 항목을 불러오지 못했습니다.
+practice.repeatFailed,Failed to start repeat review.,반복 복습을 시작하지 못했습니다.
+practice.submitFailed,Failed to submit review attempts.,복습 기록을 제출하지 못했습니다.
+practice.endSession,End session,세션 종료
+practice.position,{current} of {total},{current} / {total}
+practice.showAnswer,Show answer,정답 보기
+practice.rateHint,Press 1–4 to rate. Good is the right answer most of the time.,1~4를 눌러 평가하세요. 보통은 좋음을 선택하면 됩니다.
+practice.playPronunciation,Play pronunciation,발음 듣기
+practice.cardProgress,Card {current} of {total},{current} / {total} 카드
+practice.retrying,Retrying,다시 복습
+practice.noExample,No example sentence. Use the definition to recall.,예문이 없어요. 정의를 보고 떠올려 보세요.
+practice.tapReveal,TAP TO REVEAL ANSWER,탭해서 정답 보기
+practice.swipeGuide,Swipe left/right · or tap a button below,좌우 스와이프 · 또는 아래 버튼을 탭
+practice.recallPrompt,Recall the English word before you reveal it.,정답을 보기 전에 영어 단어를 떠올려 보세요.
+practice.typePrompt,Type the English word matching the definition.,정의에 맞는 영어 단어를 입력해 주세요.
+practice.yourAnswer,Your answer,내 답
+practice.answerPlaceholder,Type the word you remember,기억나는 단어를 입력하세요
+practice.revealAnswer,Reveal answer,정답 보기
+practice.checkAnswer,Check answer,정답 확인
+practice.dontKnow,I don't know,모르겠어요
+practice.noAnswerGiven,No answer given,입력한 답 없음
+practice.rateRecall,How did this feel?,어느 정도로 느껴졌나요?
+practice.showRatingOptions,Rate Recall,결과 평가하기
+practice.pronunciation,Pronunciation,발음
+practice.exampleLabel,Example,예문
+practice.ratingForgot,Forgot,잊음
+practice.ratingHard,Hard,어려움
+practice.ratingGood,Good,좋음
+practice.ratingEasy,Easy,쉬움
+practice.leechBadge,Fail repeatedly!,반복 실패!
+practice.stuckWords,Stuck words,막힌 단어
+practice.stuckWordsHelp,These words failed often. Change the meaning or write your own.,자주 틀린 단어입니다. 의미를 바꾸거나 직접 적어 보세요.
+practice.changeMeaning,Change meaning,의미 바꾸기
+practice.writeMyMeaning,Write my meaning,내 뜻 쓰기
+practice.yourMeaning,Your meaning,내가 적은 뜻

@@ -1,0 +1,21 @@
+key,en,ko
+import.title,Import from Anki,Anki에서 가져오기
+import.help,Help,도움말
+import.helpText,"Export your Anki deck as CSV (Front, Back, Tags). Paste the file contents below. Words that already exist will show conflict options.","Anki 덱을 CSV로 낸 뒤(Front, Back, Tags) 아래에 붙여넣으세요. 이미 있는 단어는 충돌 옵션이 표시됩니다."
+import.pasteInstructions,Paste Anki CSV export below:,아래에 Anki CSV 내보낸 내용을 붙여넣으세요:
+import.csvPlaceholder,"Front,Back,Tags
+run,to move quickly,verbs","Front,Back,Tags
+run,to move quickly,verbs"
+import.preview,Preview import,가져오기 미리보기
+import.reviewTitle,Review {count} cards,{count}개 카드 검토
+import.startOver,Start over,처음부터
+import.conflictHint,Some words already exist. Choose whether to overwrite the meaning or create a new meaning option.,일부 단어가 이미 존재합니다. 의미를 덮어쓸지 새 의미를 만들지 선택하세요.
+import.import,Import cards,카드 가져오기
+import.complete,Import complete,가져오기 완료
+import.summary,"Imported: {imported}, Skipped: {skipped}, Failed: {failed}","가져옴: {imported}, 건너뜀: {skipped}, 실패: {failed}"
+import.importMore,Import more,더 가져오기
+import.overwriteMeaning,Overwrite meaning,의미 덮어쓰기
+import.createNewMeaning,Create new meaning,새 의미 만들기
+import.add,Add,추가
+import.skip,Skip,건너뛰기
+import.existingMeanings,Existing meanings:,기존 의미:

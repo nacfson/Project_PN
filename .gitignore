@@ -95,3 +95,6 @@ var/db-backups/
 # Git worktrees
 .worktrees/
 .superpowers/
+
+# Temporary i18n CSV spreadsheet exports (npm run i18n:export)
+frontend/src/i18n/translations.export.csv

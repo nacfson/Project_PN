@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fast pre-commit lint gates (<0.5s): module resolution + RNTL v14 async await check.
+# Fast pre-commit lint gates (<0.5s): module resolution, RNTL v14 async await, and i18n CSV sync checks.
 set -u
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
@@ -16,5 +16,6 @@ run() { # label command...
 
 run "lint:imports" npm run --silent lint:imports
 run "lint:rntl-async" npm run --silent lint:rntl-async
+run "i18n:check" node scripts/i18n-csv.mjs check
 
 echo "pre-commit: all checks passed"
