@@ -69,7 +69,7 @@ Core backend principle:
 - Isolate data fetching in repository wrappers within `frontend/src/api/` instead of triggering inline Axios/Fetch calls in screen UI code.
 - Prefer standard React Native styling or a clean Tailwind configuration (if requested) but default to standard CSS-in-JS StyleSheet.
 - Reuse the shared `Input` component and its props (`secureTextEntryToggle`, `loading`, `error`, `helperText`, `onClear`) instead of building one-off variants.
-- Show soft inline validation feedback on blur, and add translation keys for both `en` and `ko` in `frontend/src/i18n/translations.ts`.
+- Show soft inline validation feedback on blur, and add translation keys for both `en` and `ko` in `frontend/src/i18n/csv/<prefix>.csv` followed by `npm run i18n:sync` (never hand-edit generated `frontend/src/i18n/translations.ts`).
 - Prefer an undo pattern over blocking confirmation dialogs for local destructive actions (e.g., clearing a passage).
 - Adapt controls for desktop/web/Tauri: larger hit targets, click-to-set sliders, and keyboard shortcuts where appropriate.
 - Show generic user-facing messages for missing OAuth/third-party config; expose environment-variable hints only when `__DEV__` is true.

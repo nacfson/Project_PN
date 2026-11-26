@@ -1,0 +1,68 @@
+key,en,ko
+words.title,Words,단어장
+words.summary,{words} words in {decks} decks,{decks}개 덱에 {words}개 단어
+words.searchPlaceholder,Search words or meanings,단어 또는 뜻 검색
+words.loadFailed,Failed to load words.,단어를 불러오지 못했습니다.
+words.noMatches,"No matches for ""{query}""","""{query}"" 검색 결과가 없습니다"
+words.noMatchesMessage,Try a different spelling or search term.,다른 철자나 검색어를 입력해 보세요.
+words.emptyTitle,No words yet,아직 단어가 없습니다
+words.emptyMessage,Add words from a passage or type them in manually to start building your library.,지문에서 단어를 추가하거나 직접 입력해서 단어장을 만들어 보세요.
+words.noLanguagePairTitle,Add a language pair,언어 쌍을 추가해 주세요
+words.noLanguagePairMessage,Add the language you want to learn in Settings to start building your word list.,단어장을 시작하려면 설정에서 배우고 싶은 언어 쌍을 추가해 주세요.
+words.noLanguagePairAction,Add language pair,언어 쌍 추가
+words.filterAll,All,전체
+words.allDecks,All decks,전체 덱
+words.createDeck,New deck,새 덱
+words.newDeck,New deck,새 덱
+words.manageDecks,Manage decks,덱 관리
+words.renameDeck,Rename deck,덱 이름 변경
+words.colWord,Word,단어
+words.colMeaning,Meaning,뜻
+words.colType,Type,품사
+words.colStage,Stage,단계
+words.colDue,Due,복습일
+words.dueToday,Today,오늘
+words.rowHint,"Hover a row to play audio, move it to another deck, or delete it. Open a word for everything else.","행에 마우스를 올리면 발음 듣기, 다른 덱으로 이동, 삭제를 할 수 있습니다. 단어를 열면 상세 정보를 볼 수 있습니다."
+words.decksTitle,Decks,덱
+words.openDeck,Open deck,덱 열기
+words.removeConfirmTitle,Remove this word?,이 단어를 삭제할까요?
+words.removeConfirmTitleMany,Remove {count} words?,단어 {count}개를 삭제할까요?
+words.removeConfirmBody,This can't be undone.,이 작업은 되돌릴 수 없습니다.
+words.removeConfirmAction,Remove,삭제
+words.detailTitle,Word Detail,단어 상세
+words.detailExamples,Examples,예문
+words.detailAdded,Added,추가일
+words.detailDue,Due,복습 예정일
+words.glossAttribution,Gloss via Wiktionary,위키낱말사전 뜻풀이
+words.deckNamePlaceholder,Deck name,덱 이름
+words.deckNameRequired,Please enter a deck name.,덱 이름을 입력해 주세요.
+words.deckNameTooLong,Deck name must be 120 characters or less.,덱 이름은 120자 이하여야 합니다.
+words.deleteDeck,Delete deck,덱 삭제
+words.deckDeleteConfirmTitle,"Delete ""{deck}""?","""{deck}""을(를) 삭제할까요?"
+words.deckDeleteConfirmMessage,All cards will move to the default deck.,모든 카드는 기본 덱으로 이동합니다.
+words.deckDeleteConfirm,Delete,삭제
+words.deckLoadFailed,Could not load decks.,덱을 불러오지 못했습니다.
+words.deckCreateFailed,Could not create deck.,덱을 만들지 못했습니다.
+words.deckRenameFailed,Could not rename deck.,덱 이름을 변경하지 못했습니다.
+words.deckDeleteFailed,Could not delete deck.,덱을 삭제하지 못했습니다.
+words.moveToDeck,Move to deck,덱으로 이동
+words.moveToDeckTitle,Move to deck,덱으로 이동
+words.moveToDeckFailed,Could not move items.,항목을 이동하지 못했습니다.
+words.removeFromDeck,Remove from deck,덱에서 제거
+words.removeFromDeckFailed,Could not remove items.,항목을 제거하지 못했습니다.
+words.loadMore,Load more words,단어 더 보기
+words.changeMeaning,Change meaning,의미 변경
+words.changeMeaningTitle,Choose a different meaning,다른 의미 선택
+words.personalMeaningTitle,Write my meaning,내 뜻 쓰기
+words.personalMeaningHelp,Saved only for you — not added to the shared dictionary.,나에게만 저장됩니다. 공유 사전에는 올라가지 않습니다.
+words.personalMeaningPlaceholder,Type a short gloss you want to remember,기억하고 싶은 짧은 뜻을 입력하세요
+words.personalMeaningSave,Save my meaning,내 뜻 저장
+words.personalMeaningClear,Clear my meaning,내 뜻 지우기
+words.personalMeaningRequired,"Enter a short meaning, or clear it.",짧은 뜻을 입력하거나 지워 주세요.
+words.stuckBadge,Stuck,막힘
+words.changeMeaningConfirm,Save meaning,의미 저장
+words.changeMeaningLoading,Loading meanings...,의미를 불러오는 중...
+words.changeMeaningSaving,Saving meaning...,의미를 저장하는 중...
+words.senseConflict,That meaning is already in your learning set.,이미 학습 중인 의미입니다.
+words.noOtherDecks,No other decks available.,이동할 수 있는 다른 덱이 없습니다.
+words.lastReviewed,Reviewed {time},최근 복습: {time}

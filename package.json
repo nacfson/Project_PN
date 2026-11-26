@@ -7,9 +7,14 @@
     "packages/*"
   ],
   "scripts": {
+    "i18n:sync": "node scripts/i18n-csv.mjs sync",
+    "i18n:check": "node scripts/i18n-csv.mjs check",
+    "i18n:export": "node scripts/i18n-csv.mjs export",
+    "i18n:import": "node scripts/i18n-csv.mjs import",
+    "test:scripts": "node --test scripts/i18n-csv.test.mjs",
     "lint:imports": "node scripts/lint-imports.mjs",
     "lint:rntl-async": "node scripts/lint-rntl-async.mjs",
-    "lint": "npm run lint:imports && npm run lint:rntl-async",
+    "lint": "npm run lint:imports && npm run lint:rntl-async && npm run i18n:check",
     "verify": "scripts/verify-local.sh",
     "verify:full": "scripts/verify-local.sh --full",
     "prepare": "git config core.hooksPath .githooks || true"

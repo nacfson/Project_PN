@@ -1,0 +1,13 @@
+key,en,ko
+pos.Any,Any,전체
+pos.noun,noun,명사
+pos.verb,verb,동사
+pos.adjective,adjective,형용사
+pos.adverb,adverb,부사
+pos.pronoun,pronoun,대명사
+pos.preposition,preposition,전치사
+pos.conjunction,conjunction,접속사
+pos.interjection,interjection,감탄사
+pos.determiner,determiner,한정사
+pos.phrase,phrase,구문
+pos.unknown,unknown,미분류

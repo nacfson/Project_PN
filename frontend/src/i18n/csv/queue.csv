@@ -1,0 +1,12 @@
+key,en,ko
+queue.adding,Adding {count} word{plural}...,{count}개 단어 추가 중...
+queue.added,"""{text}"" added","""{text}"" 추가됨"
+queue.failed,"""{text}"" failed: {error}","""{text}"" 실패: {error}"
+queue.unknownError,Unknown error,알 수 없는 오류
+queue.dismiss,Dismiss notification,알림 닫기
+queue.failedSummary,{count} words could not be added,{count}개 단어를 추가하지 못했습니다
+queue.retryFailed,Retry failed,실패 항목 다시 시도
+queue.dismissAll,Dismiss all,모두 닫기
+queue.showDetails,Details,자세히
+queue.hideDetails,Hide,접기
+queue.tapToResolve,Tap a failed word chip to add your own meaning.,실패한 단어 칩을 탭해 직접 뜻을 입력할 수 있습니다.

@@ -1,0 +1,93 @@
+key,en,ko
+add.title,Add a word,단어 추가
+add.capture,Capture,캡처
+add.manual,Word or phrase,단어 또는 구문
+add.wordRequired,Please enter a word or phrase.,단어나 구문을 입력해 주세요.
+add.validationInvalidWord,Please enter a valid word or phrase.,올바른 단어나 구문을 입력해 주세요.
+add.import,Import,가져오기
+add.fromPassage,From a passage,문장에서 추가
+add.deckLoadFailed,Could not load decks.,덱을 불러올 수 없습니다.
+add.deckLoadRetry,Try again,다시 시도
+add.passage,From a passage,문장에서 추가
+add.switchToPassage,Or capture words from a passage,지문에서 여러 단어 골라 추가하기
+add.backToManual,Back to word or phrase,단어·구문 직접 추가로 돌아가기
+add.phraseSupportHint,"Works with single words and multi-word phrases (e.g. look up, take for granted).",단어뿐 아니라 여러 단어로 된 숙어·구문도 바로 추가할 수 있어요 (예: look up).
+add.addingTo,Adding to,추가할 덱:
+add.inputPlaceholder,"A word or phrase, e.g. look up","단어 또는 구문, 예: look up"
+add.findMeanings,Find meanings,의미 찾기
+add.addContext,Add context,문맥 추가
+add.addContextHint,"— optional, helps pick the right meaning","— 선택, 알맞은 의미를 고르는 데 도움이 됩니다"
+add.whereSaw,Where you saw it,어디서 봤나요
+add.whereSawPlaceholder,The sentence it came from,이 단어가 나온 문장
+add.ownWording,Your own wording,내 표현
+add.ownWordingPlaceholder,Shown on your cards only,내 카드에만 표시됩니다
+add.partOfSpeech,Part of speech,품사
+add.whichMeaning,Which meaning did you mean?,어떤 의미인가요?
+add.foundCount,{count} found,{count}개 발견
+add.noneSearchAgain,None of these — search again,일치하는 의미 없음 — 다시 찾기
+add.addToDeck,Add to deck,덱에 추가
+add.passagePlaceholder,Paste or type text here...,텍스트를 붙여넣거나 입력하세요...
+add.tapWords,Tap words to select,단어를 탭해서 선택
+add.tapPhrase,Tap start and end words to select a phrase,시작과 끝 단어를 탭해서 구문을 선택
+add.phraseMode,Phrase mode,구문 모드
+add.clearPassage,Clear passage,지문 지우기
+add.undoClear,Undo,실행 취소
+add.emptyPassage,"Type or paste a passage above, then tap words or phrases to add.","위에 지문을 입력하거나 붙여넣은 뒤, 추가할 단어나 구문을 탭하세요."
+add.phraseSelectHint,"Tap one word, or tap two words to select a phrase span.","단어 하나를 탭하거나, 두 단어를 탭해 구문 구간을 선택하세요."
+add.partOfSpeechOptional,Part of speech (optional),품사 (선택)
+add.selected,Selected ({count}),선택됨 ({count})
+add.addSelected,Add selected ({count}),선택한 항목 추가 ({count})
+add.word,Word,단어
+add.addOneWord,Add a word or phrase,단어나 구문 추가
+add.addWordOrPhrase,Add a word or phrase,단어나 구문 추가
+add.wordPlaceholder,Type a word or phrase,단어나 구문 입력
+add.phrasePlaceholder,Type a word or phrase (e.g. look up),단어 또는 구문 입력 (예: look up)
+add.phraseHint,Multi-word phrases are supported. Spaces are OK.,여러 단어로 된 구문을 추가할 수 있습니다. 공백이 있어도 됩니다.
+add.phrasePosHint,Phrase POS selected for multi-word input,여러 단어 입력으로 구문 품사가 선택되었습니다
+add.lookUp,Look up,찾아보기
+add.added,Added,추가됨
+add.emptyManualTitle,Add a word or phrase,단어나 구문 추가
+add.emptyManualMessage,Type a word or phrase above and choose its part of speech. We'll look up definitions and examples for you.,위에 단어나 구문을 입력하고 품사를 선택하세요. 정의와 예문을 찾아드릴게요.
+add.addWord,Add Word,단어 추가
+add.findMySense,Find my sense,내 의미 찾기
+add.contextLabel,Where you saw it,어디서 봤나요
+add.contextPlaceholder,Optional sentence or situation that shows the meaning you meant,의도한 의미를 보여주는 문장이나 상황 (선택)
+add.myWordingLabel,My wording,내 표현
+add.myWordingPlaceholder,Optional gloss shown on your cards (not shared to the dictionary),"카드에 보일 표현 (선택, 사전에 공유되지 않음)"
+add.targetDeck,Target Deck,대상 덱
+add.selectDeck,Select deck,덱 선택
+add.searchDecks,Search decks,덱 검색
+add.noDeck,No deck,덱 없음
+add.deckCardCount,{count} cards,{count}개 카드
+add.addedToDeck,"Added ""{{word}}"" to {{deck}}","""{{word}}""를 {{deck}}에 추가했습니다"
+add.error.invalidRequest,The word request is incomplete. Review it and try again.,단어 요청이 올바르지 않습니다. 내용을 확인한 뒤 다시 시도하세요.
+add.error.networkTitle,Connection error,연결 오류
+add.error.network,Could not reach the server. Check your connection and try again.,서버에 연결할 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.
+add.error.senseNotFound,This meaning is no longer available. Look up the word again.,이 의미는 더 이상 사용할 수 없습니다. 단어를 다시 찾아보세요.
+add.error.noAdditionalSenseTitle,No more meanings found,추가 의미를 찾지 못했습니다
+add.error.noAdditionalSense,No additional dictionary meaning was found. You can write your own meaning instead.,사전에서 추가 의미를 찾지 못했습니다. 대신 직접 뜻을 입력할 수 있습니다.
+add.error.translationUnavailableTitle,No localized meaning found,한국어 뜻을 찾지 못했습니다
+add.error.translationUnavailable,No localized meaning was found for this language pair. Enter your own meaning to save.,선택한 표시 언어로 된 뜻을 찾지 못했습니다. 아래에 직접 뜻을 입력해 저장하세요.
+add.error.deckNotFound,The selected deck no longer exists. Choose a deck and try again.,선택한 덱이 더 이상 존재하지 않습니다. 덱을 선택한 뒤 다시 시도하세요.
+add.error.deckUnavailable,This deck cannot accept a word from the current learning language.,현재 학습 언어의 단어는 이 덱에 추가할 수 없습니다.
+add.error.languageInvalid,Your current learning language is not available. Refresh the language settings.,현재 학습 언어를 사용할 수 없습니다. 언어 설정을 새로고침하세요.
+add.error.alreadyAdded,This meaning is already in your learning set.,이 의미는 이미 학습 목록에 있습니다.
+add.error.wordNotFoundTitle,Not in dictionary,사전에서 찾지 못했습니다
+add.error.wordNotFound,"We couldn't find this word in the dictionary. Check the spelling or write your own meaning.",사전에서 이 단어를 찾지 못했습니다. 철자를 확인하거나 직접 뜻을 입력해 저장하세요.
+add.error.personalMeaningRequired,Enter a meaning to save this word.,저장하려면 뜻을 입력해 주세요.
+add.error.languageUnsupportedTitle,Language not supported for auto-lookup,자동 조회 미지원 언어
+add.error.languageUnsupported,Dictionary lookup is not available for this learning language yet. You can write your own meaning.,이 학습 언어에서는 아직 자동 사전 조회를 사용할 수 없습니다. 직접 뜻을 입력해 저장하세요.
+add.error.enrichmentUnavailableTitle,Auto-lookup disabled,자동 사전 조회 비활성화
+add.error.enrichmentUnavailable,Automatic dictionary lookup is not configured right now. You can write your own meaning.,현재 자동 사전 조회가 설정되어 있지 않습니다. 직접 뜻을 입력해 저장하세요.
+add.error.providerUnavailableTitle,Dictionary service unavailable,사전 서비스 일시 중단
+add.error.providerUnavailable,The dictionary service could not be reached right now. Try again or write your own meaning.,사전 서비스에 일시적으로 연결할 수 없습니다. 다시 시도하거나 직접 뜻을 입력해 저장하세요.
+add.error.providerInvalidTitle,Unusable dictionary response,사전 응답 오류
+add.error.providerInvalid,The dictionary returned unusable data for this word. Try again or write your own meaning.,사전에서 올바른 데이터를 받지 못했습니다. 다시 시도하거나 직접 뜻을 입력해 저장하세요.
+add.error.providerTimeoutTitle,Lookup timed out,사전 조회 시간 초과
+add.error.providerTimeout,The dictionary took too long to respond. Try again or write your own meaning.,사전 응답이 너무 오래 걸려 중단되었습니다. 다시 시도하거나 직접 뜻을 입력해 저장하세요.
+add.error.signInRequired,Your sign-in session expired. Sign in again to add words.,로그인 세션이 만료되었습니다. 단어를 추가하려면 다시 로그인하세요.
+add.error.authUnavailable,Sign-in is temporarily unavailable. Try again later.,로그인을 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요.
+add.error.securityCheck,Your session security check expired. Refresh and try again.,세션 보안 확인이 만료되었습니다. 새로고침한 뒤 다시 시도하세요.
+add.error.genericTitle,Could not look up word,단어를 조회할 수 없습니다
+add.error.unknown,"We could not determine the cause. Try again or write your own meaning.",원인을 확인하지 못했습니다. 다시 시도하거나 직접 뜻을 입력해 저장하세요.
+add.error.codeCaption,Code: {code},오류 코드: {code}

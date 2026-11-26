@@ -1,0 +1,23 @@
+key,en,ko
+sense.chooseMeaning,"Choose a meaning for ""{query}""","""{query}""의 의미를 선택하세요"
+sense.noneFound,No senses found.,의미를 찾지 못했습니다.
+sense.generating,Generating a new meaning...,새 의미를 생성하는 중...
+sense.pickPartOfSpeech,Pick a part of speech to generate a new meaning:,새 의미를 생성할 품사를 선택하세요:
+sense.noneMatch,None of these match,일치하는 의미가 없음
+sense.noAdditionalSenses,No more dictionary meanings found. Try another part of speech or add a different word.,더 이상 사전에서 의미를 찾지 못했습니다. 다른 품사를 선택하거나 다른 단어를 추가해 보세요.
+sense.addBest,Add best match,가장 적절한 의미 추가
+sense.add,Add,추가
+sense.closestToContext,Closest to your sentence,문장과 가장 가까운 의미
+sense.needContext,"Add a sentence that shows the meaning you meant, then find more senses.",의도한 의미가 드러나는 문장을 입력한 뒤 더 찾아보세요.
+sense.findMore,Find more senses,의미 더 찾기
+sense.noAdditional,No additional distinct sense was found.,추가로 쓸 수 있는 다른 의미를 찾지 못했습니다.
+sense.lookingUp,Looking up in dictionary...,사전에서 의미를 찾는 중...
+sense.checkingMoreSources,Still searching additional sources...,추가 사전 소스를 확인하는 중...
+sense.translationMissingTitle,No Korean meaning found,한국어 뜻을 찾지 못했습니다
+sense.translationMissingBody,Showing English definitions. Enter your own meaning below to save.,영어 정의를 표시합니다. 아래에 직접 뜻을 입력해 저장하세요.
+sense.manualFallbackTitle,"Write your own meaning for ""{query}""","""{query}""의 뜻을 직접 입력하세요"
+sense.manualFallbackToggle,Write my own meaning instead,직접 뜻 입력하기
+sense.manualPlaceholder,Type the meaning you want to remember,기억하고 싶은 뜻을 입력하세요
+sense.manualMeaningRequired,Enter a meaning to save this word.,저장하려면 뜻을 입력해 주세요.
+sense.saveManual,Save with my meaning,내 뜻으로 저장
+sense.editWord,Edit word,단어 수정

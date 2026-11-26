@@ -1,0 +1,67 @@
+key,en,ko
+settings.title,Settings,설정
+settings.autosaveNote,Changes save as you make them.,변경 사항은 자동으로 저장됩니다.
+settings.groupAccount,Account,계정
+settings.groupReview,Review,복습
+settings.groupStreak,Streak,연속 학습
+settings.groupAppearance,Appearance,화면
+settings.account,Account,계정
+settings.connectedAccounts,Connected accounts,연결된 계정
+settings.connectedAccountsEmpty,No sign-in methods linked yet.,연결된 로그인 방법이 없습니다.
+settings.providerGoogle,Google,Google
+settings.email,Email,이메일
+settings.learningLanguage,Learning language,학습 언어
+settings.review,Review,복습
+settings.desiredRetention,Desired retention,목표 기억률
+settings.desiredRetentionHelp,Higher values review more often; lower values spread reviews out.,"값이 높을수록 더 자주 복습하고, 낮을수록 복습 간격이 길어집니다."
+settings.retentionSubtitle,Higher values review more often; lower values spread reviews out.,"값이 높을수록 더 자주 복습하고, 낮을수록 복습 간격이 길어집니다."
+settings.desiredRetentionSaveFailed,Could not save retention setting,기억률 설정을 저장하지 못했습니다
+settings.dailyGoal,Daily XP goal,일일 XP 목표
+settings.dailyGoalSubtitle,10 XP per review,복습당 10 XP
+settings.dailyGoalHelp,Earn XP by completing reviews (10 XP each).,복습을 완료하면 XP를 얻습니다 (복습당 10 XP).
+settings.dailyGoalSaveFailed,Could not save daily goal,일일 목표를 저장하지 못했습니다
+settings.streak,Streak,연속 기록
+settings.streakFreeze,Use streak freeze,연속 기록 보호 사용
+settings.streakFreezeHelp,Covers one missed day when your streak would break.,연속 기록이 끊기기 직전 하루를 보호합니다.
+settings.freezeSubtitle,{count} available · covers one missed day,{count}개 사용 가능 · 하루 누락을 보호합니다
+settings.useFreeze,Use freeze,보호 사용
+settings.streakFreezeUnavailable,No streak freeze tokens available,사용 가능한 연속 기록 보호가 없습니다
+settings.streakFreezeSaveFailed,Could not use streak freeze,연속 기록 보호를 사용하지 못했습니다
+settings.vacationMode,Vacation mode,휴가 모드
+settings.vacationSubtitle,Pause your streak for up to 7 days,최대 7일간 연속 학습을 일시 중지합니다
+settings.vacationModeActive,Paused until {date},{date}까지 일시 중지
+settings.vacationModeOff,Streak tracking active,연속 기록 추적 중
+settings.vacationModeEnable,Pause for 7 days,7일간 일시 중지
+settings.vacationModeDisable,Resume streak tracking,연속 기록 추적 재개
+settings.vacationModeSaveFailed,Could not update vacation mode,휴가 모드를 업데이트하지 못했습니다
+settings.save,Save,저장
+settings.cancel,Cancel,취소
+settings.app,App,앱
+settings.appLanguage,App language,앱 언어
+settings.darkTheme,Dark theme,어두운 테마
+settings.help,Help & Feedback,도움말 및 피드백
+settings.about,About Project PN,Project PN 정보
+settings.logout,Log out,로그아웃
+settings.logOut,Log out,로그아웃
+settings.logoutFailed,Could not log out. Please try again.,로그아웃하지 못했습니다. 다시 시도해 주세요.
+settings.languagePairs,Language pairs,언어 쌍
+settings.languagePairsDescription,Manage the languages you learn and the language used for definitions.,학습할 언어와 정의에 사용할 언어를 관리하세요.
+settings.addLanguagePair,Add language pair,언어 쌍 추가
+settings.addLanguagePairDescription,Choose the language you want to learn and the language for definitions.,학습할 언어와 정의에 사용할 언어를 선택하세요.
+settings.editLanguagePair,Edit language pair,언어 쌍 편집
+settings.editLanguagePairDescription,Change the learning language or the display language for definitions.,학습 언어 또는 정의에 사용할 언어를 변경하세요.
+settings.languagePairHasDataTitle,This pair already has words and reviews,이 언어 쌍에 이미 단어와 복습 기록이 있어요
+settings.languagePairHasDataMessage,"To change the learning language, remove this pair and add a new one. Your progress for the current learning language will be deleted.",학습 언어를 변경하려면 이 언어 쌍을 제거하고 새로 추가하세요. 현재 학습 언어의 진행 상황은 삭제됩니다.
+settings.languagePairRemoveAndAdd,Go to language pairs,언어 쌍으로 이동
+settings.targetLanguage,Learning language,학습 언어
+settings.displayLanguage,Definition language,정의 언어
+settings.setActiveOnAdd,Set as active language,활성 언어로 설정
+settings.active,Active,활성
+settings.noLanguagePairs,No language pairs yet.,언어 쌍이 없습니다.
+settings.setAsActive,Set as active,활성으로 설정
+settings.removeLanguagePairTitle,Remove {target} → {display}?,{target} → {display} 제거?
+settings.removeLanguagePairMessage,"This will permanently delete all words, reviews, and progress for this language pair.","해당 언어 쌍의 모든 단어, 복습 기록, 진행 상황이 영구적으로 삭제됩니다."
+settings.removeLanguagePairConfirm,Remove,제거
+settings.loadLanguageOptionsFailed,Could not load language options.,언어 옵션을 불러오지 못했습니다.
+settings.languagePairRequired,Please select both a learning language and a definition language.,학습 언어와 정의 언어를 모두 선택하세요.
+settings.languagePairAlreadyExists,A language pair with this learning language already exists.,이 학습 언어를 사용하는 언어 쌍이 이미 존재합니다.

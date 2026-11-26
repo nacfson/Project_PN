@@ -28,6 +28,6 @@ RESULT: FAIL (4 failed, 2 passed)
 | client-to-backend | Authenticated request (dev token) to the client's configured API base URL succeeds; 401/403 reported as an auth problem, not connectivity |
 | port-conflict | If a listener exists but does not return the expected health response, report conflict instead of pass |
 
-`--full` additionally runs: `npm run lint:imports`, `npm run typecheck -w frontend`, `npm run typecheck -w packages/api`, `npm test -w frontend`, `npm test -w packages/api`, and `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`.
+`--full` additionally runs: `npm run lint` (including `lint:imports`, `lint:rntl-async`, and `i18n:check`), `npm run test:scripts`, `npm run typecheck -w frontend`, `npm run typecheck -w packages/api`, `npm test -w frontend`, `npm test -w packages/api`, and `cd backend && GOTOOLCHAIN=go1.26.0 go test -p 1 ./...`.
 
 No flag skips or downgrades a failing check.
