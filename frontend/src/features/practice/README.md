@@ -29,7 +29,7 @@ Implements the spaced-repetition practice session experience, including normal d
 ## Side Effects
 - Calls `getReviewSettings`, `getDueLearningItems`, `listLearningItems`, and `recordBatchReviewAttempts` against backend APIs `[PracticeScreen.tsx:PracticeScreen]`.
 - Tracks analytics events (`card_revealed`, `command_invoked`, `review_succeeded`, `review_failed`, `card_rated`) via `analytics.track` `[PracticeScreen.tsx:PracticeScreen]`.
-- Mutates shell chrome visibility (`setChromeHidden(status === 'active')`, restored to `false` on unmount/exit) and triggers navigation to `Learn` `[PracticeScreen.tsx:PracticeScreen]`.
+- Mutates shell chrome visibility (`setChromeHidden(isFocused && status === 'active')`, restored to `false` on route blur, unmount, or exit, while cancelling stale in-flight due/repeat loads on blur) and triggers navigation to `Learn` `[PracticeScreen.tsx:PracticeScreen]`.
 - Triggers native `expo-haptics` feedback, `LayoutAnimation` (non-web), `Animated` springs/timings, `setTimeout` retry/scroll timers, `console.error` logging, and keyboard shortcuts (`Space`, `Spacebar`, `Enter`, `1`, `2`, `3`, `4`) `[Flashcard.tsx:Flashcard]`, `[PracticeScreen.tsx:PracticeScreen]`.
 - Reads `navigator.userAgent`, `Platform.OS`, window dimensions, and `Date.now()` for responsive sizing and response-time measurement `[Flashcard.tsx:Flashcard]`, `[PracticeScreen.tsx:PracticeScreen]`.
 
