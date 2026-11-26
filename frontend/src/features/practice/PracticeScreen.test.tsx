@@ -42,13 +42,69 @@ jest.mock('../../api/reviewSettings', () => ({
   }),
 }));
 
-jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ navigate: jest.fn() }),
-  useRoute: () => ({ params: undefined }),
-  useFocusEffect: (cb: () => void) => {
-    require('react').useEffect(cb, []);
-  },
-}));
+let mockIsFocused = true;
+const mockNavListeners: { focus: Set<() => void>; blur: Set<() => void> } = {
+  focus: new Set(),
+  blur: new Set(),
+};
+
+function setMockFocused(next: boolean) {
+  if (mockIsFocused === next) return;
+  mockIsFocused = next;
+  const target = next ? mockNavListeners.focus : mockNavListeners.blur;
+  for (const cb of [...target]) {
+    cb();
+  }
+}
+
+jest.mock('@react-navigation/native', () => {
+  const React = require('react');
+  return {
+    useNavigation: () => ({ navigate: jest.fn() }),
+    useRoute: () => ({ params: undefined }),
+    useIsFocused: () =>
+      React.useSyncExternalStore(
+        (listener: () => void) => {
+          mockNavListeners.focus.add(listener);
+          mockNavListeners.blur.add(listener);
+          return () => {
+            mockNavListeners.focus.delete(listener);
+            mockNavListeners.blur.delete(listener);
+          };
+        },
+        () => mockIsFocused,
+        () => mockIsFocused,
+      ),
+    useFocusEffect: (cb: () => void | (() => void)) => {
+      React.useEffect(() => {
+        let focused = false;
+        let teardown: (() => void) | void;
+        if (mockIsFocused) {
+          teardown = cb();
+          focused = true;
+        }
+        const onFocus = () => {
+          if (focused) return;
+          if (typeof teardown === 'function') teardown();
+          teardown = cb();
+          focused = true;
+        };
+        const onBlur = () => {
+          if (typeof teardown === 'function') teardown();
+          teardown = undefined;
+          focused = false;
+        };
+        mockNavListeners.focus.add(onFocus);
+        mockNavListeners.blur.add(onBlur);
+        return () => {
+          if (typeof teardown === 'function') teardown();
+          mockNavListeners.focus.delete(onFocus);
+          mockNavListeners.blur.delete(onBlur);
+        };
+      }, [cb]);
+    },
+  };
+});
 
 jest.mock('../../components/SpeakButton', () => ({
   SpeakButton: () => null,
@@ -99,6 +155,9 @@ const mockItem: DueItem = {
 describe('PracticeScreen Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsFocused = true;
+    mockNavListeners.focus.clear();
+    mockNavListeners.blur.clear();
   });
 
   it('runs step-by-step transitions: prompt -> reveal -> grading -> submit', async () => {
@@ -360,6 +419,144 @@ describe('PracticeScreen Integration', () => {
 
     await unmount();
     expect(setChromeHidden).toHaveBeenLastCalledWith(false);
+  });
+
+  it('keeps shell chrome visible and ignores stale due fetch when Practice blurs before loading finishes', async () => {
+    const setChromeHidden = jest.fn();
+    let resolveFirstFetch!: (items: DueItem[]) => void;
+    const firstFetch = new Promise<DueItem[]>((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+    const getDueMock = learningItemsApi.getDueLearningItems as jest.Mock;
+    getDueMock.mockReturnValueOnce(firstFetch).mockResolvedValueOnce([mockItem]);
+
+    function ChromeWrapper({ children }: { children: ReactNode }) {
+      return (
+        <Wrapper>
+          <ShellChromeContext.Provider
+            value={{
+              tabBarTranslateY: { value: 0 } as any,
+              tabBarInteractive: true,
+              setTabBarInteractive: jest.fn(),
+              chromeHidden: false,
+              setChromeHidden,
+            }}
+          >
+            {children}
+          </ShellChromeContext.Provider>
+        </Wrapper>
+      );
+    }
+
+    const { unmount } = await render(<PracticeScreen />, { wrapper: ChromeWrapper });
+    await waitFor(() => expect(getDueMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      setMockFocused(false);
+    });
+    await act(async () => {
+      resolveFirstFetch([mockItem]);
+    });
+
+    expect(setChromeHidden).not.toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      setMockFocused(true);
+    });
+    await waitFor(() => expect(setChromeHidden).toHaveBeenCalledWith(true));
+
+    await unmount();
+    expect(setChromeHidden).toHaveBeenLastCalledWith(false);
+  });
+
+  it('restores shell chrome and disables Practice keyboard shortcuts on blur without unmount, then re-hides on return', async () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { get: () => 'web', configurable: true });
+
+    const win = ((globalThis as unknown as { window?: Record<string, unknown> }).window ??
+      ((globalThis as unknown as { window: Record<string, unknown> }).window = {}));
+    const origAddEventListener = win.addEventListener;
+    const origRemoveEventListener = win.removeEventListener;
+    let keyListeners: Array<(e: KeyboardEvent) => void> = [];
+    win.addEventListener = jest.fn((event: string, cb: (e: KeyboardEvent) => void) => {
+      if (event === 'keydown') keyListeners.push(cb);
+    });
+    win.removeEventListener = jest.fn((event: string, cb: (e: KeyboardEvent) => void) => {
+      if (event === 'keydown') keyListeners = keyListeners.filter((l) => l !== cb);
+    });
+
+    const setChromeHidden = jest.fn();
+    (learningItemsApi.getDueLearningItems as jest.Mock).mockResolvedValue([mockItem]);
+    const recordAttemptsMock = learningItemsApi.recordBatchReviewAttempts as jest.Mock;
+
+    function ChromeWrapper({ children }: { children: ReactNode }) {
+      return (
+        <Wrapper>
+          <ShellChromeContext.Provider
+            value={{
+              tabBarTranslateY: { value: 0 } as any,
+              tabBarInteractive: true,
+              setTabBarInteractive: jest.fn(),
+              chromeHidden: false,
+              setChromeHidden,
+            }}
+          >
+            {children}
+          </ShellChromeContext.Provider>
+        </Wrapper>
+      );
+    }
+
+    let unmountTree: (() => Promise<void>) | undefined;
+    try {
+      const { unmount } = await render(<PracticeScreen />, { wrapper: ChromeWrapper });
+      unmountTree = unmount;
+      await waitFor(() => expect(setChromeHidden).toHaveBeenCalledWith(true));
+
+      await act(async () => {
+        setMockFocused(false);
+      });
+      expect(setChromeHidden).toHaveBeenLastCalledWith(false);
+
+      const pressKey = async (key: string) => {
+        await act(async () => {
+          for (const listener of [...keyListeners]) {
+            listener({
+              key,
+              target: { tagName: 'DIV' },
+              metaKey: false,
+              ctrlKey: false,
+              altKey: false,
+              preventDefault: jest.fn(),
+            } as unknown as KeyboardEvent);
+          }
+        });
+      };
+
+      await pressKey(' ');
+      await pressKey('1');
+      expect(recordAttemptsMock).not.toHaveBeenCalled();
+
+      await act(async () => {
+        setMockFocused(true);
+      });
+      await waitFor(() => expect(setChromeHidden).toHaveBeenLastCalledWith(true));
+
+      const u = unmountTree;
+      unmountTree = undefined;
+      await u();
+    } finally {
+      if (unmountTree) {
+        const u = unmountTree;
+        unmountTree = undefined;
+        await u();
+      }
+      win.addEventListener = origAddEventListener;
+      win.removeEventListener = origRemoveEventListener;
+      if (originalDescriptor) {
+        Object.defineProperty(Platform, 'OS', originalDescriptor);
+      }
+    }
   });
 
   it('supports Space to reveal and 1–4 to rate on web with unchanged attempt payloads', async () => {
