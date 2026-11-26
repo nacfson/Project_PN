@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import type { MainTabParamList } from '../../navigation/MainTabs';
@@ -182,6 +182,10 @@ export function PracticeScreen() {
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const { setChromeHidden } = useShellChrome();
+  const isFocused = useIsFocused();
+  const isFocusedRef = useRef(isFocused);
+  isFocusedRef.current = isFocused;
+  const loadRequestIdRef = useRef(0);
   const cardStartedAtRef = useRef(Date.now());
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProp<MainTabParamList, 'Practice'>>();
@@ -226,10 +230,11 @@ export function PracticeScreen() {
   const [measuredGradingBarHeight, setMeasuredGradingBarHeight] = useState(0);
   const [measuredAnswerBarHeight, setMeasuredAnswerBarHeight] = useState(0);
 
-  // Focus mode: hide shell chrome while a session is active, and restore it on status change or unmount.
+  const isFocusModeActive = isFocused && status === 'active';
+
   useEffect(() => {
-    setChromeHidden(status === 'active');
-  }, [status, setChromeHidden]);
+    setChromeHidden(isFocusModeActive);
+  }, [isFocusModeActive, setChromeHidden]);
 
   useEffect(() => {
     return () => {
@@ -254,10 +259,10 @@ export function PracticeScreen() {
   };
 
   useEffect(() => {
-    if (status === 'active' && !isFlipped && cardMode === 'typing') {
+    if (isFocusModeActive && !isFlipped && cardMode === 'typing') {
       answerInputRef.current?.focus();
     }
-  }, [isFlipped, status, currentIndex, cardMode]);
+  }, [isFlipped, isFocusModeActive, currentIndex, cardMode]);
 
   useEffect(() => {
     statusRef.current = status;
@@ -394,11 +399,15 @@ export function PracticeScreen() {
   }, []);
 
   const loadDueItems = useCallback(() => {
+    const requestId = ++loadRequestIdRef.current;
     setStatus('loading_due');
     setErrorMsg(null);
     setSessionMode('normal');
     getDueLearningItems(undefined, scopedDeckId, scopedOrigin)
       .then((items) => {
+        if (requestId !== loadRequestIdRef.current || !isFocusedRef.current) {
+          return;
+        }
         if (items.length > 0) {
           const shuffled = shufflePracticeQueue(items);
           const first = shuffled[0];
@@ -426,6 +435,9 @@ export function PracticeScreen() {
         }
       })
       .catch((err) => {
+        if (requestId !== loadRequestIdRef.current || !isFocusedRef.current) {
+          return;
+        }
         console.error('Error fetching due reviews:', err);
         setErrorMsg(err.message || t('practice.loadDueFailed'));
         setStatus('idle');
@@ -434,18 +446,30 @@ export function PracticeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      isFocusedRef.current = true;
       const currentStatus = statusRef.current;
       if (currentStatus !== 'active' && currentStatus !== 'submitting') {
         loadDueItems();
       }
+      return () => {
+        isFocusedRef.current = false;
+        loadRequestIdRef.current += 1;
+        setStatus((prev) =>
+          prev === 'loading_due' || prev === 'loading_repeat' ? 'idle' : prev,
+        );
+      };
     }, [loadDueItems]),
   );
 
   const startRepeatSession = () => {
+    const requestId = ++loadRequestIdRef.current;
     setStatus('loading_repeat');
     setErrorMsg(null);
     listLearningItems({ limit: 100, deckId: scopedDeckId, origin: scopedOrigin })
       .then((res) => {
+        if (requestId !== loadRequestIdRef.current || !isFocusedRef.current) {
+          return;
+        }
         const repeatItems = res.items.map(learningItemToDueItem);
 
         if (repeatItems.length > 0) {
@@ -476,6 +500,9 @@ export function PracticeScreen() {
         }
       })
       .catch((err) => {
+        if (requestId !== loadRequestIdRef.current || !isFocusedRef.current) {
+          return;
+        }
         console.error('Error starting repeat review:', err);
         setErrorMsg(err.message || t('practice.repeatFailed'));
         setStatus('idle');
@@ -723,6 +750,7 @@ export function PracticeScreen() {
       finishRepeatSession();
       return;
     }
+    loadRequestIdRef.current += 1;
     setChromeHidden(false);
     if (pendingRef.current.length > 0 || flushingRef.current) {
       waitForPendingFlushes().catch(() => {});
@@ -775,7 +803,7 @@ export function PracticeScreen() {
         selectGrade('easy');
       }
     },
-    { enabled: status === 'active' },
+    { enabled: isFocusModeActive },
   );
 
   if (status === 'loading_due' || status === 'loading_repeat') {

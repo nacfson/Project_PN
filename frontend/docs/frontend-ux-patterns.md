@@ -73,7 +73,7 @@ Do not build one-off password toggles, inline spinners, or validation wrappers. 
 - The answer input should auto-focus at the start of each **typing** card. Flashcard cards do not auto-focus because they require a tap.
 - Grading controls use four large answer buttons that mirror Anki (Again/Hard/Good/Easy). Each button displays the predicted next-review interval.
 - After reveal, users can also **swipe the card horizontally to rate** (← Again, → Good). Hard and Easy are chosen with the button bar (and keyboard 1–4 on web/desktop). Keep the button bar as the accessible primary fallback.
-- **Focus mode**: Navigation chrome (both the left sidebar on wide browsers and the bottom bar on phones/narrow browsers) is hidden via `useShellChrome().setChromeHidden(true)` while a review session is active (`status === 'active'`), and restored on session end or unmount.
+- **Focus mode**: Navigation chrome (both the left sidebar on wide browsers and the bottom bar on phones/narrow browsers) is hidden via `useShellChrome().setChromeHidden(true)` while `PracticeScreen` is focused and a review session is active (`isFocused && status === 'active'`), and restored on route blur, session end, or unmount.
 - Flashcard height is **capped** to the space above the grade controls. Long glosses scroll **inside** the card instead of stretching the layout and covering the RatingBar.
 - Grade controls must work on both touch and pointer devices:
   - Scale buttons for desktop/web/Tauri (`Good` uses primary fill).
